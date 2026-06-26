@@ -1,0 +1,27 @@
+---
+description: Core project rules — always applied
+alwaysApply: true
+---
+
+# Core rules (always on)
+
+Stack: monorepo · Node.js + NestJS + REST · Sequelize (`@nestjs/sequelize` +
+`sequelize-typescript`) · MySQL · React + TS + Vite. Do not change the stack.
+No GraphQL. No alternative ORM/DB/UI-kit.
+
+**Language:** all code, identifiers and comments in English. Keep these domain terms
+in Spanish, never translate: OUV, PRE, PRI, SER, Preventa, Pricing, ICP, MOFU, RFS,
+RFB, WinRate, ChurnRate, segmentos (Gobierno, D&S, B2B).
+
+**Module boundaries:** 10 modules (auth, audit, demand-generation, qualification,
+discovery, technical-feasibility, pricing, offer-closing, implementation, post-sales).
+Never import another module's internals; call its public service only. Shared code (if ever needed) → root `shared/`.
+
+**Always:** validate inputs (DTO + class-validator); every create/update/delete is audited;
+no secrets in code (use env). Consecutivos OUV/PRE/PRI/SER are immutable once issued and
+generated atomically.
+
+**UI:** never hardcode a hex or font. Use `frontend/src/styles` tokens. Palette is Verytel only.
+`Aller` font is for the logo SVG only.
+
+When unsure, prefer the smallest change that fits these rules and ask.

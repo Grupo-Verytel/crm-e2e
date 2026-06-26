@@ -1,0 +1,33 @@
+---
+description: UI design system — Verytel identity
+globs:
+  - frontend/**
+  - frontend/src/styles/**
+alwaysApply: false
+---
+
+# UI design — Verytel (minimalist, white)
+
+**Direction:** structure & density like Pipedrive (work tool, tables/pipeline first);
+the analytic visual language (donut, heatmap, area charts, gradient banner) is reserved
+for **Dashboards/Analytics (Wave 2)** only. Default screen = white, calm, content-first.
+
+**Tokens — use variables, never hardcode** (`frontend/src/styles/tokens.css`):
+- `--brand-primary #0033A0` → active sidebar item, header, primary buttons.
+- `--brand-turquoise #2DCCD3` → ACCENT ONLY: positive indicators, a single active icon.
+  Never as a large fill or background.
+- `--ink #1D1D1B` → primary text / high contrast.
+- Chart-only blues: `--navy #0E1B5C`, `--blue-500 #1E4FD8`, `--sky #8FB8FF`. Charts/states only,
+  never navigation.
+- Surfaces: `--bg #F5F6FA` (app canvas), `--surface #FFFFFF` (cards). White dominates.
+
+**Type:** family = `"Century Gothic", "Questrial", system-ui, sans-serif`. Century Gothic is
+not yet licensed as a webfont → Questrial (geometric, Google Fonts) is the working fallback.
+Max 2 type roles per section. `Aller` only in the logo SVG, never in UI.
+
+**Components:** prefer building from tokens (radius `--radius 10px`, spacing scale 4/8/12/16/24).
+Buttons: primary = brand-primary solid; secondary = ghost with ink text. Tables: zebra off,
+hairline row dividers, generous row height. Keep one bold element per screen; remove the rest.
+
+**Copy:** sentence case, active voice, plain verbs. Errors explain what to do, no apologies.
+Empty states invite an action. Spanish UI copy; same domain terms as code.

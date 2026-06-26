@@ -1,0 +1,20 @@
+---
+description: Frontend conventions (React + Vite)
+globs: frontend/**
+alwaysApply: false
+---
+
+# Frontend — React + TypeScript + Vite
+
+- Function components + hooks only. One folder per module under `frontend/src/modules/<module>`
+  with `pages/`, `components/`, `hooks/`, `api/`, `types.ts`.
+- Data fetching through a typed API client per module (`api/`); never call `fetch` inline in a
+  component. Handle loading / empty / error states explicitly (see 600-ui-design for copy).
+- Routing: lazy-load module pages. Shared layout (Sidebar/Header/AppLayout) lives in
+  `frontend/src/layout` and comes from `frontend/src/styles` tokens.
+- State: local state + context for cross-cutting (auth, current user, theme). No global store
+  unless justified.
+- Strict TypeScript: no `any`; type API responses with DTunmatched-safe types.
+- Accessibility floor: keyboard focus visible, labels on inputs, respects reduced motion.
+- Keep the Pipedrive-like density: tables and the pipeline are the protagonists; analytics
+  visuals (donut/heatmap/area) are reserved for Dashboards (Wave 2) — see 600-ui-design.

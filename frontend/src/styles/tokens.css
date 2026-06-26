@@ -1,0 +1,41 @@
+/* Verytel design tokens — single source of truth. Never hardcode these values in components. */
+:root {
+  /* Brand */
+  --brand-primary: #0033A0;     /* sidebar active, header, primary buttons */
+  --brand-primary-700: #002B86;
+  --brand-turquoise: #2DCCD3;   /* ACCENT ONLY: positive indicators, single active icon */
+  --ink: #1D1D1B;               /* primary text / high contrast */
+
+  /* Extended blues — charts & states only, never navigation */
+  --navy: #0E1B5C;
+  --blue-500: #1E4FD8;
+  --sky: #8FB8FF;
+
+  /* Surfaces — white dominates */
+  --bg: #F5F6FA;                /* app canvas */
+  --surface: #FFFFFF;           /* cards */
+  --border: #E6E8EF;            /* hairline dividers */
+
+  /* Text scale */
+  --text-strong: #1D1D1B;
+  --text: #3A3A38;
+  --text-muted: #8A8D98;
+
+  /* Status (kept inside the brand family + neutral semantics) */
+  --positive: #2DCCD3;
+  --warning: #E0A100;
+  --danger: #C2362F;
+
+  /* Shape & rhythm */
+  --radius: 10px;
+  --radius-sm: 6px;
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-6: 24px; --space-8: 32px;
+
+  /* Type */
+  --font-ui: "Century Gothic", "Questrial", system-ui, -apple-system, sans-serif;
+  --font-weight-regular: 400;
+  --font-weight-bold: 700;
+
+  /* Elevation (subtle — minimalist) */
+  --shadow-card: 0 1px 2px rgba(29,29,27,0.04), 0 1px 3px rgba(29,29,27,0.06);
+}

@@ -1,0 +1,30 @@
+---
+description: The 10 modules and their boundaries
+globs:
+  - backend/src/modules/**
+  - frontend/src/modules/**
+alwaysApply: false
+---
+
+# Modules (10) — single source of truth for boundaries
+
+Platform:
+- **auth** — login, users, roles, permissions (RBAC/CASL). Owns: users, roles, sessions/JWT.
+- **audit** — central audit_log writer + audit query/read API.
+
+Commercial (8 phases):
+1. **demand-generation** — leads, campaigns, capture, enrichment. (TOFU→SQL)
+2. **qualification** — nurturing, scoring engine, sales pipeline, ICP filters.
+3. **discovery** — opportunities, ciclo **OUV** (creation→seguimiento→cierre G/P).
+4. **technical-feasibility** — Preventa, **PRE-####**, actividades hijo, auto-QA, viabilidad.
+5. **pricing** — **PRI-####**, precio piso/techo, margen, flujo de caja, aprobación.
+6. **offer-closing** — proposals (versioned), contracts, QA documental, firma, venta declarada.
+7. **implementation** — handover, **SER-####**, kickoff, acta, hitos RFS/RFB.
+8. **post-sales** — novedades, renovaciones, bajas, upgrades, ChurnRate.
+
+Rules:
+- A module exposes ONE public service + its DTOs/events. No deep imports across modules.
+- Consecutivo ownership: discovery→OUV, technical-feasibility→PRE, pricing→PRI, implementation→SER.
+- Billing/ERP integration, executive dashboards and Pipedrive migration are **Wave 2 (October)** —
+  scaffold the folders but keep them behind a feature flag; do not block the core flow.
+- Frontend mirrors the same 10 module folders under `frontend/src/modules`.

@@ -1,0 +1,22 @@
+---
+description: Backend conventions (NestJS)
+globs: backend/**
+alwaysApply: false
+---
+
+# Backend — NestJS
+
+- One Nest module per business module under `backend/src/modules/<module>`.
+  Structure: `<module>.module.ts`, `controllers/`, `services/`, `models/` (Sequelize),
+  `dtos/`, `events/`. Keep providers private; export only the public service.
+- Controllers are thin: validate (DTO) → delegate to service → map to response DTO.
+  No business logic in controllers.
+- Services hold business rules. Cross-module access = inject the other module's *exported*
+  service, never its repository/model.
+- DTOs use `class-validator` + `class-transformer`. Never accept raw `any`.
+- Errors: throw Nest `HttpException` subclasses; never leak Sequelize errors to the client.
+- Config via `@nestjs/config` + env. No hardcoded hosts/credentials.
+- Async everywhere; no blocking calls. Use transactions for multi-write operations and for
+  issuing consecutivos (lock the counter row).
+- Event-driven side effects (notifications, transitions WF001–WF016) go through the workflow
+  layer, not inline in the controller.

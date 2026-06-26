@@ -1,0 +1,22 @@
+---
+description: REST API conventions
+globs:
+  - backend/**/*.controller.ts
+  - backend/**/dtos/**
+alwaysApply: false
+---
+
+# REST API
+
+- Base path `/api/v1`. Resource-oriented, plural nouns: `/leads`, `/opportunities`,
+  `/presales`, `/pricing`, `/proposals`, `/contracts`, `/services`, `/billing/invoices`,
+  `/after-sales/novelties`, `/audit-log`.
+- Verbs: GET (list/detail), POST (create / action sub-resource e.g.
+  `/opportunities/{id}/send-to-presales`), PUT (update), no DELETE on business records
+  (soft-delete via state).
+- Status: 200 ok, 201 created, 400 validation, 401 unauth, 403 forbidden, 404 not found,
+  409 conflict (duplicate/state). Return a consistent error shape `{code, message, details}`.
+- Pagination on every list: `?page&limit` + `{items, total, page, limit}`. Filters as query
+  params (estado, segmento, responsable_id, from, to).
+- Auth: Bearer JWT. Guard every route; authorize with CASL (`@CheckAbility`). Default deny.
+- Request/response are DTOs, documented with Swagger decorators. Never expose model internals.

@@ -1,0 +1,24 @@
+---
+description: Data layer — Sequelize models, migrations, audit
+globs:
+  - backend/**/models/**
+  - backend/**/*.model.ts
+  - backend/**/migrations/**
+alwaysApply: false
+---
+
+# Data layer — Sequelize + Audit (MySQL)
+
+- Models use `sequelize-typescript` decorators (`@Table`, `@Column`, `@ForeignKey`).
+- Primary keys: UUID v4 stored as `CHAR(36)`. Timestamps in UTC. Soft-delete via
+  `deleted_at TIMESTAMPTZ NULL` (`paranoid: true`).
+- JSON fields use MySQL `JSON` type (blueprint says JSONB → map to JSON here).
+- Every business table is auditable. Implement audit centrally via Sequelize hooks
+  (`afterCreate`, `afterUpdate`, `afterDestroy`) or a global interceptor that writes to
+  `audit_log` `{tabla, registro_id, accion, campo_modificado, valor_anterior, valor_nuevo,
+  usuario_id, ip_address, timestamp}`. Never write audit rows by hand in services.
+- Schema changes only through migrations; never `sync({force})` outside local dev seeds.
+- Indexes: add for every FK and for fields filtered in list endpoints (estado, segmento,
+  responsable_id, fechas). Enforce uniqueness on consecutivos.
+- Reconcile blueprint enums before generating models (unify `segmento`:
+  Gobierno|D&S|ProyectosEspeciales|B2B). Keep one canonical enum per concept.

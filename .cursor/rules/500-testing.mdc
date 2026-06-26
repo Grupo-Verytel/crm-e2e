@@ -1,0 +1,22 @@
+---
+description: Testing — map tests to EARS criteria
+globs:
+  - backend/**/*.spec.ts
+  - frontend/**/*.test.tsx
+alwaysApply: false
+---
+
+# Testing (EARS-driven)
+
+- Each acceptance criterion is written in EARS and gets at least one test. Name the test after
+  the criterion id, e.g. `it('EARS-OUV-03: when ICP passes, generates OUV-#### consecutivo')`.
+- EARS forms to expect in specs: Ubiquitous ("The system shall…"), Event ("When <trigger>,
+  the system shall…"), State ("While <state>, the system shall…"), Unwanted ("If <condition>,
+  then the system shall…"), Optional ("Where <segment>, the system shall…").
+- Backend: unit-test services (business rules) + contract-test controllers (status, shape,
+  auth). Use an in-memory/throwaway MySQL schema or transactional rollback per test.
+- State machines (LEAD, OUV, PRE, SER, PRICING, FACTURA): test every allowed transition AND
+  at least one forbidden transition.
+- Workflows WF001–WF016: test trigger → condition → action, including audit_log write.
+- Frontend: test rendering + interaction of shared components; mock the API.
+- A module is "% complete" = passing EARS criteria ÷ total EARS criteria for that module.
