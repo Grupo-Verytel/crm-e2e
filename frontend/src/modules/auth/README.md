@@ -29,4 +29,4 @@ Vite proxies `/api/v1` to the NestJS backend.
 
 ## Wave
 
-Platform module — Sprint 1 (shell + login). Admin users/roles UI screens come in a later step.
+Platform module — Sprint 1. Step 7A: login + shell. Step 7B: admin users/roles + audit log UI.

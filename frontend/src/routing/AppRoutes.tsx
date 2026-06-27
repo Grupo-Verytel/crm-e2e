@@ -1,15 +1,26 @@
-import { lazy } from 'react';
+import { lazy, type ReactNode } from 'react';
 import { Navigate, useRoutes } from 'react-router-dom';
 import { ProtectedRoute } from '../modules/auth/components/ProtectedRoute';
 import { PublicRoute } from '../modules/auth/components/PublicRoute';
+import { AdminRoute } from '../modules/auth/components/AdminRoute';
 import { ModulePlaceholderPage } from '../modules/shared/pages/ModulePlaceholderPage';
 
 const LoginPage = lazy(() => import('../modules/auth/pages/LoginPageLazy'));
+const AdminUsersPage = lazy(() => import('../modules/auth/pages/AdminUsersPageLazy'));
+const AuditLogPage = lazy(() => import('../modules/audit/pages/AuditLogPageLazy'));
 
 function protectedElement(title: string, description: string) {
   return (
     <ProtectedRoute>
       <ModulePlaceholderPage title={title} description={description} />
+    </ProtectedRoute>
+  );
+}
+
+function adminElement(page: ReactNode) {
+  return (
+    <ProtectedRoute>
+      <AdminRoute>{page}</AdminRoute>
     </ProtectedRoute>
   );
 }
@@ -90,17 +101,11 @@ export function AppRoutes() {
     },
     {
       path: '/admin/users',
-      element: protectedElement(
-        'Usuarios y roles',
-        'Gestión de usuarios y permisos — módulo auth (próximamente).',
-      ),
+      element: adminElement(<AdminUsersPage />),
     },
     {
       path: '/admin/audit',
-      element: protectedElement(
-        'Auditoría',
-        'Consulta de audit_log — módulo audit (próximamente).',
-      ),
+      element: adminElement(<AuditLogPage />),
     },
     {
       path: '*',
