@@ -1,11 +1,15 @@
-@import './tokens.css';
-/* Questrial = working fallback for Century Gothic until the brand webfont is licensed. */
 @import url('https://fonts.googleapis.com/css2?family=Questrial&display=swap');
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import './tokens.css';
+@import 'tailwindcss';
 
-html, body, #root { height: 100%; }
+@config '../../tailwind.config.js';
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
 body {
   margin: 0;
   background: var(--bg);
@@ -13,6 +17,10 @@ body {
   font-family: var(--font-ui);
   -webkit-font-smoothing: antialiased;
 }
+
 @media (prefers-reduced-motion: reduce) {
-  * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }
