@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Post } from '@nestjs/common';
 import { CurrentUser } from '../decorators/current-user.decorator';
 import { Public } from '../decorators/public.decorator';
 import { AuthTokenResponseDto, MeResponseDto } from '../dtos/auth-response.dto';
@@ -14,17 +14,20 @@ export class AuthController {
 
   @Public()
   @Post('login')
+  @HttpCode(HttpStatus.OK)
   login(@Body() dto: LoginDto): Promise<AuthTokenResponseDto> {
     return this.authService.login(dto);
   }
 
   @Public()
   @Post('refresh')
+  @HttpCode(HttpStatus.OK)
   refresh(@Body() dto: RefreshTokenDto): Promise<AuthTokenResponseDto> {
     return this.authService.refresh(dto.refresh_token);
   }
 
   @Post('logout')
+  @HttpCode(HttpStatus.OK)
   logout(@Body() dto: LogoutDto): Promise<{ message: string }> {
     return this.authService.logout(dto.refresh_token);
   }
