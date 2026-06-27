@@ -1,15 +1,18 @@
 import { Controller, Get } from '@nestjs/common';
+import { Public } from './modules/auth/decorators/public.decorator';
 import { AppService } from './app.service';
 
 @Controller()
 export class AppController {
   constructor(private readonly appService: AppService) {}
 
+  @Public()
   @Get()
   getHello(): string {
     return this.appService.getHello();
   }
 
+  @Public()
   @Get('health')
   checkHealth(): Promise<{ status: string; database: string }> {
     return this.appService.checkDatabaseConnection();

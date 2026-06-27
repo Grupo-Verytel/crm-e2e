@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { SequelizeModule } from '@nestjs/sequelize';
 import { AuthModule } from '../auth/auth.module';
@@ -11,7 +11,7 @@ import { AuditService } from './services/audit.service';
 import { AuditWriterService } from './services/audit-writer.service';
 
 @Module({
-  imports: [SequelizeModule.forFeature([AuditLog]), AuthModule],
+  imports: [SequelizeModule.forFeature([AuditLog]), forwardRef(() => AuthModule)],
   controllers: [AuditLogController],
   providers: [
     AuditContextService,
