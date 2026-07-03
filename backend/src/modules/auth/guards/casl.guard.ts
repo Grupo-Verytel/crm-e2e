@@ -27,7 +27,7 @@ export class CaslGuard implements CanActivate {
     }
 
     const request = context.switchToHttp().getRequest<Request>();
-    const ability = request.ability as AppAbility | undefined;
+    const ability = request.ability;
 
     if (!ability) {
       throw new ForbiddenException({

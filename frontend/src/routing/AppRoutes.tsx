@@ -8,6 +8,24 @@ import { ModulePlaceholderPage } from '../modules/shared/pages/ModulePlaceholder
 const LoginPage = lazy(() => import('../modules/auth/pages/LoginPageLazy'));
 const AdminUsersPage = lazy(() => import('../modules/auth/pages/AdminUsersPageLazy'));
 const AuditLogPage = lazy(() => import('../modules/audit/pages/AuditLogPageLazy'));
+const LeadsListPage = lazy(
+  () => import('../modules/demand-generation/pages/LeadsListPageLazy'),
+);
+const LeadDetailPage = lazy(
+  () => import('../modules/demand-generation/pages/LeadDetailPageLazy'),
+);
+const CampaignsListPage = lazy(
+  () => import('../modules/demand-generation/pages/CampaignsListPageLazy'),
+);
+const CampaignFormPage = lazy(
+  () => import('../modules/demand-generation/pages/CampaignFormPageLazy'),
+);
+const MqlInboxPage = lazy(
+  () => import('../modules/demand-generation/pages/MqlInboxPageLazy'),
+);
+const MarketingDashboardPage = lazy(
+  () => import('../modules/demand-generation/pages/MarketingDashboardPageLazy'),
+);
 
 function protectedElement(title: string, description: string) {
   return (
@@ -52,9 +70,50 @@ export function AppRoutes() {
     },
     {
       path: '/demand',
-      element: protectedElement(
-        'Generación de demanda',
-        'Leads y campañas — módulo demand-generation (próximamente).',
+      element: (
+        <ProtectedRoute>
+          <LeadsListPage />
+        </ProtectedRoute>
+      ),
+    },
+    {
+      path: '/demand/leads/:id',
+      element: (
+        <ProtectedRoute>
+          <LeadDetailPage />
+        </ProtectedRoute>
+      ),
+    },
+    {
+      path: '/demand/campaigns',
+      element: (
+        <ProtectedRoute>
+          <CampaignsListPage />
+        </ProtectedRoute>
+      ),
+    },
+    {
+      path: '/demand/campaigns/new',
+      element: (
+        <ProtectedRoute>
+          <CampaignFormPage />
+        </ProtectedRoute>
+      ),
+    },
+    {
+      path: '/demand/mqls',
+      element: (
+        <ProtectedRoute>
+          <MqlInboxPage />
+        </ProtectedRoute>
+      ),
+    },
+    {
+      path: '/demand/dashboard',
+      element: (
+        <ProtectedRoute>
+          <MarketingDashboardPage />
+        </ProtectedRoute>
       ),
     },
     {

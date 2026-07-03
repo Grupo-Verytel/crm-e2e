@@ -78,7 +78,11 @@ describe('Audit module (EARS)', () => {
     const user = await createTestUser();
 
     const insertEntry = await auditLogModel.findOne({
-      where: { tabla: 'users', registroId: user.user_id, accion: AuditAction.INSERT },
+      where: {
+        tabla: 'users',
+        registroId: user.user_id,
+        accion: AuditAction.INSERT,
+      },
     });
     expect(insertEntry).not.toBeNull();
 
@@ -89,7 +93,11 @@ describe('Audit module (EARS)', () => {
       .expect(200);
 
     const updateEntry = await auditLogModel.findOne({
-      where: { tabla: 'users', registroId: user.user_id, accion: AuditAction.UPDATE },
+      where: {
+        tabla: 'users',
+        registroId: user.user_id,
+        accion: AuditAction.UPDATE,
+      },
       order: [['timestamp', 'DESC']],
     });
     expect(updateEntry).not.toBeNull();
@@ -99,7 +107,11 @@ describe('Audit module (EARS)', () => {
     await userInstance!.destroy();
 
     const deleteEntry = await auditLogModel.findOne({
-      where: { tabla: 'users', registroId: user.user_id, accion: AuditAction.DELETE },
+      where: {
+        tabla: 'users',
+        registroId: user.user_id,
+        accion: AuditAction.DELETE,
+      },
     });
     expect(deleteEntry).not.toBeNull();
   });

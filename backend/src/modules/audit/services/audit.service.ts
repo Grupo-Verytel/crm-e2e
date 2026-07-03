@@ -17,7 +17,9 @@ export class AuditService {
     private readonly auditWriterService: AuditWriterService,
   ) {}
 
-  async findAll(query: AuditLogQueryDto): Promise<PaginatedAuditLogResponseDto> {
+  async findAll(
+    query: AuditLogQueryDto,
+  ): Promise<PaginatedAuditLogResponseDto> {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
     const offset = (page - 1) * limit;

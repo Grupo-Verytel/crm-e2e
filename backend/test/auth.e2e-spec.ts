@@ -3,7 +3,11 @@ import { getModelToken } from '@nestjs/sequelize';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { Op } from 'sequelize';
-import { createE2eApp, decodeJwtPayload, uniqueTestEmail } from './helpers/e2e-app.helper';
+import {
+  createE2eApp,
+  decodeJwtPayload,
+  uniqueTestEmail,
+} from './helpers/e2e-app.helper';
 import { User } from '../src/modules/auth/models/user.model';
 import { AuditLog } from '../src/modules/audit/models/audit-log.model';
 import { AuditAction } from '../src/modules/audit/models/audit-action.enum';

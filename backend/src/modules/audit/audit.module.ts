@@ -11,7 +11,10 @@ import { AuditService } from './services/audit.service';
 import { AuditWriterService } from './services/audit-writer.service';
 
 @Module({
-  imports: [SequelizeModule.forFeature([AuditLog]), forwardRef(() => AuthModule)],
+  imports: [
+    SequelizeModule.forFeature([AuditLog]),
+    forwardRef(() => AuthModule),
+  ],
   controllers: [AuditLogController],
   providers: [
     AuditContextService,

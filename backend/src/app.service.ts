@@ -10,7 +10,10 @@ export class AppService {
     return 'Hello World!';
   }
 
-  async checkDatabaseConnection(): Promise<{ status: string; database: string }> {
+  async checkDatabaseConnection(): Promise<{
+    status: string;
+    database: string;
+  }> {
     await this.sequelize.authenticate();
     return { status: 'ok', database: 'connected' };
   }

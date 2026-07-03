@@ -20,7 +20,7 @@ export class AuditContextInterceptor implements NestInterceptor {
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const request = context.switchToHttp().getRequest<Request>();
-    const user = request.user as AuthenticatedUser | undefined;
+    const user = request.user;
     const systemUserId =
       this.configService.get<string>('AUDIT_SYSTEM_USER_ID') ?? SYSTEM_USER_ID;
 

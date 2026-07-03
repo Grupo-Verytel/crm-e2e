@@ -24,10 +24,7 @@ export class AuditHooksService implements OnModuleInit {
   }
 
   private shouldSkipModel(model: ModelStatic<Model>): boolean {
-    const tableName =
-      model.tableName ??
-      (model.options?.tableName as string | undefined) ??
-      model.name;
+    const tableName = model.tableName ?? model.options?.tableName ?? model.name;
 
     return tableName === 'audit_log';
   }
@@ -78,11 +75,7 @@ export class AuditHooksService implements OnModuleInit {
 
   private getTableName(instance: Model): string {
     const model = instance.constructor as ModelStatic<Model>;
-    return (
-      model.tableName ??
-      (model.options?.tableName as string | undefined) ??
-      model.name
-    );
+    return model.tableName ?? model.options?.tableName ?? model.name;
   }
 
   private getRegistroId(instance: Model): string {
@@ -94,7 +87,7 @@ export class AuditHooksService implements OnModuleInit {
   private getFieldColumnName(instance: Model, field: string): string {
     const model = instance.constructor as ModelStatic<Model>;
     const attribute = model.rawAttributes[field];
-    return (attribute?.field as string | undefined) ?? field;
+    return attribute?.field ?? field;
   }
 
   private serializeRecord(instance: Model): string {

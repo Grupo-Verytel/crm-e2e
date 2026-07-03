@@ -20,9 +20,9 @@ describe('CaslGuard', () => {
 
   it('EARS-AUTH-13: denies action when CASL permissions do not allow it', () => {
     const reflector = {
-      getAllAndOverride: jest.fn().mockReturnValue([
-        { action: 'create', subject: 'User' },
-      ]),
+      getAllAndOverride: jest
+        .fn()
+        .mockReturnValue([{ action: 'create', subject: 'User' }]),
     } as unknown as Reflector;
 
     const guard = new CaslGuard(reflector);
@@ -37,9 +37,9 @@ describe('CaslGuard', () => {
 
   it('EARS-AUTH-13: allows action when CASL permissions grant it', () => {
     const reflector = {
-      getAllAndOverride: jest.fn().mockReturnValue([
-        { action: 'read', subject: 'Opportunity' },
-      ]),
+      getAllAndOverride: jest
+        .fn()
+        .mockReturnValue([{ action: 'read', subject: 'Opportunity' }]),
     } as unknown as Reflector;
 
     const guard = new CaslGuard(reflector);
