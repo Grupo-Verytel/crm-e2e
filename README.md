@@ -48,8 +48,10 @@ folder at the root and reference it from both. Not needed to start.
 
 
 ## Usuarios de pruebas
+Administrator
 admin@verytel.local
 ChangeMe123!
+
 
 erobles@grupoverytel.com
 Verytel2025*

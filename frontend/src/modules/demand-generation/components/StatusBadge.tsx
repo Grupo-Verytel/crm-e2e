@@ -27,7 +27,15 @@ const ESTADO_TONE: Record<string, keyof typeof TONE_CLASS> = {
 };
 
 const LABELS: Record<string, string> = {
-  MQL_PENDING: 'MQL pendiente',
+  // Lead estados use the Mercadeo vocabulary (spec §5); never expose the ENUM.
+  Nuevo: 'Nuevo',
+  TOFU: 'Por contactar',
+  MOFU: 'En nutrición',
+  MQL_PENDING: 'Pendiente de aprobación',
+  SQL: 'Calificado (a ventas)',
+  Reciclaje: 'En reciclaje',
+  Descartado: 'Descartado',
+  // MQL lifecycle
   ConvertidoSQL: 'Convertido a SQL',
 };
 

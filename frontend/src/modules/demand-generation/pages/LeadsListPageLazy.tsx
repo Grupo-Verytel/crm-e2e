@@ -1,1 +1,1 @@
-export { LeadsListPage as default } from './LeadsListPage';
+export { LeadsPage as default } from './LeadsPage';

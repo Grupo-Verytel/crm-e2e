@@ -34,6 +34,13 @@ export async function updateLead(
   return apiRequest<Lead>(`/leads/${leadId}`, { method: 'PUT', body: payload });
 }
 
+export async function reassignLead(
+  leadId: string,
+  responsableId: string,
+): Promise<Lead> {
+  return updateLead(leadId, { responsable_id: responsableId });
+}
+
 export async function fetchInteractions(
   leadId: string,
 ): Promise<Interaction[]> {

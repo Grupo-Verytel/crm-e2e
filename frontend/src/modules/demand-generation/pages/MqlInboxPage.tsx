@@ -133,6 +133,7 @@ export function MqlInboxPage() {
         <MotivoModal
           title="Rechazar MQL"
           confirmLabel="Rechazar"
+          placeholder="Ej. Falta validar el presupuesto; devolver a nutrición 30 días."
           onConfirm={async (motivo) => {
             await rejectMql(rejecting.mql_id, motivo);
             await loadMqls();

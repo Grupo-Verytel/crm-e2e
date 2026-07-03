@@ -7,11 +7,13 @@ export function MotivoModal({
   confirmLabel,
   onConfirm,
   onClose,
+  placeholder = 'Ej. Sin presupuesto este año, no es el decisor, o dato duplicado.',
 }: {
   title: string;
   confirmLabel: string;
   onConfirm: (motivo: string) => Promise<void>;
   onClose: () => void;
+  placeholder?: string;
 }) {
   const [motivo, setMotivo] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -51,6 +53,7 @@ export function MotivoModal({
             value={motivo}
             onChange={(event) => setMotivo(event.target.value)}
             rows={3}
+            placeholder={placeholder}
             className={`${inputClass} h-auto py-2`}
           />
         </div>
