@@ -4,6 +4,12 @@ export type AuthTokenResponse = {
   expires_in: string;
 };
 
+export type CaslPermissionRule = {
+  action: string;
+  subject: string;
+  conditions?: Record<string, unknown>;
+};
+
 export type MeResponse = {
   user_id: string;
   email: string;
@@ -12,17 +18,12 @@ export type MeResponse = {
   role_name: string;
   is_active: boolean;
   last_login_at: string | null;
+  permissions: CaslPermissionRule[];
 };
 
 export type LoginCredentials = {
   email: string;
   password: string;
-};
-
-export type CaslPermissionRule = {
-  action: string;
-  subject: string;
-  conditions?: Record<string, unknown>;
 };
 
 export type User = {

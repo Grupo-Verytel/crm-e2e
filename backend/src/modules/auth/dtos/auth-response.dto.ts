@@ -4,6 +4,11 @@ export class AuthTokenResponseDto {
   expires_in: string;
 }
 
+export class PermissionRuleDto {
+  action: string;
+  subject: string;
+}
+
 export class MeResponseDto {
   user_id: string;
   email: string;
@@ -12,4 +17,5 @@ export class MeResponseDto {
   role_name: string;
   is_active: boolean;
   last_login_at: Date | null;
+  permissions: PermissionRuleDto[];
 }

@@ -1,25 +1,22 @@
 import { NavLink } from 'react-router-dom';
 import type { ReactNode } from 'react';
-import { NAV_ITEMS, type NavItem } from '../lib/navigation';
+import { canAccessNavItem, NAV_ITEMS, type NavItem } from '../lib/navigation';
 import { useAuth } from '../modules/auth/hooks/useAuth';
 import { BrandMark } from './BrandMark';
-
-const ADMIN_ROLE = 'Admin';
 
 /**
  * Minimalist Verytel sidebar. White surface, hairline divider, brand-primary active state.
  * Density and structure follow a Pipedrive-like work tool: icons + labels, no decoration.
+ * Only modules the user's role can access are shown (driven by RBAC permissions).
  */
 export function Sidebar() {
   const { user } = useAuth();
 
-  const commercial = NAV_ITEMS.filter((item) => item.group === 'commercial');
-  const platform = NAV_ITEMS.filter((item) => {
-    if (item.group !== 'platform') {
-      return false;
-    }
-    return user?.role_name === ADMIN_ROLE;
-  });
+  const visible = NAV_ITEMS.filter((item) =>
+    canAccessNavItem(user?.permissions, item),
+  );
+  const commercial = visible.filter((item) => item.group === 'commercial');
+  const platform = visible.filter((item) => item.group === 'platform');
 
   return (
     <aside className="flex h-screen w-64 flex-col border-r border-border bg-surface">
@@ -28,14 +25,20 @@ export function Sidebar() {
       </div>
 
       <nav className="flex-1 overflow-y-auto px-3 py-2">
-        <SectionLabel>Comercial</SectionLabel>
-        {commercial.map((item) => (
-          <Item key={item.key} item={item} />
-        ))}
+        {commercial.length > 0 ? (
+          <>
+            <SectionLabel>Comercial</SectionLabel>
+            {commercial.map((item) => (
+              <Item key={item.key} item={item} />
+            ))}
+          </>
+        ) : null}
 
         {platform.length > 0 ? (
           <>
-            <SectionLabel className="mt-4">Plataforma</SectionLabel>
+            <SectionLabel className={commercial.length > 0 ? 'mt-4' : ''}>
+              Plataforma
+            </SectionLabel>
             {platform.map((item) => (
               <Item key={item.key} item={item} />
             ))}

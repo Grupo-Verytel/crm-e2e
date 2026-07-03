@@ -45,3 +45,11 @@ Platform: auth (users/roles/login) · audit.
 REST keeps backend and frontend decoupled (no auto-shared types), so there is no `shared/` package
 by design — simpler. If later you want to reuse DTO types in the frontend, add a small `shared/`
 folder at the root and reference it from both. Not needed to start.
+
+
+## Usuarios de pruebas
+admin@verytel.local
+ChangeMe123!
+
+erobles@grupoverytel.com
+Verytel2025*

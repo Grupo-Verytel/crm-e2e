@@ -12,7 +12,11 @@ import {
   LOCKOUT_DURATION_MS,
   LOCKOUT_THRESHOLD,
 } from '../constants/auth.constants';
-import { AuthTokenResponseDto, MeResponseDto } from '../dtos/auth-response.dto';
+import {
+  AuthTokenResponseDto,
+  MeResponseDto,
+  PermissionRuleDto,
+} from '../dtos/auth-response.dto';
 import { LoginDto } from '../dtos/login.dto';
 import { Role, User } from '../models';
 import { PasswordService } from './password.service';
@@ -164,6 +168,28 @@ export class AuthService {
       role_name: user.role.name,
       is_active: user.isActive,
       last_login_at: user.lastLoginAt,
+      permissions: this.normalizePermissions(user.role.permissions),
     };
+  }
+
+  private normalizePermissions(raw: unknown): PermissionRuleDto[] {
+    const list: unknown = typeof raw === 'string' ? JSON.parse(raw) : raw;
+
+    if (!Array.isArray(list)) {
+      return [];
+    }
+
+    return (list as unknown[]).flatMap((entry) => {
+      if (entry && typeof entry === 'object') {
+        const rule = entry as { action?: unknown; subject?: unknown };
+        if (
+          typeof rule.action === 'string' &&
+          typeof rule.subject === 'string'
+        ) {
+          return [{ action: rule.action, subject: rule.subject }];
+        }
+      }
+      return [];
+    });
   }
 }
