@@ -25,6 +25,7 @@ El repositorio agrupa **dos proyectos autónomos** (`backend/` y `frontend/`) ba
 15. [Especificaciones (EARS)](#especificaciones-ears)
 16. [Usuarios de prueba](#usuarios-de-prueba)
 17. [Estado actual del desarrollo](#estado-actual-del-desarrollo)
+18. [Iniciar la aplicación](#iniciar-la-aplicación)
 
 ---
 
@@ -515,3 +516,59 @@ Significa que el rol del usuario **no tiene** el permiso CASL (`action` + `subje
 - **Constitución del proyecto:** `AGENTS.md`
 - **Reglas Cursor:** `.cursor/rules/`
 - **README por módulo:** `backend/src/modules/<modulo>/README.md` y `frontend/src/modules/<modulo>/README.md`
+
+---
+
+## Iniciar la aplicación
+
+Requisitos: **Node.js ≥ 20** y **MySQL 8.x** en ejecución. Setup completo (`.env`, migraciones, seeds) en [Puesta en marcha local](#puesta-en-marcha-local).
+
+Usa **dos terminales** — backend y frontend son proyectos independientes.
+
+### Primera vez
+
+**Terminal 1 — Backend**
+
+```bash
+cd backend
+cp .env.sample .env          # Editar credenciales MySQL y JWT
+npm install
+npm run migration:run
+npm run seed:run
+npm run start:dev            # http://localhost:3000
+```
+
+**Terminal 2 — Frontend**
+
+```bash
+cd frontend
+cp .env.example .env         # VITE_API_BASE_URL=/api/v1 (default con proxy)
+npm install
+npm run dev                  # http://localhost:5173
+```
+
+### Uso diario
+
+**Terminal 1 — Backend**
+
+```bash
+cd backend
+npm run start:dev
+```
+
+**Terminal 2 — Frontend**
+
+```bash
+cd frontend
+npm run dev
+```
+
+### URLs
+
+| Servicio | URL |
+|----------|-----|
+| Frontend | http://localhost:5173 |
+| Login | http://localhost:5173/login |
+| API | http://localhost:3000/api/v1 |
+
+En desarrollo, Vite hace proxy de `/api/v1` → `http://localhost:3000`. Credenciales de prueba en [Usuarios de prueba](#usuarios-de-prueba).
