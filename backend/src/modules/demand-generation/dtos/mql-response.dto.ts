@@ -24,7 +24,7 @@ export class MqlsQueryDto {
 export class MqlResponseDto {
   mql_id: string;
   lead_id: string;
-  checklist_id: string;
+  checklist_id: string | null;
   calificado_por: string;
   fecha_calificacion: Date;
   motivo_calificacion: string | null;

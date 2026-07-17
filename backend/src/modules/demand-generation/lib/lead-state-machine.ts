@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { LeadEstado } from '../models/enums/lead.enums';
+import { CanalOrigen, LeadEstado } from '../models/enums/lead.enums';
 import { DEMAND_GENERATION_ERROR_CODES } from '../constants/demand-generation.constants';
 
 const VALID_TRANSITIONS: Record<LeadEstado, LeadEstado[]> = {
@@ -19,8 +19,17 @@ const VALID_TRANSITIONS: Record<LeadEstado, LeadEstado[]> = {
 export function isValidLeadTransition(
   from: LeadEstado,
   to: LeadEstado,
+  canalOrigen?: CanalOrigen,
 ): boolean {
   if (from === to) {
+    return true;
+  }
+
+  if (
+    from === LeadEstado.TOFU &&
+    to === LeadEstado.MqlPending &&
+    canalOrigen === CanalOrigen.Fabrica
+  ) {
     return true;
   }
 
@@ -30,8 +39,9 @@ export function isValidLeadTransition(
 export function assertValidLeadTransition(
   from: LeadEstado,
   to: LeadEstado,
+  canalOrigen?: CanalOrigen,
 ): void {
-  if (isValidLeadTransition(from, to)) {
+  if (isValidLeadTransition(from, to, canalOrigen)) {
     return;
   }
 

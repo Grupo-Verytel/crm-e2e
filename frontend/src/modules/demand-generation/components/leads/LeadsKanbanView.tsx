@@ -8,6 +8,7 @@ import {
 } from '../../api/leads-api';
 import { useChecklistProgress } from '../../hooks/useChecklistProgress';
 import {
+  CHANNEL_ROUTES,
   KANBAN_COLUMNS,
   type KanbanColumn,
   type KanbanEstado,
@@ -85,6 +86,7 @@ export function LeadsKanbanView({ filters }: { filters: LeadFilterValues }) {
   const buildQuery = useCallback(
     (estado: KanbanEstado, page: number): LeadsQuery => ({
       estado,
+      canal_origen: filters.canal_origen || undefined,
       segmento: filters.segmento || undefined,
       campana_id: filters.campana_id || undefined,
       responsable_id: filters.responsable_id || undefined,
@@ -137,7 +139,10 @@ export function LeadsKanbanView({ filters }: { filters: LeadFilterValues }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reload on filter change
   }, [filtersKey]);
 
-  const mofuProgress = useChecklistProgress(columns.MOFU.items);
+  const checklistProgress = useChecklistProgress([
+    ...columns.TOFU.items,
+    ...columns.MOFU.items,
+  ]);
 
   function setCardError(leadId: string, message: string | null) {
     setCardErrors((prev) => {
@@ -152,8 +157,24 @@ export function LeadsKanbanView({ filters }: { filters: LeadFilterValues }) {
   }
 
   const columnAccepts = useCallback(
-    (column: KanbanColumn): boolean =>
-      !!dragged && !column.readOnly && column.acceptsFrom === dragged.estado,
+    (column: KanbanColumn): boolean => {
+      if (!dragged || column.readOnly) {
+        return false;
+      }
+
+      if (dragged.canal_origen === 'FABRICA' && column.estado === 'MQL_PENDING') {
+        return dragged.estado === 'TOFU';
+      }
+
+      if (
+        dragged.canal_origen === 'GENERACION_DEMANDA_AGENCIA' &&
+        column.estado === 'MQL_PENDING'
+      ) {
+        return false;
+      }
+
+      return column.acceptsFrom === dragged.estado;
+    },
     [dragged],
   );
 
@@ -208,7 +229,7 @@ export function LeadsKanbanView({ filters }: { filters: LeadFilterValues }) {
     const lead = dragged;
     setDragOver(null);
     setDragged(null);
-    if (!lead || column.readOnly || column.acceptsFrom !== lead.estado) {
+    if (!lead || !columnAccepts(column)) {
       return;
     }
     if (column.estado === 'MOFU') {
@@ -223,6 +244,10 @@ export function LeadsKanbanView({ filters }: { filters: LeadFilterValues }) {
       <div className="flex gap-3 overflow-x-auto pb-2">
         {KANBAN_COLUMNS.map((column) => {
           const state = columns[column.estado];
+          const route = filters.canal_origen
+            ? CHANNEL_ROUTES[filters.canal_origen]
+            : undefined;
+          const applies = !route || route.includes(column.estado);
           const accepts = columnAccepts(column);
           const blocked = !!dragged && column.readOnly;
           const isDropTarget = dragOver === column.estado && accepts;
@@ -252,12 +277,16 @@ export function LeadsKanbanView({ filters }: { filters: LeadFilterValues }) {
                   : 'bg-bg',
                 isDropTarget ? 'outline outline-2 outline-brand' : '',
                 blocked ? 'cursor-not-allowed' : '',
+                !applies ? 'opacity-40' : '',
               ].join(' ')}
             >
               <header className="flex items-start justify-between gap-2 px-3 py-2">
                 <div className="min-w-0">
                   <h2 className="text-sm font-bold text-ink">{column.label}</h2>
                   <p className="text-xs text-muted">{column.hint}</p>
+                  {!applies ? (
+                    <p className="text-xs font-bold text-muted">No aplica</p>
+                  ) : null}
                 </div>
                 <span className="shrink-0 rounded-sm border border-border bg-surface px-2 py-0.5 text-xs font-bold text-muted">
                   {state.total}
@@ -289,10 +318,17 @@ export function LeadsKanbanView({ filters }: { filters: LeadFilterValues }) {
                           setDragged(null);
                           setDragOver(null);
                         }}
-                        showChecklist={column.estado === 'MOFU'}
+                        showChecklist={
+                          column.estado === 'MOFU' ||
+                          (column.estado === 'TOFU' &&
+                            lead.canal_origen === 'FABRICA')
+                        }
+                        showRoute={!filters.canal_origen}
                         checklistProgress={
-                          column.estado === 'MOFU'
-                            ? mofuProgress(lead.lead_id)
+                          column.estado === 'MOFU' ||
+                          (column.estado === 'TOFU' &&
+                            lead.canal_origen === 'FABRICA')
+                            ? checklistProgress(lead.lead_id)
                             : undefined
                         }
                         errorMessage={cardErrors[lead.lead_id] ?? null}
@@ -340,7 +376,13 @@ export function LeadsKanbanView({ filters }: { filters: LeadFilterValues }) {
           leadId={checklistFor.lead_id}
           leadName={checklistFor.empresa_nombre}
           onQualified={() => reloadAll()}
-          onSaved={() => loadColumn('MOFU', 1, false)}
+          onSaved={() =>
+            loadColumn(
+              checklistFor.canal_origen === 'FABRICA' ? 'TOFU' : 'MOFU',
+              1,
+              false,
+            )
+          }
           onClose={() => setChecklistFor(null)}
         />
       ) : null}

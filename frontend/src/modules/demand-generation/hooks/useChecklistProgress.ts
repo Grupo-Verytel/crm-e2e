@@ -31,8 +31,11 @@ export function invalidateChecklistProgress(leadId: string): void {
   cache.delete(leadId);
 }
 
-export function needsChecklistProgress(estado: string): boolean {
-  return CHECKLIST_STATES.has(estado as LeadEstado);
+export function needsChecklistProgress(lead: Lead): boolean {
+  return (
+    CHECKLIST_STATES.has(lead.estado) ||
+    (lead.estado === 'TOFU' && lead.canal_origen === 'FABRICA')
+  );
 }
 
 /**
@@ -46,7 +49,7 @@ export function useChecklistProgress(
   const [, force] = useReducer((n: number) => n + 1, 0);
 
   const targetIds = leads
-    .filter((lead) => needsChecklistProgress(lead.estado))
+    .filter(needsChecklistProgress)
     .map((lead) => lead.lead_id);
   const key = targetIds.join(',');
 

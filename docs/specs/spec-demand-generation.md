@@ -1,7 +1,7 @@
 # spec-demand-generation.md
 **Módulo:** Fase 1 — Generación de Demanda (TOFU → MOFU → BOFU)
-**Versión:** 2.0 — reemplaza la versión anterior (sin scoring, sin campañas)
-**Fecha:** 2026-07-03
+**Versión:** 2.1 — agrega rutas de estados por canal de origen
+**Fecha:** 2026-07-16
 **Decisiones de alcance confirmadas por Evilio:**
 - Calificación: **híbrido** — checklist cualitativo ahora (v1), motor de scoring numérico (demográfico + comportamental, Blueprint V2 §4.1-4.3) queda en **Wave 2**.
 - Campañas (creación, import CSV, presupuesto/CPL): **incluidas** en este módulo.
@@ -38,7 +38,7 @@
 |---|---|
 | Director de Mercadeo | Crea/aprueba campañas, revisa y aprueba/rechaza MQL, ve KPIs |
 | Gestor de Mercadeo | Captura y gestiona leads, registra interacciones, aplica checklist, transiciona TOFU→MOFU→BOFU |
-| Profesional Soporte Comercial | Recibe el SQL en bandeja comercial (fuera de alcance su gestión, solo el evento de entrada) |
+| Profesional Soporte Comercial | Registra citas del canal `GENERACION_DEMANDA_AGENCIA` y recibe el SQL en bandeja comercial |
 
 ---
 
@@ -50,6 +50,7 @@
 | lead_id | UUID | Sí | PK |
 | tipo_lead | ENUM | Sí | Inbound\|Outbound\|Referido\|Aliado\|Licitacion |
 | origen | ENUM | Sí | Web\|Email\|LinkedIn\|Evento\|SECOP\|Aliado\|Otro |
+| canal_origen | ENUM | Sí | CAMPANA_DIGITAL\|BTL\|FABRICA\|GENERACION_DEMANDA_AGENCIA\|TRADUCTOR_NEGOCIO. Requerido al crear e inmutable después de la creación |
 | sub_origen | VARCHAR(80) | No | LP específica, UTM_source |
 | campana_id | UUID | No | FK campaigns |
 | estado | ENUM | Sí | Nuevo\|TOFU\|MOFU\|MQL_PENDING\|SQL\|Reciclaje\|Descartado |
@@ -62,6 +63,9 @@
 | email | VARCHAR(180) | Sí | RFC 5321 |
 | telefono | VARCHAR(20) | No | E.164 |
 | responsable_id | UUID | Sí | FK users (Gestor de Mercadeo asignado) |
+| cita_agendada | BOOLEAN | Sí | default false. Solo relevante para `canal_origen=GENERACION_DEMANDA_AGENCIA` |
+| fecha_cita | DATE | No | Solo relevante para `canal_origen=GENERACION_DEMANDA_AGENCIA` |
+| comercial_asignado_id | UUID | No | FK users. Solo relevante para `canal_origen=GENERACION_DEMANDA_AGENCIA` |
 | motivo_descarte | TEXT | Condicional | Obligatorio si estado=Descartado |
 | fecha_captura | TIMESTAMPTZ | Sí | default now() |
 | fecha_ultima_interaccion | TIMESTAMPTZ | No | trigger on interaction |
@@ -95,7 +99,7 @@ Igual al Blueprint V2 §2.3 (tipo, subtipo, canal, descripción, responsable, fe
 |---|---|---|---|
 | mql_id | UUID | Sí | PK |
 | lead_id | UUID | Sí | FK leads, UNIQUE |
-| checklist_id | UUID | Sí | FK lead_checklist (evidencia de calificación) |
+| checklist_id | UUID | Condicional | FK lead_checklist (evidencia de calificación). Nullable cuando el gate es una cita agendada de `GENERACION_DEMANDA_AGENCIA` |
 | calificado_por | UUID | Sí | FK users |
 | fecha_calificacion | TIMESTAMPTZ | Sí | |
 | motivo_calificacion | TEXT | No | |
@@ -124,6 +128,18 @@ Igual al Blueprint V2 §2.3 (tipo, subtipo, canal, descripción, responsable, fe
 | LEAD | MQL_PENDING | Reciclaje | Director rechaza (motivo obligatorio) → vuelve a MOFU para seguir nutriendo |
 | LEAD | MOFU / MQL_PENDING | Descartado | No cumple checklist de forma irreversible o desinterés explícito del prospecto (motivo obligatorio) |
 | LEAD | Descartado | MOFU | Reciclaje futuro manual (nueva interacción detectada) |
+
+### 4.1 Reglas de flujo por canal
+
+| canal_origen | estado_entrada | estados_aplicables (orden) | transición especial |
+|---|---|---|---|
+| CAMPANA_DIGITAL | TOFU | TOFU → MOFU → BOFU → SQL | Ninguna (checklist estándar) |
+| BTL | TOFU | TOFU → MOFU → BOFU → SQL | Ninguna (checklist estándar) |
+| FABRICA | TOFU | TOFU → BOFU → SQL | Omite MOFU; aplica el checklist estándar directamente desde TOFU |
+| GENERACION_DEMANDA_AGENCIA | MOFU | MOFU → BOFU → SQL | MOFU → BOFU por evento manual (`cita_agendada=true`), no por checklist |
+| TRADUCTOR_NEGOCIO | **TBD** | **TBD** | **TBD — pendiente de definición de negocio; no implementar lógica de flujo** |
+
+> En esta tabla, BOFU corresponde al estado persistido `MQL_PENDING`.
 
 ---
 
@@ -157,6 +173,13 @@ Igual al Blueprint V2 §2.3 (tipo, subtipo, canal, descripción, responsable, fe
 - DG-17: DONDE el usuario tenga rol Director de Mercadeo, el sistema PUEDE mostrarle un panel de configuración de los criterios del checklist (para cuando se confirmen en T1).
 - DG-18: DONDE se active Wave 2, el sistema PUEDE reemplazar el gate por checklist con el motor de scoring numérico sin migración de esquema (campos ya modelados).
 
+**Reglas por canal de origen**
+- EARS-19: CUANDO se crea un lead con `canal_origen=FABRICA`, el sistema DEBERÁ asignar `estado_inicial=TOFU` y omitir la transición a MOFU, habilitando la transición directa TOFU → BOFU cuando se complete el `lead_checklist` con los 4 criterios en `true`.
+- EARS-20: CUANDO se crea un lead con `canal_origen=GENERACION_DEMANDA_AGENCIA`, el sistema DEBERÁ asignar `estado_inicial=MOFU` sin pasar por TOFU.
+- EARS-21: CUANDO un usuario con rol Profesional Soporte Comercial registra `cita_agendada=true` sobre un lead en MOFU con `canal_origen=GENERACION_DEMANDA_AGENCIA`, el sistema DEBERÁ transicionar el lead a BOFU (`MQL_PENDING`), crear un MQL activo sin `checklist_id` y notificar a `comercial_asignado_id`, independientemente del resultado del `lead_checklist`.
+- EARS-22: SI un lead tiene `canal_origen=FABRICA` o `canal_origen=GENERACION_DEMANDA_AGENCIA`, ENTONCES el Kanban DEBERÁ ocultar o atenuar visualmente las columnas no aplicables según la tabla de reglas de flujo por canal.
+- EARS-23: CUANDO se filtra el Kanban o la Lista por un `canal_origen` específico, el sistema DEBERÁ mostrar únicamente los leads de ese canal y ajustar las columnas visibles a su ruta de estados.
+
 ---
 
 ## 6. Pantallas mínimas (v1)
@@ -167,9 +190,12 @@ Igual al Blueprint V2 §2.3 (tipo, subtipo, canal, descripción, responsable, fe
 - Bandeja MQL: aprobar / rechazar con motivo
 
 **Gestor de Mercadeo**
-- Leads / Lista (filtros: estado, segmento, campaña, responsable)
-- Lead / Detalle: datos, checklist de calificación, timeline de interacciones
+- Leads / Lista y Kanban (filtros: canal de origen, estado, segmento, campaña, responsable)
+- Lead / Detalle: datos, ruta esperada por canal, checklist de calificación, timeline de interacciones
 - Registrar interacción (modal rápido)
+
+**Profesional Soporte Comercial**
+- Bandeja de Agenda: leads `GENERACION_DEMANDA_AGENCIA` en MOFU, registro de cita y asignación de comercial
 
 ---
 
@@ -190,3 +216,4 @@ Igual al Blueprint V2 §2.3 (tipo, subtipo, canal, descripción, responsable, fe
 1. Confirmar si el checklist es de 3 o 4 criterios y su redacción exacta.
 2. Confirmar si SECOP/Licitación realmente salta nutrición o solo acelera el checklist.
 3. Confirmar catálogo de campos de `campaigns` con Director de Mercadeo (¿falta algún tipo de campaña usado hoy, ej. BTL desayunos, co-creación con fábricas?).
+4. Definir el flujo de `TRADUCTOR_NEGOCIO`: estado de entrada, estados aplicables y evento de transición. Hasta resolverlo, solo existe como valor de enum y no se implementa comportamiento.

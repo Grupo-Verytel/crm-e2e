@@ -6,6 +6,7 @@ import { cardClass, ghostButtonClass, primaryButtonClass } from './ui';
 const EXPECTED_HEADERS = [
   'tipo_lead',
   'origen',
+  'canal_origen',
   'segmento',
   'industria',
   'region',

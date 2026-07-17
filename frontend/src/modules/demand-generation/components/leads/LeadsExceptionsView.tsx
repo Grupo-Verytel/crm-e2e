@@ -36,6 +36,7 @@ export function LeadsExceptionsView({
   const baseQuery = useCallback(
     (estado: 'Reciclaje' | 'Descartado'): LeadsQuery => ({
       estado,
+      canal_origen: filters.canal_origen || undefined,
       segmento: filters.segmento || undefined,
       campana_id: filters.campana_id || undefined,
       responsable_id: filters.responsable_id || undefined,

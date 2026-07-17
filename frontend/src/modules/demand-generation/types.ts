@@ -52,6 +52,21 @@ export const ORIGENES_LEAD: OrigenLead[] = [
   'Referido',
 ];
 
+export type CanalOrigen =
+  | 'CAMPANA_DIGITAL'
+  | 'BTL'
+  | 'FABRICA'
+  | 'GENERACION_DEMANDA_AGENCIA'
+  | 'TRADUCTOR_NEGOCIO';
+
+export const CANALES_ORIGEN: CanalOrigen[] = [
+  'CAMPANA_DIGITAL',
+  'BTL',
+  'FABRICA',
+  'GENERACION_DEMANDA_AGENCIA',
+  'TRADUCTOR_NEGOCIO',
+];
+
 export type CampaignEstado =
   | 'Borrador'
   | 'Activa'
@@ -144,6 +159,7 @@ export type Lead = {
   lead_id: string;
   tipo_lead: string;
   origen: string;
+  canal_origen: CanalOrigen;
   sub_origen: string | null;
   campana_id: string | null;
   segmento: string;
@@ -160,6 +176,10 @@ export type Lead = {
   estado: LeadEstado;
   icp_score: number | null;
   responsable_id: string;
+  responsable_nombre: string | null;
+  cita_agendada: boolean;
+  fecha_cita: string | null;
+  comercial_asignado_id: string | null;
   motivo_descarte: string | null;
   utm_source: string | null;
   utm_medium: string | null;
@@ -180,6 +200,7 @@ export type PaginatedLeads = {
 
 export type LeadsQuery = {
   estado?: LeadEstado;
+  canal_origen?: CanalOrigen;
   segmento?: Segmento;
   campana_id?: string;
   responsable_id?: string;
@@ -192,6 +213,7 @@ export type LeadsQuery = {
 export type CreateLeadPayload = {
   tipo_lead: TipoLead;
   origen: OrigenLead;
+  canal_origen: CanalOrigen;
   segmento: Segmento;
   industria?: string;
   region: string;
@@ -205,6 +227,16 @@ export type CreateLeadPayload = {
   responsable_id: string;
   campana_id?: string;
   sub_origen?: string;
+};
+
+export type RegisterAppointmentPayload = {
+  fecha_cita: string;
+  comercial_asignado_id: string;
+};
+
+export type CommercialOption = {
+  user_id: string;
+  full_name: string;
 };
 
 export type Interaction = {
@@ -304,7 +336,7 @@ export type CreateCampaignPayload = {
 export type Mql = {
   mql_id: string;
   lead_id: string;
-  checklist_id: string;
+  checklist_id: string | null;
   calificado_por: string;
   fecha_calificacion: string;
   motivo_calificacion: string | null;

@@ -17,6 +17,14 @@ export enum OrigenLead {
   Referido = 'Referido',
 }
 
+export enum CanalOrigen {
+  CampanaDigital = 'CAMPANA_DIGITAL',
+  BTL = 'BTL',
+  Fabrica = 'FABRICA',
+  GeneracionDemandaAgencia = 'GENERACION_DEMANDA_AGENCIA',
+  TraductorNegocio = 'TRADUCTOR_NEGOCIO',
+}
+
 export enum TipoInfluencia {
   Coach = 'Coach',
   Tecnica = 'Tecnica',

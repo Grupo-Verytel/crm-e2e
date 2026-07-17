@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { UsersService } from '../../auth/services/users.service';
 import { ApproveMqlDto } from '../dtos/approve-mql.dto';
 import {
   BulkImportJobAcceptedDto,
@@ -10,6 +11,7 @@ import {
   PaginatedCampaignsResponseDto,
 } from '../dtos/campaign-response.dto';
 import { ChecklistResponseDto } from '../dtos/checklist-response.dto';
+import { CommercialOptionDto } from '../dtos/commercial-option.dto';
 import { CreateCampaignDto } from '../dtos/create-campaign.dto';
 import { CreateInteractionDto } from '../dtos/create-interaction.dto';
 import { CreateLeadDto } from '../dtos/create-lead.dto';
@@ -30,6 +32,7 @@ import {
   PaginatedMqlsResponseDto,
 } from '../dtos/mql-response.dto';
 import { RecycleLeadDto } from '../dtos/recycle-lead.dto';
+import { RegisterAppointmentDto } from '../dtos/register-appointment.dto';
 import { RejectMqlDto } from '../dtos/reject-mql.dto';
 import { TransitionToMqlDto } from '../dtos/transition-mql.dto';
 import { UpdateCampaignStatusDto } from '../dtos/update-campaign-status.dto';
@@ -59,6 +62,7 @@ export class DemandGenerationService {
     private readonly mqlsService: MqlsService,
     private readonly dashboardService: DashboardService,
     private readonly importJobService: LeadImportJobService,
+    private readonly usersService: UsersService,
   ) {}
 
   // ----- Leads -----
@@ -97,6 +101,24 @@ export class DemandGenerationService {
     dto: RecycleLeadDto,
   ): Promise<LeadResponseDto> {
     return this.leadsService.recycle(leadId, dto);
+  }
+
+  async registerLeadAppointment(
+    leadId: string,
+    dto: RegisterAppointmentDto,
+    userId: string,
+  ): Promise<LeadResponseDto> {
+    return this.leadsService.registerAppointment(leadId, dto, userId);
+  }
+
+  async listAppointmentCommercials(): Promise<CommercialOptionDto[]> {
+    const users =
+      await this.usersService.findActiveByRoleName('EjecutivoComercial');
+
+    return users.map((user) => ({
+      user_id: user.user_id,
+      full_name: user.full_name,
+    }));
   }
 
   // ----- Bulk import (async) -----

@@ -14,6 +14,7 @@ export const DEMAND_GENERATION_ERROR_CODES = {
   LEAD_LOCKED: 'LEAD_LOCKED',
   MQL_NOT_FOUND: 'MQL_NOT_FOUND',
   MQL_NOT_ACTIVE: 'MQL_NOT_ACTIVE',
+  APPOINTMENT_NOT_ALLOWED: 'APPOINTMENT_NOT_ALLOWED',
   IMPORT_JOB_NOT_FOUND: 'IMPORT_JOB_NOT_FOUND',
 } as const;
 
@@ -27,6 +28,7 @@ export const DEMAND_GENERATION_ROLES = {
 export const CSV_LEAD_HEADERS = [
   'tipo_lead',
   'origen',
+  'canal_origen',
   'segmento',
   'industria',
   'region',

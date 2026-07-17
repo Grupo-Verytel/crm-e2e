@@ -2,8 +2,15 @@ import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../auth/hooks/useAuth';
 
 const DIRECTOR_ROLE = 'DirectorMercadeo';
+const SUPPORT_ROLE = 'SoporteComercial';
 
-type NavItem = { to: string; label: string; end: boolean; directorOnly?: boolean };
+type NavItem = {
+  to: string;
+  label: string;
+  end: boolean;
+  directorOnly?: boolean;
+  supportOnly?: boolean;
+};
 
 const LINKS: NavItem[] = [
   { to: '/demand', label: 'Leads', end: true },
@@ -11,13 +18,23 @@ const LINKS: NavItem[] = [
   // The Bandeja MQL is the Director's approval queue (business decision, not a
   // board drag), so it stays hidden from the Gestor de Mercadeo.
   { to: '/demand/mqls', label: 'Bandeja MQL', end: false, directorOnly: true },
+  {
+    to: '/demand/agenda',
+    label: 'Bandeja de Agenda',
+    end: false,
+    supportOnly: true,
+  },
   { to: '/demand/dashboard', label: 'Dashboard', end: false },
 ];
 
 export function DemandNav() {
   const { user } = useAuth();
   const isDirector = user?.role_name === DIRECTOR_ROLE;
-  const links = LINKS.filter((link) => !link.directorOnly || isDirector);
+  const isSupport = user?.role_name === SUPPORT_ROLE;
+  const links = LINKS.filter(
+    (link) =>
+      (!link.directorOnly || isDirector) && (!link.supportOnly || isSupport),
+  );
 
   return (
     <nav className="mb-4 flex gap-1 border-b border-border">

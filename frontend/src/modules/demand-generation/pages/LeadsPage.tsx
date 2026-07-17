@@ -23,6 +23,7 @@ type CampaignOption = { campana_id: string; nombre: string };
 
 function toQuery(filters: LeadFilterValues): Partial<LeadsQuery> {
   return {
+    canal_origen: filters.canal_origen || undefined,
     segmento: filters.segmento || undefined,
     campana_id: filters.campana_id || undefined,
     responsable_id: filters.responsable_id || undefined,

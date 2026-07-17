@@ -1,12 +1,19 @@
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectModel } from '@nestjs/sequelize';
-import { Op, UniqueConstraintError, WhereOptions } from 'sequelize';
+import { InjectConnection, InjectModel } from '@nestjs/sequelize';
+import {
+  Op,
+  Sequelize,
+  UniqueConstraintError,
+  WhereOptions,
+} from 'sequelize';
 import { User } from '../../auth/models/user.model';
+import { UsersService } from '../../auth/services/users.service';
 import { DEMAND_GENERATION_ERROR_CODES } from '../constants/demand-generation.constants';
 import { CreateLeadDto } from '../dtos/create-lead.dto';
 import {
@@ -15,28 +22,40 @@ import {
   PaginatedLeadsResponseDto,
 } from '../dtos/lead-response.dto';
 import { RecycleLeadDto } from '../dtos/recycle-lead.dto';
+import { RegisterAppointmentDto } from '../dtos/register-appointment.dto';
 import { UpdateLeadDto } from '../dtos/update-lead.dto';
 import { canRecycleLead } from '../lib/lead-state-machine';
 import { normalizePhoneToE164 } from '../lib/phone-normalize';
-import { LeadEstado, OrigenLead, TipoLead } from '../models/enums/lead.enums';
+import {
+  CanalOrigen,
+  LeadEstado,
+  OrigenLead,
+  TipoLead,
+} from '../models/enums/lead.enums';
+import { MqlEstado } from '../models/enums/mql.enums';
 import { Segmento } from '../models/enums/segment.enum';
 import { Lead } from '../models/lead.model';
+import { Mql } from '../models/mql.model';
+import {
+  NOTIFICATION_PORT,
+  NotificationEvent,
+} from '../ports/notification.port';
+import type { NotificationPort } from '../ports/notification.port';
 import { CampaignsService } from './campaigns.service';
-import { LeadStateMachineService } from './lead-state-machine.service';
 
 @Injectable()
 export class LeadsService {
   constructor(
     @InjectModel(Lead) private readonly leadModel: typeof Lead,
+    @InjectModel(Mql) private readonly mqlModel: typeof Mql,
     @InjectModel(User) private readonly userModel: typeof User,
+    @InjectConnection() private readonly sequelize: Sequelize,
     private readonly campaignsService: CampaignsService,
-    private readonly stateMachine: LeadStateMachineService,
+    private readonly usersService: UsersService,
+    @Inject(NOTIFICATION_PORT)
+    private readonly notifications: NotificationPort,
   ) {}
 
-  /**
-   * Create a lead in Nuevo and auto-transition it to TOFU (DG-03) via the
-   * state machine.
-   */
   async create(
     dto: CreateLeadDto,
     createdBy: string,
@@ -58,9 +77,11 @@ export class LeadsService {
     }
 
     try {
+      const initialState = this.resolveInitialState(dto.canal_origen);
       const lead = await this.leadModel.create({
         tipoLead: dto.tipo_lead,
         origen: dto.origen,
+        canalOrigen: dto.canal_origen,
         subOrigen: dto.sub_origen ?? null,
         campanaId: dto.campana_id ?? null,
         segmento: dto.segmento,
@@ -77,7 +98,7 @@ export class LeadsService {
         utmSource: dto.utm_source ?? null,
         utmMedium: dto.utm_medium ?? null,
         utmCampaign: dto.utm_campaign ?? null,
-        estado: LeadEstado.Nuevo,
+        estado: initialState,
         createdBy,
       });
 
@@ -85,8 +106,7 @@ export class LeadsService {
         await this.campaignsService.incrementLeadCount(lead.campanaId);
       }
 
-      const tofuLead = await this.stateMachine.transitionToTofu(lead.leadId);
-      return this.toResponseDto(tofuLead);
+      return this.toResponseDto(lead);
     } catch (error) {
       if (error instanceof UniqueConstraintError) {
         throw new ConflictException({
@@ -113,6 +133,10 @@ export class LeadsService {
       where.segmento = query.segmento;
     }
 
+    if (query.canal_origen) {
+      where.canalOrigen = query.canal_origen;
+    }
+
     if (query.responsable_id) {
       where.responsableId = query.responsable_id;
     }
@@ -130,6 +154,13 @@ export class LeadsService {
 
     const { rows, count } = await this.leadModel.findAndCountAll({
       where,
+      include: [
+        {
+          model: User,
+          as: 'responsable',
+          attributes: ['userId', 'fullName'],
+        },
+      ],
       order: [['fechaCaptura', 'DESC']],
       limit,
       offset,
@@ -257,6 +288,92 @@ export class LeadsService {
     return this.toResponseDto(lead);
   }
 
+  async registerAppointment(
+    leadId: string,
+    dto: RegisterAppointmentDto,
+    userId: string,
+  ): Promise<LeadResponseDto> {
+    const lead = await this.findLeadOrFail(leadId);
+
+    if (lead.canalOrigen !== CanalOrigen.GeneracionDemandaAgencia) {
+      throw new ConflictException({
+        code: DEMAND_GENERATION_ERROR_CODES.APPOINTMENT_NOT_ALLOWED,
+        message:
+          'Appointments can only be registered for GENERACION_DEMANDA_AGENCIA leads',
+      });
+    }
+
+    if (lead.estado !== LeadEstado.MOFU) {
+      throw new ConflictException({
+        code: DEMAND_GENERATION_ERROR_CODES.APPOINTMENT_NOT_ALLOWED,
+        message: 'The lead must be in MOFU to register an appointment',
+      });
+    }
+
+    await this.ensureUserExists(dto.comercial_asignado_id);
+    const isEligibleCommercial = await this.usersService.isActiveWithRole(
+      dto.comercial_asignado_id,
+      'EjecutivoComercial',
+    );
+
+    if (!isEligibleCommercial) {
+      throw new BadRequestException({
+        code: DEMAND_GENERATION_ERROR_CODES.VALIDATION_ERROR,
+        message:
+          'comercial_asignado_id must reference an active EjecutivoComercial',
+      });
+    }
+
+    await this.sequelize.transaction(async (transaction) => {
+      const existingMql = await this.mqlModel.findOne({
+        where: { leadId },
+        transaction,
+      });
+
+      if (existingMql) {
+        await existingMql.update(
+          {
+            checklistId: null,
+            calificadoPor: userId,
+            fechaCalificacion: new Date(),
+            estado: MqlEstado.Activo,
+          },
+          { transaction },
+        );
+      } else {
+        await this.mqlModel.create(
+          {
+            leadId,
+            checklistId: null,
+            calificadoPor: userId,
+            fechaCalificacion: new Date(),
+            estado: MqlEstado.Activo,
+          },
+          { transaction },
+        );
+      }
+
+      await lead.update(
+        {
+          citaAgendada: true,
+          fechaCita: new Date(dto.fecha_cita),
+          comercialAsignadoId: dto.comercial_asignado_id,
+          estado: LeadEstado.MqlPending,
+        },
+        { transaction },
+      );
+    });
+
+    await this.notifications.notify({
+      event: NotificationEvent.AppointmentScheduled,
+      recipientUserId: dto.comercial_asignado_id,
+      message: `Appointment scheduled for lead ${lead.empresaNombre}`,
+      metadata: { leadId: lead.leadId, fechaCita: dto.fecha_cita },
+    });
+
+    return this.toResponseDto(lead);
+  }
+
   async persistIcpScore(
     leadId: string,
     icpScore: number,
@@ -274,9 +391,8 @@ export class LeadsService {
   }
 
   /**
-   * Create a single imported lead directly in TOFU (registration auto-transition,
-   * DG-03). Duplicate detection is handled by the caller (import job).
-   * Throws with a human-readable reason so the job can record it as skipped.
+   * Create a single imported lead in its channel-specific initial state.
+   * Duplicate detection is handled by the caller (import job).
    */
   async importLeadRow(
     values: Record<string, string>,
@@ -284,6 +400,7 @@ export class LeadsService {
   ): Promise<Lead> {
     const segmento = values.segmento as Segmento;
     const industria = values.industria || null;
+    const canalOrigen = values.canal_origen as CanalOrigen;
 
     if (!Object.values(Segmento).includes(segmento)) {
       throw new BadRequestException(`Invalid segmento: ${values.segmento}`);
@@ -291,6 +408,12 @@ export class LeadsService {
 
     if (segmento === Segmento.B2B && !industria) {
       throw new BadRequestException('industria is required for B2B segment');
+    }
+
+    if (!Object.values(CanalOrigen).includes(canalOrigen)) {
+      throw new BadRequestException(
+        `Invalid canal_origen: ${values.canal_origen}`,
+      );
     }
 
     if (!values.region || !values.pais || !values.empresa_nombre) {
@@ -306,6 +429,7 @@ export class LeadsService {
     return this.leadModel.create({
       tipoLead: (values.tipo_lead as TipoLead) || TipoLead.Outbound,
       origen: (values.origen as OrigenLead) || OrigenLead.Email,
+      canalOrigen,
       campanaId: values.campana_id || null,
       segmento,
       industria,
@@ -318,7 +442,7 @@ export class LeadsService {
       email: values.email.toLowerCase(),
       telefono,
       responsableId: values.responsable_id,
-      estado: LeadEstado.TOFU,
+      estado: this.resolveInitialState(canalOrigen),
       createdBy,
     });
   }
@@ -336,7 +460,15 @@ export class LeadsService {
   }
 
   private async findLeadOrFail(leadId: string): Promise<Lead> {
-    const lead = await this.leadModel.findByPk(leadId);
+    const lead = await this.leadModel.findByPk(leadId, {
+      include: [
+        {
+          model: User,
+          as: 'responsable',
+          attributes: ['userId', 'fullName'],
+        },
+      ],
+    });
 
     if (!lead) {
       throw new NotFoundException({
@@ -371,11 +503,28 @@ export class LeadsService {
     }
   }
 
+  resolveInitialState(canalOrigen: CanalOrigen): LeadEstado {
+    if (canalOrigen === CanalOrigen.GeneracionDemandaAgencia) {
+      return LeadEstado.MOFU;
+    }
+
+    if (canalOrigen === CanalOrigen.TraductorNegocio) {
+      throw new ConflictException({
+        code: DEMAND_GENERATION_ERROR_CODES.INVALID_TRANSITION,
+        message:
+          'TRADUCTOR_NEGOCIO flow is pending business definition and cannot be created yet',
+      });
+    }
+
+    return LeadEstado.TOFU;
+  }
+
   toResponseDto(lead: Lead): LeadResponseDto {
     return {
       lead_id: lead.leadId,
       tipo_lead: lead.tipoLead,
       origen: lead.origen,
+      canal_origen: lead.canalOrigen,
       sub_origen: lead.subOrigen,
       campana_id: lead.campanaId,
       segmento: lead.segmento,
@@ -392,6 +541,10 @@ export class LeadsService {
       estado: lead.estado,
       icp_score: lead.icpScore,
       responsable_id: lead.responsableId,
+      responsable_nombre: lead.responsable?.fullName ?? null,
+      cita_agendada: lead.citaAgendada,
+      fecha_cita: lead.fechaCita,
+      comercial_asignado_id: lead.comercialAsignadoId,
       motivo_descarte: lead.motivoDescarte,
       utm_source: lead.utmSource,
       utm_medium: lead.utmMedium,

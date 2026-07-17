@@ -3,7 +3,7 @@ import {
   getAllowedLeadTransitions,
   isValidLeadTransition,
 } from './lead-state-machine';
-import { LeadEstado } from '../models/enums/lead.enums';
+import { CanalOrigen, LeadEstado } from '../models/enums/lead.enums';
 
 describe('Lead state machine (spec §4)', () => {
   it('DG-03: allows Nuevo → TOFU', () => {
@@ -20,6 +20,23 @@ describe('Lead state machine (spec §4)', () => {
     );
   });
 
+  it('EARS-19: allows the FABRICA graph transition TOFU → MQL_PENDING', () => {
+    expect(
+      isValidLeadTransition(
+        LeadEstado.TOFU,
+        LeadEstado.MqlPending,
+        CanalOrigen.Fabrica,
+      ),
+    ).toBe(true);
+    expect(
+      isValidLeadTransition(
+        LeadEstado.TOFU,
+        LeadEstado.MqlPending,
+        CanalOrigen.CampanaDigital,
+      ),
+    ).toBe(false);
+  });
+
   it('allows MQL_PENDING → Reciclaje (Director rejects) and Descartado → MOFU (recycle)', () => {
     expect(
       isValidLeadTransition(LeadEstado.MqlPending, LeadEstado.Reciclaje),
@@ -31,9 +48,7 @@ describe('Lead state machine (spec §4)', () => {
 
   it('rejects prohibited transitions', () => {
     expect(isValidLeadTransition(LeadEstado.SQL, LeadEstado.Nuevo)).toBe(false);
-    expect(isValidLeadTransition(LeadEstado.TOFU, LeadEstado.MqlPending)).toBe(
-      false,
-    );
+    expect(isValidLeadTransition(LeadEstado.Nuevo, LeadEstado.SQL)).toBe(false);
 
     expect(() =>
       assertValidLeadTransition(LeadEstado.SQL, LeadEstado.Nuevo),

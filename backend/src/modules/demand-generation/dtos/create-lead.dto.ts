@@ -9,7 +9,11 @@ import {
   MinLength,
   ValidateIf,
 } from 'class-validator';
-import { OrigenLead, TipoLead } from '../models/enums/lead.enums';
+import {
+  CanalOrigen,
+  OrigenLead,
+  TipoLead,
+} from '../models/enums/lead.enums';
 import { Segmento } from '../models/enums/segment.enum';
 
 export class CreateLeadDto {
@@ -18,6 +22,9 @@ export class CreateLeadDto {
 
   @IsEnum(OrigenLead)
   origen: OrigenLead;
+
+  @IsEnum(CanalOrigen)
+  canal_origen: CanalOrigen;
 
   @IsOptional()
   @IsString()

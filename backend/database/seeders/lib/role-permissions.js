@@ -152,6 +152,10 @@ function buildPermissions(roleName) {
     }
   }
 
+  if (roleName === 'SoporteComercial') {
+    rules.push({ action: 'schedule', subject: 'Lead' });
+  }
+
   return rules;
 }
 

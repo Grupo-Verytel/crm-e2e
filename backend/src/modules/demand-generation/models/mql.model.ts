@@ -41,8 +41,8 @@ export class Mql extends Model {
   declare lead: Lead;
 
   @ForeignKey(() => LeadChecklist)
-  @Column({ type: DataType.CHAR(36), field: 'checklist_id', allowNull: false })
-  declare checklistId: string;
+  @Column({ type: DataType.CHAR(36), field: 'checklist_id', allowNull: true })
+  declare checklistId: string | null;
 
   @BelongsTo(() => LeadChecklist)
   declare checklist: LeadChecklist;

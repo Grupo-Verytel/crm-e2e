@@ -1,6 +1,7 @@
 /** Business events that trigger a notification in this module. */
 export enum NotificationEvent {
   MqlPendingReview = 'MQL_PENDING_REVIEW',
+  AppointmentScheduled = 'APPOINTMENT_SCHEDULED',
   SqlHandoff = 'SQL_HANDOFF',
   MqlRejected = 'MQL_REJECTED',
 }

@@ -8,7 +8,7 @@ import {
   Max,
   Min,
 } from 'class-validator';
-import { LeadEstado } from '../models/enums/lead.enums';
+import { CanalOrigen, LeadEstado } from '../models/enums/lead.enums';
 import { Segmento } from '../models/enums/segment.enum';
 
 export class LeadsQueryDto {
@@ -19,6 +19,10 @@ export class LeadsQueryDto {
   @IsOptional()
   @IsEnum(Segmento)
   segmento?: Segmento;
+
+  @IsOptional()
+  @IsEnum(CanalOrigen)
+  canal_origen?: CanalOrigen;
 
   @IsOptional()
   @IsUUID('4')
@@ -54,6 +58,7 @@ export class LeadResponseDto {
   lead_id: string;
   tipo_lead: string;
   origen: string;
+  canal_origen: CanalOrigen;
   sub_origen: string | null;
   campana_id: string | null;
   segmento: string;
@@ -70,6 +75,10 @@ export class LeadResponseDto {
   estado: string;
   icp_score: number | null;
   responsable_id: string;
+  responsable_nombre: string | null;
+  cita_agendada: boolean;
+  fecha_cita: Date | null;
+  comercial_asignado_id: string | null;
   motivo_descarte: string | null;
   utm_source: string | null;
   utm_medium: string | null;

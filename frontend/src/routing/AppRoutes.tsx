@@ -3,6 +3,7 @@ import { Navigate, useRoutes } from 'react-router-dom';
 import { ProtectedRoute } from '../modules/auth/components/ProtectedRoute';
 import { PublicRoute } from '../modules/auth/components/PublicRoute';
 import { AdminRoute } from '../modules/auth/components/AdminRoute';
+import { RoleRoute } from '../modules/auth/components/RoleRoute';
 import { ModulePlaceholderPage } from '../modules/shared/pages/ModulePlaceholderPage';
 
 const LoginPage = lazy(() => import('../modules/auth/pages/LoginPageLazy'));
@@ -25,6 +26,9 @@ const MqlInboxPage = lazy(
 );
 const MarketingDashboardPage = lazy(
   () => import('../modules/demand-generation/pages/MarketingDashboardPageLazy'),
+);
+const AgendaInboxPage = lazy(
+  () => import('../modules/demand-generation/pages/AgendaInboxPageLazy'),
 );
 
 function protectedElement(title: string, description: string) {
@@ -105,6 +109,16 @@ export function AppRoutes() {
       element: (
         <ProtectedRoute>
           <MqlInboxPage />
+        </ProtectedRoute>
+      ),
+    },
+    {
+      path: '/demand/agenda',
+      element: (
+        <ProtectedRoute>
+          <RoleRoute role="SoporteComercial">
+            <AgendaInboxPage />
+          </RoleRoute>
         </ProtectedRoute>
       ),
     },

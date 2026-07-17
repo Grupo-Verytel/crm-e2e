@@ -14,6 +14,7 @@ import {
 import { User } from '../../auth/models/user.model';
 import { Campaign } from './campaign.model';
 import {
+  CanalOrigen,
   LeadEstado,
   OrigenLead,
   TipoInfluencia,
@@ -45,6 +46,13 @@ export class Lead extends Model {
     allowNull: false,
   })
   declare origen: OrigenLead;
+
+  @Column({
+    type: DataType.ENUM(...Object.values(CanalOrigen)),
+    field: 'canal_origen',
+    allowNull: false,
+  })
+  declare canalOrigen: CanalOrigen;
 
   @Column({ type: DataType.STRING(80), field: 'sub_origen', allowNull: true })
   declare subOrigen: string | null;
@@ -143,6 +151,27 @@ export class Lead extends Model {
 
   @BelongsTo(() => User, { foreignKey: 'responsableId', as: 'responsable' })
   declare responsable: User;
+
+  @Default(false)
+  @Column({ type: DataType.BOOLEAN, field: 'cita_agendada', allowNull: false })
+  declare citaAgendada: boolean;
+
+  @Column({ type: DataType.DATE, field: 'fecha_cita', allowNull: true })
+  declare fechaCita: Date | null;
+
+  @ForeignKey(() => User)
+  @Column({
+    type: DataType.CHAR(36),
+    field: 'comercial_asignado_id',
+    allowNull: true,
+  })
+  declare comercialAsignadoId: string | null;
+
+  @BelongsTo(() => User, {
+    foreignKey: 'comercialAsignadoId',
+    as: 'comercialAsignado',
+  })
+  declare comercialAsignado: User | null;
 
   /** Required when estado = Descartado (enforced in DTO/service). */
   @Column({ type: DataType.TEXT, field: 'motivo_descarte', allowNull: true })

@@ -44,6 +44,25 @@ export class UsersService {
     };
   }
 
+  async findActiveByRoleName(roleName: string): Promise<UserResponseDto[]> {
+    const users = await this.userModel.findAll({
+      where: { isActive: true },
+      include: [{ model: Role, where: { name: roleName } }],
+      order: [['fullName', 'ASC']],
+    });
+
+    return users.map((user) => this.toResponseDto(user));
+  }
+
+  async isActiveWithRole(userId: string, roleName: string): Promise<boolean> {
+    const count = await this.userModel.count({
+      where: { userId, isActive: true },
+      include: [{ model: Role, where: { name: roleName }, required: true }],
+    });
+
+    return count > 0;
+  }
+
   async create(dto: CreateUserDto): Promise<UserResponseDto> {
     await this.ensureRoleExists(dto.role_id);
 

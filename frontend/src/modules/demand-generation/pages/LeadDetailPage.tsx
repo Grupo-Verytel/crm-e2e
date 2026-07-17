@@ -16,6 +16,8 @@ import { InteractionTimeline } from '../components/InteractionTimeline';
 import { MotivoModal } from '../components/MotivoModal';
 import { StatusBadge } from '../components/StatusBadge';
 import { cardClass, ghostButtonClass, primaryButtonClass } from '../components/ui';
+import { ExpectedRoute } from '../components/leads/ExpectedRoute';
+import { CANAL_ORIGEN_LABEL } from '../lib/lead-vocab';
 import type { Lead } from '../types';
 
 export function LeadDetailPage() {
@@ -100,6 +102,10 @@ export function LeadDetailPage() {
           <Detail label="Industria" value={lead.industria ?? '—'} />
           <Detail label="Región" value={lead.region} />
           <Detail label="Origen" value={lead.origen} />
+          <Detail
+            label="Canal de origen"
+            value={CANAL_ORIGEN_LABEL[lead.canal_origen]}
+          />
           <Detail label="Teléfono" value={lead.telefono ?? '—'} />
           <Detail label="NIT" value={lead.nit ?? '—'} />
           <Detail label="Captura" value={formatDateTime(lead.fecha_captura)} />
@@ -109,6 +115,13 @@ export function LeadDetailPage() {
           />
         </dl>
 
+        <div className="mt-4">
+          <ExpectedRoute
+            canalOrigen={lead.canal_origen}
+            currentState={lead.estado}
+          />
+        </div>
+
         {lead.motivo_descarte ? (
           <p className="mt-3 text-sm text-danger">
             Motivo de descarte: {lead.motivo_descarte}
@@ -116,7 +129,7 @@ export function LeadDetailPage() {
         ) : null}
 
         <div className="mt-5 flex flex-wrap gap-2">
-          {lead.estado === 'TOFU' ? (
+          {lead.estado === 'TOFU' && lead.canal_origen !== 'FABRICA' ? (
             <button
               type="button"
               onClick={() => runAction(() => transitionLeadToMofu(lead.lead_id))}
@@ -126,7 +139,9 @@ export function LeadDetailPage() {
             </button>
           ) : null}
 
-          {lead.estado === 'MOFU' ? (
+          {(lead.estado === 'MOFU' &&
+            lead.canal_origen !== 'GENERACION_DEMANDA_AGENCIA') ||
+          (lead.estado === 'TOFU' && lead.canal_origen === 'FABRICA') ? (
             <button
               type="button"
               onClick={() => runAction(() => transitionLeadToMql(lead.lead_id))}
@@ -172,7 +187,10 @@ export function LeadDetailPage() {
         <ChecklistPanel
           key={`checklist-${lead.estado}`}
           leadId={lead.lead_id}
-          editable={lead.estado === 'MOFU'}
+          editable={
+            lead.estado === 'MOFU' ||
+            (lead.estado === 'TOFU' && lead.canal_origen === 'FABRICA')
+          }
           onSaved={loadLead}
         />
         <InteractionTimeline leadId={lead.lead_id} onRegistered={loadLead} />

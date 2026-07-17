@@ -2,7 +2,9 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { createLead } from '../api/leads-api';
 import {
+  CANALES_ORIGEN,
   ORIGENES_LEAD,
+  type CanalOrigen,
   SEGMENTOS,
   TIPOS_LEAD,
   type CreateLeadPayload,
@@ -17,6 +19,7 @@ import { ghostButtonClass, inputClass, labelClass, primaryButtonClass } from './
 type FormState = {
   tipo_lead: TipoLead;
   origen: OrigenLead;
+  canal_origen: CanalOrigen;
   segmento: Segmento;
   industria: string;
   region: string;
@@ -31,6 +34,7 @@ type FormState = {
 const initialState: FormState = {
   tipo_lead: 'Inbound',
   origen: 'Web',
+  canal_origen: 'CAMPANA_DIGITAL',
   segmento: 'Gobierno',
   industria: '',
   region: '',
@@ -67,6 +71,7 @@ export function LeadFormModal({
     const payload: CreateLeadPayload = {
       tipo_lead: form.tipo_lead,
       origen: form.origen,
+      canal_origen: form.canal_origen,
       segmento: form.segmento,
       region: form.region,
       pais: form.pais.toUpperCase(),
@@ -122,6 +127,27 @@ export function LeadFormModal({
               {ORIGENES_LEAD.map((origen) => (
                 <option key={origen} value={origen}>
                   {origen}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Canal de origen">
+            <select
+              value={form.canal_origen}
+              onChange={(event) =>
+                update('canal_origen', event.target.value as CanalOrigen)
+              }
+              className={inputClass}
+              required
+            >
+              {CANALES_ORIGEN.map((canal) => (
+                <option
+                  key={canal}
+                  value={canal}
+                  disabled={canal === 'TRADUCTOR_NEGOCIO'}
+                >
+                  {canal.replaceAll('_', ' ')}
+                  {canal === 'TRADUCTOR_NEGOCIO' ? ' (TBD)' : ''}
                 </option>
               ))}
             </select>

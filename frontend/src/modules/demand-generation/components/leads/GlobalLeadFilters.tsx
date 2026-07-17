@@ -1,8 +1,14 @@
 import type { FormEvent } from 'react';
-import { SEGMENTOS, type Segmento } from '../../types';
+import {
+  CANALES_ORIGEN,
+  SEGMENTOS,
+  type CanalOrigen,
+  type Segmento,
+} from '../../types';
 import { inputClass, labelClass } from '../ui';
 import type { LeadsViewMode } from '../../hooks/useLeadsViewPreference';
 import type { LeadFilterValues } from '../../lib/lead-filters';
+import { CANAL_ORIGEN_LABEL } from '../../lib/lead-vocab';
 
 type CampaignOption = { campana_id: string; nombre: string };
 
@@ -74,6 +80,28 @@ export function GlobalLeadFilters({
             <span className="ml-1.5 text-xs font-normal">({exceptionsCount})</span>
           ) : null}
         </button>
+      </div>
+
+      <div
+        className="flex flex-wrap gap-2 rounded bg-surface p-3 shadow-card"
+        role="group"
+        aria-label="Filtrar por canal de origen"
+      >
+        <ChannelChip
+          label="Todos"
+          active={draft.canal_origen === ''}
+          onClick={() => onChange({ ...draft, canal_origen: '' })}
+        />
+        {CANALES_ORIGEN.map((canal) => (
+          <ChannelChip
+            key={canal}
+            label={CANAL_ORIGEN_LABEL[canal]}
+            active={draft.canal_origen === canal}
+            onClick={() =>
+              onChange({ ...draft, canal_origen: canal as CanalOrigen })
+            }
+          />
+        ))}
       </div>
 
       <form
@@ -180,6 +208,32 @@ export function GlobalLeadFilters({
         </div>
       </form>
     </div>
+  );
+}
+
+function ChannelChip({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={[
+        'rounded-full border px-3 py-1 text-xs font-bold transition-colors',
+        active
+          ? 'border-brand bg-brand text-white'
+          : 'border-border bg-surface text-muted hover:text-ink',
+      ].join(' ')}
+    >
+      {label}
+    </button>
   );
 }
 

@@ -14,7 +14,7 @@ import {
   missingChecklistCriteria,
 } from '../lib/checklist-result';
 import { assertValidLeadTransition } from '../lib/lead-state-machine';
-import { LeadEstado } from '../models/enums/lead.enums';
+import { CanalOrigen, LeadEstado } from '../models/enums/lead.enums';
 import { MqlEstado } from '../models/enums/mql.enums';
 import { Segmento } from '../models/enums/segment.enum';
 import { Lead } from '../models/lead.model';
@@ -69,6 +69,14 @@ export class LeadStateMachineService {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async transitionToMofu(leadId: string, _userId: string): Promise<Lead> {
     const lead = await this.findLeadOrFail(leadId);
+
+    if (lead.canalOrigen === CanalOrigen.Fabrica) {
+      throw new BadRequestException({
+        code: DEMAND_GENERATION_ERROR_CODES.INVALID_TRANSITION,
+        message: 'FABRICA leads skip MOFU and are evaluated directly in TOFU',
+      });
+    }
+
     assertValidLeadTransition(lead.estado, LeadEstado.MOFU);
 
     const missing: string[] = [];
@@ -108,7 +116,22 @@ export class LeadStateMachineService {
     userId: string,
   ): Promise<{ lead: Lead; mql: Mql }> {
     const lead = await this.findLeadOrFail(leadId);
-    assertValidLeadTransition(lead.estado, LeadEstado.MqlPending);
+
+    if (
+      lead.estado === LeadEstado.TOFU &&
+      lead.canalOrigen !== CanalOrigen.Fabrica
+    ) {
+      throw new BadRequestException({
+        code: DEMAND_GENERATION_ERROR_CODES.INVALID_TRANSITION,
+        message: 'Only FABRICA leads can transition directly from TOFU to BOFU',
+      });
+    }
+
+    assertValidLeadTransition(
+      lead.estado,
+      LeadEstado.MqlPending,
+      lead.canalOrigen,
+    );
 
     const checklist = await this.checklistService.findByIdOrFail(checklistId);
 

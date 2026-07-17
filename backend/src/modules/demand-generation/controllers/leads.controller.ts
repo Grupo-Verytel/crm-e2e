@@ -21,6 +21,7 @@ import {
   BulkImportJobStatusDto,
 } from '../dtos/bulk-import-job.dto';
 import { ChecklistResponseDto } from '../dtos/checklist-response.dto';
+import { CommercialOptionDto } from '../dtos/commercial-option.dto';
 import { CreateInteractionDto } from '../dtos/create-interaction.dto';
 import { CreateLeadDto } from '../dtos/create-lead.dto';
 import { DiscardLeadDto } from '../dtos/discard-lead.dto';
@@ -31,6 +32,7 @@ import {
   PaginatedLeadsResponseDto,
 } from '../dtos/lead-response.dto';
 import { RecycleLeadDto } from '../dtos/recycle-lead.dto';
+import { RegisterAppointmentDto } from '../dtos/register-appointment.dto';
 import { TransitionToMqlDto } from '../dtos/transition-mql.dto';
 import { UpdateChecklistDto } from '../dtos/update-checklist.dto';
 import { UpdateLeadDto } from '../dtos/update-lead.dto';
@@ -84,6 +86,12 @@ export class LeadsController {
     return this.demandGenerationService.listLeads(query);
   }
 
+  @Get('appointment-commercials')
+  @CheckAbility({ action: 'schedule', subject: 'Lead' })
+  listAppointmentCommercials(): Promise<CommercialOptionDto[]> {
+    return this.demandGenerationService.listAppointmentCommercials();
+  }
+
   @Get(':id')
   @CheckAbility({ action: 'read', subject: 'Lead' })
   findOne(@Param('id') id: string): Promise<LeadResponseDto> {
@@ -106,6 +114,21 @@ export class LeadsController {
     @Body() dto: RecycleLeadDto,
   ): Promise<LeadResponseDto> {
     return this.demandGenerationService.recycleLead(id, dto);
+  }
+
+  @Post(':id/registrar-cita')
+  @HttpCode(200)
+  @CheckAbility({ action: 'schedule', subject: 'Lead' })
+  registerAppointment(
+    @Param('id') id: string,
+    @Body() dto: RegisterAppointmentDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<LeadResponseDto> {
+    return this.demandGenerationService.registerLeadAppointment(
+      id,
+      dto,
+      user.userId,
+    );
   }
 
   @Post(':id/interactions')

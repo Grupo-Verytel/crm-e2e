@@ -6,12 +6,14 @@ import type {
   BulkImportJobAccepted,
   BulkImportJobStatus,
   Checklist,
+  CommercialOption,
   CreateInteractionPayload,
   CreateLeadPayload,
   Interaction,
   Lead,
   LeadsQuery,
   PaginatedLeads,
+  RegisterAppointmentPayload,
   UpdateChecklistPayload,
 } from '../types';
 
@@ -105,6 +107,22 @@ export async function recycleLead(
     method: 'POST',
     body: { responsable_id: responsableId },
   });
+}
+
+export async function registerLeadAppointment(
+  leadId: string,
+  payload: RegisterAppointmentPayload,
+): Promise<Lead> {
+  return apiRequest<Lead>(`/leads/${leadId}/registrar-cita`, {
+    method: 'POST',
+    body: payload,
+  });
+}
+
+export async function fetchAppointmentCommercials(): Promise<
+  CommercialOption[]
+> {
+  return apiRequest<CommercialOption[]>('/leads/appointment-commercials');
 }
 
 export async function enqueueLeadImport(

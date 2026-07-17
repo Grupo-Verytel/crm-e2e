@@ -8,7 +8,7 @@ import { DEMAND_GENERATION_ERROR_CODES } from '../constants/demand-generation.co
 import { ChecklistResponseDto } from '../dtos/checklist-response.dto';
 import { UpdateChecklistDto } from '../dtos/update-checklist.dto';
 import { computeChecklistResult } from '../lib/checklist-result';
-import { LeadEstado } from '../models/enums/lead.enums';
+import { CanalOrigen, LeadEstado } from '../models/enums/lead.enums';
 import { LeadChecklist } from '../models/lead-checklist.model';
 import { Lead } from '../models/lead.model';
 
@@ -40,10 +40,15 @@ export class LeadChecklistService {
       });
     }
 
-    if (lead.estado !== LeadEstado.MOFU) {
+    const isFabricaInTofu =
+      lead.canalOrigen === CanalOrigen.Fabrica &&
+      lead.estado === LeadEstado.TOFU;
+
+    if (lead.estado !== LeadEstado.MOFU && !isFabricaInTofu) {
       throw new BadRequestException({
         code: DEMAND_GENERATION_ERROR_CODES.TRANSITION_PRECONDITION_FAILED,
-        message: 'The checklist can only be edited while the lead is in MOFU',
+        message:
+          'The checklist can only be edited in MOFU, or in TOFU for FABRICA leads',
       });
     }
 

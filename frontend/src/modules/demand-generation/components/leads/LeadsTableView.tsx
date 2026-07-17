@@ -9,6 +9,7 @@ import {
   useChecklistProgress,
 } from '../../hooks/useChecklistProgress';
 import { downloadLeadsCsv } from '../../lib/lead-export';
+import { CANAL_ORIGEN_LABEL } from '../../lib/lead-vocab';
 import type { Lead, LeadEstado } from '../../types';
 import { cardClass, ghostButtonClass } from '../ui';
 import { StatusBadge } from '../StatusBadge';
@@ -195,6 +196,7 @@ export function LeadsTableView({
                   </th>
                   <th className="px-4 py-3 font-bold">Empresa / contacto</th>
                   <th className="px-4 py-3 font-bold">Segmento</th>
+                  <th className="px-4 py-3 font-bold">Canal</th>
                   <SortableHeader
                     label="Estado"
                     active={sort.key === 'estado'}
@@ -249,6 +251,9 @@ export function LeadsTableView({
                     <td className="px-4 py-3">
                       <SegmentChip segmento={lead.segmento} />
                     </td>
+                    <td className="px-4 py-3 text-muted">
+                      {CANAL_ORIGEN_LABEL[lead.canal_origen]}
+                    </td>
                     <td className="px-4 py-3">
                       <StatusBadge value={lead.estado} />
                     </td>
@@ -279,7 +284,7 @@ export function LeadsTableView({
                     <td className="px-4 py-3">
                       <ChecklistProgress
                         progress={
-                          needsChecklistProgress(lead.estado)
+                          needsChecklistProgress(lead)
                             ? checklistProgress(lead.lead_id)
                             : null
                         }

@@ -47,6 +47,7 @@ describe('Demand generation module (EARS DG-01..DG-18)', () => {
     return {
       tipo_lead: 'Inbound',
       origen: 'Web',
+      canal_origen: 'CAMPANA_DIGITAL',
       segmento: 'Gobierno',
       region: 'Bogota',
       pais: 'CO',
@@ -467,6 +468,7 @@ describe('Demand generation module (EARS DG-01..DG-18)', () => {
     const rowNew = buildCsvRow({
       tipo_lead: 'Outbound',
       origen: 'Email',
+      canal_origen: 'CAMPANA_DIGITAL',
       segmento: 'Gobierno',
       region: 'Bogota',
       pais: 'CO',
@@ -484,6 +486,7 @@ describe('Demand generation module (EARS DG-01..DG-18)', () => {
     const rowDup = buildCsvRow({
       tipo_lead: 'Outbound',
       origen: 'Email',
+      canal_origen: 'CAMPANA_DIGITAL',
       segmento: 'Gobierno',
       region: 'Bogota',
       pais: 'CO',

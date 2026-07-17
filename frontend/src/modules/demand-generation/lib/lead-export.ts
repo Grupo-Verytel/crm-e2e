@@ -10,6 +10,7 @@ const COLUMNS: { header: string; value: (lead: Lead) => string }[] = [
   { header: 'Industria', value: (l) => l.industria ?? '' },
   { header: 'Estado', value: (l) => leadEstadoLabel(l.estado) },
   { header: 'Origen', value: (l) => l.origen },
+  { header: 'Canal de origen', value: (l) => l.canal_origen },
   { header: 'Campaña', value: (l) => l.campana_id ?? '' },
   { header: 'Responsable', value: (l) => l.responsable_id },
   { header: 'Región', value: (l) => l.region },

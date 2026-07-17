@@ -1,4 +1,4 @@
-import type { LeadEstado, Segmento } from '../types';
+import type { CanalOrigen, LeadEstado, Segmento } from '../types';
 
 /**
  * Business vocabulary for the Gestor/Director de Mercadeo. The technical ENUM
@@ -19,6 +19,14 @@ export const LEAD_ESTADO_LABEL: Record<LeadEstado, string> = {
 export function leadEstadoLabel(estado: string): string {
   return LEAD_ESTADO_LABEL[estado as LeadEstado] ?? estado;
 }
+
+export const CANAL_ORIGEN_LABEL: Record<CanalOrigen, string> = {
+  CAMPANA_DIGITAL: 'Campaña digital',
+  BTL: 'BTL',
+  FABRICA: 'Fábrica',
+  GENERACION_DEMANDA_AGENCIA: 'Gen. demanda (agencia)',
+  TRADUCTOR_NEGOCIO: 'Traductor de negocio',
+};
 
 /** Segment palette — small categorical dot, built only from design tokens. */
 export const SEGMENTO_DOT: Record<Segmento, string> = {
@@ -83,6 +91,13 @@ export const KANBAN_COLUMNS: KanbanColumn[] = [
     readOnly: true,
   },
 ];
+
+export const CHANNEL_ROUTES: Partial<Record<CanalOrigen, KanbanEstado[]>> = {
+  CAMPANA_DIGITAL: ['TOFU', 'MOFU', 'MQL_PENDING', 'SQL'],
+  BTL: ['TOFU', 'MOFU', 'MQL_PENDING', 'SQL'],
+  FABRICA: ['TOFU', 'MQL_PENDING', 'SQL'],
+  GENERACION_DEMANDA_AGENCIA: ['MOFU', 'MQL_PENDING', 'SQL'],
+};
 
 /** States treated as exceptions (shown outside the board). */
 export const EXCEPTION_ESTADOS: LeadEstado[] = ['Reciclaje', 'Descartado'];
