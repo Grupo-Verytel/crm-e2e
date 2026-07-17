@@ -13,10 +13,7 @@ function getInitials(fullName: string): string {
   return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
 }
 
-/**
- * Top header: global search (Pipedrive-style), quick create, notifications, user.
- * Brand-primary is reserved for the primary action button only.
- */
+/** Top header: global search and authenticated user controls. */
 export function Header({ title }: { title: string }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -40,14 +37,7 @@ export function Header({ title }: { title: string }) {
         />
       </div>
 
-      <button
-        type="button"
-        className="inline-flex h-9 items-center gap-2 rounded bg-brand px-3 text-sm font-bold text-white hover:bg-brand-700"
-      >
-        Nuevo
-      </button>
-
-      <div className="flex items-center gap-3">
+      <div className="ml-auto flex items-center gap-3">
         <div className="hidden text-right sm:block">
           <p className="text-xs font-bold text-ink">{user?.full_name}</p>
           <p className="text-[11px] text-muted">{user?.role_name}</p>

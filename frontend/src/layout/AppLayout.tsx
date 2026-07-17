@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 
@@ -7,9 +7,14 @@ import { Header } from './Header';
  * Keep the content area white-dominant; one bold element per screen.
  */
 export function AppLayout({ title, children }: { title: string; children: ReactNode }) {
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+
   return (
     <div className="flex h-screen bg-bg text-ink">
-      <Sidebar />
+      <Sidebar
+        isCollapsed={isSidebarCollapsed}
+        onToggle={() => setIsSidebarCollapsed((isCollapsed) => !isCollapsed)}
+      />
       <div className="flex min-w-0 flex-1 flex-col">
         <Header title={title} />
         <main className="flex-1 overflow-y-auto p-6">{children}</main>
