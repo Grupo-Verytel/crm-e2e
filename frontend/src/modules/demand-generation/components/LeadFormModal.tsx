@@ -1,7 +1,7 @@
-import { useState } from 'react';
-import type { FormEvent } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
-import { createLead } from '../api/leads-api';
+import { useState } from "react";
+import type { FormEvent } from "react";
+import { ChevronDown, ChevronRight, Plus, Trash2 } from "lucide-react";
+import { createLead } from "../api/leads-api";
 import {
   CANALES_ORIGEN,
   ORIGENES_LEAD,
@@ -13,9 +13,14 @@ import {
   type OrigenLead,
   type Segmento,
   type TipoLead,
-} from '../types';
-import { ModalShell } from './ModalShell';
-import { ghostButtonClass, inputClass, labelClass, primaryButtonClass } from './ui';
+} from "../types";
+import { ModalShell } from "./ModalShell";
+import {
+  ghostButtonClass,
+  inputClass,
+  labelClass,
+  primaryButtonClass,
+} from "./ui";
 
 type FormState = {
   tipo_lead: TipoLead;
@@ -37,22 +42,22 @@ type ContactFormState = {
 };
 
 const emptyContact = (): ContactFormState => ({
-  empresa_nombre: '',
-  nombre: '',
-  cargo: '',
-  email: '',
-  telefono: '',
+  empresa_nombre: "",
+  nombre: "",
+  cargo: "",
+  email: "",
+  telefono: "",
 });
 
 const initialState: FormState = {
-  tipo_lead: 'Inbound',
-  origen: 'Web',
-  canal_origen: 'CAMPANA_DIGITAL',
-  segmento: 'Gobierno',
-  industria: '',
-  region: '',
-  pais: 'CO',
-  nit: '',
+  tipo_lead: "Inbound",
+  origen: "Web",
+  canal_origen: "CAMPANA_DIGITAL",
+  segmento: "Gobierno",
+  industria: "",
+  region: "",
+  pais: "CO",
+  nit: "",
 };
 
 export function LeadFormModal({
@@ -65,7 +70,10 @@ export function LeadFormModal({
   onClose: () => void;
 }) {
   const [form, setForm] = useState<FormState>(initialState);
-  const [contacts, setContacts] = useState<ContactFormState[]>([emptyContact()]);
+  const [contacts, setContacts] = useState<ContactFormState[]>([
+    emptyContact(),
+  ]);
+  const [expandedContact, setExpandedContact] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -86,9 +94,11 @@ export function LeadFormModal({
   }
 
   function addContact() {
-    setContacts((current) =>
-      current.length < 3 ? [...current, emptyContact()] : current,
-    );
+    if (contacts.length >= 3) {
+      return;
+    }
+    setContacts((current) => [...current, emptyContact()]);
+    setExpandedContact(contacts.length);
   }
 
   function removeContact(index: number) {
@@ -97,10 +107,34 @@ export function LeadFormModal({
         ? current.filter((_, contactIndex) => contactIndex !== index)
         : current,
     );
+    setExpandedContact((current) => {
+      if (current === index) {
+        return 0;
+      }
+      return current > index ? current - 1 : current;
+    });
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    const invalidContactIndex = contacts.findIndex(
+      (contact) =>
+        !contact.empresa_nombre.trim() ||
+        !contact.nombre.trim() ||
+        !contact.cargo.trim() ||
+        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact.email.trim()) ||
+        !contact.telefono.trim(),
+    );
+
+    if (invalidContactIndex >= 0) {
+      setExpandedContact(invalidContactIndex);
+      setError(
+        `Completa correctamente todos los campos del contacto ${invalidContactIndex + 1}.`,
+      );
+      return;
+    }
+
     setIsSubmitting(true);
     setError(null);
 
@@ -119,7 +153,7 @@ export function LeadFormModal({
         telefono: contact.telefono.trim(),
       })),
       responsable_id: responsableId,
-      ...(form.segmento === 'B2B' && form.industria
+      ...(form.segmento === "B2B" && form.industria
         ? { industria: form.industria }
         : {}),
       ...(form.nit ? { nit: form.nit } : {}),
@@ -133,7 +167,7 @@ export function LeadFormModal({
       setError(
         submitError instanceof Error
           ? submitError.message
-          : 'No se pudo crear el lead.',
+          : "No se pudo crear el lead.",
       );
     } finally {
       setIsSubmitting(false);
@@ -143,108 +177,121 @@ export function LeadFormModal({
   return (
     <ModalShell title="Nuevo lead" onClose={onClose} size="wide">
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Field label="Tipo de lead">
-            <select
-              value={form.tipo_lead}
-              onChange={(event) => update('tipo_lead', event.target.value as TipoLead)}
-              className={inputClass}
-            >
-              {TIPOS_LEAD.map((tipo) => (
-                <option key={tipo} value={tipo}>
-                  {tipo}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Origen">
-            <select
-              value={form.origen}
-              onChange={(event) => update('origen', event.target.value as OrigenLead)}
-              className={inputClass}
-            >
-              {ORIGENES_LEAD.map((origen) => (
-                <option key={origen} value={origen}>
-                  {origen}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Canal de origen">
-            <select
-              value={form.canal_origen}
-              onChange={(event) =>
-                update('canal_origen', event.target.value as CanalOrigen)
-              }
-              className={inputClass}
-              required
-            >
-              {CANALES_ORIGEN.map((canal) => (
-                <option
-                  key={canal}
-                  value={canal}
-                  disabled={canal === 'TRADUCTOR_NEGOCIO'}
-                >
-                  {canal.replaceAll('_', ' ')}
-                  {canal === 'TRADUCTOR_NEGOCIO' ? ' (TBD)' : ''}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Segmento">
-            <select
-              value={form.segmento}
-              onChange={(event) => update('segmento', event.target.value as Segmento)}
-              className={inputClass}
-            >
-              {SEGMENTOS.map((segmento) => (
-                <option key={segmento} value={segmento}>
-                  {segmento}
-                </option>
-              ))}
-            </select>
-          </Field>
-          {form.segmento === 'B2B' ? (
-            <Field label="Industria (requerida para B2B)">
+        <section className="space-y-3" aria-labelledby="lead-data-title">
+          <h3 id="lead-data-title" className="text-sm font-bold text-ink">
+            Datos del lead
+          </h3>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Field label="Canal de origen">
+              <select
+                value={form.canal_origen}
+                onChange={(event) =>
+                  update("canal_origen", event.target.value as CanalOrigen)
+                }
+                className={inputClass}
+                required
+              >
+                {CANALES_ORIGEN.map((canal) => (
+                  <option
+                    key={canal}
+                    value={canal}
+                    disabled={canal === "TRADUCTOR_NEGOCIO"}
+                  >
+                    {canal.replaceAll("_", " ")}
+                    {canal === "TRADUCTOR_NEGOCIO" ? " (TBD)" : ""}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Segmento">
+              <select
+                value={form.segmento}
+                onChange={(event) =>
+                  update("segmento", event.target.value as Segmento)
+                }
+                className={inputClass}
+              >
+                {SEGMENTOS.map((segmento) => (
+                  <option key={segmento} value={segmento}>
+                    {segmento}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Tipo de lead">
+              <select
+                value={form.tipo_lead}
+                onChange={(event) =>
+                  update("tipo_lead", event.target.value as TipoLead)
+                }
+                className={inputClass}
+              >
+                {TIPOS_LEAD.map((tipo) => (
+                  <option key={tipo} value={tipo}>
+                    {tipo}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Origen">
+              <select
+                value={form.origen}
+                onChange={(event) =>
+                  update("origen", event.target.value as OrigenLead)
+                }
+                className={inputClass}
+              >
+                {ORIGENES_LEAD.map((origen) => (
+                  <option key={origen} value={origen}>
+                    {origen}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            {form.segmento === "B2B" ? (
+              <Field label="Industria (requerida para B2B)">
+                <input
+                  value={form.industria}
+                  onChange={(event) => update("industria", event.target.value)}
+                  className={inputClass}
+                  required
+                />
+              </Field>
+            ) : null}
+            <Field label="Región">
               <input
-                value={form.industria}
-                onChange={(event) => update('industria', event.target.value)}
+                value={form.region}
+                onChange={(event) => update("region", event.target.value)}
+                className={inputClass}
+                required
+              />
+            </Field>
+            <Field label="País (ISO-2)">
+              <input
+                value={form.pais}
+                onChange={(event) => update("pais", event.target.value)}
+                className={inputClass}
+                maxLength={2}
+                required
+              />
+            </Field>
+            <Field label="NIT">
+              <input
+                value={form.nit}
+                onChange={(event) => update("nit", event.target.value)}
                 className={inputClass}
               />
             </Field>
-          ) : (
-            <div />
-          )}
-          <Field label="Región">
-            <input
-              value={form.region}
-              onChange={(event) => update('region', event.target.value)}
-              className={inputClass}
-              required
-            />
-          </Field>
-          <Field label="País (ISO-2)">
-            <input
-              value={form.pais}
-              onChange={(event) => update('pais', event.target.value)}
-              className={inputClass}
-              maxLength={2}
-              required
-            />
-          </Field>
-          <Field label="NIT">
-            <input
-              value={form.nit}
-              onChange={(event) => update('nit', event.target.value)}
-              className={inputClass}
-            />
-          </Field>
-        </div>
+          </div>
+        </section>
 
         <section className="space-y-3" aria-labelledby="lead-contacts-title">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h3 id="lead-contacts-title" className="text-sm font-bold text-ink">
+              <h3
+                id="lead-contacts-title"
+                className="text-sm font-bold text-ink"
+              >
                 Contactos
               </h3>
               <p className="text-xs text-muted">
@@ -264,90 +311,129 @@ export function LeadFormModal({
             </button>
           </div>
 
-          {contacts.map((contact, index) => (
-            <div
-              key={index}
-              className="rounded border border-border bg-bg p-4"
-            >
-              <div className="mb-3 flex items-center justify-between">
-                <p className="text-sm font-bold text-ink">
-                  {index === 0 ? 'Contacto principal' : `Contacto ${index + 1}`}
-                </p>
-                {contacts.length > 1 ? (
+          {contacts.map((contact, index) => {
+            const isExpanded =
+              contacts.length === 1 || expandedContact === index;
+
+            return (
+              <div key={index} className="rounded border border-border bg-bg">
+                <div
+                  className={[
+                    "flex items-center justify-between gap-2 px-4 py-3",
+                    isExpanded ? "border-b border-border" : "",
+                  ].join(" ")}
+                >
                   <button
                     type="button"
-                    onClick={() => removeContact(index)}
-                    className="inline-flex items-center gap-1.5 rounded px-2 py-1 text-xs font-bold text-danger hover:bg-surface"
-                    aria-label={`Eliminar contacto ${index + 1}`}
+                    onClick={() => setExpandedContact(index)}
+                    className="flex min-w-0 flex-1 items-center gap-2 text-left text-sm font-bold text-ink"
+                    aria-expanded={isExpanded}
+                    aria-controls={`lead-contact-${index}`}
+                    disabled={contacts.length === 1}
                   >
-                    <Trash2 size={14} strokeWidth={1.75} />
-                    Eliminar
+                    {contacts.length > 1 ? (
+                      isExpanded ? (
+                        <ChevronDown size={16} strokeWidth={1.75} />
+                      ) : (
+                        <ChevronRight size={16} strokeWidth={1.75} />
+                      )
+                    ) : null}
+                    <span>
+                      {index === 0
+                        ? "Contacto principal"
+                        : `Contacto ${index + 1}`}
+                    </span>
+                    {!isExpanded && contact.nombre ? (
+                      <span className="truncate text-xs font-normal text-muted">
+                        {contact.nombre} · {contact.empresa_nombre}
+                      </span>
+                    ) : null}
                   </button>
+                  {contacts.length > 1 ? (
+                    <button
+                      type="button"
+                      onClick={() => removeContact(index)}
+                      className="inline-flex items-center gap-1.5 rounded px-2 py-1 text-xs font-bold text-danger hover:bg-surface"
+                      aria-label={`Eliminar contacto ${index + 1}`}
+                    >
+                      <Trash2 size={14} strokeWidth={1.75} />
+                      Eliminar
+                    </button>
+                  ) : null}
+                </div>
+
+                {isExpanded ? (
+                  <div
+                    id={`lead-contact-${index}`}
+                    className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2"
+                  >
+                    <Field label="Empresa">
+                      <input
+                        value={contact.empresa_nombre}
+                        onChange={(event) =>
+                          updateContact(
+                            index,
+                            "empresa_nombre",
+                            event.target.value,
+                          )
+                        }
+                        className={inputClass}
+                        maxLength={120}
+                        required
+                      />
+                    </Field>
+                    <Field label="Nombre">
+                      <input
+                        value={contact.nombre}
+                        onChange={(event) =>
+                          updateContact(index, "nombre", event.target.value)
+                        }
+                        className={inputClass}
+                        maxLength={120}
+                        required
+                      />
+                    </Field>
+                    <Field label="Cargo">
+                      <input
+                        value={contact.cargo}
+                        onChange={(event) =>
+                          updateContact(index, "cargo", event.target.value)
+                        }
+                        className={inputClass}
+                        maxLength={80}
+                        required
+                      />
+                    </Field>
+                    <Field label="Correo">
+                      <input
+                        type="email"
+                        value={contact.email}
+                        onChange={(event) =>
+                          updateContact(index, "email", event.target.value)
+                        }
+                        className={inputClass}
+                        maxLength={180}
+                        required
+                      />
+                    </Field>
+                    <Field label="Teléfono">
+                      <input
+                        type="tel"
+                        value={contact.telefono}
+                        onChange={(event) =>
+                          updateContact(index, "telefono", event.target.value)
+                        }
+                        className={inputClass}
+                        maxLength={20}
+                        placeholder="3001234567"
+                        required
+                      />
+                    </Field>
+                  </div>
                 ) : null}
               </div>
-
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <Field label="Empresa">
-                  <input
-                    value={contact.empresa_nombre}
-                    onChange={(event) =>
-                      updateContact(index, 'empresa_nombre', event.target.value)
-                    }
-                    className={inputClass}
-                    maxLength={120}
-                    required
-                  />
-                </Field>
-                <Field label="Nombre">
-                  <input
-                    value={contact.nombre}
-                    onChange={(event) =>
-                      updateContact(index, 'nombre', event.target.value)
-                    }
-                    className={inputClass}
-                    maxLength={120}
-                    required
-                  />
-                </Field>
-                <Field label="Cargo">
-                  <input
-                    value={contact.cargo}
-                    onChange={(event) =>
-                      updateContact(index, 'cargo', event.target.value)
-                    }
-                    className={inputClass}
-                    maxLength={80}
-                    required
-                  />
-                </Field>
-                <Field label="Correo">
-                  <input
-                    type="email"
-                    value={contact.email}
-                    onChange={(event) =>
-                      updateContact(index, 'email', event.target.value)
-                    }
-                    className={inputClass}
-                    maxLength={180}
-                    required
-                  />
-                </Field>
-                <Field label="Teléfono">
-                  <input
-                    type="tel"
-                    value={contact.telefono}
-                    onChange={(event) =>
-                      updateContact(index, 'telefono', event.target.value)
-                    }
-                    className={inputClass}
-                    maxLength={20}
-                    placeholder="3001234567"
-                    required
-                  />
-                </Field>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </section>
 
         {error ? <p className="text-sm text-danger">{error}</p> : null}
@@ -356,7 +442,11 @@ export function LeadFormModal({
           <button type="button" onClick={onClose} className={ghostButtonClass}>
             Cancelar
           </button>
-          <button type="submit" disabled={isSubmitting} className={primaryButtonClass}>
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className={primaryButtonClass}
+          >
             Crear lead
           </button>
         </div>
@@ -365,7 +455,13 @@ export function LeadFormModal({
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
     <div>
       <span className={labelClass}>{label}</span>
