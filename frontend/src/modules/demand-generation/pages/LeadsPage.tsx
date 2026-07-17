@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { LayoutGrid, List } from 'lucide-react';
 import { AppLayout } from '../../../layout/AppLayout';
 import { useAuth } from '../../auth/hooks/useAuth';
 import { fetchCampaigns } from '../api/campaigns-api';
@@ -137,8 +138,62 @@ export function LeadsPage() {
     <AppLayout title="Generación de demanda">
       <DemandNav />
 
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4 flex flex-wrap items-center gap-3">
         <h1 className="text-lg font-bold text-ink">Leads</h1>
+
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+          <div
+            className="inline-flex rounded border border-border bg-surface p-0.5"
+            role="group"
+            aria-label="Cambiar vista de leads"
+          >
+            <button
+              type="button"
+              onClick={() => handleSelectView('list')}
+              aria-pressed={!showExceptions && view === 'list'}
+              className={[
+                'inline-flex items-center gap-1.5 rounded-sm px-3 py-1.5 text-sm font-bold transition-colors',
+                !showExceptions && view === 'list'
+                  ? 'bg-brand text-white'
+                  : 'text-muted hover:text-ink',
+              ].join(' ')}
+            >
+              <List size={15} strokeWidth={1.75} />
+              Lista
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSelectView('kanban')}
+              aria-pressed={!showExceptions && view === 'kanban'}
+              className={[
+                'inline-flex items-center gap-1.5 rounded-sm px-3 py-1.5 text-sm font-bold transition-colors',
+                !showExceptions && view === 'kanban'
+                  ? 'bg-brand text-white'
+                  : 'text-muted hover:text-ink',
+              ].join(' ')}
+            >
+              <LayoutGrid size={15} strokeWidth={1.75} />
+              Tablero
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setShowExceptions(true)}
+            aria-pressed={showExceptions}
+            className={[
+              'rounded border px-3 py-1.5 text-sm font-bold transition-colors',
+              showExceptions
+                ? 'border-warning bg-surface text-warning'
+                : 'border-border bg-surface text-muted hover:text-ink',
+            ].join(' ')}
+          >
+            Excepciones
+            {exceptionsCount != null ? (
+              <span className="ml-1.5 text-xs font-normal">({exceptionsCount})</span>
+            ) : null}
+          </button>
+
         {user ? (
           <button
             type="button"
@@ -148,6 +203,7 @@ export function LeadsPage() {
             Nuevo lead
           </button>
         ) : null}
+        </div>
       </div>
 
       <GlobalLeadFilters
@@ -156,11 +212,6 @@ export function LeadsPage() {
         onApply={handleApply}
         onClear={handleClear}
         campaigns={campaigns}
-        view={view}
-        showExceptions={showExceptions}
-        onSelectView={handleSelectView}
-        onSelectExceptions={() => setShowExceptions(true)}
-        exceptionsCount={exceptionsCount}
       />
 
       {showExceptions ? (

@@ -6,7 +6,6 @@ import {
   type Segmento,
 } from '../../types';
 import { inputClass, labelClass } from '../ui';
-import type { LeadsViewMode } from '../../hooks/useLeadsViewPreference';
 import type { LeadFilterValues } from '../../lib/lead-filters';
 import { CANAL_ORIGEN_LABEL } from '../../lib/lead-vocab';
 
@@ -18,11 +17,6 @@ type Props = {
   onApply: () => void;
   onClear: () => void;
   campaigns: CampaignOption[];
-  view: LeadsViewMode;
-  showExceptions: boolean;
-  onSelectView: (view: LeadsViewMode) => void;
-  onSelectExceptions: () => void;
-  exceptionsCount: number | null;
 };
 
 export function GlobalLeadFilters({
@@ -31,11 +25,6 @@ export function GlobalLeadFilters({
   onApply,
   onClear,
   campaigns,
-  view,
-  showExceptions,
-  onSelectView,
-  onSelectExceptions,
-  exceptionsCount,
 }: Props) {
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -44,44 +33,6 @@ export function GlobalLeadFilters({
 
   return (
     <div className="mb-4 space-y-3">
-      <div className="flex flex-wrap items-center justify-end gap-2">
-        <div
-          className="inline-flex rounded border border-border bg-surface p-0.5"
-          role="group"
-          aria-label="Cambiar vista de leads"
-        >
-          <ToggleButton
-            active={!showExceptions && view === 'list'}
-            onClick={() => onSelectView('list')}
-          >
-            Lista
-          </ToggleButton>
-          <ToggleButton
-            active={!showExceptions && view === 'kanban'}
-            onClick={() => onSelectView('kanban')}
-          >
-            Tablero
-          </ToggleButton>
-        </div>
-
-        <button
-          type="button"
-          onClick={onSelectExceptions}
-          aria-pressed={showExceptions}
-          className={[
-            'rounded border px-3 py-1.5 text-sm font-bold transition-colors',
-            showExceptions
-              ? 'border-warning bg-surface text-warning'
-              : 'border-border bg-surface text-muted hover:text-ink',
-          ].join(' ')}
-        >
-          Excepciones
-          {exceptionsCount != null ? (
-            <span className="ml-1.5 text-xs font-normal">({exceptionsCount})</span>
-          ) : null}
-        </button>
-      </div>
-
       <div
         className="flex flex-wrap gap-2 rounded bg-surface p-3 shadow-card"
         role="group"
@@ -233,30 +184,6 @@ function ChannelChip({
       ].join(' ')}
     >
       {label}
-    </button>
-  );
-}
-
-function ToggleButton({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={[
-        'rounded-sm px-3 py-1 text-sm font-bold transition-colors',
-        active ? 'bg-brand text-white' : 'text-muted hover:text-ink',
-      ].join(' ')}
-    >
-      {children}
     </button>
   );
 }
