@@ -6,6 +6,7 @@ import {
   Default,
   DeletedAt,
   ForeignKey,
+  HasMany,
   Model,
   PrimaryKey,
   Table,
@@ -13,6 +14,7 @@ import {
 } from 'sequelize-typescript';
 import { User } from '../../auth/models/user.model';
 import { Campaign } from './campaign.model';
+import { LeadContact } from './lead-contact.model';
 import {
   CanalOrigen,
   LeadEstado,
@@ -208,6 +210,9 @@ export class Lead extends Model {
 
   @BelongsTo(() => User, { foreignKey: 'createdBy', as: 'creator' })
   declare creator: User;
+
+  @HasMany(() => LeadContact, { foreignKey: 'leadId', as: 'contacts' })
+  declare contacts: LeadContact[];
 
   @CreatedAt
   @Column({ type: DataType.DATE, field: 'created_at' })

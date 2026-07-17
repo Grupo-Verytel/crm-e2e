@@ -51,9 +51,15 @@ describe('Demand generation module (EARS DG-01..DG-18)', () => {
       segmento: 'Gobierno',
       region: 'Bogota',
       pais: 'CO',
-      empresa_nombre: 'EARS Test Co',
-      contacto_nombre: 'Jane Doe',
-      email: uniqueTestEmail('ears-lead'),
+      contacts: [
+        {
+          empresa_nombre: 'EARS Test Co',
+          nombre: 'Jane Doe',
+          cargo: 'Directora',
+          email: uniqueTestEmail('ears-lead'),
+          telefono: '3001234567',
+        },
+      ],
       responsable_id: marketingUserId,
       ...overrides,
     };
@@ -278,8 +284,14 @@ describe('Demand generation module (EARS DG-01..DG-18)', () => {
         segmento: 'Gobierno',
         region: 'Bogota',
         pais: 'CO',
-        empresa_nombre: 'Missing Email Co',
-        contacto_nombre: 'Jane',
+        contacts: [
+          {
+            empresa_nombre: 'Missing Email Co',
+            nombre: 'Jane',
+            cargo: 'Directora',
+            telefono: '3001234567',
+          },
+        ],
         responsable_id: marketingUserId,
       })
       .expect(400);
@@ -288,6 +300,26 @@ describe('Demand generation module (EARS DG-01..DG-18)', () => {
     const lead = await createLeadViaApi();
     expect(lead.estado).toBe(LeadEstado.TOFU);
     expect(lead.created_by).toBe(marketingUserId);
+  });
+
+  it('DG-19/DG-20: accepts up to three complete contacts and rejects more', async () => {
+    const contacts = [1, 2, 3].map((number) => ({
+      empresa_nombre: `Contact Company ${number}`,
+      nombre: `Contact ${number}`,
+      cargo: `Role ${number}`,
+      email: uniqueTestEmail(`lead-contact-${number}`),
+      telefono: `30012345${number.toString().padStart(2, '0')}`,
+    }));
+
+    const created = await createLeadViaApi({ contacts });
+    expect(created.contacts).toHaveLength(3);
+    expect(created.contacts[0].position).toBe(1);
+
+    await request(app.getHttpServer())
+      .post('/api/v1/leads')
+      .set('Authorization', `Bearer ${marketingToken}`)
+      .send(buildLeadPayload({ contacts: [...contacts, contacts[0]] }))
+      .expect(400);
   });
 
   it('DG-02: requires industria when segmento is B2B', async () => {
@@ -482,7 +514,18 @@ describe('Demand generation module (EARS DG-01..DG-18)', () => {
 
     const dupEmail = uniqueTestEmail('csv-dup');
     const dupNit = '900999888';
-    await createLeadViaApi({ email: dupEmail, nit: dupNit });
+    await createLeadViaApi({
+      nit: dupNit,
+      contacts: [
+        {
+          empresa_nombre: 'Dup Co',
+          nombre: 'Dup User',
+          cargo: 'Director',
+          email: dupEmail,
+          telefono: '3001234567',
+        },
+      ],
+    });
     const rowDup = buildCsvRow({
       tipo_lead: 'Outbound',
       origen: 'Email',

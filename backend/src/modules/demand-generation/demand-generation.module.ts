@@ -10,6 +10,7 @@ import { MqlsController } from './controllers/mqls.controller';
 import { Campaign } from './models/campaign.model';
 import { Interaction } from './models/interaction.model';
 import { Lead } from './models/lead.model';
+import { LeadContact } from './models/lead-contact.model';
 import { LeadChecklist } from './models/lead-checklist.model';
 import { Mql } from './models/mql.model';
 import { Sql } from './models/sql.model';
@@ -28,6 +29,7 @@ import { MqlsService } from './services/mqls.service';
   imports: [
     SequelizeModule.forFeature([
       Lead,
+      LeadContact,
       Campaign,
       Interaction,
       LeadChecklist,

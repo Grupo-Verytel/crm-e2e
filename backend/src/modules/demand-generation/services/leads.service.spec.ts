@@ -4,6 +4,7 @@ import { User } from '../../auth/models/user.model';
 import { UsersService } from '../../auth/services/users.service';
 import { RegisterAppointmentDto } from '../dtos/register-appointment.dto';
 import { CanalOrigen, LeadEstado } from '../models/enums/lead.enums';
+import { LeadContact } from '../models/lead-contact.model';
 import { Lead } from '../models/lead.model';
 import { Mql } from '../models/mql.model';
 import type { NotificationPort } from '../ports/notification.port';
@@ -13,6 +14,7 @@ import { LeadsService } from './leads.service';
 describe('LeadsService channel flows', () => {
   function createService(overrides?: {
     leadModel?: Partial<typeof Lead>;
+    leadContactModel?: Partial<typeof LeadContact>;
     mqlModel?: Partial<typeof Mql>;
     userModel?: Partial<typeof User>;
     sequelize?: Partial<Sequelize>;
@@ -21,6 +23,7 @@ describe('LeadsService channel flows', () => {
   }): LeadsService {
     return new LeadsService(
       (overrides?.leadModel ?? {}) as typeof Lead,
+      (overrides?.leadContactModel ?? {}) as typeof LeadContact,
       (overrides?.mqlModel ?? {}) as typeof Mql,
       (overrides?.userModel ?? {}) as typeof User,
       (overrides?.sequelize ?? {}) as Sequelize,

@@ -10,6 +10,7 @@ import {
 } from 'class-validator';
 import { CanalOrigen, LeadEstado } from '../models/enums/lead.enums';
 import { Segmento } from '../models/enums/segment.enum';
+import { LeadContactResponseDto } from './lead-contact.dto';
 
 export class LeadsQueryDto {
   @IsOptional()
@@ -71,6 +72,7 @@ export class LeadResponseDto {
   cargo: string | null;
   email: string;
   telefono: string | null;
+  contacts: LeadContactResponseDto[];
   tipo_influencia: string | null;
   estado: string;
   icp_score: number | null;

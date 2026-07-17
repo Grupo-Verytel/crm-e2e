@@ -155,6 +155,24 @@ export const INTERACTION_RESULTADOS: InteractionResultado[] = [
   'SinRespuesta',
 ];
 
+export type LeadContact = {
+  contact_id: string;
+  position: number;
+  empresa_nombre: string;
+  nombre: string;
+  cargo: string | null;
+  email: string;
+  telefono: string | null;
+};
+
+export type LeadContactInput = {
+  empresa_nombre: string;
+  nombre: string;
+  cargo: string;
+  email: string;
+  telefono: string;
+};
+
 export type Lead = {
   lead_id: string;
   tipo_lead: string;
@@ -172,6 +190,7 @@ export type Lead = {
   cargo: string | null;
   email: string;
   telefono: string | null;
+  contacts: LeadContact[];
   tipo_influencia: string | null;
   estado: LeadEstado;
   icp_score: number | null;
@@ -218,12 +237,8 @@ export type CreateLeadPayload = {
   industria?: string;
   region: string;
   pais: string;
-  empresa_nombre: string;
   nit?: string;
-  contacto_nombre: string;
-  cargo?: string;
-  email: string;
-  telefono?: string;
+  contacts: LeadContactInput[];
   responsable_id: string;
   campana_id?: string;
   sub_origen?: string;

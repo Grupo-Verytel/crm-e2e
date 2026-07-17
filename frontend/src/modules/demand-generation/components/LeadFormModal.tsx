@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
+import { Plus, Trash2 } from 'lucide-react';
 import { createLead } from '../api/leads-api';
 import {
   CANALES_ORIGEN,
@@ -24,12 +25,24 @@ type FormState = {
   industria: string;
   region: string;
   pais: string;
-  empresa_nombre: string;
-  contacto_nombre: string;
-  email: string;
-  telefono: string;
   nit: string;
 };
+
+type ContactFormState = {
+  empresa_nombre: string;
+  nombre: string;
+  cargo: string;
+  email: string;
+  telefono: string;
+};
+
+const emptyContact = (): ContactFormState => ({
+  empresa_nombre: '',
+  nombre: '',
+  cargo: '',
+  email: '',
+  telefono: '',
+});
 
 const initialState: FormState = {
   tipo_lead: 'Inbound',
@@ -39,10 +52,6 @@ const initialState: FormState = {
   industria: '',
   region: '',
   pais: 'CO',
-  empresa_nombre: '',
-  contacto_nombre: '',
-  email: '',
-  telefono: '',
   nit: '',
 };
 
@@ -56,11 +65,38 @@ export function LeadFormModal({
   onClose: () => void;
 }) {
   const [form, setForm] = useState<FormState>(initialState);
+  const [contacts, setContacts] = useState<ContactFormState[]>([emptyContact()]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function updateContact(
+    index: number,
+    key: keyof ContactFormState,
+    value: string,
+  ) {
+    setContacts((current) =>
+      current.map((contact, contactIndex) =>
+        contactIndex === index ? { ...contact, [key]: value } : contact,
+      ),
+    );
+  }
+
+  function addContact() {
+    setContacts((current) =>
+      current.length < 3 ? [...current, emptyContact()] : current,
+    );
+  }
+
+  function removeContact(index: number) {
+    setContacts((current) =>
+      current.length > 1
+        ? current.filter((_, contactIndex) => contactIndex !== index)
+        : current,
+    );
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -75,14 +111,17 @@ export function LeadFormModal({
       segmento: form.segmento,
       region: form.region,
       pais: form.pais.toUpperCase(),
-      empresa_nombre: form.empresa_nombre,
-      contacto_nombre: form.contacto_nombre,
-      email: form.email,
+      contacts: contacts.map((contact) => ({
+        empresa_nombre: contact.empresa_nombre.trim(),
+        nombre: contact.nombre.trim(),
+        cargo: contact.cargo.trim(),
+        email: contact.email.trim(),
+        telefono: contact.telefono.trim(),
+      })),
       responsable_id: responsableId,
       ...(form.segmento === 'B2B' && form.industria
         ? { industria: form.industria }
         : {}),
-      ...(form.telefono ? { telefono: form.telefono } : {}),
       ...(form.nit ? { nit: form.nit } : {}),
     };
 
@@ -102,9 +141,9 @@ export function LeadFormModal({
   }
 
   return (
-    <ModalShell title="Nuevo lead" onClose={onClose}>
+    <ModalShell title="Nuevo lead" onClose={onClose} size="wide">
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Tipo de lead">
             <select
               value={form.tipo_lead}
@@ -176,39 +215,6 @@ export function LeadFormModal({
           ) : (
             <div />
           )}
-          <Field label="Empresa">
-            <input
-              value={form.empresa_nombre}
-              onChange={(event) => update('empresa_nombre', event.target.value)}
-              className={inputClass}
-              required
-            />
-          </Field>
-          <Field label="Contacto">
-            <input
-              value={form.contacto_nombre}
-              onChange={(event) => update('contacto_nombre', event.target.value)}
-              className={inputClass}
-              required
-            />
-          </Field>
-          <Field label="Email">
-            <input
-              type="email"
-              value={form.email}
-              onChange={(event) => update('email', event.target.value)}
-              className={inputClass}
-              required
-            />
-          </Field>
-          <Field label="Teléfono">
-            <input
-              value={form.telefono}
-              onChange={(event) => update('telefono', event.target.value)}
-              className={inputClass}
-              placeholder="3001234567"
-            />
-          </Field>
           <Field label="Región">
             <input
               value={form.region}
@@ -234,6 +240,115 @@ export function LeadFormModal({
             />
           </Field>
         </div>
+
+        <section className="space-y-3" aria-labelledby="lead-contacts-title">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h3 id="lead-contacts-title" className="text-sm font-bold text-ink">
+                Contactos
+              </h3>
+              <p className="text-xs text-muted">
+                Registra entre 1 y 3 contactos. El primero será el principal.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={addContact}
+              disabled={contacts.length >= 3}
+              className={ghostButtonClass}
+            >
+              <span className="inline-flex items-center gap-1.5">
+                <Plus size={15} strokeWidth={1.75} />
+                Agregar contacto
+              </span>
+            </button>
+          </div>
+
+          {contacts.map((contact, index) => (
+            <div
+              key={index}
+              className="rounded border border-border bg-bg p-4"
+            >
+              <div className="mb-3 flex items-center justify-between">
+                <p className="text-sm font-bold text-ink">
+                  {index === 0 ? 'Contacto principal' : `Contacto ${index + 1}`}
+                </p>
+                {contacts.length > 1 ? (
+                  <button
+                    type="button"
+                    onClick={() => removeContact(index)}
+                    className="inline-flex items-center gap-1.5 rounded px-2 py-1 text-xs font-bold text-danger hover:bg-surface"
+                    aria-label={`Eliminar contacto ${index + 1}`}
+                  >
+                    <Trash2 size={14} strokeWidth={1.75} />
+                    Eliminar
+                  </button>
+                ) : null}
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Field label="Empresa">
+                  <input
+                    value={contact.empresa_nombre}
+                    onChange={(event) =>
+                      updateContact(index, 'empresa_nombre', event.target.value)
+                    }
+                    className={inputClass}
+                    maxLength={120}
+                    required
+                  />
+                </Field>
+                <Field label="Nombre">
+                  <input
+                    value={contact.nombre}
+                    onChange={(event) =>
+                      updateContact(index, 'nombre', event.target.value)
+                    }
+                    className={inputClass}
+                    maxLength={120}
+                    required
+                  />
+                </Field>
+                <Field label="Cargo">
+                  <input
+                    value={contact.cargo}
+                    onChange={(event) =>
+                      updateContact(index, 'cargo', event.target.value)
+                    }
+                    className={inputClass}
+                    maxLength={80}
+                    required
+                  />
+                </Field>
+                <Field label="Correo">
+                  <input
+                    type="email"
+                    value={contact.email}
+                    onChange={(event) =>
+                      updateContact(index, 'email', event.target.value)
+                    }
+                    className={inputClass}
+                    maxLength={180}
+                    required
+                  />
+                </Field>
+                <Field label="Teléfono">
+                  <input
+                    type="tel"
+                    value={contact.telefono}
+                    onChange={(event) =>
+                      updateContact(index, 'telefono', event.target.value)
+                    }
+                    className={inputClass}
+                    maxLength={20}
+                    placeholder="3001234567"
+                    required
+                  />
+                </Field>
+              </div>
+            </div>
+          ))}
+        </section>
 
         {error ? <p className="text-sm text-danger">{error}</p> : null}
 

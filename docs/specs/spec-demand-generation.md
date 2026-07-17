@@ -1,7 +1,7 @@
 # spec-demand-generation.md
 **Módulo:** Fase 1 — Generación de Demanda (TOFU → MOFU → BOFU)
-**Versión:** 2.1 — agrega rutas de estados por canal de origen
-**Fecha:** 2026-07-16
+**Versión:** 2.2 — agrega múltiples contactos por lead
+**Fecha:** 2026-07-17
 **Decisiones de alcance confirmadas por Evilio:**
 - Calificación: **híbrido** — checklist cualitativo ahora (v1), motor de scoring numérico (demográfico + comportamental, Blueprint V2 §4.1-4.3) queda en **Wave 2**.
 - Campañas (creación, import CSV, presupuesto/CPL): **incluidas** en este módulo.
@@ -57,11 +57,11 @@
 | segmento | ENUM | Sí | Gobierno\|D&S\|PymesEspeciales\|B2B |
 | industria | VARCHAR(80) | Condicional | Obligatorio si segmento=B2B |
 | region | VARCHAR(60) | Sí | |
-| empresa_nombre | VARCHAR(120) | Sí | |
-| contacto_nombre | VARCHAR(120) | Sí | |
-| cargo | VARCHAR(80) | No | |
-| email | VARCHAR(180) | Sí | RFC 5321 |
-| telefono | VARCHAR(20) | No | E.164 |
+| empresa_nombre | VARCHAR(120) | Sí | Copia temporal del contacto principal para compatibilidad |
+| contacto_nombre | VARCHAR(120) | Sí | Copia temporal del contacto principal para compatibilidad |
+| cargo | VARCHAR(80) | Sí | Copia temporal del contacto principal para compatibilidad |
+| email | VARCHAR(180) | Sí | Copia temporal del contacto principal para compatibilidad |
+| telefono | VARCHAR(20) | Sí | Copia temporal del contacto principal para compatibilidad |
 | responsable_id | UUID | Sí | FK users (Gestor de Mercadeo asignado) |
 | cita_agendada | BOOLEAN | Sí | default false. Solo relevante para `canal_origen=GENERACION_DEMANDA_AGENCIA` |
 | fecha_cita | DATE | No | Solo relevante para `canal_origen=GENERACION_DEMANDA_AGENCIA` |
@@ -73,7 +73,22 @@
 
 > Campos `icp_score`, `lead_score`, `mql_score`, `sql_score` del Blueprint V2 **se dejan modelados pero inactivos** (nullable, sin motor que los calcule) para no romper el esquema cuando se active Wave 2.
 
-### 3.2 `lead_checklist` (nuevo — reemplaza el scoring en v1)
+### 3.2 `lead_contacts`
+Cada lead tiene entre 1 y 3 contactos. La posición 1 identifica el contacto principal.
+
+| Campo | Tipo | Oblig. | Notas |
+|---|---|---|---|
+| contact_id | UUID | Sí | PK |
+| lead_id | UUID | Sí | FK leads |
+| position | TINYINT | Sí | 1..3, único por lead |
+| empresa_nombre | VARCHAR(120) | Sí | |
+| nombre | VARCHAR(120) | Sí | |
+| cargo | VARCHAR(80) | Sí | |
+| email | VARCHAR(180) | Sí | RFC 5321, normalizado a minúsculas |
+| telefono | VARCHAR(20) | Sí | E.164 |
+| created_at / updated_at | TIMESTAMPTZ | Sí | |
+
+### 3.3 `lead_checklist` (nuevo — reemplaza el scoring en v1)
 | Campo | Tipo | Oblig. | Notas |
 |---|---|---|---|
 | checklist_id | UUID | Sí | PK |
@@ -88,13 +103,13 @@
 
 *Los 4 criterios son mi propuesta de armonización entre "4 FILTROS MARKETING" del Excel y los 3 filtros documentados en Filtros Embudo Comercial v5 — **queda pendiente de confirmar redacción exacta en T1**.*
 
-### 3.3 `campaigns`
+### 3.4 `campaigns`
 Igual al Blueprint V2 §2.2 (nombre, tipo, canal, objetivo, segmento_objetivo, fechas, presupuesto, gasto_real, estado, leads_generados, mqls_generados, sqls_generados, cpl — estos tres últimos calculados, no editables).
 
-### 3.4 `interactions`
+### 3.5 `interactions`
 Igual al Blueprint V2 §2.3 (tipo, subtipo, canal, descripción, responsable, fecha, campana_id, resultado). Se elimina `puntos_scoring` de la lógica activa en v1 (columna se mantiene nullable para Wave 2).
 
-### 3.5 `mqls` (simplificado v1)
+### 3.6 `mqls` (simplificado v1)
 | Campo | Tipo | Oblig. | Notas |
 |---|---|---|---|
 | mql_id | UUID | Sí | PK |
@@ -105,7 +120,7 @@ Igual al Blueprint V2 §2.3 (tipo, subtipo, canal, descripción, responsable, fe
 | motivo_calificacion | TEXT | No | |
 | estado | ENUM | Sí | Activo\|ConvertidoSQL\|Devuelto\|Descartado |
 
-### 3.6 `sqls` (solo creación/handoff — gestión es de otro módulo)
+### 3.7 `sqls` (solo creación/handoff — gestión es de otro módulo)
 | Campo | Tipo | Oblig. | Notas |
 |---|---|---|---|
 | sql_id | UUID | Sí | PK |
@@ -172,6 +187,10 @@ Igual al Blueprint V2 §2.3 (tipo, subtipo, canal, descripción, responsable, fe
 - DG-16: DONDE el lead provenga de un canal `SECOP` o `Licitacion`, el sistema PUEDE saltar la etapa de nutrición y sugerir calificación directa (alineado con la nota del BPMN: "prospectos de comercial pueden saltar la nutrición").
 - DG-17: DONDE el usuario tenga rol Director de Mercadeo, el sistema PUEDE mostrarle un panel de configuración de los criterios del checklist (para cuando se confirmen en T1).
 - DG-18: DONDE se active Wave 2, el sistema PUEDE reemplazar el gate por checklist con el motor de scoring numérico sin migración de esquema (campos ya modelados).
+- DG-19: CUANDO se crea un lead, el sistema DEBE exigir entre 1 y 3 contactos y cada contacto DEBE incluir Empresa, Nombre, Cargo, Correo y Teléfono.
+- DG-20: SI se intenta crear o actualizar un lead con cero contactos o más de tres, ENTONCES el sistema DEBE rechazar la operación sin guardar cambios parciales.
+- DG-21: CUANDO se crea un lead con varios contactos, el sistema DEBE identificar al contacto en posición 1 como principal y normalizar el correo y teléfono de todos los contactos.
+- DG-22: CUANDO se crea, actualiza o elimina un contacto de un lead, el sistema DEBE registrar el cambio en auditoría.
 
 **Reglas por canal de origen**
 - EARS-19: CUANDO se crea un lead con `canal_origen=FABRICA`, el sistema DEBERÁ asignar `estado_inicial=TOFU` y omitir la transición a MOFU, habilitando la transición directa TOFU → BOFU cuando se complete el `lead_checklist` con los 4 criterios en `true`.

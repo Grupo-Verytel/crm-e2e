@@ -115,6 +115,48 @@ export function LeadDetailPage() {
           />
         </dl>
 
+        <section className="mt-5 border-t border-border pt-4">
+          <h2 className="mb-3 text-sm font-bold text-ink">
+            Contactos ({lead.contacts.length})
+          </h2>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {lead.contacts.map((contact) => (
+              <div
+                key={contact.contact_id}
+                className="rounded border border-border bg-bg p-3 text-sm"
+              >
+                <div className="mb-2 flex items-start justify-between gap-2">
+                  <div>
+                    <p className="font-bold text-ink">{contact.nombre}</p>
+                    <p className="text-xs text-muted">
+                      {contact.cargo ?? 'Sin cargo'} · {contact.empresa_nombre}
+                    </p>
+                  </div>
+                  {contact.position === 1 ? (
+                    <span className="rounded-full border border-border px-2 py-0.5 text-[11px] font-bold text-muted">
+                      Principal
+                    </span>
+                  ) : null}
+                </div>
+                <a
+                  href={`mailto:${contact.email}`}
+                  className="block truncate text-brand hover:text-brand-700"
+                >
+                  {contact.email}
+                </a>
+                {contact.telefono ? (
+                  <a
+                    href={`tel:${contact.telefono}`}
+                    className="mt-1 block text-ink hover:text-brand"
+                  >
+                    {contact.telefono}
+                  </a>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        </section>
+
         <div className="mt-4">
           <ExpectedRoute
             canalOrigen={lead.canal_origen}

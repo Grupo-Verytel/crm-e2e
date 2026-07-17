@@ -1,5 +1,7 @@
+import { Type } from 'class-transformer';
 import {
-  IsEmail,
+  ArrayMaxSize,
+  ArrayMinSize,
   IsEnum,
   IsNotEmpty,
   IsOptional,
@@ -7,6 +9,7 @@ import {
   IsUUID,
   MaxLength,
   MinLength,
+  ValidateNested,
   ValidateIf,
 } from 'class-validator';
 import {
@@ -15,6 +18,7 @@ import {
   TipoLead,
 } from '../models/enums/lead.enums';
 import { Segmento } from '../models/enums/segment.enum';
+import { LeadContactInputDto } from './lead-contact.dto';
 
 export class CreateLeadDto {
   @IsEnum(TipoLead)
@@ -54,33 +58,16 @@ export class CreateLeadDto {
   @MaxLength(2)
   pais: string;
 
-  @IsString()
-  @MinLength(1)
-  @MaxLength(120)
-  empresa_nombre: string;
-
   @IsOptional()
   @IsString()
   @MaxLength(20)
   nit?: string;
 
-  @IsString()
-  @MinLength(1)
-  @MaxLength(120)
-  contacto_nombre: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(80)
-  cargo?: string;
-
-  @IsEmail()
-  email: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(20)
-  telefono?: string;
+  @ArrayMinSize(1)
+  @ArrayMaxSize(3)
+  @ValidateNested({ each: true })
+  @Type(() => LeadContactInputDto)
+  contacts: LeadContactInputDto[];
 
   @IsUUID('4')
   responsable_id: string;

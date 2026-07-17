@@ -4,10 +4,12 @@ export function ModalShell({
   title,
   onClose,
   children,
+  size = 'default',
 }: {
   title: string;
   onClose: () => void;
   children: ReactNode;
+  size?: 'default' | 'wide';
 }) {
   return (
     <div
@@ -16,7 +18,12 @@ export function ModalShell({
       aria-modal="true"
       aria-label={title}
     >
-      <div className="w-full max-w-lg rounded bg-surface p-6 shadow-card">
+      <div
+        className={[
+          'max-h-[90vh] w-full overflow-y-auto rounded bg-surface p-6 shadow-card',
+          size === 'wide' ? 'max-w-3xl' : 'max-w-lg',
+        ].join(' ')}
+      >
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-base font-bold text-ink">{title}</h2>
           <button

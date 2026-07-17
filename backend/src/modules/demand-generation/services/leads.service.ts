@@ -34,6 +34,7 @@ import {
 } from '../models/enums/lead.enums';
 import { MqlEstado } from '../models/enums/mql.enums';
 import { Segmento } from '../models/enums/segment.enum';
+import { LeadContact } from '../models/lead-contact.model';
 import { Lead } from '../models/lead.model';
 import { Mql } from '../models/mql.model';
 import {
@@ -47,6 +48,8 @@ import { CampaignsService } from './campaigns.service';
 export class LeadsService {
   constructor(
     @InjectModel(Lead) private readonly leadModel: typeof Lead,
+    @InjectModel(LeadContact)
+    private readonly leadContactModel: typeof LeadContact,
     @InjectModel(Mql) private readonly mqlModel: typeof Mql,
     @InjectModel(User) private readonly userModel: typeof User,
     @InjectConnection() private readonly sequelize: Sequelize,
@@ -67,46 +70,73 @@ export class LeadsService {
       await this.campaignsService.assertCampaignAcceptsLeads(dto.campana_id);
     }
 
-    const telefono = dto.telefono ? normalizePhoneToE164(dto.telefono) : null;
-
-    if (dto.telefono && !telefono) {
-      throw new BadRequestException({
-        code: DEMAND_GENERATION_ERROR_CODES.VALIDATION_ERROR,
-        message: 'Invalid phone number format',
-      });
-    }
+    const contacts = dto.contacts.map((contact, index) => {
+      const telefono = normalizePhoneToE164(contact.telefono);
+      if (!telefono) {
+        throw new BadRequestException({
+          code: DEMAND_GENERATION_ERROR_CODES.VALIDATION_ERROR,
+          message: `Invalid phone number format for contact ${index + 1}`,
+        });
+      }
+      return {
+        position: index + 1,
+        empresaNombre: contact.empresa_nombre.trim(),
+        nombre: contact.nombre.trim(),
+        cargo: contact.cargo.trim(),
+        email: contact.email.trim().toLowerCase(),
+        telefono,
+      };
+    });
+    const primaryContact = contacts[0];
 
     try {
       const initialState = this.resolveInitialState(dto.canal_origen);
-      const lead = await this.leadModel.create({
-        tipoLead: dto.tipo_lead,
-        origen: dto.origen,
-        canalOrigen: dto.canal_origen,
-        subOrigen: dto.sub_origen ?? null,
-        campanaId: dto.campana_id ?? null,
-        segmento: dto.segmento,
-        industria: dto.industria ?? null,
-        region: dto.region,
-        pais: dto.pais.toUpperCase(),
-        empresaNombre: dto.empresa_nombre,
-        nit: dto.nit ?? null,
-        contactoNombre: dto.contacto_nombre,
-        cargo: dto.cargo ?? null,
-        email: dto.email.toLowerCase(),
-        telefono,
-        responsableId: dto.responsable_id,
-        utmSource: dto.utm_source ?? null,
-        utmMedium: dto.utm_medium ?? null,
-        utmCampaign: dto.utm_campaign ?? null,
-        estado: initialState,
-        createdBy,
+      const leadId = await this.sequelize.transaction(async (transaction) => {
+        const lead = await this.leadModel.create(
+          {
+            tipoLead: dto.tipo_lead,
+            origen: dto.origen,
+            canalOrigen: dto.canal_origen,
+            subOrigen: dto.sub_origen ?? null,
+            campanaId: dto.campana_id ?? null,
+            segmento: dto.segmento,
+            industria: dto.industria ?? null,
+            region: dto.region,
+            pais: dto.pais.toUpperCase(),
+            empresaNombre: primaryContact.empresaNombre,
+            nit: dto.nit ?? null,
+            contactoNombre: primaryContact.nombre,
+            cargo: primaryContact.cargo,
+            email: primaryContact.email,
+            telefono: primaryContact.telefono,
+            responsableId: dto.responsable_id,
+            utmSource: dto.utm_source ?? null,
+            utmMedium: dto.utm_medium ?? null,
+            utmCampaign: dto.utm_campaign ?? null,
+            estado: initialState,
+            createdBy,
+          },
+          { transaction },
+        );
+
+        await Promise.all(
+          contacts.map((contact) =>
+            this.leadContactModel.create(
+              { ...contact, leadId: lead.leadId },
+              { transaction },
+            ),
+          ),
+        );
+
+        return lead.leadId;
       });
 
-      if (lead.campanaId) {
-        await this.campaignsService.incrementLeadCount(lead.campanaId);
+      if (dto.campana_id) {
+        await this.campaignsService.incrementLeadCount(dto.campana_id);
       }
 
-      return this.toResponseDto(lead);
+      const createdLead = await this.findLeadOrFail(leadId);
+      return this.toResponseDto(createdLead);
     } catch (error) {
       if (error instanceof UniqueConstraintError) {
         throw new ConflictException({
@@ -159,6 +189,12 @@ export class LeadsService {
           model: User,
           as: 'responsable',
           attributes: ['userId', 'fullName'],
+        },
+        {
+          model: LeadContact,
+          as: 'contacts',
+          separate: true,
+          order: [['position', 'ASC']],
         },
       ],
       order: [['fechaCaptura', 'DESC']],
@@ -426,24 +462,44 @@ export class LeadsService {
       ? normalizePhoneToE164(values.telefono)
       : null;
 
-    return this.leadModel.create({
-      tipoLead: (values.tipo_lead as TipoLead) || TipoLead.Outbound,
-      origen: (values.origen as OrigenLead) || OrigenLead.Email,
-      canalOrigen,
-      campanaId: values.campana_id || null,
-      segmento,
-      industria,
-      region: values.region,
-      pais: values.pais.toUpperCase(),
-      empresaNombre: values.empresa_nombre,
-      nit: values.nit || null,
-      contactoNombre: values.contacto_nombre,
-      cargo: values.cargo || null,
-      email: values.email.toLowerCase(),
-      telefono,
-      responsableId: values.responsable_id,
-      estado: this.resolveInitialState(canalOrigen),
-      createdBy,
+    return this.sequelize.transaction(async (transaction) => {
+      const lead = await this.leadModel.create(
+        {
+          tipoLead: (values.tipo_lead as TipoLead) || TipoLead.Outbound,
+          origen: (values.origen as OrigenLead) || OrigenLead.Email,
+          canalOrigen,
+          campanaId: values.campana_id || null,
+          segmento,
+          industria,
+          region: values.region,
+          pais: values.pais.toUpperCase(),
+          empresaNombre: values.empresa_nombre,
+          nit: values.nit || null,
+          contactoNombre: values.contacto_nombre,
+          cargo: values.cargo || null,
+          email: values.email.toLowerCase(),
+          telefono,
+          responsableId: values.responsable_id,
+          estado: this.resolveInitialState(canalOrigen),
+          createdBy,
+        },
+        { transaction },
+      );
+
+      await this.leadContactModel.create(
+        {
+          leadId: lead.leadId,
+          position: 1,
+          empresaNombre: values.empresa_nombre,
+          nombre: values.contacto_nombre,
+          cargo: values.cargo || null,
+          email: values.email.toLowerCase(),
+          telefono,
+        },
+        { transaction },
+      );
+
+      return lead;
     });
   }
 
@@ -466,6 +522,12 @@ export class LeadsService {
           model: User,
           as: 'responsable',
           attributes: ['userId', 'fullName'],
+        },
+        {
+          model: LeadContact,
+          as: 'contacts',
+          separate: true,
+          order: [['position', 'ASC']],
         },
       ],
     });
@@ -537,6 +599,26 @@ export class LeadsService {
       cargo: lead.cargo,
       email: lead.email,
       telefono: lead.telefono,
+      contacts:
+        lead.contacts?.map((contact) => ({
+          contact_id: contact.contactId,
+          position: contact.position,
+          empresa_nombre: contact.empresaNombre,
+          nombre: contact.nombre,
+          cargo: contact.cargo,
+          email: contact.email,
+          telefono: contact.telefono,
+        })) ?? [
+          {
+            contact_id: lead.leadId,
+            position: 1,
+            empresa_nombre: lead.empresaNombre,
+            nombre: lead.contactoNombre,
+            cargo: lead.cargo,
+            email: lead.email,
+            telefono: lead.telefono,
+          },
+        ],
       tipo_influencia: lead.tipoInfluencia,
       estado: lead.estado,
       icp_score: lead.icpScore,

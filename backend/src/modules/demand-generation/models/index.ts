@@ -20,6 +20,7 @@ export { Segmento, SegmentoObjetivo } from './enums/segment.enum';
 export { Campaign } from './campaign.model';
 export { Interaction } from './interaction.model';
 export { Lead } from './lead.model';
+export { LeadContact } from './lead-contact.model';
 export { LeadChecklist } from './lead-checklist.model';
 export { Mql } from './mql.model';
 export { Sql } from './sql.model';
