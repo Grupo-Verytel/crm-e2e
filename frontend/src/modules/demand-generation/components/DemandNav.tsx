@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../auth/hooks/useAuth';
 
@@ -27,7 +28,11 @@ const LINKS: NavItem[] = [
   { to: '/demand/dashboard', label: 'Dashboard', end: false },
 ];
 
-export function DemandNav() {
+type DemandNavProps = {
+  actions?: ReactNode;
+};
+
+export function DemandNav({ actions }: DemandNavProps) {
   const { user } = useAuth();
   const isDirector = user?.role_name === DIRECTOR_ROLE;
   const isSupport = user?.role_name === SUPPORT_ROLE;
@@ -37,24 +42,27 @@ export function DemandNav() {
   );
 
   return (
-    <nav className="mb-4 flex gap-1 border-b border-border">
-      {links.map((link) => (
-        <NavLink
-          key={link.to}
-          to={link.to}
-          end={link.end}
-          className={({ isActive }) =>
-            [
-              '-mb-px border-b-2 px-4 py-2 text-sm transition-colors',
-              isActive
-                ? 'border-brand font-bold text-brand'
-                : 'border-transparent text-muted hover:text-ink',
-            ].join(' ')
-          }
-        >
-          {link.label}
-        </NavLink>
-      ))}
-    </nav>
+    <div className="mb-4 flex flex-wrap items-start gap-2 border-b border-border">
+      <nav className="flex gap-1">
+        {links.map((link) => (
+          <NavLink
+            key={link.to}
+            to={link.to}
+            end={link.end}
+            className={({ isActive }) =>
+              [
+                '-mb-px border-b-2 px-4 py-2 text-sm transition-colors',
+                isActive
+                  ? 'border-brand font-bold text-brand'
+                  : 'border-transparent text-muted hover:text-ink',
+              ].join(' ')
+            }
+          >
+            {link.label}
+          </NavLink>
+        ))}
+      </nav>
+      {actions ? <div className="ml-auto">{actions}</div> : null}
+    </div>
   );
 }

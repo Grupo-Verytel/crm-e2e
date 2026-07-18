@@ -136,7 +136,19 @@ export function LeadsPage() {
 
   return (
     <AppLayout title="Generación de demanda">
-      <DemandNav />
+      <DemandNav
+        actions={
+          user ? (
+            <button
+              type="button"
+              onClick={() => setShowCreate(true)}
+              className={primaryButtonClass}
+            >
+              Nuevo lead
+            </button>
+          ) : null
+        }
+      />
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <h1 className="text-lg font-bold text-ink">Leads</h1>
@@ -193,16 +205,6 @@ export function LeadsPage() {
               <span className="ml-1.5 text-xs font-normal">({exceptionsCount})</span>
             ) : null}
           </button>
-
-        {user ? (
-          <button
-            type="button"
-            onClick={() => setShowCreate(true)}
-            className={primaryButtonClass}
-          >
-            Nuevo lead
-          </button>
-        ) : null}
         </div>
       </div>
 
