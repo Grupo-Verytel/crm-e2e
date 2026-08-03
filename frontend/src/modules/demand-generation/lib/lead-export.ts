@@ -1,4 +1,4 @@
-import { leadEstadoLabel } from './lead-vocab';
+import { CANAL_ORIGEN_LABEL, leadEstadoLabel } from './lead-vocab';
 import type { Lead } from '../types';
 
 const COLUMNS: { header: string; value: (lead: Lead) => string }[] = [
@@ -10,7 +10,10 @@ const COLUMNS: { header: string; value: (lead: Lead) => string }[] = [
   { header: 'Industria', value: (l) => l.industria ?? '' },
   { header: 'Estado', value: (l) => leadEstadoLabel(l.estado) },
   { header: 'Origen', value: (l) => l.origen },
-  { header: 'Canal de origen', value: (l) => l.canal_origen },
+  {
+    header: 'Canal de origen',
+    value: (l) => CANAL_ORIGEN_LABEL[l.canal_origen] ?? l.canal_origen,
+  },
   { header: 'Campaña', value: (l) => l.campana_id ?? '' },
   { header: 'Responsable', value: (l) => l.responsable_id },
   { header: 'Región', value: (l) => l.region },

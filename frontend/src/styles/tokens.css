@@ -1,9 +1,11 @@
 /* Verytel design tokens — single source of truth. Never hardcode these values in components. */
 :root {
   /* Brand */
-  --brand-primary: #0033A0;     /* sidebar active, header, primary buttons */
+  --brand-primary: #0033A0;     /* sidebar active, navigation */
   --brand-primary-700: #002B86;
-  --brand-turquoise: #2DCCD3;   /* ACCENT ONLY: positive indicators, single active icon */
+  --brand-turquoise: #2DCCD3;   /* positive indicators, single active icon */
+  --accent: #FF7913;            /* PANTONE 17-1350 TCX Oriole — all buttons */
+  --accent-700: #E06800;
   --ink: #1D1D1B;               /* primary text / high contrast */
 
   /* Extended blues — charts & states only, never navigation */
@@ -38,4 +40,19 @@
 
   /* Elevation (subtle — minimalist) */
   --shadow-card: 0 1px 2px rgba(29,29,27,0.04), 0 1px 3px rgba(29,29,27,0.06);
+
+  /* Button pointer glow (10% white, follows cursor) */
+  --button-glow: rgba(255, 255, 255, 0.1);
+}
+
+/* Dark mode — canvas from brand dark swatch */
+:root[data-theme='dark'] {
+  --bg: #1E1E1E;
+  --surface: #2A2A2A;
+  --border: #3A3A3A;
+  --ink: #F2F2F2;
+  --text-strong: #F2F2F2;
+  --text: #D0D0D0;
+  --text-muted: #9A9A9A;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.35), 0 1px 3px rgba(0, 0, 0, 0.4);
 }

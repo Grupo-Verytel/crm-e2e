@@ -85,7 +85,7 @@ function KpiCard({ label, value }: { label: string; value: string }) {
   return (
     <div className={`${cardClass} p-5`}>
       <p className="text-xs font-bold uppercase tracking-wide text-muted">{label}</p>
-      <p className="mt-2 text-3xl font-bold text-brand">{value}</p>
+      <p className="mt-2 text-3xl font-bold text-accent">{value}</p>
     </div>
   );
 }
@@ -103,7 +103,7 @@ function Funnel({ funnel }: { funnel: MarketingDashboard['funnel'] }) {
           </div>
           <div className="h-3 w-full rounded-sm bg-bg">
             <div
-              className="h-3 rounded-sm bg-brand"
+              className="h-3 rounded-sm bg-accent"
               style={{ width: `${(stage.count / max) * 100}%` }}
               aria-label={`${FUNNEL_LABELS[stage.estado] ?? stage.estado}: ${stage.count}`}
             />

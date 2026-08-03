@@ -140,14 +140,14 @@ export function LeadDetailPage() {
                 </div>
                 <a
                   href={`mailto:${contact.email}`}
-                  className="block truncate text-brand hover:text-brand-700"
+                  className="block truncate text-accent hover:text-accent-700"
                 >
                   {contact.email}
                 </a>
                 {contact.telefono ? (
                   <a
                     href={`tel:${contact.telefono}`}
-                    className="mt-1 block text-ink hover:text-brand"
+                    className="mt-1 block text-ink hover:text-accent"
                   >
                     {contact.telefono}
                   </a>

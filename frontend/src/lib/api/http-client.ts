@@ -32,7 +32,10 @@ async function refreshAccessToken(): Promise<string | null> {
   });
 
   if (!response.ok) {
-    clearTokens();
+    // 503 = DB/infra outage — keep local session; do not treat as logout.
+    if (response.status !== 503) {
+      clearTokens();
+    }
     return null;
   }
 
@@ -77,6 +80,14 @@ export async function apiRequest<T>(
   if (auth) {
     const accessToken = await getValidAccessToken(retry);
     if (!accessToken) {
+      // Refresh token still stored → refresh failed for infra, not logout.
+      if (getRefreshToken()) {
+        throw new ApiError(
+          503,
+          'Database temporarily unavailable',
+          'SERVICE_UNAVAILABLE',
+        );
+      }
       notifySessionExpired();
       throw new ApiError(401, 'Session expired');
     }
@@ -93,6 +104,14 @@ export async function apiRequest<T>(
     const refreshed = await refreshAccessToken();
     if (refreshed) {
       return apiRequest<T>(path, { ...options, retry: false });
+    }
+    // Refresh failed but tokens remain → infra issue (e.g. 503), not logout.
+    if (getRefreshToken()) {
+      throw new ApiError(
+        503,
+        'Database temporarily unavailable',
+        'SERVICE_UNAVAILABLE',
+      );
     }
     clearTokens();
     notifySessionExpired();

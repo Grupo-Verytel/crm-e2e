@@ -21,11 +21,12 @@ export function leadEstadoLabel(estado: string): string {
 }
 
 export const CANAL_ORIGEN_LABEL: Record<CanalOrigen, string> = {
-  CAMPANA_DIGITAL: 'Campaña digital',
+  CAMPANA_DIGITAL: 'Marketing Digital',
   BTL: 'BTL',
   FABRICA: 'Fábrica',
-  GENERACION_DEMANDA_AGENCIA: 'Gen. demanda (agencia)',
+  GENERACION_DEMANDA_AGENCIA: 'Generación de demanda (agencia)',
   TRADUCTOR_NEGOCIO: 'Traductor de negocio',
+  EVENTOS: 'Eventos',
 };
 
 /** Segment palette — small categorical dot, built only from design tokens. */
@@ -64,21 +65,21 @@ export type KanbanColumn = {
 export const KANBAN_COLUMNS: KanbanColumn[] = [
   {
     estado: 'TOFU',
-    label: 'Por contactar',
+    label: 'Por Contactar - TOFU',
     hint: 'Captados, aún sin primera interacción',
     acceptsFrom: null,
     readOnly: false,
   },
   {
     estado: 'MOFU',
-    label: 'En nutrición',
+    label: 'En nutrición - MOFU',
     hint: 'Con interacción; trabajando el checklist',
     acceptsFrom: 'TOFU',
     readOnly: false,
   },
   {
     estado: 'MQL_PENDING',
-    label: 'Pendiente de aprobación',
+    label: 'Pendiente aprobación - BOFU',
     hint: 'Checklist completo; espera al Director',
     acceptsFrom: 'MOFU',
     readOnly: false,
@@ -97,6 +98,7 @@ export const CHANNEL_ROUTES: Partial<Record<CanalOrigen, KanbanEstado[]>> = {
   BTL: ['TOFU', 'MOFU', 'MQL_PENDING', 'SQL'],
   FABRICA: ['TOFU', 'MQL_PENDING', 'SQL'],
   GENERACION_DEMANDA_AGENCIA: ['MOFU', 'MQL_PENDING', 'SQL'],
+  EVENTOS: ['TOFU', 'MOFU', 'MQL_PENDING', 'SQL'],
 };
 
 /** States treated as exceptions (shown outside the board). */

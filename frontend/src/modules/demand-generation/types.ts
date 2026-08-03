@@ -57,11 +57,13 @@ export type CanalOrigen =
   | 'BTL'
   | 'FABRICA'
   | 'GENERACION_DEMANDA_AGENCIA'
-  | 'TRADUCTOR_NEGOCIO';
+  | 'TRADUCTOR_NEGOCIO'
+  | 'EVENTOS';
 
 export const CANALES_ORIGEN: CanalOrigen[] = [
   'CAMPANA_DIGITAL',
   'BTL',
+  'EVENTOS',
   'FABRICA',
   'GENERACION_DEMANDA_AGENCIA',
   'TRADUCTOR_NEGOCIO',

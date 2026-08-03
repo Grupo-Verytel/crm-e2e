@@ -12,4 +12,6 @@ export const AUTH_ERROR_CODES = {
   EMAIL_CONFLICT: 'EMAIL_CONFLICT',
   NOT_FOUND: 'NOT_FOUND',
   VALIDATION_ERROR: 'VALIDATION_ERROR',
+  /** DB/network outage — never treat as session expiry on the client. */
+  SERVICE_UNAVAILABLE: 'SERVICE_UNAVAILABLE',
 } as const;

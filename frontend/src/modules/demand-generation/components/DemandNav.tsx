@@ -53,8 +53,8 @@ export function DemandNav({ actions }: DemandNavProps) {
               [
                 '-mb-px border-b-2 px-4 py-2 text-sm transition-colors',
                 isActive
-                  ? 'border-brand font-bold text-brand'
-                  : 'border-transparent text-muted hover:text-ink',
+                  ? 'border-accent font-bold text-accent'
+                  : 'border-transparent text-muted hover:text-accent',
               ].join(' ')
             }
           >

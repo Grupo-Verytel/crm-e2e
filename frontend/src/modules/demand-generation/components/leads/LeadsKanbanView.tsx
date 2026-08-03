@@ -275,7 +275,7 @@ export function LeadsKanbanView({ filters }: { filters: LeadFilterValues }) {
                 column.readOnly
                   ? 'border border-dashed border-border bg-bg/60'
                   : 'bg-bg',
-                isDropTarget ? 'outline outline-2 outline-brand' : '',
+                isDropTarget ? 'outline outline-2 outline-accent' : '',
                 blocked ? 'cursor-not-allowed' : '',
                 !applies ? 'opacity-40' : '',
               ].join(' ')}
@@ -343,7 +343,7 @@ export function LeadsKanbanView({ filters }: { filters: LeadFilterValues }) {
                           void loadColumn(column.estado, state.page + 1, true)
                         }
                         disabled={state.loading}
-                        className="w-full rounded border border-border bg-surface px-3 py-1.5 text-xs font-bold text-ink hover:bg-bg disabled:opacity-40"
+                        className="btn-glow-outline w-full rounded px-3 py-1.5 text-xs font-bold disabled:opacity-40"
                       >
                         Cargar más ({state.total - state.items.length} restantes)
                       </button>

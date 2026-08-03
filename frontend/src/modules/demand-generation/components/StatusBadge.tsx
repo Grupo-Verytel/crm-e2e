@@ -1,6 +1,6 @@
 const TONE_CLASS: Record<string, string> = {
   neutral: 'border-border text-muted',
-  brand: 'border-brand text-brand',
+  brand: 'border-accent text-accent',
   positive: 'border-turquoise text-ink',
   warning: 'border-warning text-warning',
   danger: 'border-danger text-danger',

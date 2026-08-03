@@ -116,7 +116,7 @@ export function InteractionTimeline({
         <ol className="space-y-3 border-l border-border pl-4">
           {items.map((interaction) => (
             <li key={interaction.interaction_id} className="relative">
-              <span className="absolute -left-[21px] top-1 h-2 w-2 rounded-full bg-brand" />
+              <span className="absolute -left-[21px] top-1 h-2 w-2 rounded-full bg-accent" />
               <p className="text-sm font-bold text-ink">
                 {interaction.tipo} · {interaction.canal}
               </p>

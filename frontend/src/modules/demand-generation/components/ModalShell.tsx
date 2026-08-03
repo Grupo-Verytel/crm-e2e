@@ -29,7 +29,7 @@ export function ModalShell({
           <button
             type="button"
             onClick={onClose}
-            className="text-sm text-muted hover:text-ink"
+            className="btn-glow-outline rounded px-2 py-1 text-sm font-bold"
             aria-label="Cerrar"
           >
             Cerrar

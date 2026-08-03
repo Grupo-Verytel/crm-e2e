@@ -14,6 +14,7 @@ import {
   type Segmento,
   type TipoLead,
 } from "../types";
+import { CANAL_ORIGEN_LABEL } from "../lib/lead-vocab";
 import { ModalShell } from "./ModalShell";
 import {
   ghostButtonClass,
@@ -197,7 +198,7 @@ export function LeadFormModal({
                     value={canal}
                     disabled={canal === "TRADUCTOR_NEGOCIO"}
                   >
-                    {canal.replaceAll("_", " ")}
+                    {CANAL_ORIGEN_LABEL[canal]}
                     {canal === "TRADUCTOR_NEGOCIO" ? " (TBD)" : ""}
                   </option>
                 ))}
@@ -326,7 +327,7 @@ export function LeadFormModal({
                   <button
                     type="button"
                     onClick={() => setExpandedContact(index)}
-                    className="flex min-w-0 flex-1 items-center gap-2 text-left text-sm font-bold text-ink"
+                    className="btn-glow-outline flex min-w-0 flex-1 items-center gap-2 rounded border-transparent px-2 py-1 text-left text-sm font-bold"
                     aria-expanded={isExpanded}
                     aria-controls={`lead-contact-${index}`}
                     disabled={contacts.length === 1}
@@ -353,7 +354,7 @@ export function LeadFormModal({
                     <button
                       type="button"
                       onClick={() => removeContact(index)}
-                      className="inline-flex items-center gap-1.5 rounded px-2 py-1 text-xs font-bold text-danger hover:bg-surface"
+                      className="btn-glow-outline inline-flex items-center gap-1.5 rounded px-2 py-1 text-xs font-bold"
                       aria-label={`Eliminar contacto ${index + 1}`}
                     >
                       <Trash2 size={14} strokeWidth={1.75} />

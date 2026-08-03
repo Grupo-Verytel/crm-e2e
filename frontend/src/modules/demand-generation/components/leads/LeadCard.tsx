@@ -50,7 +50,7 @@ export function LeadCard({
       <Link
         to={`/demand/leads/${lead.lead_id}`}
         onClick={(event) => event.stopPropagation()}
-        className="block text-sm font-bold text-ink hover:text-brand"
+        className="block text-sm font-bold text-ink hover:text-accent"
       >
         {lead.empresa_nombre}
       </Link>
@@ -72,7 +72,7 @@ export function LeadCard({
                     key={column.estado}
                     className={[
                       'h-1.5 w-1.5 rounded-full',
-                      applies ? 'bg-brand' : 'bg-border opacity-50',
+                      applies ? 'bg-accent' : 'bg-border opacity-50',
                     ].join(' ')}
                     title={`${column.label}${applies ? '' : ' — no aplica'}`}
                   />

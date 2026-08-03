@@ -159,7 +159,7 @@ export function LeadsTableView({
           <button
             type="button"
             onClick={() => setSelected(new Set())}
-            className="text-sm text-muted hover:text-ink"
+            className="btn-glow-outline rounded px-3 py-1 text-sm font-bold"
           >
             Limpiar selección
           </button>
@@ -242,7 +242,7 @@ export function LeadsTableView({
                       <Link
                         to={`/demand/leads/${lead.lead_id}`}
                         onClick={(event) => event.stopPropagation()}
-                        className="font-bold text-ink hover:text-brand"
+                        className="font-bold text-ink hover:text-accent"
                       >
                         {lead.empresa_nombre}
                       </Link>

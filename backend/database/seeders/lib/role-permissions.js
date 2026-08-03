@@ -23,7 +23,8 @@ const SUBJECTS = {
 const MATRIX = {
   Admin: {
     'users/roles': 'CRUA',
-    'leads/campaigns': 'R',
+    // Full demand-gen so Admin can operate without switching roles in local/dev.
+    'leads/campaigns': 'CRUA',
     opportunities: 'R',
     presales: 'R',
     pricing: 'R',
@@ -152,7 +153,7 @@ function buildPermissions(roleName) {
     }
   }
 
-  if (roleName === 'SoporteComercial') {
+  if (roleName === 'SoporteComercial' || roleName === 'Admin') {
     rules.push({ action: 'schedule', subject: 'Lead' });
   }
 
