@@ -5,6 +5,7 @@ import { formatDateTime } from '../../../lib/format';
 import { useAuth } from '../../auth/hooks/useAuth';
 import {
   discardLead,
+  fetchChecklist,
   fetchLead,
   recycleLead,
   transitionLeadToMofu,
@@ -17,9 +18,20 @@ import { MotivoModal } from '../components/MotivoModal';
 import { StatusBadge } from '../components/StatusBadge';
 import { cardClass, ghostButtonClass, primaryButtonClass } from '../components/ui';
 import { ExpectedRoute } from '../components/leads/ExpectedRoute';
+import { ChecklistModal } from '../components/leads/ChecklistModal';
+import { RegisterAppointmentModal } from '../components/leads/RegisterAppointmentModal';
 import { CANAL_ORIGEN_LABEL } from '../lib/lead-vocab';
-import type { Lead } from '../types';
+import type { Checklist, Lead } from '../types';
 
+function isChecklistComplete(checklist: Checklist | null): boolean {
+  return (
+    !!checklist &&
+    checklist.criterio_sector_objetivo &&
+    checklist.criterio_necesidad_portafolio &&
+    checklist.criterio_acceso_decisor &&
+    checklist.criterio_presupuesto_indicios
+  );
+}
 export function LeadDetailPage() {
   const { id = '' } = useParams();
   const { user } = useAuth();
@@ -28,6 +40,8 @@ export function LeadDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [showDiscard, setShowDiscard] = useState(false);
+  const [showAppointment, setShowAppointment] = useState(false);
+  const [showChecklist, setShowChecklist] = useState(false);
 
   const loadLead = useCallback(async () => {
     setIsLoading(true);
@@ -55,6 +69,23 @@ export function LeadDetailPage() {
     }
   }
 
+  /** Spec §4: MOFU → BOFU (or FABRICA TOFU → BOFU) via complete checklist. */
+  async function advanceToBofu() {
+    setActionError(null);
+    try {
+      const checklist = await fetchChecklist(lead!.lead_id);
+      if (isChecklistComplete(checklist)) {
+        setLead(await transitionLeadToMql(lead!.lead_id));
+        return;
+      }
+      setShowChecklist(true);
+    } catch (err) {
+      setActionError(
+        err instanceof Error ? err.message : 'No se pudo avanzar a BOFU.',
+      );
+    }
+  }
+
   if (isLoading) {
     return (
       <AppLayout title="Lead">
@@ -77,6 +108,21 @@ export function LeadDetailPage() {
 
   const canDiscard =
     lead.estado !== 'SQL' && lead.estado !== 'Descartado';
+
+  const isAgencyMofu =
+    lead.estado === 'MOFU' &&
+    lead.canal_origen === 'GENERACION_DEMANDA_AGENCIA';
+
+  const canAdvanceViaChecklist =
+    (lead.estado === 'MOFU' &&
+      lead.canal_origen !== 'GENERACION_DEMANDA_AGENCIA') ||
+    (lead.estado === 'TOFU' && lead.canal_origen === 'FABRICA');
+
+  const canRegisterAppointment =
+    isAgencyMofu &&
+    (user?.role_name === 'SoporteComercial' ||
+      user?.role_name === 'GestorMercadeo' ||
+      user?.role_name === 'Admin');
 
   return (
     <AppLayout title={lead.empresa_nombre}>
@@ -181,16 +227,35 @@ export function LeadDetailPage() {
             </button>
           ) : null}
 
-          {(lead.estado === 'MOFU' &&
-            lead.canal_origen !== 'GENERACION_DEMANDA_AGENCIA') ||
-          (lead.estado === 'TOFU' && lead.canal_origen === 'FABRICA') ? (
+          {canAdvanceViaChecklist ? (
             <button
               type="button"
-              onClick={() => runAction(() => transitionLeadToMql(lead.lead_id))}
+              onClick={() => void advanceToBofu()}
               className={primaryButtonClass}
             >
-              Enviar a MQL
+              Avanzar a BOFU
             </button>
+          ) : null}
+
+          {canRegisterAppointment ? (
+            <button
+              type="button"
+              onClick={() => setShowAppointment(true)}
+              className={primaryButtonClass}
+            >
+              Registrar cita (avanzar a BOFU)
+            </button>
+          ) : null}
+
+          {isAgencyMofu && !canRegisterAppointment ? (
+            <p className="w-full text-sm text-muted">
+              Este lead de agencia avanza a BOFU registrando una cita (Gestor de
+              Mercadeo o Soporte Comercial) desde el detalle o la{' '}
+              <Link to="/demand/agenda" className="font-bold text-brand hover:underline">
+                Bandeja de Agenda
+              </Link>
+              .
+            </p>
           ) : null}
 
           {(lead.estado === 'Descartado' || lead.estado === 'Reciclaje') && user ? (
@@ -246,6 +311,31 @@ export function LeadDetailPage() {
             setLead(await discardLead(lead.lead_id, motivo));
           }}
           onClose={() => setShowDiscard(false)}
+        />
+      ) : null}
+
+      {showAppointment ? (
+        <RegisterAppointmentModal
+          lead={lead}
+          onRegistered={(updated) => {
+            setLead(updated);
+            setShowAppointment(false);
+          }}
+          onClose={() => setShowAppointment(false)}
+        />
+      ) : null}
+
+      {showChecklist ? (
+        <ChecklistModal
+          leadId={lead.lead_id}
+          leadName={lead.empresa_nombre}
+          onQualified={async () => {
+            await loadLead();
+          }}
+          onSaved={async () => {
+            await loadLead();
+          }}
+          onClose={() => setShowChecklist(false)}
         />
       ) : null}
     </AppLayout>

@@ -107,8 +107,9 @@ export class DemandGenerationService {
     leadId: string,
     dto: RegisterAppointmentDto,
     userId: string,
+    roleName?: string,
   ): Promise<LeadResponseDto> {
-    return this.leadsService.registerAppointment(leadId, dto, userId);
+    return this.leadsService.registerAppointment(leadId, dto, userId, roleName);
   }
 
   async listAppointmentCommercials(): Promise<CommercialOptionDto[]> {

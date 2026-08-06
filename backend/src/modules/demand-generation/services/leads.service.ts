@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Inject,
   Injectable,
   NotFoundException,
@@ -14,7 +15,10 @@ import {
 } from 'sequelize';
 import { User } from '../../auth/models/user.model';
 import { UsersService } from '../../auth/services/users.service';
-import { DEMAND_GENERATION_ERROR_CODES } from '../constants/demand-generation.constants';
+import {
+  DEMAND_GENERATION_ERROR_CODES,
+  DEMAND_GENERATION_ROLES,
+} from '../constants/demand-generation.constants';
 import { CreateLeadDto } from '../dtos/create-lead.dto';
 import {
   LeadResponseDto,
@@ -328,7 +332,20 @@ export class LeadsService {
     leadId: string,
     dto: RegisterAppointmentDto,
     userId: string,
+    roleName?: string,
   ): Promise<LeadResponseDto> {
+    if (
+      roleName !== DEMAND_GENERATION_ROLES.SOPORTE_COMERCIAL &&
+      roleName !== DEMAND_GENERATION_ROLES.GESTOR_MERCADEO &&
+      roleName !== 'Admin'
+    ) {
+      throw new ForbiddenException({
+        code: DEMAND_GENERATION_ERROR_CODES.APPOINTMENT_NOT_ALLOWED,
+        message:
+          'Only SoporteComercial or GestorMercadeo can register appointments for agency leads',
+      });
+    }
+
     const lead = await this.findLeadOrFail(leadId);
 
     if (lead.canalOrigen !== CanalOrigen.GeneracionDemandaAgencia) {

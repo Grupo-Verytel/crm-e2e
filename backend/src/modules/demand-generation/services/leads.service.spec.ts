@@ -89,6 +89,7 @@ describe('LeadsService channel flows', () => {
       'lead-1',
       dto,
       'support-1',
+      'SoporteComercial',
     );
 
     expect(mqlCreate).toHaveBeenCalledWith(

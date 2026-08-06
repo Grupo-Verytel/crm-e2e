@@ -4,13 +4,17 @@ import { useAuth } from '../../auth/hooks/useAuth';
 
 const DIRECTOR_ROLE = 'DirectorMercadeo';
 const SUPPORT_ROLE = 'SoporteComercial';
+const GESTOR_ROLE = 'GestorMercadeo';
+
+/** Roles that can open Bandeja de Agenda / register agency citas (MOFU → BOFU). */
+const AGENDA_ROLES = new Set([SUPPORT_ROLE, GESTOR_ROLE, 'Admin']);
 
 type NavItem = {
   to: string;
   label: string;
   end: boolean;
   directorOnly?: boolean;
-  supportOnly?: boolean;
+  agendaOnly?: boolean;
 };
 
 const LINKS: NavItem[] = [
@@ -23,7 +27,7 @@ const LINKS: NavItem[] = [
     to: '/demand/agenda',
     label: 'Bandeja de Agenda',
     end: false,
-    supportOnly: true,
+    agendaOnly: true,
   },
   { to: '/demand/dashboard', label: 'Dashboard', end: false },
 ];
@@ -35,10 +39,10 @@ type DemandNavProps = {
 export function DemandNav({ actions }: DemandNavProps) {
   const { user } = useAuth();
   const isDirector = user?.role_name === DIRECTOR_ROLE;
-  const isSupport = user?.role_name === SUPPORT_ROLE;
+  const canUseAgenda = !!user?.role_name && AGENDA_ROLES.has(user.role_name);
   const links = LINKS.filter(
     (link) =>
-      (!link.directorOnly || isDirector) && (!link.supportOnly || isSupport),
+      (!link.directorOnly || isDirector) && (!link.agendaOnly || canUseAgenda),
   );
 
   return (

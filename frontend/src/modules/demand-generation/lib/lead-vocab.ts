@@ -1,17 +1,16 @@
 import type { CanalOrigen, LeadEstado, Segmento } from '../types';
 
 /**
- * Business vocabulary for the Gestor/Director de Mercadeo. The technical ENUM
- * (TOFU, MOFU, MQL_PENDING…) stays in the data model; the UI always shows these
- * human labels (spec §5). Keep this map as the single source of truth so badges,
- * columns and filters never diverge.
+ * Business vocabulary for the Gestor/Director de Mercadeo.
+ * Spec §1 / §4: machine is TOFU → MOFU → BOFU (persisted as MQL_PENDING) → SQL.
+ * Keep this map as the single source of truth so badges, columns and filters never diverge.
  */
 export const LEAD_ESTADO_LABEL: Record<LeadEstado, string> = {
   Nuevo: 'Nuevo',
-  TOFU: 'Por contactar',
-  MOFU: 'En nutrición',
-  MQL_PENDING: 'Pendiente de aprobación',
-  SQL: 'Calificado (a ventas)',
+  TOFU: 'TOFU',
+  MOFU: 'MOFU',
+  MQL_PENDING: 'BOFU',
+  SQL: 'SQL',
   Reciclaje: 'En reciclaje',
   Descartado: 'Descartado',
 };
@@ -41,10 +40,9 @@ export function segmentoDot(segmento: string): string {
 }
 
 /**
- * The four guided board lanes, in flow order. Reciclaje/Descartado are NOT lanes
- * — they are exception states shown apart (spec: product decision). SQL is a
- * read-only destination: the promotion to SQL is the Director's decision in the
- * MQL inbox, never a drag.
+ * The four guided board lanes, in flow order (spec §4). Reciclaje/Descartado are
+ * NOT lanes — they are exception states. SQL is a read-only destination: the
+ * promotion to SQL is the Director's decision in the MQL inbox, never a drag.
  */
 export type KanbanEstado = Extract<
   LeadEstado,
@@ -64,34 +62,35 @@ export type KanbanColumn = {
 export const KANBAN_COLUMNS: KanbanColumn[] = [
   {
     estado: 'TOFU',
-    label: 'Por contactar',
-    hint: 'Captados, aún sin primera interacción',
+    label: 'TOFU',
+    hint: 'Captados — sin nutrición aún',
     acceptsFrom: null,
     readOnly: false,
   },
   {
     estado: 'MOFU',
-    label: 'En nutrición',
-    hint: 'Con interacción; trabajando el checklist',
+    label: 'MOFU',
+    hint: 'En nutrición — checklist / interacciones',
     acceptsFrom: 'TOFU',
     readOnly: false,
   },
   {
     estado: 'MQL_PENDING',
-    label: 'Pendiente de aprobación',
-    hint: 'Checklist completo; espera al Director',
+    label: 'BOFU',
+    hint: 'MQL_PENDING — espera al Director',
     acceptsFrom: 'MOFU',
     readOnly: false,
   },
   {
     estado: 'SQL',
-    label: 'Calificado',
+    label: 'SQL',
     hint: 'Aprobado por el Director · solo lectura',
     acceptsFrom: null,
     readOnly: true,
   },
 ];
 
+/** Spec §4.1 — applicable states per canal_origen (BOFU = MQL_PENDING). */
 export const CHANNEL_ROUTES: Partial<Record<CanalOrigen, KanbanEstado[]>> = {
   CAMPANA_DIGITAL: ['TOFU', 'MOFU', 'MQL_PENDING', 'SQL'],
   BTL: ['TOFU', 'MOFU', 'MQL_PENDING', 'SQL'],

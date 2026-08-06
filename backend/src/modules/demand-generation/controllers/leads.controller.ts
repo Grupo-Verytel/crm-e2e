@@ -87,7 +87,7 @@ export class LeadsController {
   }
 
   @Get('appointment-commercials')
-  @CheckAbility({ action: 'schedule', subject: 'Lead' })
+  @CheckAbility({ action: 'read', subject: 'Lead' })
   listAppointmentCommercials(): Promise<CommercialOptionDto[]> {
     return this.demandGenerationService.listAppointmentCommercials();
   }
@@ -118,7 +118,7 @@ export class LeadsController {
 
   @Post(':id/registrar-cita')
   @HttpCode(200)
-  @CheckAbility({ action: 'schedule', subject: 'Lead' })
+  @CheckAbility({ action: 'read', subject: 'Lead' })
   registerAppointment(
     @Param('id') id: string,
     @Body() dto: RegisterAppointmentDto,
@@ -128,6 +128,7 @@ export class LeadsController {
       id,
       dto,
       user.userId,
+      user.roleName,
     );
   }
 

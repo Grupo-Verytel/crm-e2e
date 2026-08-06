@@ -125,7 +125,7 @@ export function AppRoutes() {
       path: '/demand/agenda',
       element: (
         <ProtectedRoute>
-          <RoleRoute role="SoporteComercial">
+          <RoleRoute roles={['SoporteComercial', 'GestorMercadeo']}>
             <AgendaInboxPage />
           </RoleRoute>
         </ProtectedRoute>

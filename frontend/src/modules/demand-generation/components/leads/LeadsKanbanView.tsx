@@ -18,6 +18,7 @@ import type { LeadFilterValues } from '../../lib/lead-filters';
 import { ChecklistModal } from './ChecklistModal';
 import { LeadCard } from './LeadCard';
 import { QuickInteractionModal } from './QuickInteractionModal';
+import { RegisterAppointmentModal } from './RegisterAppointmentModal';
 
 const PAGE_SIZE = 15;
 
@@ -80,6 +81,7 @@ export function LeadsKanbanView({ filters }: { filters: LeadFilterValues }) {
   const [busyLeadId, setBusyLeadId] = useState<string | null>(null);
   const [interactionFor, setInteractionFor] = useState<Lead | null>(null);
   const [checklistFor, setChecklistFor] = useState<Lead | null>(null);
+  const [appointmentFor, setAppointmentFor] = useState<Lead | null>(null);
 
   const filtersKey = JSON.stringify(filters);
 
@@ -170,7 +172,7 @@ export function LeadsKanbanView({ filters }: { filters: LeadFilterValues }) {
         dragged.canal_origen === 'GENERACION_DEMANDA_AGENCIA' &&
         column.estado === 'MQL_PENDING'
       ) {
-        return false;
+        return dragged.estado === 'MOFU';
       }
 
       return column.acceptsFrom === dragged.estado;
@@ -209,6 +211,12 @@ export function LeadsKanbanView({ filters }: { filters: LeadFilterValues }) {
 
   async function handleDropToMql(lead: Lead) {
     setCardError(lead.lead_id, null);
+
+    if (lead.canal_origen === 'GENERACION_DEMANDA_AGENCIA') {
+      setAppointmentFor(lead);
+      return;
+    }
+
     setBusyLeadId(lead.lead_id);
     try {
       const checklist = await fetchChecklist(lead.lead_id);
@@ -384,6 +392,17 @@ export function LeadsKanbanView({ filters }: { filters: LeadFilterValues }) {
             )
           }
           onClose={() => setChecklistFor(null)}
+        />
+      ) : null}
+
+      {appointmentFor ? (
+        <RegisterAppointmentModal
+          lead={appointmentFor}
+          onRegistered={() => {
+            setAppointmentFor(null);
+            reloadAll();
+          }}
+          onClose={() => setAppointmentFor(null)}
         />
       ) : null}
     </>
