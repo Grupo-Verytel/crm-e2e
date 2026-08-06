@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { LogOut } from 'lucide-react';
+import { NotificationBell } from '../modules/auth/components/NotificationBell';
 import { useAuth } from '../modules/auth/hooks/useAuth';
 
 function getInitials(fullName: string): string {
@@ -38,6 +39,8 @@ export function Header({ title }: { title: string }) {
       </div>
 
       <div className="ml-auto flex items-center gap-3">
+        <NotificationBell />
+
         <div className="hidden text-right sm:block">
           <p className="text-xs font-bold text-ink">{user?.full_name}</p>
           <p className="text-[11px] text-muted">{user?.role_name}</p>

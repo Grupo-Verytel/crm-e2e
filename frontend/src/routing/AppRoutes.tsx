@@ -30,6 +30,15 @@ const MarketingDashboardPage = lazy(
 const AgendaInboxPage = lazy(
   () => import('../modules/demand-generation/pages/AgendaInboxPageLazy'),
 );
+const QualificationHomePage = lazy(
+  () => import('../modules/qualification/pages/QualificationHomePageLazy'),
+);
+const AssignedSqlsPage = lazy(
+  () => import('../modules/qualification/pages/AssignedSqlsPageLazy'),
+);
+const SqlDetailPage = lazy(
+  () => import('../modules/qualification/pages/SqlDetailPageLazy'),
+);
 
 function protectedElement(title: string, description: string) {
   return (
@@ -132,9 +141,28 @@ export function AppRoutes() {
     },
     {
       path: '/qualification',
-      element: protectedElement(
-        'Calificación',
-        'Nurturing y scoring — módulo qualification (próximamente).',
+      element: (
+        <ProtectedRoute>
+          <QualificationHomePage />
+        </ProtectedRoute>
+      ),
+    },
+    {
+      path: '/qualification/assigned',
+      element: (
+        <ProtectedRoute>
+          <RoleRoute role="EjecutivoComercial">
+            <AssignedSqlsPage />
+          </RoleRoute>
+        </ProtectedRoute>
+      ),
+    },
+    {
+      path: '/qualification/sqls/:id',
+      element: (
+        <ProtectedRoute>
+          <SqlDetailPage />
+        </ProtectedRoute>
       ),
     },
     {

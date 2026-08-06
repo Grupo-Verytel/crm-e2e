@@ -4,7 +4,10 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectModel } from '@nestjs/sequelize';
+import { InjectConnection, InjectModel } from '@nestjs/sequelize';
+import { Sequelize } from 'sequelize';
+import { EntityType } from '../../workflow-engine/enums/entity-type.enum';
+import { WorkflowEngineService } from '../../workflow-engine/workflow-engine.service';
 import {
   DEMAND_GENERATION_ERROR_CODES,
   DEMAND_GENERATION_ROLES,
@@ -16,6 +19,7 @@ import {
 import { assertValidLeadTransition } from '../lib/lead-state-machine';
 import { CanalOrigen, LeadEstado } from '../models/enums/lead.enums';
 import { MqlEstado } from '../models/enums/mql.enums';
+import { SqlEstado } from '../models/enums/sql.enums';
 import { Segmento } from '../models/enums/segment.enum';
 import { Lead } from '../models/lead.model';
 import { LeadChecklist } from '../models/lead-checklist.model';
@@ -32,17 +36,18 @@ import { LeadChecklistService } from './lead-checklist.service';
 /**
  * Owns every LEAD state transition (spec §4). One explicit method per
  * transition so each validates its own preconditions and side effects.
- * All writes flow through Sequelize models, so audit is captured centrally
- * by the audit hooks — this service never writes to audit_log directly.
+ * Cross-tray handoffs (MQL approve → SQL) go through WorkflowEngineService.
  */
 @Injectable()
 export class LeadStateMachineService {
   constructor(
+    @InjectConnection() private readonly sequelize: Sequelize,
     @InjectModel(Lead) private readonly leadModel: typeof Lead,
     @InjectModel(Mql) private readonly mqlModel: typeof Mql,
     @InjectModel(Sql) private readonly sqlModel: typeof Sql,
     private readonly interactionsService: InteractionsService,
     private readonly checklistService: LeadChecklistService,
+    private readonly workflowEngine: WorkflowEngineService,
     @Inject(NOTIFICATION_PORT)
     private readonly notifications: NotificationPort,
   ) {}
@@ -166,38 +171,78 @@ export class LeadStateMachineService {
   }
 
   /**
-   * Director approves the MQL: creates SQL (en_backlog=true), lead → SQL,
-   * notifies Soporte Comercial (DG-06).
+   * Director approves the MQL: creates SQL in PendienteAsignacion (EARS-01 / DG-06),
+   * lead → SQL, notifies Soporte via workflow engine (lead.mql_aprobado + sql.creado).
    */
   async approveMql(
     mqlId: string,
-    _userId: string,
+    userId: string,
     comentario?: string,
   ): Promise<{ mql: Mql; sql: Sql; lead: Lead }> {
     const mql = await this.findMqlOrFail(mqlId);
     this.assertMqlActive(mql);
 
     const lead = await this.findLeadOrFail(mql.leadId);
+    const leadEstadoAnterior = lead.estado;
 
-    const sql = await this.sqlModel.create({
-      mqlId: mql.mqlId,
-      enBacklog: true,
+    return this.sequelize.transaction(async (transaction) => {
+      const sql = await this.sqlModel.create(
+        {
+          mqlId: mql.mqlId,
+          estado: SqlEstado.PendienteAsignacion,
+          enBacklog: true,
+        },
+        { transaction },
+      );
+
+      await mql.update(
+        {
+          estado: MqlEstado.ConvertidoSQL,
+          ...(comentario ? { motivoCalificacion: comentario } : {}),
+        },
+        { transaction },
+      );
+      await lead.update({ estado: LeadEstado.SQL }, { transaction });
+
+      const entityLabel = lead.empresaNombre;
+      const payload = {
+        leadId: lead.leadId,
+        mqlId: mql.mqlId,
+        sqlId: sql.sqlId,
+        ...(comentario ? { comentario } : {}),
+      };
+
+      await this.workflowEngine.transition(
+        EntityType.LEAD,
+        lead.leadId,
+        'lead.mql_aprobado',
+        {
+          estadoAnterior: leadEstadoAnterior,
+          estadoNuevo: LeadEstado.SQL,
+          entityLabel,
+          actorUserId: userId,
+          payload,
+          entity: { estado: leadEstadoAnterior },
+        },
+        transaction,
+      );
+
+      await this.workflowEngine.transition(
+        EntityType.SQL,
+        sql.sqlId,
+        'sql.creado',
+        {
+          estadoAnterior: null,
+          estadoNuevo: SqlEstado.PendienteAsignacion,
+          entityLabel,
+          actorUserId: userId,
+          payload,
+        },
+        transaction,
+      );
+
+      return { mql, sql, lead };
     });
-
-    await mql.update({
-      estado: MqlEstado.ConvertidoSQL,
-      ...(comentario ? { motivoCalificacion: comentario } : {}),
-    });
-    await lead.update({ estado: LeadEstado.SQL });
-
-    await this.notifications.notify({
-      event: NotificationEvent.SqlHandoff,
-      recipientRole: DEMAND_GENERATION_ROLES.SOPORTE_COMERCIAL,
-      message: `New SQL in backlog for lead ${lead.empresaNombre}`,
-      metadata: { leadId: lead.leadId, mqlId: mql.mqlId, sqlId: sql.sqlId },
-    });
-
-    return { mql, sql, lead };
   }
 
   /**

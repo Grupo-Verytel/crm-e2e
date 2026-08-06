@@ -16,7 +16,7 @@ export function RoleRoute({
     return <LoadingScreen />;
   }
 
-  if (user?.role_name !== role) {
+  if (user?.role_name !== role && user?.role_name !== 'Admin') {
     return <Navigate to="/opportunities" replace />;
   }
 

@@ -2,6 +2,7 @@ import { Module, forwardRef } from '@nestjs/common';
 import { SequelizeModule } from '@nestjs/sequelize';
 import { AuthModule } from '../auth/auth.module';
 import { User } from '../auth/models/user.model';
+import { WorkflowEngineModule } from '../workflow-engine/workflow-engine.module';
 import { LoggerNotificationAdapter } from './adapters/logger-notification.adapter';
 import { DashboardController } from './controllers/dashboard.controller';
 import { CampaignsController } from './controllers/campaigns.controller';
@@ -38,6 +39,7 @@ import { MqlsService } from './services/mqls.service';
       User,
     ]),
     forwardRef(() => AuthModule),
+    WorkflowEngineModule,
   ],
   controllers: [
     LeadsController,
@@ -57,6 +59,6 @@ import { MqlsService } from './services/mqls.service';
     DemandGenerationService,
     { provide: NOTIFICATION_PORT, useClass: LoggerNotificationAdapter },
   ],
-  exports: [DemandGenerationService],
+  exports: [DemandGenerationService, SequelizeModule],
 })
 export class DemandGenerationModule {}
