@@ -1,5 +1,6 @@
 import { EntityType } from './enums/entity-type.enum';
 import { guardEntidadEnEstado } from './guards/guard-entidad-en-estado';
+import { guardUsuarioEsComercialDelSQL } from './guards/guard-usuario-es-comercial-del-sql';
 import { guardUsuarioTieneRol } from './guards/guard-usuario-tiene-rol';
 import type { WorkflowRule } from './types/workflow.types';
 
@@ -92,6 +93,22 @@ export const workflowRules: WorkflowRule[] = [
     titulo: () => 'SQL descartado',
     mensaje: (ctx) =>
       `El SQL de ${ctx.entityLabel} fue descartado.`,
+  },
+  {
+    eventType: 'ouv.creada',
+    guards: [
+      guardEntidadEnEstado(EntityType.SQL, 'Asignado', (ctx) =>
+        String(ctx.payload.sqlId ?? ''),
+      ),
+      guardUsuarioEsComercialDelSQL,
+    ],
+    destinatarios: [
+      { tipo: 'rol', resolver: () => 'DirectorComercial' },
+      { tipo: 'rol', resolver: () => 'SoporteComercial' },
+    ],
+    titulo: () => 'Nueva OUV creada',
+    mensaje: (ctx) =>
+      `Se creó la OUV ${ctx.entityLabel} a partir de un SQL.`,
   },
 ];
 

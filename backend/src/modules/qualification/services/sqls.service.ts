@@ -12,6 +12,9 @@ import { Lead } from '../../demand-generation/models/lead.model';
 import { Mql } from '../../demand-generation/models/mql.model';
 import { Sql } from '../../demand-generation/models/sql.model';
 import { SqlEstado } from '../../demand-generation/models/enums/sql.enums';
+import type { CrearOuvDto } from '../../discovery/dtos/crear-ouv.dto';
+import { OuvZona } from '../../discovery/models/enums/ouv.enums';
+import { OuvsService } from '../../discovery/services/ouvs.service';
 import { EntityType } from '../../workflow-engine/enums/entity-type.enum';
 import { WorkflowEngineService } from '../../workflow-engine/workflow-engine.service';
 import {
@@ -25,6 +28,7 @@ import {
 } from '../dtos/assign-sql.dto';
 import {
   AssignSqlResponseDto,
+  ConvertirSqlResponseDto,
   PaginatedSqlsResponseDto,
   SqlCitaResponseDto,
   SqlDetailDto,
@@ -41,6 +45,7 @@ export class SqlsService {
     private readonly demandGenerationService: DemandGenerationService,
     private readonly usersService: UsersService,
     private readonly workflowEngine: WorkflowEngineService,
+    private readonly ouvsService: OuvsService,
   ) {}
 
   /** EARS-02 — Soporte bandeja de enrutamiento. */
@@ -295,6 +300,113 @@ export class SqlsService {
     });
   }
 
+  /**
+   * EARS-10..13 — Ejecutivo Comercial converts own Asignado SQL into an OUV.
+   */
+  async convertirEnOuv(
+    sqlId: string,
+    dto: CrearOuvDto,
+    comercialUserId: string,
+  ): Promise<ConvertirSqlResponseDto> {
+    return this.sequelize.transaction(async (transaction) => {
+      const sql = await this.sqlModel.findByPk(sqlId, {
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+        include: [{ model: Mql, required: true }],
+      });
+
+      if (!sql) {
+        throw new NotFoundException({
+          code: QUALIFICATION_ERROR_CODES.NOT_FOUND,
+          message: `SQL ${sqlId} not found`,
+        });
+      }
+
+      if (sql.estado !== SqlEstado.Asignado) {
+        throw new BadRequestException({
+          code: QUALIFICATION_ERROR_CODES.SQL_NOT_ASSIGNED,
+          message: `SQL must be in Asignado to convert (current: ${sql.estado})`,
+        });
+      }
+
+      if (sql.comercialAsignadoId !== comercialUserId) {
+        throw new ForbiddenException({
+          code: QUALIFICATION_ERROR_CODES.FORBIDDEN,
+          message: 'Only the assigned Ejecutivo Comercial can convert this SQL',
+        });
+      }
+
+      if (sql.ouvId) {
+        throw new BadRequestException({
+          code: QUALIFICATION_ERROR_CODES.VALIDATION_ERROR,
+          message: `SQL ${sqlId} is already linked to an OUV`,
+        });
+      }
+
+      const estadoAnterior = sql.estado;
+      const lead = await this.demandGenerationService.findLeadById(sql.mql.leadId);
+
+      const ouv = await this.ouvsService.crearDesdeSql(
+        {
+          sqlId: sql.sqlId,
+          comercialId: comercialUserId,
+          dto,
+        },
+        transaction,
+      );
+
+      await sql.update(
+        {
+          estado: SqlEstado.ConvertidoOUV,
+          ouvId: ouv.ouvId,
+          enBacklog: false,
+        },
+        { transaction },
+      );
+
+      await this.workflowEngine.transition(
+        EntityType.OUV,
+        ouv.ouvId,
+        'ouv.creada',
+        {
+          estadoAnterior,
+          estadoNuevo: OuvZona.Universo,
+          entityLabel: ouv.consecutivo,
+          actorUserId: comercialUserId,
+          payload: {
+            sqlId: sql.sqlId,
+            comercial_asignado_id: sql.comercialAsignadoId,
+            ouv_id: ouv.ouvId,
+            consecutivo: ouv.consecutivo,
+          },
+          entity: { estado: estadoAnterior },
+        },
+        transaction,
+      );
+
+      const detail = await this.toDetailResponse(
+        sql,
+        lead as unknown as Record<string, unknown>,
+      );
+      return {
+        sql: {
+          ...detail,
+          ouv_id: ouv.ouvId,
+          ouv: { ouv_id: ouv.ouvId, consecutivo: ouv.consecutivo },
+        },
+        ouv: {
+          ouv_id: ouv.ouvId,
+          consecutivo: ouv.consecutivo,
+          titulo: ouv.titulo,
+          segmento: ouv.segmento,
+          vertical: ouv.vertical,
+          zona_actual: ouv.zonaActual,
+          resultado: ouv.resultado,
+        },
+      };
+    });
+  }
+
   private async createCita(
     sqlId: string,
     dto: CreateSqlCitaDto,
@@ -420,6 +532,8 @@ export class SqlsService {
       comercial_asignado_id: sql.comercialAsignadoId,
       fecha_asignacion: sql.fechaAsignacion,
       fecha_creacion: sql.fechaCreacion,
+      ouv_id: sql.ouvId ?? null,
+      ouv: null,
       lead: {
         lead_id: lead?.leadId,
         empresa_nombre: lead?.empresaNombre,
@@ -461,6 +575,14 @@ export class SqlsService {
       cita = await this.sqlCitaModel.findOne({ where: { sqlId: sql.sqlId } });
     }
 
+    let ouvSummary: SqlDetailDto['ouv'] = null;
+    if (sql.ouvId) {
+      const ouv = await this.ouvsService.findById(sql.ouvId);
+      if (ouv) {
+        ouvSummary = { ouv_id: ouv.ouvId, consecutivo: ouv.consecutivo };
+      }
+    }
+
     return {
       sql_id: sql.sqlId,
       mql_id: sql.mqlId,
@@ -469,6 +591,8 @@ export class SqlsService {
       comercial_asignado_id: sql.comercialAsignadoId,
       fecha_asignacion: sql.fechaAsignacion,
       fecha_creacion: sql.fechaCreacion,
+      ouv_id: sql.ouvId ?? null,
+      ouv: ouvSummary,
       lead: lead as unknown as Record<string, unknown>,
       interactions,
       cita: cita ? this.toCitaResponse(cita) : null,

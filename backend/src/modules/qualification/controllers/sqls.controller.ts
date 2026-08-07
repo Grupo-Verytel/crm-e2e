@@ -2,6 +2,8 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   Patch,
   Post,
@@ -10,9 +12,11 @@ import {
 import { CheckAbility } from '../../auth/casl/check-ability.decorator';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../../auth/interfaces/authenticated-user.interface';
+import { CrearOuvDto } from '../../discovery/dtos/crear-ouv.dto';
 import { AssignSqlDto, UpdateSqlCitaDto } from '../dtos/assign-sql.dto';
 import {
   AssignSqlResponseDto,
+  ConvertirSqlResponseDto,
   PaginatedSqlsResponseDto,
   SqlCitaResponseDto,
   SqlDetailDto,
@@ -59,6 +63,17 @@ export class SqlsController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<AssignSqlResponseDto> {
     return this.sqlsService.assign(id, dto, user.userId, user.roleName);
+  }
+
+  @Post(':id/convertir')
+  @HttpCode(HttpStatus.CREATED)
+  @CheckAbility({ action: 'update', subject: 'Opportunity' })
+  convertir(
+    @Param('id') id: string,
+    @Body() dto: CrearOuvDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<ConvertirSqlResponseDto> {
+    return this.sqlsService.convertirEnOuv(id, dto, user.userId);
   }
 
   @Patch(':id/cita')

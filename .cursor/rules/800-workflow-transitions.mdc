@@ -1,0 +1,115 @@
+---
+description: Reglas obligatorias para invocar workflowEngine.transition() — row lock previo, transacción, y contrato con guards
+globs:
+  - "backend/src/modules/**/*.service.ts"
+  - "backend/src/modules/workflow-engine/**"
+alwaysApply: false
+---
+
+# Contrato para invocar `workflowEngine.transition()`
+
+Toda invocación a `workflowEngine.transition()` en un service de dominio DEBE cumplir con este contrato. Los guards del motor confían en que el caller ya validó el estado de la entidad — no re-consultan la BD.
+
+## Contrato en 4 puntos
+
+**1. Transacción activa obligatoria.**
+`transition()` recibe una `Transaction` de Sequelize como último argumento. Sin transacción, la persistencia de notificaciones no es atómica y el push WebSocket puede llegar en un estado inconsistente. Nunca invocar fuera de `sequelize.transaction()`.
+
+**2. Row lock previo sobre la entidad protagonista.**
+Antes de invocar `transition()`, el service DEBE leer la entidad protagonista con `lock: transaction.LOCK.UPDATE` (o equivalente) para evitar condiciones de carrera con otros callers concurrentes. El lock se mantiene hasta el commit.
+
+**3. Validación de estado en el service, no en el guard.**
+El service DEBE hacer el `assert` del estado esperado antes de llamar a `transition()`. Los guards son la segunda línea de defensa, no la primera. Ejemplo: si el flujo requiere `sql.estado === 'Asignado'`, el service valida y responde HTTP 400 antes del `transition()`; el guard del motor valida de nuevo por seguridad.
+
+**4. `ctx.entity` DEBE reflejar el estado real leído en (2).**
+Cuando el guard usa `entityIdResolver` o depende de `ctx.entity`, el service es responsable de poblar `ctx.entity.estado` con el valor real leído bajo lock — nunca con un valor construido, cacheado, o "asumido". El motor confía en este contrato.
+
+## Patrón obligatorio
+
+```typescript
+await this.sequelize.transaction(async (transaction) => {
+  // 1. Leer + lock
+  const sql = await this.sqlModel.findByPk(sqlId, {
+    lock: transaction.LOCK.UPDATE,
+    transaction,
+  });
+  if (!sql) throw new NotFoundException(...);
+
+  // 2. Assert de estado en el service
+  if (sql.estado !== SqlEstado.Asignado) {
+    throw new BadRequestException(...);
+  }
+
+  const estadoAnterior = sql.estado;
+
+  // 3. Mutación de estado
+  await sql.update({ estado: SqlEstado.ConvertidoOUV, ... }, { transaction });
+
+  // 4. Invocar motor — ctx.entity refleja el estado real
+  await this.workflowEngine.transition(
+    EntityType.OUV,
+    ouv.ouvId,
+    'ouv.creada',
+    {
+      estadoAnterior,
+      estadoNuevo: OuvZona.Universo,
+      entityLabel: ouv.consecutivo,
+      actorUserId,
+      payload: { sqlId: sql.sqlId, ... },
+      entity: { estado: estadoAnterior },  // ← estado real del SQL bajo lock
+    },
+    transaction,
+  );
+});
+```
+
+## Antipatrones (rechazar en revisión de PR)
+
+**A1 — Invocación fuera de transacción**
+```typescript
+// MAL: sin transaction, el push WS puede filtrar estado pre-commit
+await this.workflowEngine.transition(EntityType.OUV, ..., undefined);
+```
+
+**A2 — Sin lock previo**
+```typescript
+// MAL: dos requests concurrentes pueden pasar el assert de estado ambos
+const sql = await this.sqlModel.findByPk(sqlId);  // ← falta lock
+if (sql.estado !== 'Asignado') throw ...;
+await this.workflowEngine.transition(...);
+```
+
+**A3 — `ctx.entity` mentiroso**
+```typescript
+// MAL: pasar un estado "esperado" en vez del real bajo lock
+await this.workflowEngine.transition(EntityType.OUV, ..., {
+  entity: { estado: 'Asignado' },  // ← literal hardcodeado
+  ...
+});
+```
+
+**A4 — Assert solo en guard, no en service**
+```typescript
+// MAL: si el guard falla, el HTTP 422 no ayuda al frontend a distinguir
+// entre "el usuario mandó mal el request" y "el estado del sistema cambió"
+async convertirEnOuv(sqlId, dto, actorUserId) {
+  const sql = await this.sqlModel.findByPk(sqlId, { lock: ... });
+  // ← falta: if (sql.estado !== 'Asignado') throw new BadRequestException(...);
+  await this.workflowEngine.transition(...);  // guard rechaza tarde
+}
+```
+
+## Cuando Cursor genera código nuevo
+
+Antes de escribir `workflowEngine.transition()` en un service nuevo:
+
+1. Verificar que el bloque esté dentro de `sequelize.transaction()`
+2. Verificar que exista un `findByPk` (o equivalente) con `lock: transaction.LOCK.UPDATE` sobre la entidad protagonista, ANTES del `transition()`
+3. Verificar que exista un `if (entity.estado !== estadoEsperado) throw` en el service, antes del `transition()`
+4. Verificar que `ctx.entity` (si se pasa) refleje el `estado` real leído
+
+Si alguno de los 4 puntos no se cumple, detenerse y mostrar el bloque de código propuesto para revisión humana antes de continuar.
+
+## Consulta rápida al Skill
+
+Ver `.cursor/skills/workflow-engine-pattern/SKILL.md` para el patrón completo con ejemplos, antipatrones detallados y checklist de PR. Esta regla es el enforcement resumido; el skill es la referencia canónica.

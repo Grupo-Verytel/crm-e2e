@@ -72,6 +72,10 @@ export class Sql extends Model {
   @Column({ type: DataType.DATE, field: 'fecha_asignacion', allowNull: true })
   declare fechaAsignacion: Date | null;
 
+  /** Set when the SQL is converted to an OUV (spec-calificacion EARS-12). */
+  @Column({ type: DataType.CHAR(36), field: 'ouv_id', allowNull: true })
+  declare ouvId: string | null;
+
   @Default(DataType.NOW)
   @Column({ type: DataType.DATE, field: 'fecha_creacion', allowNull: false })
   declare fechaCreacion: Date;

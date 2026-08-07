@@ -2,15 +2,37 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { AppLayout } from '../../../layout/AppLayout';
 import { formatDateTime } from '../../../lib/format';
+import { useAuth } from '../../auth/hooks/useAuth';
 import { fetchSql, type SqlDetail } from '../api/sqls-api';
+import { ConvertirSqlEnOuvModal } from '../components/ConvertirSqlEnOuvModal';
 import { QualificationNav } from '../components/QualificationNav';
-import { cardClass, ghostButtonClass } from '../components/ui';
+import {
+  cardClass,
+  ghostButtonClass,
+  primaryButtonClass,
+} from '../components/ui';
 
 export function SqlDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const { user } = useAuth();
   const [sql, setSql] = useState<SqlDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [successToast, setSuccessToast] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [showConvertModal, setShowConvertModal] = useState(false);
+
+  async function loadSql(sqlId: string) {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const data = await fetchSql(sqlId);
+      setSql(data);
+    } catch {
+      setError('No se pudo cargar el SQL.');
+    } finally {
+      setIsLoading(false);
+    }
+  }
 
   useEffect(() => {
     if (!id) {
@@ -40,6 +62,19 @@ export function SqlDetailPage() {
       cancelled = true;
     };
   }, [id]);
+
+  useEffect(() => {
+    if (!successToast) {
+      return;
+    }
+    const timer = window.setTimeout(() => setSuccessToast(null), 5000);
+    return () => window.clearTimeout(timer);
+  }, [successToast]);
+
+  const canConvert =
+    user?.role_name === 'EjecutivoComercial' &&
+    sql?.estado === 'Asignado' &&
+    sql.comercial_asignado_id === user.user_id;
 
   return (
     <AppLayout title="Calificación">
@@ -87,6 +122,29 @@ export function SqlDetailPage() {
                 </dd>
               </div>
             </dl>
+
+            {canConvert ? (
+              <div className="mt-5">
+                <button
+                  type="button"
+                  className={primaryButtonClass}
+                  onClick={() => setShowConvertModal(true)}
+                >
+                  Crear OUV
+                </button>
+              </div>
+            ) : null}
+
+            {sql.estado === 'ConvertidoOUV' && sql.ouv ? (
+              <div className="mt-5 rounded border border-border bg-bg p-3 text-sm">
+                <p className="font-bold text-ink">
+                  OUV asociada: {sql.ouv.consecutivo}
+                </p>
+                <p className="mt-1 text-muted">
+                  Vista de detalle de OUV aún no disponible.
+                </p>
+              </div>
+            ) : null}
           </section>
 
           <section className={`${cardClass} p-5`}>
@@ -112,6 +170,29 @@ export function SqlDetailPage() {
               <p className="mt-3 text-sm text-muted">Sin cita agendada.</p>
             )}
           </section>
+        </div>
+      ) : null}
+
+      {showConvertModal && sql ? (
+        <ConvertirSqlEnOuvModal
+          sql={sql}
+          onClose={() => setShowConvertModal(false)}
+          onConverted={(consecutivo) => {
+            setSuccessToast(`OUV ${consecutivo} creada correctamente.`);
+            if (id) {
+              void loadSql(id);
+            }
+          }}
+        />
+      ) : null}
+
+      {successToast ? (
+        <div
+          className="fixed bottom-4 right-4 z-50 w-80 rounded border border-border bg-surface p-4 shadow-card"
+          role="status"
+        >
+          <p className="text-sm font-bold text-ink">Conversión exitosa</p>
+          <p className="mt-1 text-sm text-muted">{successToast}</p>
         </div>
       ) : null}
     </AppLayout>

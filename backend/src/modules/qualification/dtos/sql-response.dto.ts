@@ -30,6 +30,11 @@ export class SqlCitaResponseDto {
   updated_at: Date;
 }
 
+export class SqlOuvSummaryDto {
+  ouv_id: string;
+  consecutivo: string;
+}
+
 export class SqlDetailDto {
   sql_id: string;
   mql_id: string;
@@ -38,9 +43,22 @@ export class SqlDetailDto {
   comercial_asignado_id: string | null;
   fecha_asignacion: Date | null;
   fecha_creacion: Date;
+  ouv_id: string | null;
+  ouv: SqlOuvSummaryDto | null;
   lead: Record<string, unknown>;
   interactions: unknown[];
   cita: SqlCitaResponseDto | null;
+}
+
+export class ConvertirSqlResponseDto {
+  sql: SqlDetailDto;
+  ouv: SqlOuvSummaryDto & {
+    titulo: string;
+    segmento: string;
+    vertical: string;
+    zona_actual: string;
+    resultado: string;
+  };
 }
 
 export class PaginatedSqlsResponseDto {

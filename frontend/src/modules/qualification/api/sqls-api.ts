@@ -23,6 +23,8 @@ export type SqlDetail = {
   comercial_asignado_id: string | null;
   fecha_asignacion: string | null;
   fecha_creacion: string;
+  ouv_id: string | null;
+  ouv: { ouv_id: string; consecutivo: string } | null;
   lead: {
     lead_id?: string;
     empresa_nombre?: string;
@@ -93,6 +95,36 @@ export async function updateSqlCita(
 ): Promise<SqlCita> {
   return apiRequest(`/qualification/sqls/${sqlId}/cita`, {
     method: 'PATCH',
+    body: payload,
+  });
+}
+
+export type ConvertirSqlPayload = {
+  titulo: string;
+  descripcion?: string;
+  segmento: 'Gobierno' | 'D&S' | 'ProyectosEspeciales' | 'B2B';
+  vertical: string;
+};
+
+export type ConvertirSqlResponse = {
+  sql: SqlDetail;
+  ouv: {
+    ouv_id: string;
+    consecutivo: string;
+    titulo: string;
+    segmento: string;
+    vertical: string;
+    zona_actual: string;
+    resultado: string;
+  };
+};
+
+export async function convertirSqlEnOuv(
+  sqlId: string,
+  payload: ConvertirSqlPayload,
+): Promise<ConvertirSqlResponse> {
+  return apiRequest(`/qualification/sqls/${sqlId}/convertir`, {
+    method: 'POST',
     body: payload,
   });
 }

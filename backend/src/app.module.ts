@@ -5,6 +5,7 @@ import { DatabaseModule } from './database/database.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { DemandGenerationModule } from './modules/demand-generation/demand-generation.module';
+import { DiscoveryModule } from './modules/discovery/discovery.module';
 import { QualificationModule } from './modules/qualification/qualification.module';
 import { WorkflowEngineModule } from './modules/workflow-engine/workflow-engine.module';
 
@@ -14,6 +15,7 @@ import { WorkflowEngineModule } from './modules/workflow-engine/workflow-engine.
     AuthModule,
     AuditModule,
     DemandGenerationModule,
+    DiscoveryModule,
     QualificationModule,
     WorkflowEngineModule,
   ],

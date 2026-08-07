@@ -1,114 +1,156 @@
 # Spec — Módulo 2: Calificación
-**Versión:** 1.0
-**Fecha:** 2026-07-30
+**Versión:** 2.0
+**Fecha:** 2026-08-05
 **Autor:** Evilio Díaz (Frisson Technologies / Grupo Verytel)
-**Estado:** Apertura — pendiente confirmación de EARS-10 en adelante (SQL→OUV, Taller T2)
-**Precede a:** flujo Ejecutivo Comercial / KAM [SQL → OUV → Cierre] (ya descrito en Blueprint V2)
-**Depende de:** Módulo 1 (Generación de Demanda) spec v2.0 — punto de entrada: MQL aprobado por Director de Mercadeo
+**Estado:** Pendiente de aprobación para implementación
+**Precede a:** `spec-ouv-funnel.md` v1.0 (ciclo completo del embudo comercial)
+**Depende de:** `spec-workflow-engine.md` v1.1 (motor de workflow), Módulo 1 (Generación de Demanda)
+
+**Changelog v1.0 → v2.0:**
+- v1.0 cubría solo el enrutamiento SQL (bandeja de Soporte). Se mantiene íntegro.
+- v2.0 agrega la conversión SQL→OUV, punto de entrada al embudo comercial (ver DR-2026-08-B).
+- Todas las transiciones de estado ahora consumen el motor de workflow (spec-workflow-engine v1.1) en vez de escribir a `notifications` a mano.
 
 ---
 
-## 1. Contexto y brecha identificada
+## 1. Alcance
 
-El Blueprint V2 (WF002) define que al aprobar un MQL se crea el registro `sql`, se actualiza `lead.estado = SQL` y se notifica a "KAM/Soporte Comercial", agregándolo a la bandeja comercial. Sin embargo, no está definido el sub-flujo manual en el que **Profesional Soporte Comercial** recibe el SQL, lo revisa, y lo enruta a **un** Ejecutivo Comercial específico — incluyendo la posibilidad de agendar una cita en ese mismo acto.
+Este módulo cubre el ciclo del SQL desde su creación (por WF002 al aprobar MQL) hasta su conversión en OUV (oportunidad). Tiene dos sub-flujos:
 
-El documento Bizagi (`DIAGRAMA_PROCESO_COMERCIAL_END_TO_END.pdf`) deja esta pregunta explícitamente abierta: *"en que casos debería asignarse directamente a comercial?"* — sin resolverla. Esta spec cierra ese vacío.
+**2a. Enrutamiento SQL** (Soporte Comercial → Ejecutivo Comercial)
+- Estado inicial: SQL en `PendienteAsignacion`
+- Acción: Soporte selecciona un comercial exclusivo, opcionalmente agenda cita
+- Estado final: SQL en `Asignado`
 
-**Nota de nomenclatura:** el Blueprint usa la palabra "Limbo" para el tramo SQL→OUV (cuando el comercial ya tiene el SQL y aún no lo convierte). El estado que se define aquí es **anterior** a ese y se nombra de forma distinta para evitar ambigüedad: `PendienteAsignacion`.
+**2b. Conversión SQL → OUV** (Ejecutivo Comercial)
+- Estado inicial: SQL en `Asignado` (dueño = comercial actual)
+- Acción: comercial trabaja el SQL, decide crear OUV
+- Estado final: SQL en `ConvertidoOUV`, OUV creada en zona `UNIVERSO`
+
+El ciclo posterior de la OUV a través del embudo comercial vive en `spec-ouv-funnel.md`.
 
 ---
 
 ## 2. Cambios de modelo de datos
 
-### 2.1 `sqls.estado` — nuevo valor de enum
+### 2.1 `sqls.estado` — enum actualizado
 
 ```
 PendienteAsignacion → Asignado → EnGestion → ConvertidoOUV | Backlog | Descartado
 ```
 
-| Valor | Significado | Quién lo produce |
-|---|---|---|
-| `PendienteAsignacion` | SQL creado por WF002, visible en bandeja de Soporte, sin comercial asignado | Sistema (automático, al aprobar MQL) |
-| `Asignado` | Soporte ya seleccionó un comercial exclusivo | Profesional Soporte Comercial |
+Sin cambios respecto a v1.0. `EnGestion` es opcional y refleja "el comercial está trabajando el SQL antes de convertirlo o descartarlo" — su uso queda a discreción del comercial y no es guard obligatorio para pasar a `ConvertidoOUV`.
 
-Campos ya existentes en `sqls` (`comercial_id`, `fecha_asignacion`) se completan en la transición `PendienteAsignacion → Asignado`. No se requieren columnas nuevas en `sqls`.
+### 2.2 `sql_citas` — sin cambios respecto a v1.0
 
-### 2.2 Nueva tabla `sql_citas`
+Mismo esquema. Módulo-scoped, mutable, con audit vía `audit_log`.
 
-Entidad propia del Módulo 2 (no reutiliza ni modifica la spec ya cerrada de Módulo 1 — la Bandeja de Agenda del canal agencia mantiene su propio modelo de cita, independiente).
+### 2.3 Referencia a `ouvs`
 
-| Campo | Tipo | Oblig. | Validación / Regla | Relación |
-|---|---|---|---|---|
-| `cita_id` | UUID | Sí | PK | — |
-| `sql_id` | UUID | Sí | FK `sqls.sql_id`, UNIQUE (1:1) | sqls |
-| `lugar` | VARCHAR(200) | Sí | — | — |
-| `fecha` | DATE | Sí | ≥ fecha actual al crear | — |
-| `hora` | TIME | Sí | — | — |
-| `contacto_nombre` | VARCHAR(120) | Sí | — | — |
-| `contacto_cargo` | VARCHAR(100) | No | — | — |
-| `descripcion` | TEXT | No | Motivo/agenda de la reunión | — |
-| `agendada_por` | UUID | Sí | FK `users.user_id` | users |
-| `created_at` | TIMESTAMPTZ | Sí | DEFAULT NOW() | — |
-| `updated_at` | TIMESTAMPTZ | Sí | Se actualiza en cada reagendamiento | — |
-
-La tabla es mutable (una fila por SQL, no versionada). El historial de cambios (quién reagenda, valores anterior/nuevo) queda cubierto por el `audit_log` genérico ya existente en el blueprint — no se requiere tabla de historial propia.
+La conversión crea una fila en la tabla `ouvs` (definida en `spec-ouv-funnel.md`). El SQL retiene FK al OUV creado (`sqls.ouv_id`, nullable — se llena al convertir).
 
 ---
 
 ## 3. Criterios EARS
 
-**EARS-01.** Cuando un MQL es aprobado por el Director de Mercadeo, el sistema DEBE crear el SQL en estado `PendienteAsignacion` y notificar a Profesional Soporte Comercial.
+### 3.1 Enrutamiento SQL (heredados de v1.0, con actualización de eventos)
 
-**EARS-02.** El sistema DEBE mostrar a Profesional Soporte Comercial una bandeja de enrutamiento con los SQLs en estado `PendienteAsignacion`, exponiendo la información completa del lead (datos de contacto, historial de interacciones, score, origen).
+**EARS-01.** Cuando un MQL es aprobado por Director de Mercadeo, el sistema DEBE crear el SQL en estado `PendienteAsignacion` invocando `workflowEngine.transition('SQL', sqlId, 'sql.creado', ctx, transaction)`. El motor persiste la notificación al rol SoporteComercial y dispara el push WebSocket.
 
-**EARS-03.** Profesional Soporte Comercial DEBE poder seleccionar exactamente un Ejecutivo Comercial como destino de asignación por SQL (asignación exclusiva, no hay selección múltiple de candidatos).
+**EARS-02.** El sistema DEBE mostrar a Profesional Soporte Comercial una bandeja de enrutamiento con los SQLs en `PendienteAsignacion`, con información completa del lead visible.
 
-**EARS-04.** Cuando Soporte confirma la asignación, el sistema DEBE:
-  - actualizar `sqls.estado` a `Asignado`
-  - registrar `comercial_id` y `fecha_asignacion`
-  - notificar al Ejecutivo Comercial asignado con la información completa del lead
+**EARS-03.** Profesional Soporte Comercial DEBE poder seleccionar exactamente un Ejecutivo Comercial como destino de asignación por SQL (exclusiva).
 
-**EARS-05.** Profesional Soporte Comercial DEBE tener la opción, no obligatoria, de crear un registro en `sql_citas` en el mismo acto de asignación, capturando lugar, fecha, hora, contacto y descripción.
+**EARS-04.** Cuando Soporte confirma la asignación, el sistema DEBE invocar `workflowEngine.transition('SQL', sqlId, 'sql.asignado', ctx, transaction)` con `payload.comercial_id`. El motor:
+- valida guards (SQL en `PendienteAsignacion`, actor tiene rol `SoporteComercial`)
+- persiste notificación al comercial destino (por userId)
+- registra en `audit_log`
+- dispara push WS post-commit
 
-**EARS-06.** Si existe un registro en `sql_citas` al momento de asignar, el sistema DEBE incluir sus datos en la notificación enviada al Ejecutivo Comercial.
+**EARS-05.** Profesional Soporte Comercial DEBE tener la opción, no obligatoria, de crear un registro en `sql_citas` en el mismo acto de asignación (lugar, fecha, hora, contacto, descripción).
 
-**EARS-07.** El Ejecutivo Comercial asignado a un SQL DEBE poder actualizar (reagendar) el registro de `sql_citas` asociado en cualquier momento posterior a la asignación.
+**EARS-06.** Si existe `sql_citas` al momento de asignar, el motor DEBE incluir sus datos en `payload` para que `entity_label` y `metadata` de la notificación reflejen la cita.
 
-**EARS-08.** Toda creación o actualización de `sql_citas` DEBE quedar registrada en `audit_log` (acción, campo modificado, valor anterior, valor nuevo, usuario, timestamp).
+**EARS-07.** El Ejecutivo Comercial asignado DEBE poder actualizar (reagendar) `sql_citas` en cualquier momento posterior a la asignación. La actualización dispara `sql.cita_reagendada` con notificación informativa a Soporte Comercial.
 
-**EARS-09.** Toda transición `PendienteAsignacion → Asignado` DEBE quedar registrada en `audit_log`, incluyendo Soporte que asignó, comercial destino, y timestamp.
+**EARS-08.** Toda creación/actualización de `sql_citas` DEBE quedar registrada en `audit_log` (acción, campo, valor_anterior, valor_nuevo, usuario, timestamp).
 
-*(EARS-10 en adelante: flujo SQL → OUV de Ejecutivo Comercial/KAM — a confirmar en Taller T2, ya descrito preliminarmente en Blueprint V2 sección 3.3)*
+**EARS-09.** Toda transición del SQL DEBE pasar por el motor. Escribir `sqls.estado = ...` fuera del motor viola el patrón (verificable en revisión de PR).
+
+### 3.2 Conversión SQL → OUV (nuevos en v2.0)
+
+**EARS-10.** El Ejecutivo Comercial dueño de un SQL en estado `Asignado` DEBE poder iniciar la conversión a OUV.
+
+**EARS-11.** La conversión DEBE requerir al menos: `titulo` de la OUV, `segmento` (Gobierno / D&S / Proyectos Especiales / B2B), y `vertical` (según catálogo Verytel).
+
+**EARS-12.** Al confirmar la conversión, el sistema DEBE en la misma transacción:
+- Crear la fila `ouvs` en `zona_actual = UNIVERSO`, `resultado = EnCurso`, con `sql_id_origen = sqlId` y `comercial_id = actor`
+- Actualizar `sqls.estado = ConvertidoOUV` y `sqls.ouv_id = <nuevo_ouv_id>`
+- Invocar `workflowEngine.transition('OUV', ouvId, 'ouv.creada', ctx, transaction)` que persiste notificación al Director Comercial (informativa) y a Soporte Comercial (informativa)
+
+**EARS-13.** Guards para `ouv.creada`:
+- `guardEntidadEnEstado('SQL', 'Asignado')` — el SQL de origen debe estar en `Asignado`
+- `guardUsuarioEsComercialDelSQL` — solo el comercial dueño del SQL puede convertir
+
+**EARS-14.** Si el Ejecutivo Comercial decide **no** convertir el SQL (no encaja, cliente no responde, etc.), DEBE poder marcarlo como `Descartado` con motivo obligatorio. Esto dispara `sql.descartado` con notificación informativa a Director de Mercadeo (según DR: el motivo puede revelar problemas en calificación upstream).
 
 ---
 
-## 4. Permisos (CASL)
+## 4. Permisos CASL
 
-| Acción | Profesional Soporte Comercial | Ejecutivo Comercial (dueño del SQL) | Otros |
-|---|---|---|---|
-| Ver SQL en `PendienteAsignacion` | ✅ | ❌ | ❌ |
-| Asignar SQL a comercial | ✅ | ❌ | ❌ |
-| Crear `sql_citas` (al asignar) | ✅ | ❌ | ❌ |
-| Actualizar `sql_citas` (reagendar) | ❌ | ✅ (solo si `comercial_id` = usuario actual) | ❌ |
-| Ver SQL ya `Asignado` | ✅ (lectura) | ✅ (propio) | ❌ |
+| Acción | Profesional Soporte Comercial | Ejecutivo Comercial (dueño del SQL) | Director Comercial | Otros |
+|---|---|---|---|---|
+| Ver SQL en `PendienteAsignacion` | ✅ | ❌ | ✅ (lectura) | ❌ |
+| Asignar SQL a comercial | ✅ | ❌ | ❌ | ❌ |
+| Crear `sql_citas` (al asignar) | ✅ | ❌ | ❌ | ❌ |
+| Ver SQL ya `Asignado` | ✅ (lectura) | ✅ (propio) | ✅ (todos) | ❌ |
+| Actualizar `sql_citas` (reagendar) | ❌ | ✅ (solo si `comercial_id` = actor) | ❌ | ❌ |
+| Convertir SQL → OUV | ❌ | ✅ (solo si `comercial_id` = actor) | ❌ | ❌ |
+| Descartar SQL | ❌ | ✅ (solo si `comercial_id` = actor) | ✅ (any) | ❌ |
 
 ---
 
 ## 5. UX / Pantallas
 
-**Bandeja de Enrutamiento** (nueva, rol Soporte Comercial)
-- Tabla: nombre lead, empresa, score, fecha creación SQL, días en `PendienteAsignacion`
-- Acción por fila: "Asignar" → abre modal con selector de comercial (único) + sección opcional "Agendar cita" (lugar, fecha, hora, contacto, descripción)
+### 5.1 Bandeja de Enrutamiento (rol Soporte Comercial)
+- Tabla: nombre lead, empresa, score MQL, fecha creación SQL, días en `PendienteAsignacion`
+- Acción por fila: "Asignar" → modal con selector de comercial (único) + sección opcional "Agendar cita"
 - Al confirmar: dispara EARS-04/05/06
 
-**SQL — Detalle** (vista comercial, extensión de la ya existente "Bandeja SQL — Comercial")
-- Si existe `sql_citas`: tarjeta de cita visible con botón "Reagendar"
-- Botón "Reagendar" abre el mismo formulario de captura, en modo edición
+### 5.2 Bandeja del Ejecutivo Comercial (SQLs asignados)
+- Vista de SQLs con `comercial_id = current` y `estado ∈ (Asignado, EnGestion)`
+- Acción por SQL: "Ver detalle" (ver 5.3) o "Convertir en OUV"
+
+### 5.3 SQL — Detalle
+- Datos del lead + información completa del MQL
+- Si existe `sql_citas`: tarjeta con datos + botón "Reagendar"
+- Botón principal: "Crear OUV" (dispara flujo 2b) — abre modal con formulario mínimo (título, segmento, vertical)
+- Botón secundario: "Descartar" — abre modal con selector de motivo (catálogo `motivos_descarte_sql`, a definir por seed en Wave 1)
+
+### 5.4 Post-conversión
+Al crear la OUV, redirect a la vista de detalle de OUV (definida en `spec-ouv-funnel.md` sección 8).
 
 ---
 
-## 6. Fuera de alcance de esta apertura
+## 6. Consumo del motor de workflow
 
-- **Traductores de Negocio** (canal de Módulo 1): su comportamiento de funnel sigue TBD y no afecta este enrutamiento — cuando se resuelva, si ese canal también requiere paso por Soporte, se evaluará si aplica el mismo patrón.
-- Selección de comercial por reglas automáticas (territorio, carga de trabajo, vertical) — Wave 1 es 100% manual, sin motor de reglas. Posible candidato a Wave 2.
-- Reasignación de un SQL ya `Asignado` a otro comercial — no descrito en este alcance; si surge el caso, requiere su propio EARS.
+Todas las transiciones de este módulo pasan por `WorkflowEngineService.transition()`. Eventos utilizados:
+
+| Evento | Origen | Destinatarios |
+|---|---|---|
+| `sql.creado` | WF002 (auto al aprobar MQL) | Rol SoporteComercial |
+| `sql.asignado` | Soporte Comercial (EARS-04) | Usuario `comercial_id` |
+| `sql.cita_reagendada` | Ejecutivo Comercial (EARS-07) | Rol SoporteComercial (informativo) |
+| `ouv.creada` | Ejecutivo Comercial (EARS-12) | Director Comercial + Soporte Comercial (informativos) |
+| `sql.descartado` | Ejecutivo Comercial (EARS-14) | Director Mercadeo (informativo) |
+
+Cada evento vive como una entrada declarativa en `workflow.rules.ts`. No hay lógica de notificación en los services de dominio.
+
+---
+
+## 7. Fuera de alcance de esta spec
+
+- Reasignación de SQL ya `Asignado` a otro comercial — no descrito; si surge, requiere su propio EARS
+- Traductores de Negocio (canal de Módulo 1) — su comportamiento en calificación aún TBD
+- Ciclo posterior de la OUV (4 zonas del funnel, cierre, reapertura) — vive en `spec-ouv-funnel.md`
+- Motor de reglas automáticas para asignación (territorio, carga) — Wave 2
