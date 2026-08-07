@@ -103,7 +103,6 @@ export const workflowRules: WorkflowRule[] = [
       guardUsuarioEsComercialDelSQL,
     ],
     destinatarios: [
-      { tipo: 'rol', resolver: () => 'DirectorComercial' },
       { tipo: 'rol', resolver: () => 'SoporteComercial' },
     ],
     titulo: () => 'Nueva OUV creada',
