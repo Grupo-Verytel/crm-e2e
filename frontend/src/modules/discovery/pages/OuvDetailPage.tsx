@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { AppLayout } from '../../../layout/AppLayout';
 import { formatDateTime } from '../../../lib/format';
@@ -45,6 +45,23 @@ import {
   type InfluenciaTipo,
 } from '../lib/ouv-vocab';
 
+/**
+ * After a successful save for `justSavedTipo`, prefer that row from the server
+ * but keep other local rows if they still have an in-flight save sequence
+ * (avoid wiping a sibling card the user is mid-editing).
+ */
+function mergeInfluenciasPreferringNewerLocal(
+  local: OuvInfluencia[],
+  server: OuvInfluencia[],
+  justSavedTipo: InfluenciaTipo,
+): OuvInfluencia[] {
+  const localByTipo = new Map(local.map((row) => [row.tipo, row]));
+  return server.map((serverRow) => {
+    if (serverRow.tipo === justSavedTipo) return serverRow;
+    return localByTipo.get(serverRow.tipo) ?? serverRow;
+  });
+}
+
 export function OuvDetailPage() {
   const { id = '' } = useParams();
   const { user } = useAuth();
@@ -55,7 +72,24 @@ export function OuvDetailPage() {
   const [checklist, setChecklist] = useState<OuvChecklistItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [savingPresupuesto, setSavingPresupuesto] = useState(false);
+  const [influenciaFlash, setInfluenciaFlash] = useState<InfluenciaTipo | null>(
+    null,
+  );
+  const [savingTipos, setSavingTipos] = useState<
+    Partial<Record<InfluenciaTipo, boolean>>
+  >({});
+  const influenciaFlashTimer = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const influenciaSaveSeq = useRef<Partial<Record<InfluenciaTipo, number>>>({});
+  const notasDebounceTimers = useRef<
+    Partial<Record<InfluenciaTipo, ReturnType<typeof setTimeout>>>
+  >({});
+  const influenciasRef = useRef<OuvInfluencia[]>([]);
+  influenciasRef.current = influencias;
   const [contactoModal, setContactoModal] = useState<OuvContacto | null | 'new'>(
     null,
   );
@@ -130,6 +164,144 @@ export function OuvDetailPage() {
       window.removeEventListener(IN_APP_NOTIFICATION_EVENT, onNotification);
   }, [id, load]);
 
+  useEffect(() => {
+    return () => {
+      if (influenciaFlashTimer.current) {
+        clearTimeout(influenciaFlashTimer.current);
+      }
+      for (const timer of Object.values(notasDebounceTimers.current)) {
+        if (timer) clearTimeout(timer);
+      }
+    };
+  }, []);
+
+  function flashInfluencia(tipo: InfluenciaTipo) {
+    setInfluenciaFlash(tipo);
+    if (influenciaFlashTimer.current) {
+      clearTimeout(influenciaFlashTimer.current);
+    }
+    influenciaFlashTimer.current = setTimeout(() => {
+      setInfluenciaFlash((current) => (current === tipo ? null : current));
+    }, 1400);
+  }
+
+  function patchInfluenciaLocal(
+    tipo: InfluenciaTipo,
+    patch: Partial<
+      Pick<
+        OuvInfluencia,
+        'estado' | 'contacto_ouv_id' | 'notas' | 'motivo_estado'
+      >
+    >,
+  ): void {
+    setInfluencias((prev) => {
+      const next = prev.map((row) =>
+        row.tipo === tipo ? { ...row, ...patch } : row,
+      );
+      influenciasRef.current = next;
+      return next;
+    });
+  }
+
+  async function persistInfluencia(
+    tipo: InfluenciaTipo,
+    snapshot: Pick<
+      OuvInfluencia,
+      'estado' | 'contacto_ouv_id' | 'notas' | 'motivo_estado'
+    >,
+  ) {
+    if (!id) return;
+    const seq = (influenciaSaveSeq.current[tipo] ?? 0) + 1;
+    influenciaSaveSeq.current[tipo] = seq;
+    setActionError(null);
+    setSavingTipos((prev) => ({ ...prev, [tipo]: true }));
+    try {
+      await updateOuvInfluencia(id, tipo, {
+        estado: snapshot.estado,
+        contacto_ouv_id: snapshot.contacto_ouv_id,
+        motivo_estado: snapshot.motivo_estado,
+        notas: snapshot.notas,
+      });
+      if (influenciaSaveSeq.current[tipo] !== seq) return;
+
+      // Refresh OUV (gap) without clobbering in-flight edits on other fields.
+      const [detail, serverInfluencias] = await Promise.all([
+        fetchOuv(id),
+        fetchOuvInfluencias(id),
+      ]);
+      if (influenciaSaveSeq.current[tipo] !== seq) return;
+
+      setOuv(detail);
+      setInfluencias((local) =>
+        mergeInfluenciasPreferringNewerLocal(local, serverInfluencias, tipo),
+      );
+      flashInfluencia(tipo);
+    } catch (err) {
+      if (influenciaSaveSeq.current[tipo] !== seq) return;
+      setActionError(
+        err instanceof ApiError
+          ? err.message
+          : 'No se pudo actualizar la influencia.',
+      );
+      try {
+        const serverInfluencias = await fetchOuvInfluencias(id);
+        if (influenciaSaveSeq.current[tipo] !== seq) return;
+        setInfluencias(serverInfluencias);
+      } catch {
+        /* keep optimistic local state */
+      }
+    } finally {
+      if (influenciaSaveSeq.current[tipo] === seq) {
+        setSavingTipos((prev) => ({ ...prev, [tipo]: false }));
+      }
+    }
+  }
+
+  function handleInfluenciaFieldChange(
+    tipo: InfluenciaTipo,
+    patch: Partial<
+      Pick<
+        OuvInfluencia,
+        'estado' | 'contacto_ouv_id' | 'notas' | 'motivo_estado'
+      >
+    >,
+  ) {
+    const current = influenciasRef.current.find((row) => row.tipo === tipo);
+    if (!current) return;
+    const snapshot = {
+      estado: patch.estado ?? current.estado,
+      contacto_ouv_id:
+        patch.contacto_ouv_id !== undefined
+          ? patch.contacto_ouv_id
+          : current.contacto_ouv_id,
+      notas: patch.notas !== undefined ? patch.notas : current.notas,
+      motivo_estado:
+        patch.motivo_estado !== undefined
+          ? patch.motivo_estado
+          : current.motivo_estado,
+    };
+    patchInfluenciaLocal(tipo, snapshot);
+    void persistInfluencia(tipo, snapshot);
+  }
+
+  function handleInfluenciaNotasChange(tipo: InfluenciaTipo, notas: string) {
+    const current = influenciasRef.current.find((row) => row.tipo === tipo);
+    if (!current) return;
+    patchInfluenciaLocal(tipo, { notas: notas || null });
+    const existing = notasDebounceTimers.current[tipo];
+    if (existing) clearTimeout(existing);
+    notasDebounceTimers.current[tipo] = setTimeout(() => {
+      const latest = influenciasRef.current.find((row) => row.tipo === tipo);
+      if (!latest) return;
+      void persistInfluencia(tipo, {
+        estado: latest.estado,
+        contacto_ouv_id: latest.contacto_ouv_id,
+        notas: latest.notas,
+        motivo_estado: latest.motivo_estado,
+      });
+    }, 500);
+  }
+
   async function handleSaveContacto(payload: ContactoPayload) {
     if (!id) return;
     if (contactoModal && contactoModal !== 'new') {
@@ -153,49 +325,39 @@ export function OuvDetailPage() {
     }
   }
 
-  async function handleInfluenciaChange(
-    tipo: InfluenciaTipo,
-    patch: Partial<OuvInfluencia> & { estado: string },
-  ) {
-    if (!id) return;
-    setActionError(null);
-    try {
-      await updateOuvInfluencia(id, tipo, {
-        estado: patch.estado,
-        contacto_ouv_id: patch.contacto_ouv_id,
-        motivo_estado: patch.motivo_estado,
-        notas: patch.notas,
-      });
-      await load({ silent: true });
-    } catch (err) {
-      setActionError(
-        err instanceof ApiError
-          ? err.message
-          : 'No se pudo actualizar la influencia.',
-      );
-    }
-  }
-
   async function handleSavePresupuesto() {
     if (!id) return;
     setActionError(null);
+    setActionSuccess(null);
+    setSavingPresupuesto(true);
     try {
+      const monto = presupuestoMonto.trim();
+      if (monto && Number.isNaN(Number(monto))) {
+        throw new Error('El monto debe ser un número válido.');
+      }
       await updateOuvPresupuesto(id, {
         presupuesto_confirmado: presupuestoConfirmado,
-        presupuesto_monto: presupuestoMonto
-          ? Number(presupuestoMonto)
-          : null,
+        presupuesto_monto: monto ? Number(monto) : null,
         presupuesto_moneda: presupuestoMoneda,
         presupuesto_fuente: presupuestoFuente,
         presupuesto_fecha_captura: new Date().toISOString(),
       });
       await load({ silent: true });
+      setActionSuccess(
+        presupuestoConfirmado
+          ? 'Presupuesto guardado (confirmado).'
+          : 'Presupuesto guardado.',
+      );
     } catch (err) {
       setActionError(
         err instanceof ApiError
           ? err.message
-          : 'No se pudo guardar el presupuesto.',
+          : err instanceof Error
+            ? err.message
+            : 'No se pudo guardar el presupuesto.',
       );
+    } finally {
+      setSavingPresupuesto(false);
     }
   }
 
@@ -293,13 +455,25 @@ export function OuvDetailPage() {
       ) : null}
 
       {actionError ? (
-        <p className="mb-3 text-sm text-danger">{actionError}</p>
+        <p className="mb-3 text-sm text-danger" role="alert">
+          {actionError}
+        </p>
+      ) : null}
+      {actionSuccess ? (
+        <p className="mb-3 text-sm text-positive" role="status">
+          {actionSuccess}
+        </p>
       ) : null}
 
       {/* Contactos */}
       <section className={`${cardClass} mb-4 p-4`}>
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-bold text-ink">Contactos</h2>
+          <div>
+            <h2 className="text-sm font-bold text-ink">Contactos</h2>
+            <p className="text-xs text-muted">
+              Se guardan con el modal Agregar / Editar.
+            </p>
+          </div>
           {editable ? (
             <button
               type="button"
@@ -358,27 +532,50 @@ export function OuvDetailPage() {
 
       {/* Influencias */}
       <section className={`${cardClass} mb-4 p-4`}>
-        <h2 className="mb-3 text-sm font-bold text-ink">Influencias</h2>
+        <h2 className="mb-1 text-sm font-bold text-ink">Influencias</h2>
+        <p className="mb-3 text-xs text-muted">
+          Estado y contacto se guardan al instante (sin bloquear la tarjeta).
+          Notas se guardan medio segundo después de dejar de escribir.
+        </p>
         <div className="grid gap-3 md:grid-cols-3">
           {INFLUENCIA_TIPOS.map((tipo) => {
             const inf = influencias.find((x) => x.tipo === tipo);
+            const isSaving = Boolean(savingTipos[tipo]);
+            const justSaved = influenciaFlash === tipo;
             return (
               <div
                 key={tipo}
-                className="rounded border border-border bg-bg p-3"
+                className={[
+                  'rounded border bg-bg p-3 transition-[border-color,box-shadow] duration-300',
+                  justSaved
+                    ? 'border-positive shadow-[0_0_0_1px_var(--positive)]'
+                    : isSaving
+                      ? 'border-brand'
+                      : 'border-border',
+                ].join(' ')}
+                aria-live="polite"
               >
-                <p className="mb-2 text-sm font-bold text-ink">{tipo}</p>
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <p className="text-sm font-bold text-ink">{tipo}</p>
+                  {isSaving ? (
+                    <span className="text-xs font-bold text-brand">
+                      Guardando…
+                    </span>
+                  ) : null}
+                  {!isSaving && justSaved ? (
+                    <span className="text-xs font-bold text-positive">
+                      Guardado
+                    </span>
+                  ) : null}
+                </div>
                 <label className={labelClass}>Estado</label>
                 <select
                   className={inputClass}
                   disabled={!editable}
                   value={inf?.estado ?? 'SinEvaluar'}
                   onChange={(e) =>
-                    void handleInfluenciaChange(tipo, {
+                    handleInfluenciaFieldChange(tipo, {
                       estado: e.target.value,
-                      contacto_ouv_id: inf?.contacto_ouv_id ?? null,
-                      notas: inf?.notas,
-                      motivo_estado: inf?.motivo_estado,
                     })
                   }
                 >
@@ -394,11 +591,8 @@ export function OuvDetailPage() {
                   disabled={!editable}
                   value={inf?.contacto_ouv_id ?? ''}
                   onChange={(e) =>
-                    void handleInfluenciaChange(tipo, {
-                      estado: inf?.estado ?? 'SinEvaluar',
+                    handleInfluenciaFieldChange(tipo, {
                       contacto_ouv_id: e.target.value || null,
-                      notas: inf?.notas,
-                      motivo_estado: inf?.motivo_estado,
                     })
                   }
                 >
@@ -413,16 +607,26 @@ export function OuvDetailPage() {
                 <textarea
                   className={`${inputClass} h-16 py-2`}
                   disabled={!editable}
-                  defaultValue={inf?.notas ?? ''}
-                  onBlur={(e) => {
-                    if (!editable || !inf) return;
-                    if ((inf.notas ?? '') === e.target.value) return;
-                    void handleInfluenciaChange(tipo, {
-                      estado: inf.estado,
-                      contacto_ouv_id: inf.contacto_ouv_id,
-                      notas: e.target.value || null,
-                      motivo_estado: inf.motivo_estado,
-                    });
+                  value={inf?.notas ?? ''}
+                  onChange={(e) =>
+                    handleInfluenciaNotasChange(tipo, e.target.value)
+                  }
+                  onBlur={() => {
+                    const pending = notasDebounceTimers.current[tipo];
+                    if (pending) {
+                      clearTimeout(pending);
+                      notasDebounceTimers.current[tipo] = undefined;
+                      const latest = influenciasRef.current.find(
+                        (row) => row.tipo === tipo,
+                      );
+                      if (!latest) return;
+                      void persistInfluencia(tipo, {
+                        estado: latest.estado,
+                        contacto_ouv_id: latest.contacto_ouv_id,
+                        notas: latest.notas,
+                        motivo_estado: latest.motivo_estado,
+                      });
+                    }
                   }}
                 />
               </div>
@@ -433,14 +637,22 @@ export function OuvDetailPage() {
 
       {/* Presupuesto */}
       <section className={`${cardClass} mb-4 p-4`}>
-        <h2 className="mb-3 text-sm font-bold text-ink">Presupuesto</h2>
+        <h2 className="mb-1 text-sm font-bold text-ink">Presupuesto</h2>
+        <p className="mb-3 text-xs text-muted">
+          No se guarda solo: edita los campos y pulsa{' '}
+          <strong>Guardar presupuesto</strong>. Marca &quot;Confirmado&quot;
+          para poder avanzar a Encima Funnel.
+        </p>
         <div className="grid gap-3 md:grid-cols-4">
           <label className="flex items-center gap-2 text-sm text-ink">
             <input
               type="checkbox"
               checked={presupuestoConfirmado}
               disabled={!editable}
-              onChange={(e) => setPresupuestoConfirmado(e.target.checked)}
+              onChange={(e) => {
+                setPresupuestoConfirmado(e.target.checked);
+                setActionSuccess(null);
+              }}
             />
             Confirmado
           </label>
@@ -450,7 +662,10 @@ export function OuvDetailPage() {
               className={inputClass}
               value={presupuestoMonto}
               disabled={!editable}
-              onChange={(e) => setPresupuestoMonto(e.target.value)}
+              onChange={(e) => {
+                setPresupuestoMonto(e.target.value);
+                setActionSuccess(null);
+              }}
             />
           </div>
           <div>
@@ -459,7 +674,10 @@ export function OuvDetailPage() {
               className={inputClass}
               value={presupuestoMoneda}
               disabled={!editable}
-              onChange={(e) => setPresupuestoMoneda(e.target.value)}
+              onChange={(e) => {
+                setPresupuestoMoneda(e.target.value);
+                setActionSuccess(null);
+              }}
             >
               <option value="COP">COP</option>
               <option value="USD">USD</option>
@@ -471,7 +689,10 @@ export function OuvDetailPage() {
               className={inputClass}
               value={presupuestoFuente}
               disabled={!editable}
-              onChange={(e) => setPresupuestoFuente(e.target.value)}
+              onChange={(e) => {
+                setPresupuestoFuente(e.target.value);
+                setActionSuccess(null);
+              }}
             >
               <option value="cliente_declaro">Cliente declaró</option>
               <option value="contrato_previo">Contrato previo</option>
@@ -481,22 +702,36 @@ export function OuvDetailPage() {
             </select>
           </div>
         </div>
+        {ouv.presupuesto_fecha_captura ? (
+          <p className="mt-2 text-xs text-muted">
+            Última captura: {formatDateTime(ouv.presupuesto_fecha_captura)}
+            {ouv.presupuesto_confirmado ? ' · Confirmado' : ' · Sin confirmar'}
+          </p>
+        ) : null}
         {editable ? (
           <button
             type="button"
             className={`${primaryButtonClass} mt-3`}
+            disabled={savingPresupuesto}
             onClick={() => void handleSavePresupuesto()}
           >
-            Guardar presupuesto
+            {savingPresupuesto ? 'Guardando…' : 'Guardar presupuesto'}
           </button>
-        ) : null}
+        ) : (
+          <p className="mt-3 text-xs text-muted">
+            Solo el comercial dueño puede guardar el presupuesto.
+          </p>
+        )}
       </section>
 
       {/* Checklist */}
       <section className={`${cardClass} mb-4 p-4`}>
-        <h2 className="mb-3 text-sm font-bold text-ink">
+        <h2 className="mb-1 text-sm font-bold text-ink">
           Checklist — zona actual
         </h2>
+        <p className="mb-3 text-xs text-muted">
+          Se guarda al marcar o desmarcar cada ítem.
+        </p>
         {checklist.length === 0 ? (
           <p className="text-sm text-muted">
             Sin items (siembra plantillas desde admin).
