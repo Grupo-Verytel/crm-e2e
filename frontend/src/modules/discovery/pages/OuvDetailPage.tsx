@@ -25,13 +25,16 @@ import {
   type OuvContacto,
   type OuvInfluencia,
 } from '../api/ouvs-api';
+import { Users } from 'lucide-react';
 import { AvanceZonaModal } from '../components/AvanceZonaModal';
 import { CierreOuvModal } from '../components/CierreOuvModal';
 import { ContactoFormModal } from '../components/ContactoFormModal';
+import { ContactosSidePanel } from '../components/ContactosSidePanel';
 import { DiscoveryNav } from '../components/DiscoveryNav';
 import { GapBadge, ResultadoBadge, ZonaBadge } from '../components/OuvBadges';
 import { RetrocesoZonaModal } from '../components/RetrocesoZonaModal';
 import {
+  badgeClass,
   cardClass,
   ghostButtonClass,
   inputClass,
@@ -45,6 +48,12 @@ import {
   type InfluenciaTipo,
 } from '../lib/ouv-vocab';
 
+function contactInitials(nombre: string): string {
+  const parts = nombre.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0] ?? ''}${parts[1][0] ?? ''}`.toUpperCase();
+}
 /**
  * After a successful save for `justSavedTipo`, prefer that row from the server
  * but keep other local rows if they still have an in-flight save sequence
@@ -93,6 +102,7 @@ export function OuvDetailPage() {
   const [contactoModal, setContactoModal] = useState<OuvContacto | null | 'new'>(
     null,
   );
+  const [showContactosPanel, setShowContactosPanel] = useState(false);
   const [showAvance, setShowAvance] = useState(false);
   const [showRetroceso, setShowRetroceso] = useState(false);
   const [showCierre, setShowCierre] = useState(false);
@@ -403,7 +413,7 @@ export function OuvDetailPage() {
 
       <header className={`${cardClass} mb-4 p-4`}>
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
+          <div className="min-w-0">
             <p className="text-xs font-bold text-muted">{ouv.consecutivo}</p>
             <h1 className="text-xl font-bold text-ink">{ouv.titulo}</h1>
             <p className="text-sm text-ink">{ouv.empresa_nombre}</p>
@@ -416,35 +426,101 @@ export function OuvDetailPage() {
               {ouv.tiene_gap ? <GapBadge /> : null}
             </div>
           </div>
-          {editable ? (
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                className={primaryButtonClass}
-                onClick={() => setShowAvance(true)}
-              >
-                Avanzar zona
-              </button>
-              <button
-                type="button"
-                className={ghostButtonClass}
-                onClick={() => setShowRetroceso(true)}
-              >
-                Retroceder
-              </button>
-              <button
-                type="button"
-                className={ghostButtonClass}
-                onClick={() => setShowCierre(true)}
-              >
-                Cerrar OUV
-              </button>
-            </div>
-          ) : null}
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              className={ghostButtonClass}
+              onClick={() => setShowContactosPanel(true)}
+            >
+              <span className="inline-flex items-center gap-2">
+                <Users size={16} strokeWidth={2} />
+                Contactos
+                <span className={`${badgeClass} bg-bg text-muted`}>
+                  {contactos.length}
+                </span>
+              </span>
+            </button>
+            {editable ? (
+              <>
+                <button
+                  type="button"
+                  className={primaryButtonClass}
+                  onClick={() => setShowAvance(true)}
+                >
+                  Avanzar zona
+                </button>
+                <button
+                  type="button"
+                  className={ghostButtonClass}
+                  onClick={() => setShowRetroceso(true)}
+                >
+                  Retroceder
+                </button>
+                <button
+                  type="button"
+                  className={ghostButtonClass}
+                  onClick={() => setShowCierre(true)}
+                >
+                  Cerrar OUV
+                </button>
+              </>
+            ) : null}
+          </div>
         </div>
         {ouv.descripcion ? (
           <p className="mt-3 text-sm text-muted">{ouv.descripcion}</p>
         ) : null}
+
+        {/* Compact contact preview — click opens the side panel */}
+        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3">
+          <span className="text-xs font-bold text-muted">Equipo cliente</span>
+          {contactos.length === 0 ? (
+            <button
+              type="button"
+              className="text-xs font-bold text-brand hover:underline"
+              onClick={() => {
+                setShowContactosPanel(true);
+                if (editable) setContactoModal('new');
+              }}
+            >
+              {editable ? '+ Agregar contacto' : 'Sin contactos'}
+            </button>
+          ) : (
+            <>
+              {contactos.slice(0, 5).map((c) => {
+                const roles =
+                  contactoInfluenciaMap.get(c.contacto_ouv_id) ?? [];
+                return (
+                  <button
+                    key={c.contacto_ouv_id}
+                    type="button"
+                    title={[c.nombre, c.cargo, roles.join(', ')]
+                      .filter(Boolean)
+                      .join(' · ')}
+                    className="inline-flex max-w-[10rem] items-center gap-1.5 rounded-full border border-border bg-bg py-0.5 pl-0.5 pr-2 text-left hover:border-brand"
+                    onClick={() => setShowContactosPanel(true)}
+                  >
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand/10 text-[10px] font-bold text-brand">
+                      {contactInitials(c.nombre)}
+                    </span>
+                    <span className="truncate text-xs font-bold text-ink">
+                      {c.nombre}
+                    </span>
+                  </button>
+                );
+              })}
+              {contactos.length > 5 ? (
+                <button
+                  type="button"
+                  className="text-xs font-bold text-brand hover:underline"
+                  onClick={() => setShowContactosPanel(true)}
+                >
+                  +{contactos.length - 5} más
+                </button>
+              ) : null}
+            </>
+          )}
+        </div>
       </header>
 
       {ouv.tiene_gap ? (
@@ -465,72 +541,7 @@ export function OuvDetailPage() {
         </p>
       ) : null}
 
-      {/* Contactos */}
-      <section className={`${cardClass} mb-4 p-4`}>
-        <div className="mb-3 flex items-center justify-between">
-          <div>
-            <h2 className="text-sm font-bold text-ink">Contactos</h2>
-            <p className="text-xs text-muted">
-              Se guardan con el modal Agregar / Editar.
-            </p>
-          </div>
-          {editable ? (
-            <button
-              type="button"
-              className={ghostButtonClass}
-              onClick={() => setContactoModal('new')}
-            >
-              Agregar
-            </button>
-          ) : null}
-        </div>
-        {contactos.length === 0 ? (
-          <p className="text-sm text-muted">Sin contactos.</p>
-        ) : (
-          <ul className="divide-y divide-border">
-            {contactos.map((c) => (
-              <li
-                key={c.contacto_ouv_id}
-                className="flex flex-wrap items-center justify-between gap-2 py-2"
-              >
-                <div>
-                  <p className="text-sm font-bold text-ink">{c.nombre}</p>
-                  <p className="text-xs text-muted">
-                    {[c.cargo, c.email, c.telefono].filter(Boolean).join(' · ') ||
-                      '—'}
-                  </p>
-                  {contactoInfluenciaMap.has(c.contacto_ouv_id) ? (
-                    <p className="mt-1 text-xs text-brand">
-                      Influencia:{' '}
-                      {contactoInfluenciaMap.get(c.contacto_ouv_id)!.join(', ')}
-                    </p>
-                  ) : null}
-                </div>
-                {editable ? (
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      className={ghostButtonClass}
-                      onClick={() => setContactoModal(c)}
-                    >
-                      Editar
-                    </button>
-                    <button
-                      type="button"
-                      className={ghostButtonClass}
-                      onClick={() => void handleDeleteContacto(c)}
-                    >
-                      Eliminar
-                    </button>
-                  </div>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      {/* Influencias */}
+      {/* Influencias — primary workspace */}
       <section className={`${cardClass} mb-4 p-4`}>
         <h2 className="mb-1 text-sm font-bold text-ink">Influencias</h2>
         <p className="mb-3 text-xs text-muted">
@@ -811,6 +822,16 @@ export function OuvDetailPage() {
           onSave={handleSaveContacto}
         />
       ) : null}
+      <ContactosSidePanel
+        open={showContactosPanel}
+        contactos={contactos}
+        influenciaByContacto={contactoInfluenciaMap}
+        editable={editable}
+        onClose={() => setShowContactosPanel(false)}
+        onAdd={() => setContactoModal('new')}
+        onEdit={(c) => setContactoModal(c)}
+        onDelete={(c) => void handleDeleteContacto(c)}
+      />
       {showAvance ? (
         <AvanceZonaModal
           ouv={ouv}
