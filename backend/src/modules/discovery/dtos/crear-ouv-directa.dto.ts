@@ -11,15 +11,17 @@ import {
   OuvVertical,
 } from '../models/enums/ouv.enums';
 
-export class CrearOuvDto {
+/** Body for POST /discovery/ouvs (Vías 2/3/4). */
+export class CrearOuvDirectaDto {
   @IsString()
   @IsNotEmpty()
   @MaxLength(200)
   titulo!: string;
 
-  @IsOptional()
   @IsString()
-  descripcion?: string;
+  @IsNotEmpty()
+  @MaxLength(200)
+  empresa_nombre!: string;
 
   @IsEnum(OuvSegmento)
   segmento!: OuvSegmento;
@@ -29,4 +31,8 @@ export class CrearOuvDto {
   @MaxLength(80)
   @IsIn(Object.values(OuvVertical))
   vertical!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  descripcion!: string;
 }

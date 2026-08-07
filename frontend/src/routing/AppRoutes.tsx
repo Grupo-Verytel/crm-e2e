@@ -39,6 +39,21 @@ const AssignedSqlsPage = lazy(
 const SqlDetailPage = lazy(
   () => import('../modules/qualification/pages/SqlDetailPageLazy'),
 );
+const OuvsBoardPage = lazy(
+  () => import('../modules/discovery/pages/OuvsBoardPageLazy'),
+);
+const OuvDetailPage = lazy(
+  () => import('../modules/discovery/pages/OuvDetailPageLazy'),
+);
+const MotivosPerdidaPage = lazy(
+  () => import('../modules/discovery/pages/MotivosPerdidaPageLazy'),
+);
+const MotivosDescartePage = lazy(
+  () => import('../modules/discovery/pages/MotivosDescartePageLazy'),
+);
+const ZonaChecklistAdminPage = lazy(
+  () => import('../modules/discovery/pages/ZonaChecklistAdminPageLazy'),
+);
 
 function protectedElement(title: string, description: string) {
   return (
@@ -76,9 +91,48 @@ export function AppRoutes() {
     },
     {
       path: '/opportunities',
-      element: protectedElement(
-        'Oportunidades (OUV)',
-        'Pipeline de oportunidades — módulo discovery (próximamente).',
+      element: (
+        <ProtectedRoute>
+          <OuvsBoardPage />
+        </ProtectedRoute>
+      ),
+    },
+    {
+      path: '/opportunities/admin/motivos-perdida',
+      element: (
+        <ProtectedRoute>
+          <RoleRoute roles={['SoporteComercial', 'Admin']}>
+            <MotivosPerdidaPage />
+          </RoleRoute>
+        </ProtectedRoute>
+      ),
+    },
+    {
+      path: '/opportunities/admin/motivos-descarte',
+      element: (
+        <ProtectedRoute>
+          <RoleRoute roles={['SoporteComercial', 'Admin']}>
+            <MotivosDescartePage />
+          </RoleRoute>
+        </ProtectedRoute>
+      ),
+    },
+    {
+      path: '/opportunities/admin/zona-checklist-templates',
+      element: (
+        <ProtectedRoute>
+          <RoleRoute roles={['SoporteComercial', 'Admin']}>
+            <ZonaChecklistAdminPage />
+          </RoleRoute>
+        </ProtectedRoute>
+      ),
+    },
+    {
+      path: '/opportunities/:id',
+      element: (
+        <ProtectedRoute>
+          <OuvDetailPage />
+        </ProtectedRoute>
       ),
     },
     {

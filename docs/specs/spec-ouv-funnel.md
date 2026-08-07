@@ -1,11 +1,20 @@
 # Spec — Módulo 2: OUV Funnel (Embudo Comercial Verytel)
-**Versión:** 1.0
-**Fecha:** 2026-08-05
+**Versión:** 1.2
+**Fecha:** 2026-08-07
 **Autor:** Evilio Díaz (Frisson Technologies / Grupo Verytel)
 **Estado:** Pendiente de aprobación para implementación
-**Depende de:** `spec-calificacion.md` v2.0 (entrada: OUV creada en zona UNIVERSO), `spec-workflow-engine.md` v1.1 (motor consumido en todas las transiciones)
-**Referencia de negocio:** `FILTROS_EMBUDO_COMERCIAL_v5.pdf` (embudo Verytel tipo MEDDIC)
-**Decisiones estructurales:** DR-2026-08-B
+**Depende de:** `spec-calificacion.md` v2.1, `spec-workflow-engine.md` v1.1
+**Referencia de negocio:** `FILTROS_EMBUDO_COMERCIAL_v5.pdf`, `Frisson_CRM_Blueprint_V2_19062026.pdf`
+**Decisiones estructurales:** DR-2026-08-B (con adendas A y B)
+
+**Changelog v1.1 → v1.2 (adenda 2026-08-07-B):**
+- Nueva tabla `ouv_contactos` propia del módulo `discovery`, sin FK a `contactos`
+- `contactos.lead_id` vuelve a NOT NULL (revierte cambio de v1.1)
+- `ouv_influencias.contacto_id` renombrado a `contacto_ouv_id` (FK a `ouv_contactos`)
+- Snapshots inmutables en `ouv_influencias` eliminados (ya no necesarios)
+- En Vía 1, se copian todos los contactos del lead a `ouv_contactos` al crear OUV
+- Contactos multi-propósito: pueden crearse sin estar asignados a influencia
+- Sin sincronización posterior lead↔OUV: una vez copiado, se rompe el vínculo
 
 ---
 
@@ -13,17 +22,17 @@
 
 Cubre el ciclo de vida completo de la OUV a través de 4 zonas formales del embudo comercial, incluyendo:
 
+- Dos vías de creación (desde SQL o directa)
 - Transiciones de zona (avance y retroceso)
-- Gestión de influencias compradoras (Económica / Técnica / Fábrica) con estado semáforo
-- Checklist de criterios por zona (subjetivos declarativos)
+- Gestión de contactos propios de la OUV
+- Gestión de influencias compradoras (Económica / Técnica / Fábrica)
+- Checklist de criterios por zona
 - Presupuesto estructurado
 - Alertas automáticas de gap de criterios
-- Cierre (Ganada / Perdida / Descartada) y reapertura
-- Bandeja del Ejecutivo Comercial y del Director Comercial
+- Cierre (Ganada / Perdida / Descartada)
+- Bandeja del Ejecutivo Comercial
 
-**Entrada:** OUV recién creada en `zona_actual = UNIVERSO`, `resultado = EnCurso` (proveniente de `spec-calificacion.md` v2.0 EARS-12).
-
-**Salida:** OUV cerrada (Ganada → Módulo 7 Paso a Implementación; Perdida/Descartada → terminal para KPIs).
+**Explícitamente diferido a Wave 2:** Override de Ganada, reapertura, vista Marketing.
 
 ---
 
@@ -34,136 +43,154 @@ Cubre el ciclo de vida completo de la OUV a través de 4 zonas formales del embu
 | Campo | Tipo | Oblig. | Descripción |
 |---|---|---|---|
 | `ouv_id` | UUID | Sí (PK) | — |
-| `consecutivo` | VARCHAR(20) | Sí | Formato `OUV-####` (generado con skill `generar-consecutivo`) |
-| `sql_id_origen` | UUID | Sí (FK sqls) | SQL desde el que se creó |
+| `consecutivo` | VARCHAR(20) | Sí | Formato `OUV-####` |
+| `sql_id_origen` | UUID | No | FK sqls, NULL para OUVs directas |
+| `origen_via` | ENUM(desde_sql, directa) | Sí | Redundante con `sql_id_origen` pero explícito para queries |
 | `comercial_id` | UUID | Sí (FK users) | Dueño exclusivo |
 | `cuenta_id` | UUID | No (FK cuentas) | Nullable en Wave 1 (Módulo 12 pendiente) |
-| `titulo` | VARCHAR(200) | Sí | Nombre corto de la oportunidad |
+| `titulo` | VARCHAR(200) | Sí | Nombre corto |
+| `empresa_nombre` | VARCHAR(200) | Sí | Snapshot del nombre del cliente. En Vía 1 se hereda del lead; en Vías 2/3/4 lo captura el comercial |
 | `descripcion` | TEXT | No | — |
 | `segmento` | ENUM(Gobierno, DefensaSeguridad, ProyectosEspeciales, B2B) | Sí | — |
-| `vertical` | VARCHAR(80) | Sí | Catálogo Verytel |
+| `vertical` | ENUM (7 valores, ver 2.6) | Sí | — |
 | **Zona y resultado** | | | |
 | `zona_actual` | ENUM(UNIVERSO, ENCIMA_FUNNEL, EN_FUNNEL, MAYOR_PROBABILIDAD) | Sí | Default UNIVERSO |
 | `resultado` | ENUM(EnCurso, Ganada, Perdida, Descartada) | Sí | Default EnCurso |
 | **Gap de criterios** | | | |
 | `tiene_gap` | BOOLEAN | Sí | Default false — mantenido por `CriteriosZonaEvaluator` |
 | `criterios_faltantes` | JSON | No | Array de códigos de criterios faltantes |
-| **Presupuesto (P2)** | | | |
+| **Presupuesto** | | | |
 | `presupuesto_confirmado` | BOOLEAN | Sí | Default false — guard duro para ENCIMA_FUNNEL |
 | `presupuesto_monto` | DECIMAL(18,2) | No | — |
-| `presupuesto_moneda` | ENUM(COP, USD) | No | Extensible en Wave 2 |
+| `presupuesto_moneda` | ENUM(COP, USD) | No | — |
 | `presupuesto_fecha_captura` | TIMESTAMPTZ | No | — |
 | `presupuesto_fuente` | ENUM(cliente_declaro, contrato_previo, licitacion_publicada, estimacion_comercial, sin_verificar) | No | — |
 | **Cierre** | | | |
-| `motivo_id` | UUID | No | FK a `motivos_perdida` o `motivos_descarte` según `resultado` |
-| `motivo_snapshot` | VARCHAR(200) | No | Nombre del motivo al momento del cierre (inmutable) |
+| `motivo_id` | UUID | No | FK a `motivos_perdida` o `motivos_descarte` |
+| `motivo_snapshot` | VARCHAR(200) | No | Nombre del motivo (inmutable) |
 | `motivo_detalle` | TEXT | No | Obligatorio si motivo = "Otro" |
 | `competidor_ganador` | VARCHAR(200) | No | Solo si motivo Perdida = "Ganó competidor" |
 | `monto_final` | DECIMAL(18,2) | No | Obligatorio si `resultado = Ganada` |
 | `moneda_final` | ENUM(COP, USD) | No | Obligatorio si `resultado = Ganada` |
 | `monto_estimado_perdido` | DECIMAL(18,2) | No | Obligatorio si `resultado = Perdida` |
 | `fecha_cierre` | TIMESTAMPTZ | No | Auto al marcar cierre |
-| **Reapertura y override** | | | |
-| `zona_antes_cierre` | ENUM (4 zonas) | No | Guardado al cerrar, usado al reabrir |
-| `motivo_reapertura_id` | UUID | No | FK `motivos_reapertura`, snapshot como los otros |
-| `motivo_reapertura_snapshot` | VARCHAR(200) | No | — |
-| `fecha_reapertura` | TIMESTAMPTZ | No | Auto al reabrir |
-| `override_ganada_aplicado` | BOOLEAN | Sí | Default false |
-| `override_motivo` | TEXT | No | Obligatorio si `override_ganada_aplicado = true` |
 | **Auditoría estándar** | | | |
 | `created_at` / `updated_at` | TIMESTAMPTZ | Sí | — |
 
-### 2.2 Tabla `ouv_influencias` (3 filas por OUV, seed automático)
+**Nota:** campos `zona_antes_cierre`, `motivo_reapertura_id`, `motivo_reapertura_snapshot`, `fecha_reapertura`, `override_ganada_aplicado`, `override_motivo` NO se crean en Wave 1.
+
+### 2.2 Tabla `ouv_contactos` (NUEVA en v1.2)
+
+Tabla propia del módulo `discovery`. Autocontenida, sin FK a `contactos`.
+
+| Campo | Tipo | Oblig. | Descripción |
+|---|---|---|---|
+| `contacto_ouv_id` | UUID | Sí (PK) | — |
+| `ouv_id` | UUID | Sí (FK ouvs) | — |
+| `nombre` | VARCHAR(120) | Sí | — |
+| `cargo` | VARCHAR(80) | No | — |
+| `email` | VARCHAR(180) | No | El comercial puede no tener el email inicialmente |
+| `telefono` | VARCHAR(20) | No | — |
+| `notas` | TEXT | No | Contexto adicional sobre este contacto en la OUV |
+| `created_at` | TIMESTAMPTZ | Sí | — |
+| `updated_at` | TIMESTAMPTZ | Sí | — |
+| `deleted_at` | TIMESTAMPTZ | No | Soft-delete estándar del proyecto |
+
+Índice: `(ouv_id, deleted_at)` para listar contactos vigentes por OUV.
+
+### 2.3 Tabla `contactos` (sin cambios v1.2)
+
+Tabla existente en `demand-generation`, con `lead_id` NOT NULL (schema original). NO se modifica en el PR grande del embudo.
+
+Nota: el schema ya soporta el ciclo de leads y NO se toca al implementar el embudo comercial.
+
+### 2.4 Tabla `ouv_influencias` (simplificada v1.2)
 
 | Campo | Tipo | Oblig. | Descripción |
 |---|---|---|---|
 | `influencia_id` | UUID | Sí (PK) | — |
 | `ouv_id` | UUID | Sí (FK ouvs) | — |
-| `tipo` | ENUM(Economica, Tecnica, Fabrica) | Sí | UNIQUE compuesto con `ouv_id` — solo una fila por tipo por OUV |
+| `tipo` | ENUM(Economica, Tecnica, Fabrica) | Sí | UNIQUE compuesto con `ouv_id` |
 | `estado` | ENUM(Verde, Rojo, Amarillo, SinEvaluar) | Sí | Default SinEvaluar |
-| `contacto_id` | UUID | No (FK contactos) | Reutiliza tabla existente del ciclo de leads |
-| `contacto_nombre_snapshot` | VARCHAR(160) | No | Inmutable al momento del último cambio |
-| `contacto_cargo_snapshot` | VARCHAR(120) | No | — |
-| `contacto_email_snapshot` | VARCHAR(160) | No | — |
+| `contacto_ouv_id` | UUID | No (FK ouv_contactos) | Nullable — la influencia puede no tener contacto asignado todavía |
 | `notas` | TEXT | No | — |
 | `motivo_estado` | TEXT | No | Por qué está en Rojo/Amarillo |
-| `fecha_ultimo_cambio` | TIMESTAMPTZ | No | Auto al UPDATE |
+| `fecha_ultimo_cambio` | TIMESTAMPTZ | No | Auto al UPDATE del `estado` |
 | `created_at` | TIMESTAMPTZ | Sí | — |
 
-**Seed automático:** al crear una OUV (`ouv.creada`), el sistema inserta 3 filas — una por cada tipo — en `estado = SinEvaluar`.
+**Cambios v1.2:**
+- `contacto_id` FK a `contactos` **eliminado** — reemplazado por `contacto_ouv_id` FK a `ouv_contactos`
+- Snapshots `contacto_nombre_snapshot`, `contacto_cargo_snapshot`, `contacto_email_snapshot` **eliminados**. Ya no son necesarios: el contacto vive en tabla del propio módulo (`ouv_contactos`) y no cambia por acciones externas
 
-### 2.3 Tabla `ouv_checklist_items` (T3 con timestamp)
+**Seed automático:** al crear una OUV, el sistema inserta 3 filas — una por cada tipo — en `estado = SinEvaluar` y `contacto_ouv_id = NULL`.
 
-| Campo | Tipo | Oblig. | Descripción |
-|---|---|---|---|
-| `item_id` | UUID | Sí (PK) | — |
-| `ouv_id` | UUID | Sí (FK ouvs) | — |
-| `zona` | ENUM (4 zonas) | Sí | Zona a la que pertenece el criterio |
-| `codigo_item` | VARCHAR(60) | Sí | Identificador del criterio (ej. `impacto_mision`, `reputacion`) |
-| `label` | VARCHAR(200) | Sí | Texto visible del criterio (snapshot desde plantilla) |
-| `marcado` | BOOLEAN | Sí | Default false |
-| `marcado_at` | TIMESTAMPTZ | No | Auto al marcar true |
-| `marcado_por` | UUID | No | FK users |
-| `created_at` | TIMESTAMPTZ | Sí | — |
+### 2.5 Tabla `ouv_checklist_items` (T3 con timestamp)
 
-**Seed automático:** al transicionar la OUV a una zona nueva (`ouv.avance_zona` o `ouv.retroceso_zona`), el sistema:
-1. Consulta `zona_checklist_templates` para la zona destino
-2. Inserta filas correspondientes en `ouv_checklist_items` (si no existen ya para esa OUV/zona)
-3. Las filas de zonas ya visitadas se preservan (retroceso no borra checklist previo)
+Sin cambios respecto a v1.1.
 
-### 2.4 Catálogos administrables
+### 2.6 ENUM `Vertical` (hardcoded Wave 1)
 
-**`zona_checklist_templates`** — plantillas de checklist por zona
-- `template_id` UUID PK
-- `zona` ENUM (4 zonas)
-- `codigo_item` VARCHAR(60) — único por zona
-- `label` VARCHAR(200)
-- `orden` INT — para render
-- `activo` BOOLEAN — soft delete
-- CRUD por rol Director Comercial
+Sin cambios respecto a v1.1. Lista de 7 valores según PDF v5.
 
-**`motivos_perdida`, `motivos_descarte`, `motivos_reapertura`** — catálogos de motivos
-- `motivo_id` UUID PK
-- `nombre` VARCHAR(200)
-- `descripcion` TEXT
-- `requiere_detalle` BOOLEAN — si es true, obliga `motivo_detalle` en la OUV
-- `orden` INT
-- `activo` BOOLEAN — soft delete
-- CRUD por rol Director Comercial
+### 2.7 Catálogos administrables
 
-### 2.5 Snapshot mensual de KPIs (para reapertura sin corrupción de histórico)
-
-**`kpi_snapshots_mensuales`**
-- `snapshot_id` UUID PK
-- `mes` DATE (primer día del mes)
-- `comercial_id` UUID FK users nullable (null = agregado global)
-- `total_ganadas`, `total_perdidas`, `total_descartadas` INT
-- `monto_ganado` DECIMAL
-- `winrate_calculado` DECIMAL(5,4)
-- `created_at` TIMESTAMPTZ
-- Job cron el día 1 de cada mes calcula y persiste este snapshot antes de que las reaperturas alteren el estado
+`motivos_perdida`, `motivos_descarte`, `zona_checklist_templates` — sin cambios respecto a v1.1. CRUD por Soporte Comercial.
 
 ---
 
 ## 3. Criterios EARS
 
-### 3.1 Creación (EARS-01 a EARS-03)
+### 3.1 Creación desde SQL — Vía 1 (EARS-01 a EARS-04)
 
-**EARS-01.** Al crear una OUV (viene de `spec-calificacion.md` v2.0 EARS-12), el sistema DEBE inicializar:
-- `zona_actual = UNIVERSO`, `resultado = EnCurso`
-- Tres filas en `ouv_influencias` (Economica, Tecnica, Fabrica) en estado `SinEvaluar`
-- Items de checklist para zona UNIVERSO desde `zona_checklist_templates`
-- Consecutivo `OUV-####` generado con skill `generar-consecutivo`
+**EARS-01.** Al crear una OUV desde SQL (via `spec-calificacion.md` v2.1 EARS-10..14), el sistema DEBE inicializar en la misma transacción:
+- `ouvs`: `zona_actual = UNIVERSO`, `resultado = EnCurso`, `origen_via = desde_sql`, `sql_id_origen = <SQL de origen>`
+- `empresa_nombre` heredado desde `contactos.empresa_nombre` del lead origen
+- Consecutivo `OUV-####`
+- Tres filas en `ouv_influencias` en estado `SinEvaluar`
+- Items de checklist para zona UNIVERSO
 
-**EARS-02.** El sistema DEBE registrar `ouv.creada` en el motor de workflow con destinatarios: Director Comercial + Soporte Comercial (informativos).
+**EARS-02.** En la misma transacción, el sistema DEBE **copiar todos los contactos del lead origen a `ouv_contactos`**. Reglas:
+- Se consultan filas de `contactos` con `lead_id = <lead origen del SQL>` y `deleted_at IS NULL`
+- Por cada fila de origen, se crea una fila en `ouv_contactos` con: `ouv_id`, `nombre`, `cargo`, `email`, `telefono` copiados literales
+- Campo `notas` queda vacío
+- El campo `position` de origen NO se copia (no aplica en discovery)
+- La copia es **de una sola vez**: no hay sincronización posterior
 
-**EARS-03.** La OUV DEBE nacer sin gap: `tiene_gap = false`, `criterios_faltantes = null`.
+**EARS-03.** Los contactos copiados NO se auto-asignan a ninguna influencia. Todas las filas de `ouv_influencias` nacen con `contacto_ouv_id = NULL`. El Ejecutivo Comercial asigna manualmente después según su criterio.
 
-### 3.2 Avance de zona (EARS-04 a EARS-07)
+**EARS-04.** El sistema DEBE emitir el evento `ouv.creada_desde_sql` con destinatario: Soporte Comercial.
 
-**EARS-04.** El Ejecutivo Comercial dueño DEBE poder solicitar avance a la zona siguiente vía `POST /ouvs/:id/avanzar`.
+### 3.2 Creación directa — Vías 2/3/4 (EARS-05 a EARS-07)
 
-**EARS-05.** El motor DEBE validar los siguientes guards según zona destino:
+**EARS-05.** Un usuario con rol `EjecutivoComercial` DEBE poder crear una OUV directa vía `POST /discovery/ouvs` con campos obligatorios: `titulo`, `empresa_nombre`, `segmento`, `vertical`, `descripcion`.
+
+**EARS-06.** Al crear OUV directa, el sistema DEBE inicializar:
+- `ouvs`: `zona_actual = UNIVERSO`, `resultado = EnCurso`, `origen_via = directa`, `sql_id_origen = NULL`
+- `comercial_id = actor_user_id`
+- Tres filas en `ouv_influencias` (idéntico a Vía 1)
+- Items de checklist para zona UNIVERSO
+- Consecutivo `OUV-####`
+- **NO se crean filas en `ouv_contactos`** — el comercial las crea después manualmente
+
+**EARS-07.** El sistema DEBE emitir el evento `ouv.creada_directa` con destinatario: Soporte Comercial.
+
+### 3.3 Gestión de contactos de OUV (EARS-08 a EARS-11)
+
+**EARS-08.** El Ejecutivo Comercial dueño DEBE poder crear filas nuevas en `ouv_contactos` para su OUV vía `POST /discovery/ouvs/:id/contactos`. Sin necesidad de asignarlos inmediatamente a una influencia.
+
+**EARS-09.** El Ejecutivo Comercial dueño DEBE poder actualizar filas de `ouv_contactos` de su OUV (nombre, cargo, email, telefono, notas).
+
+**EARS-10.** El Ejecutivo Comercial dueño DEBE poder eliminar (soft-delete) filas de `ouv_contactos`. Si el contacto está referenciado por alguna `ouv_influencias`, el sistema DEBE:
+- Setear `ouv_influencias.contacto_ouv_id = NULL` para todas las influencias afectadas
+- Registrar el cambio en `audit_log`
+
+**EARS-11.** Los contactos de OUV NO se sincronizan con contactos del lead. Si el lead agrega/edita contactos DESPUÉS de crear la OUV, esos cambios NO se propagan a `ouv_contactos`.
+
+### 3.4 Avance de zona (EARS-12 a EARS-15)
+
+**EARS-12.** El Ejecutivo Comercial dueño DEBE poder solicitar avance a la zona siguiente vía `POST /discovery/ouvs/:id/avanzar`.
+
+**EARS-13.** El motor DEBE validar los siguientes guards según zona destino:
 
 | Zona destino | Guards |
 |---|---|
@@ -171,250 +198,210 @@ Cubre el ciclo de vida completo de la OUV a través de 4 zonas formales del embu
 | EN_FUNNEL | `guardEntidadEnEstado('OUV', 'ENCIMA_FUNNEL')` + `guard2InfluenciasEnVerde` |
 | MAYOR_PROBABILIDAD | `guardEntidadEnEstado('OUV', 'EN_FUNNEL')` + `guard2InfluenciasEnVerde` |
 
-**EARS-06.** Si un guard rechaza, el motor DEBE lanzar `WorkflowGuardRejectedException` con HTTP 422 y detalle del criterio faltante.
+**EARS-14.** Si un guard rechaza, el motor DEBE lanzar `WorkflowGuardRejectedException` con HTTP 422 y detalle del criterio faltante.
 
-**EARS-07.** Al aprobar todos los guards, el motor DEBE:
+**EARS-15.** Al aprobar todos los guards, el motor DEBE:
 - Actualizar `zona_actual` a la nueva zona
-- Sembrar items de checklist para la zona destino (si no existen)
-- Emitir `ouv.avance_zona` con notificación informativa al Director Comercial
+- Sembrar items de checklist para la zona destino
+- Emitir `ouv.avance_zona`
 - Registrar en `audit_log`
 
-### 3.3 Retroceso de zona (EARS-08 a EARS-10)
+### 3.5 Retroceso de zona (EARS-16 a EARS-18)
 
-**EARS-08.** El Ejecutivo Comercial dueño DEBE poder degradar la OUV a la zona previa vía `POST /ouvs/:id/retroceder`, aportando `motivo` (TEXT obligatorio).
+**EARS-16.** El Ejecutivo Comercial dueño DEBE poder degradar la OUV a la zona previa vía `POST /discovery/ouvs/:id/retroceder`, aportando `motivo` (TEXT obligatorio).
 
-**EARS-09.** El motor DEBE:
+**EARS-17.** El motor DEBE:
 - Actualizar `zona_actual` a la zona previa
-- Preservar los items de checklist ya marcados de la zona actual (no se borran)
-- Emitir `ouv.retroceso_zona` con `payload.motivo` incluido
-- Registrar en `audit_log` (incluyendo motivo)
+- Preservar los items de checklist ya marcados
+- Emitir `ouv.retroceso_zona` con `payload.motivo`
 
-**EARS-10.** El sistema NO DEBE permitir retroceder desde UNIVERSO (es zona inicial). Retroceder desde UNIVERSO se hace vía Descartada.
+**EARS-18.** No se permite retroceder desde UNIVERSO. Retroceder desde UNIVERSO se hace vía Descartada.
 
-### 3.4 Gestión de influencias (EARS-11 a EARS-14)
+### 3.6 Gestión de influencias (EARS-19 a EARS-21)
 
-**EARS-11.** El Ejecutivo Comercial dueño DEBE poder actualizar cada `ouv_influencias` con: nuevo `estado`, `contacto_id` (opcional), `motivo_estado` (recomendado si Rojo/Amarillo), `notas`.
+**EARS-19.** El Ejecutivo Comercial dueño DEBE poder actualizar cada `ouv_influencias` con: nuevo `estado`, `contacto_ouv_id` (opcional, FK a `ouv_contactos`), `motivo_estado`, `notas`.
 
-**EARS-12.** Al asignar `contacto_id`, el sistema DEBE poblar los `_snapshot` con los datos actuales del contacto en `contactos`. Si el contacto se actualiza después, los snapshots permanecen inmutables.
+**EARS-20.** El `contacto_ouv_id` asignado a una influencia DEBE existir en `ouv_contactos` **de la misma OUV**. Validar en el service que `ouv_contactos.ouv_id === ouv_influencias.ouv_id`.
 
-**EARS-13.** Cada actualización de influencia DEBE disparar `ouv.influencia_cambio` en el motor, con `payload` incluyendo `tipo`, `estado_anterior`, `estado_nuevo`.
+**EARS-21.** Cada actualización de influencia DEBE disparar `ouv.influencia_cambio` en el motor. El evento invoca `CriteriosZonaEvaluator.evaluate(ouv)` como side effect.
 
-**EARS-14.** El evento `ouv.influencia_cambio` DEBE invocar `CriteriosZonaEvaluator.evaluate(ouv)` como side effect, que actualiza `tiene_gap` y `criterios_faltantes`.
+### 3.7 Checklist de zona (EARS-22 a EARS-24)
 
-### 3.5 Checklist de zona (EARS-15 a EARS-17)
+**EARS-22.** El Ejecutivo Comercial dueño DEBE poder marcar/desmarcar items del checklist de la zona actual.
 
-**EARS-15.** El Ejecutivo Comercial dueño DEBE poder marcar/desmarcar items del checklist de la zona actual.
+**EARS-23.** Al marcar un item, registrar `marcado_at = NOW()` y `marcado_por = actor`. Al desmarcar, ambos vuelven a NULL.
 
-**EARS-16.** Al marcar un item (`marcado = true`), el sistema DEBE registrar `marcado_at = NOW()` y `marcado_por = actor`. Al desmarcar, ambos vuelven a null.
+**EARS-24.** Cada marcado/desmarcado DEBE disparar `ouv.checklist_item_marcado` invocando `CriteriosZonaEvaluator`.
 
-**EARS-17.** Cada marcado/desmarcado DEBE disparar `ouv.checklist_item_marcado` invocando `CriteriosZonaEvaluator` como side effect.
+### 3.8 Presupuesto (EARS-25 a EARS-26)
 
-### 3.6 Presupuesto (EARS-18 a EARS-19)
+**EARS-25.** El Ejecutivo Comercial dueño DEBE poder actualizar los campos de presupuesto.
 
-**EARS-18.** El Ejecutivo Comercial dueño DEBE poder actualizar los campos de presupuesto (`presupuesto_confirmado`, `presupuesto_monto`, `presupuesto_moneda`, `presupuesto_fecha_captura`, `presupuesto_fuente`).
+**EARS-26.** Cambios en presupuesto DEBEN disparar `ouv.presupuesto_actualizado` invocando `CriteriosZonaEvaluator`.
 
-**EARS-19.** Cambios en presupuesto DEBEN disparar `ouv.presupuesto_actualizado` invocando `CriteriosZonaEvaluator` como side effect.
+### 3.9 Alerta de gap (EARS-27 a EARS-29)
 
-### 3.7 Alerta de gap (EARS-20 a EARS-22)
+**EARS-27.** `CriteriosZonaEvaluator.evaluate(ouv)` DEBE consultar los guards duros aplicables a la zona actual y retornar `{ tieneGap, criteriosFaltantes[] }`, persistiendo en la OUV.
 
-**EARS-20.** `CriteriosZonaEvaluator.evaluate(ouv)` DEBE:
-- Consultar los guards duros aplicables a la zona actual (`presupuesto_confirmado` si ENCIMA_FUNNEL o superior; `2 influencias en verde` si EN_FUNNEL o superior)
-- Retornar `{ tieneGap: boolean, criteriosFaltantes: string[] }`
-- Persistir el resultado en `ouv.tiene_gap` y `ouv.criterios_faltantes`
+**EARS-28.** Cuando `tiene_gap` transiciona de `false` a `true`, disparar `ouv.criterios_perdidos` (con `dedup_key` para prevenir spam).
 
-**EARS-21.** Cuando `tiene_gap` transiciona de `false` a `true`, el sistema DEBE disparar `ouv.criterios_perdidos` con destinatario = `comercial_id`. El `dedup_key` (`ouv.criterios_perdidos:${ouv_id}:${comercial_id}`) previene notificación repetida.
+**EARS-29.** Cuando `tiene_gap` transiciona de `true` a `false`, disparar `ouv.criterios_recuperados` (silencioso).
 
-**EARS-22.** Cuando `tiene_gap` transiciona de `true` a `false`, el sistema DEBE disparar `ouv.criterios_recuperados` (silencioso, sin toast — solo actualiza estado de la notificación previa marcándola resuelta).
+### 3.10 Cierre (EARS-30 a EARS-34)
 
-### 3.8 Cierre (EARS-23 a EARS-29)
+**EARS-30.** El Ejecutivo Comercial dueño DEBE poder marcar cierre Ganada vía `POST /discovery/ouvs/:id/ganar`.
 
-**EARS-23.** El Ejecutivo Comercial dueño DEBE poder marcar cierre Ganada vía `POST /ouvs/:id/ganar`, aportando `motivo_id` (opcional; puede no aplicar), `monto_final`, `moneda_final`.
+**EARS-31.** Guards para Ganada:
+- `guardEntidadEnEstado('OUV', 'MAYOR_PROBABILIDAD')` — regla estricta, sin excepciones en Wave 1
 
-**EARS-24.** Guards para Ganada:
-- `guardEntidadEnEstado('OUV', 'MAYOR_PROBABILIDAD')` — regla estricta
+**EARS-32.** El Ejecutivo Comercial dueño DEBE poder marcar cierre Perdida vía `POST /discovery/ouvs/:id/perder`, con `motivo_id` (obligatorio), `monto_estimado_perdido` (obligatorio), `competidor_ganador` (obligatorio si motivo lo requiere).
 
-**EARS-25.** Excepción de Ganada: rol Director Comercial DEBE poder aplicar override vía `POST /ouvs/:id/ganar-con-override` desde cualquier zona activa, aportando `override_motivo` (TEXT obligatorio). El sistema marca `override_ganada_aplicado = true`.
+**EARS-33.** El Ejecutivo Comercial dueño DEBE poder marcar cierre Descartada vía `POST /discovery/ouvs/:id/descartar` con `motivo_id` obligatorio.
 
-**EARS-26.** El Ejecutivo Comercial dueño DEBE poder marcar cierre Perdida vía `POST /ouvs/:id/perder`, aportando `motivo_id` (obligatorio), `monto_estimado_perdido` (obligatorio), `competidor_ganador` (obligatorio si motivo requiere).
-
-**EARS-27.** El Ejecutivo Comercial dueño DEBE poder marcar cierre Descartada vía `POST /ouvs/:id/descartar`, aportando `motivo_id` (obligatorio) desde catálogo `motivos_descarte`.
-
-**EARS-28.** En cualquier cierre, el sistema DEBE:
-- Persistir `motivo_snapshot` desde el motivo seleccionado (inmutable si el motivo se edita después)
-- Guardar `zona_antes_cierre = zona_actual`
+**EARS-34.** En cualquier cierre, el sistema DEBE:
+- Persistir `motivo_snapshot` (inmutable)
 - Setear `fecha_cierre = NOW()`
-- Emitir el evento correspondiente (`ouv.ganada` | `ouv.perdida` | `ouv.descartada`) con notificación a Director Comercial
+- Emitir el evento correspondiente con notificación a Soporte Comercial
+- Solo Ganada: emitir `ouv.lista_para_implementacion` (destinatario Soporte)
 
-**EARS-29.** Ganada DEBE disparar además evento hacia Módulo 7 (Paso a Implementación): `ouv.lista_para_implementacion` con destinatario rol `SoporteComercial` (que habilita el paso). El manejo detallado vive en la spec de Módulo 7 (pendiente).
+### 3.11 Reapertura (postergada a Wave 2)
 
-### 3.10 Reapertura (EARS-30 a EARS-32)
-
-**EARS-30.** Solo rol Director Comercial DEBE poder reabrir una OUV cerrada vía `POST /ouvs/:id/reabrir`, aportando `motivo_reapertura_id` (obligatorio desde catálogo `motivos_reapertura`).
-
-**EARS-31.** Al reabrir, el sistema DEBE:
-- Restaurar `zona_actual = zona_antes_cierre`
-- Setear `resultado = EnCurso`
-- Persistir `motivo_reapertura_snapshot` y `fecha_reapertura`
-- Emitir `ouv.reabierta` con notificación al comercial dueño (informativa)
-- Registrar en `audit_log`
-
-**EARS-32.** Los KPIs mensuales calculados vía snapshot en `kpi_snapshots_mensuales` NO DEBEN alterarse al reabrir. Solo los KPIs "en tiempo real" (dashboards del mes en curso) reflejan el cambio.
+Sin funcionalidad en Wave 1.
 
 ---
 
 ## 4. Permisos CASL
 
-| Acción | Ejecutivo Comercial (dueño) | Director Comercial | Otros |
+| Acción | Ejecutivo Comercial (dueño) | Soporte Comercial | Otros |
 |---|---|---|---|
 | Ver OUV propia | ✅ | ✅ (todas) | ❌ |
-| Actualizar influencias/checklist/presupuesto | ✅ | ✅ (todas) | ❌ |
-| Solicitar avance/retroceso de zona | ✅ | ✅ (todas) | ❌ |
-| Cerrar Ganada (desde MAYOR_PROBABILIDAD) | ✅ | ✅ | ❌ |
-| Cerrar Ganada con override (desde otra zona) | ❌ | ✅ | ❌ |
-| Cerrar Perdida | ✅ | ✅ | ❌ |
-| Cerrar Descartada | ✅ | ✅ | ❌ |
-| Reabrir OUV cerrada | ❌ | ✅ | ❌ |
-| CRUD de catálogos (motivos, plantillas) | ❌ | ✅ | ❌ |
+| Crear OUV directa | ✅ | ❌ | ❌ |
+| Actualizar contactos de OUV propia | ✅ | ❌ | ❌ |
+| Actualizar influencias/checklist/presupuesto | ✅ (propias) | ❌ | ❌ |
+| Solicitar avance/retroceso de zona | ✅ (propias) | ❌ | ❌ |
+| Cerrar Ganada (desde MAYOR_PROBABILIDAD) | ✅ (propias) | ❌ | ❌ |
+| Cerrar Perdida / Descartada | ✅ (propias) | ❌ | ❌ |
+| CRUD `motivos_perdida` / `motivos_descarte` | ❌ | ✅ | ❌ |
+| CRUD `zona_checklist_templates` | ❌ | ✅ | ❌ |
 
 ---
 
 ## 5. Guards nuevos del motor
 
-Los siguientes guards se agregan a `guards/` del motor de workflow. Todos operan sync con la entidad ya cargada + contexto:
-
-- **`guardPresupuestoConfirmado(ouv)`** — retorna `ouv.presupuesto_confirmado === true`
-- **`guard2InfluenciasEnVerde(ouv, deps)`** — consulta `ouv_influencias` de la OUV, cuenta filas con `estado = Verde`, retorna `count >= 2`
-- **`guardChecklistZonaCumplido(ouv, deps, zona)`** — opcional, no obligatorio en Wave 1 (los items son declarativos, no bloquean)
-- **`guardUsuarioEsComercialDelOUV(ouv, ctx)`** — retorna `ctx.actorUserId === ouv.comercial_id`
-- **`guardRolDirectorComercial(ctx, deps)`** — reutiliza `guardUsuarioTieneRol('DirectorComercial')` ya existente
+- `guardPresupuestoConfirmado(ouv)` — retorna `ouv.presupuesto_confirmado === true`
+- `guard2InfluenciasEnVerde(ouv, deps)` — consulta `ouv_influencias`, retorna `count(Verde) >= 2`
+- `guardUsuarioEsComercialDelOUV(ouv, ctx)` — retorna `ctx.actorUserId === ouv.comercial_id`
 
 ---
 
 ## 6. Eventos nuevos del motor
 
-Todos siguen la convención `entidad.accion_en_pasado`:
+- `ouv.creada_desde_sql`
+- `ouv.creada_directa`
+- `ouv.avance_zona`
+- `ouv.retroceso_zona`
+- `ouv.contacto_creado` (opcional — evalúa si vale audit_log-only o notif)
+- `ouv.contacto_eliminado`
+- `ouv.influencia_cambio`
+- `ouv.checklist_item_marcado`
+- `ouv.presupuesto_actualizado`
+- `ouv.criterios_perdidos` (con dedup_key)
+- `ouv.criterios_recuperados`
+- `ouv.ganada`
+- `ouv.perdida`
+- `ouv.descartada`
+- `ouv.lista_para_implementacion`
 
-- `ouv.creada` — al crear OUV
-- `ouv.avance_zona` — transición hacia zona siguiente
-- `ouv.retroceso_zona` — degradación manual
-- `ouv.influencia_cambio` — semáforo de influencia cambió
-- `ouv.checklist_item_marcado` — comercial marcó/desmarcó item
-- `ouv.presupuesto_actualizado` — cambio en presupuesto
-- `ouv.criterios_perdidos` — alerta al detectar gap (idempotente vía dedup_key)
-- `ouv.criterios_recuperados` — silencioso, resuelve alerta previa
-- `ouv.ganada` — cierre exitoso
-- `ouv.perdida` — cierre no exitoso
-- `ouv.descartada` — descarte por decisión propia
-- `ouv.reabierta` — reapertura por Director
-- `ouv.lista_para_implementacion` — post-Ganada, notifica a Soporte Comercial
-
-Cada evento vive como entrada en `workflow.rules.ts`. Ver skill `workflow-engine-pattern` para el patrón de invocación.
+**Migración de regla existente:** la regla `ouv.creada` (después de PR-3') se renombra a `ouv.creada_desde_sql`. Los eventos previos en `notifications` se dejan como histórico.
 
 ---
 
 ## 7. Componentes NestJS
 
 ### 7.1 `OUVService`
-- CRUD básico + métodos de acción: `avanzar`, `retroceder`, `ganar`, `ganarConOverride`, `perder`, `descartar`, `reabrir`
-- Cada método invoca `workflowEngine.transition()` dentro de transacción, no escribe estado directamente
+CRUD básico + métodos de acción: `crearDesdeSQL`, `crearDirecta`, `avanzar`, `retroceder`, `ganar`, `perder`, `descartar`. Cada método sigue el contrato de la regla `800-workflow-transitions.mdc`.
 
-### 7.2 `OUVInfluenciasService`
-- CRUD sobre `ouv_influencias`
-- Método `actualizarEstado(ouvId, tipo, dto)` que dispara `ouv.influencia_cambio`
+### 7.2 `OUVContactosService` (NUEVO v1.2)
+- `crearDesdeLead(ouvId, leadId, transaction)` — invocado durante `crearDesdeSQL` para copiar contactos del lead
+- `crear(ouvId, dto, actorUserId)` — creación manual desde UI
+- `actualizar(contactoOuvId, dto, actorUserId)`
+- `eliminar(contactoOuvId, actorUserId)` — soft-delete + limpieza de FK en `ouv_influencias`
+- `listByOuv(ouvId)`
 
-### 7.3 `OUVChecklistService`
-- Método `marcarItem(itemId, marcado)` que dispara `ouv.checklist_item_marcado`
-- Método `seedChecklistParaZona(ouvId, zona, transaction)` invocado por el motor tras `avance_zona`/`retroceso_zona`
+### 7.3 `OUVInfluenciasService`
+- `listByOuv(ouvId)`
+- `actualizarEstado(ouvId, tipo, dto)` — dispara `ouv.influencia_cambio`. Valida que `contacto_ouv_id` pertenece a la misma OUV
+- `seedInfluenciasParaOuv(ouvId, transaction)` — invocado tras creación de OUV
 
-### 7.4 `CriteriosZonaEvaluator`
-- Servicio puro (sin side effects propios) con método `evaluate(ouv): { tieneGap, criteriosFaltantes[] }`
-- Invocado como side effect en `ouv.influencia_cambio`, `ouv.checklist_item_marcado`, `ouv.presupuesto_actualizado`
-- Persiste `ouv.tiene_gap` y `ouv.criterios_faltantes` dentro de la transacción
+### 7.4 `OUVChecklistService`
+Sin cambios respecto a v1.1.
 
-### 7.5 `KPISnapshotJob`
-- Cron mensual (día 1 a las 00:05) que calcula agregados y persiste en `kpi_snapshots_mensuales`
-- Reutilizable como servicio manual para recálculo puntual
+### 7.5 `CriteriosZonaEvaluator`
+Sin cambios respecto a v1.1.
 
 ### 7.6 `CatalogoMotivosService` y `ZonaTemplateService`
-- CRUD estándar sobre catálogos
-- Guards CASL para restringir a Director Comercial
+Sin cambios respecto a v1.1. CRUD por Soporte Comercial.
 
 ---
 
 ## 8. UX / Pantallas
 
-### 8.1 Bandeja del Ejecutivo Comercial (default)
-- **Vista dual:** toggle Lista / Kanban (consistente con Módulo 1 patrón)
-- **Lista:** columnas: consecutivo, título, cuenta, zona (badge), gap (badge amarillo si aplica), monto presupuesto, última actividad, acciones
-- **Kanban:** 4 columnas (zonas), OUVs como cards. Arrastrar abre modal de transición (no transiciona directo)
-- **Orden default:** `updated_at DESC`
-- **Filtros:** zona (multi-select), gap (sí/no/todos), texto libre (búsqueda por título/consecutivo/cuenta), rango `created_at`
-- **Paginación:** reutiliza `Pagination.tsx`
+### 8.1 Bandeja del Ejecutivo Comercial
+Sin cambios respecto a v1.1. Vista dual lista/Kanban con filtros mínimos.
 
-### 8.2 Bandeja del Director Comercial
-- Mismo componente, permisos CASL más amplios
-- Columna adicional: comercial dueño
-- Filtro adicional: por comercial
-- Acciones adicionales: override Ganada, reabrir OUV cerrada
+### 8.2 Bandeja del Soporte Comercial
+Sin cambios respecto a v1.1.
 
 ### 8.3 OUV — Detalle
 Layout de secciones colapsables:
-- **Encabezado:** consecutivo, título, badge de zona, badge de resultado, botones (Avanzar / Retroceder / Cerrar)
-- **Banner de alerta:** si `tiene_gap = true`, banner amarillo con lista de `criterios_faltantes`
-- **Panel de influencias:** 3 tarjetas (Económica, Técnica, Fábrica) con semáforo editable + contacto asignado + motivo/notas
-- **Panel de presupuesto:** formulario con confirmado + monto + moneda + fuente + fecha
-- **Panel de checklist:** items de la zona actual (y de zonas ya visitadas colapsados por defecto)
-- **Sección de cierre:** visible cuando `resultado !== EnCurso`, muestra motivo, monto, competidor, fecha
-- **Sección de auditoría:** historial de transiciones desde `audit_log`
+- Encabezado con badges
+- Banner de alerta si `tiene_gap`
+- **Panel de contactos (NUEVO v1.2):** lista de `ouv_contactos` de la OUV con acciones agregar/editar/eliminar. Muestra si el contacto está asignado a alguna influencia (badge). En Vía 1 aparecen ya poblados desde el lead.
+- Panel de influencias: 3 tarjetas con semáforo editable + selector de contacto (dropdown desde `ouv_contactos` de la OUV) + notas
+- Panel de presupuesto
+- Panel de checklist
+- Sección de cierre (visible si `resultado !== EnCurso`)
+- Sección de auditoría
 
-### 8.4 Modal de transición (avance)
-- Muestra el checklist de la zona destino con estado actual
-- Lista los guards que se van a evaluar
-- Botón "Confirmar avance" — dispara EARS-04
-- Si un guard falla, muestra mensaje del filtro de excepciones (HTTP 422)
+### 8.4 Modal de "Crear OUV directa"
+Sin cambios respecto a v1.1.
 
-### 8.5 Modal de retroceso
-- Selector de motivo (texto libre TEXT obligatorio en Wave 1; catálogo `motivos_retroceso` opcional Wave 2)
-- Botón "Confirmar retroceso"
+### 8.5 Modal de "Agregar contacto" (NUEVO v1.2)
+Formulario con: nombre (obligatorio), cargo, email, telefono, notas. Al confirmar: POST /discovery/ouvs/:id/contactos.
 
-### 8.6 Modal de cierre (Ganada / Perdida / Descartada)
-- Formulario dinámico según resultado seleccionado
-- Ganada: motivo (opcional) + monto + moneda
-- Perdida: motivo (obligatorio) + monto estimado perdido + competidor (si aplica)
-- Descartada: motivo (obligatorio)
-- Botón "Confirmar cierre"
+### 8.6 Modal de transición (avance)
+Sin cambios.
 
-### 8.7 Modal de override (Ganada desde otra zona)
-- Visible solo a Director Comercial
-- Formulario: motivo override (obligatorio) + monto + moneda + motivo Ganada (opcional)
+### 8.7 Modal de retroceso
+Sin cambios.
 
-### 8.8 Modal de reapertura
-- Visible solo a Director Comercial en OUVs cerradas
-- Selector de motivo desde catálogo `motivos_reapertura`
-- Confirma restauración a `zona_antes_cierre`
+### 8.8 Modal de cierre (Ganada / Perdida / Descartada)
+Sin cambios.
 
-### 8.9 Pantallas de administración (rol Director Comercial)
-- CRUD de `motivos_perdida`, `motivos_descarte`, `motivos_reapertura`
-- CRUD de `zona_checklist_templates` (con selector de zona)
+### 8.9 Pantallas de administración (rol SoporteComercial)
+Sin cambios respecto a v1.1.
 
 ---
 
 ## 9. Consumo del motor de workflow
 
-Todas las transiciones y side effects pasan por `WorkflowEngineService.transition()`. Los services de dominio de este módulo NO escriben en `notifications` a mano ni actualizan estados directamente — todo pasa por el motor. Ver skill `workflow-engine-pattern` para el patrón obligatorio de invocación.
+Todas las transiciones y side effects pasan por `WorkflowEngineService.transition()` siguiendo el contrato de la regla `800-workflow-transitions.mdc`. Ver skill `workflow-engine-pattern`.
 
 ---
 
-## 10. Fuera de alcance de esta spec (Wave 2 o después)
+## 10. Fuera de alcance (Wave 2 o después)
 
-- **Modelo unificado de contactos** Lead↔OUV↔Cuenta (depende de Módulo 12)
-- **Tabla `ouv_actividades` formal** (T2) — si adopción del checklist con timestamp lo justifica
-- **Reglas automáticas de degradación** — degradación sigue siendo manual
-- **Editor visual de reglas del motor** o versionamiento de flujos
-- **Notificaciones por email/SMS** — solo in-app en Wave 1
-- **Influencias adicionales** más allá de las 3 fijas (Económica, Técnica, Fábrica)
-- **Segmentación de reglas por segmento** (Gobierno vs D&S vs B2B con guards distintos)
-- **Preferencias de notificación por usuario**
-- **Filtros avanzados** en bandeja (segmento, vertical, rango monto, orden manual)
-- **Predicción de cierre basada en histórico** — Módulo 13 Reportería
-- **Análisis automático de "descuento aplicado en negociación"** — KPI derivado Wave 2
+- Override de Ganada
+- Reapertura de OUV cerrada
+- KPI snapshots mensuales
+- Vista de seguimiento para Marketing
+- Modelo unificado de contactos Lead↔OUV↔Cuenta (Módulo 12)
+- Tabla `ouv_actividades` formal
+- Editor visual de reglas del motor
+- Notificaciones por email/SMS
+- Influencias adicionales más allá de las 3 fijas
+- Segmentación de reglas por segmento
+- Filtros avanzados en bandeja
+- Predicción de cierre basada en histórico
+- Catálogo administrable de verticales
+- Sincronización posterior lead↔OUV para contactos

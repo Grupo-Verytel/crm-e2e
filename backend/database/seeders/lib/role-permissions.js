@@ -4,12 +4,19 @@ const ACTION_MAP = {
   U: 'update',
   A: 'approve',
   X: 'close',
+  D: 'delete',
 };
 
 const SUBJECTS = {
   'users/roles': ['User', 'Role'],
   'leads/campaigns': ['Lead', 'Campaign'],
   opportunities: ['Opportunity'],
+  'ouv-catalogs': [
+    'MotivoPerdida',
+    'MotivoDescarte',
+    'ZonaChecklistTemplate',
+  ],
+  'ouv-motivos': ['MotivoPerdida', 'MotivoDescarte'],
   presales: ['Presale'],
   pricing: ['Pricing'],
   'proposals/contracts': ['Proposal', 'Contract'],
@@ -25,6 +32,7 @@ const MATRIX = {
     'users/roles': 'CRUA',
     'leads/campaigns': 'R',
     opportunities: 'R',
+    'ouv-catalogs': 'CRUD',
     presales: 'R',
     pricing: 'R',
     'proposals/contracts': 'R',
@@ -43,6 +51,7 @@ const MATRIX = {
   EjecutivoComercial: {
     'leads/campaigns': 'R',
     opportunities: 'CRUX',
+    'ouv-motivos': 'R',
     presales: 'R',
     pricing: 'R',
     'proposals/contracts': 'CRU',
@@ -52,6 +61,7 @@ const MATRIX = {
   SoporteComercial: {
     'leads/campaigns': 'R',
     opportunities: 'CRU',
+    'ouv-catalogs': 'CRUD',
     presales: 'R',
     pricing: 'R',
     'proposals/contracts': 'CRUA',

@@ -350,6 +350,7 @@ export class SqlsService {
         {
           sqlId: sql.sqlId,
           comercialId: comercialUserId,
+          leadId: sql.mql.leadId,
           dto,
         },
         transaction,
@@ -367,7 +368,7 @@ export class SqlsService {
       await this.workflowEngine.transition(
         EntityType.OUV,
         ouv.ouvId,
-        'ouv.creada',
+        'ouv.creada_desde_sql',
         {
           estadoAnterior,
           estadoNuevo: OuvZona.Universo,
