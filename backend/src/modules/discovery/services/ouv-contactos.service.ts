@@ -46,10 +46,10 @@ export class OuvContactosService {
       const row = await this.contactoModel.create(
         {
           ouvId,
-          nombre: contact.nombre,
-          cargo: contact.cargo ?? null,
+          nombre: contact.name,
+          cargo: contact.job_title ?? null,
           email: contact.email || null,
-          telefono: contact.telefono ?? null,
+          telefono: contact.phone ?? null,
           notas: null,
         },
         { transaction },

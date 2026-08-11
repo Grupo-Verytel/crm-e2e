@@ -82,33 +82,9 @@ export class Lead extends Model {
   @Column({ type: DataType.CHAR(2), allowNull: false })
   declare pais: string;
 
-  @Column({
-    type: DataType.STRING(120),
-    field: 'empresa_nombre',
-    allowNull: false,
-  })
-  declare empresaNombre: string;
-
-  /** Unique when present (enforced via partial unique index in migration). */
+  /** Legacy optional NIT on lead; DG-08 match uses accounts.tax_id via people. */
   @Column({ type: DataType.STRING(20), allowNull: true })
   declare nit: string | null;
-
-  @Column({
-    type: DataType.STRING(120),
-    field: 'contacto_nombre',
-    allowNull: false,
-  })
-  declare contactoNombre: string;
-
-  @Column({ type: DataType.STRING(80), allowNull: true })
-  declare cargo: string | null;
-
-  @Column({ type: DataType.STRING(180), allowNull: false })
-  declare email: string;
-
-  /** E.164 format when present (normalized in service). */
-  @Column({ type: DataType.STRING(20), allowNull: true })
-  declare telefono: string | null;
 
   @Column({
     type: DataType.ENUM(...Object.values(TipoInfluencia)),
@@ -116,6 +92,20 @@ export class Lead extends Model {
     allowNull: true,
   })
   declare tipoInfluencia: TipoInfluencia | null;
+
+  @Column({
+    type: DataType.CHAR(36),
+    field: 'segment_id',
+    allowNull: true,
+  })
+  declare segmentId: string | null;
+
+  @Column({
+    type: DataType.CHAR(36),
+    field: 'subsegment_id',
+    allowNull: true,
+  })
+  declare subsegmentId: string | null;
 
   @Default(LeadEstado.Nuevo)
   @Column({
@@ -174,6 +164,20 @@ export class Lead extends Model {
     as: 'comercialAsignado',
   })
   declare comercialAsignado: User | null;
+
+  @ForeignKey(() => User)
+  @Column({
+    type: DataType.CHAR(36),
+    field: 'business_referrer_id',
+    allowNull: true,
+  })
+  declare businessReferrerId: string | null;
+
+  @BelongsTo(() => User, {
+    foreignKey: 'businessReferrerId',
+    as: 'businessReferrer',
+  })
+  declare businessReferrer: User | null;
 
   /** Required when estado = Descartado (enforced in DTO/service). */
   @Column({ type: DataType.TEXT, field: 'motivo_descarte', allowNull: true })

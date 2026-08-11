@@ -78,7 +78,9 @@ export class SqlsService {
       this.sqlModel.count({ where }),
     ]);
 
-    const items = rows.map((sql) => this.toInboxItem(sql));
+    const items = await Promise.all(
+      rows.map((sql) => this.toDetailResponse(sql)),
+    );
 
     return { items, total: count, page, limit };
   }
@@ -520,31 +522,6 @@ export class SqlsService {
       agendada_por: cita.agendadaPor,
       created_at: cita.createdAt,
       updated_at: cita.updatedAt,
-    };
-  }
-
-  private toInboxItem(sql: Sql): SqlDetailDto {
-    const lead = sql.mql?.lead;
-    return {
-      sql_id: sql.sqlId,
-      mql_id: sql.mqlId,
-      estado: sql.estado,
-      en_backlog: sql.enBacklog,
-      comercial_asignado_id: sql.comercialAsignadoId,
-      fecha_asignacion: sql.fechaAsignacion,
-      fecha_creacion: sql.fechaCreacion,
-      ouv_id: sql.ouvId ?? null,
-      ouv: null,
-      lead: {
-        lead_id: lead?.leadId,
-        empresa_nombre: lead?.empresaNombre,
-        contacto_nombre: lead?.contactoNombre,
-        email: lead?.email,
-        icp_score: lead?.icpScore ?? null,
-        origen: lead?.origen,
-      },
-      interactions: [],
-      cita: null,
     };
   }
 

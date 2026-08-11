@@ -5,6 +5,8 @@ import { useAuth } from '../../auth/hooks/useAuth';
 const DIRECTOR_ROLE = 'DirectorMercadeo';
 const SUPPORT_ROLE = 'SoporteComercial';
 const GESTOR_ROLE = 'GestorMercadeo';
+const PRODUCT_MANAGER_ROLE = 'ProductManager';
+const TRADUCTOR_ROLE = 'TraductorDeNegocio';
 
 /** Roles that can open Bandeja de Agenda / register agency citas (MOFU → BOFU). */
 const AGENDA_ROLES = new Set([SUPPORT_ROLE, GESTOR_ROLE, 'Admin']);
@@ -38,12 +40,24 @@ type DemandNavProps = {
 
 export function DemandNav({ actions }: DemandNavProps) {
   const { user } = useAuth();
-  const isDirector = user?.role_name === DIRECTOR_ROLE;
-  const canUseAgenda = !!user?.role_name && AGENDA_ROLES.has(user.role_name);
-  const links = LINKS.filter(
-    (link) =>
-      (!link.directorOnly || isDirector) && (!link.agendaOnly || canUseAgenda),
-  );
+  const roleName = user?.role_name;
+  const isDirector = roleName === DIRECTOR_ROLE;
+  const isTraductor = roleName === TRADUCTOR_ROLE;
+  const isProductManager = roleName === PRODUCT_MANAGER_ROLE;
+  const canUseAgenda = !!roleName && AGENDA_ROLES.has(roleName);
+
+  let links: NavItem[];
+  if (isTraductor) {
+    links = [{ to: '/demand', label: 'Mis referidos', end: true }];
+  } else if (isProductManager) {
+    links = [{ to: '/demand', label: 'Leads', end: true }];
+  } else {
+    links = LINKS.filter(
+      (link) =>
+        (!link.directorOnly || isDirector) &&
+        (!link.agendaOnly || canUseAgenda),
+    );
+  }
 
   return (
     <div className="mb-4 flex flex-wrap items-start gap-2 border-b border-border">

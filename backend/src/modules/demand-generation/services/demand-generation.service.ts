@@ -1,5 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
+import { InjectModel } from '@nestjs/sequelize';
 import { UsersService } from '../../auth/services/users.service';
+import { DEMAND_GENERATION_ROLES } from '../constants/demand-generation.constants';
 import { ApproveMqlDto } from '../dtos/approve-mql.dto';
 import {
   BulkImportJobAcceptedDto,
@@ -33,11 +35,14 @@ import {
 } from '../dtos/mql-response.dto';
 import { RecycleLeadDto } from '../dtos/recycle-lead.dto';
 import { RegisterAppointmentDto } from '../dtos/register-appointment.dto';
+import { SegmentResponseDto } from '../dtos/segment-response.dto';
 import { RejectMqlDto } from '../dtos/reject-mql.dto';
 import { TransitionToMqlDto } from '../dtos/transition-mql.dto';
 import { UpdateCampaignStatusDto } from '../dtos/update-campaign-status.dto';
 import { UpdateChecklistDto } from '../dtos/update-checklist.dto';
 import { UpdateLeadDto } from '../dtos/update-lead.dto';
+import { Segment } from '../models/segment.model';
+import { Subsegment } from '../models/subsegment.model';
 import { CampaignsService } from './campaigns.service';
 import { DashboardService } from './dashboard.service';
 import { InteractionsService } from './interactions.service';
@@ -54,6 +59,8 @@ import { MqlsService } from './mqls.service';
 @Injectable()
 export class DemandGenerationService {
   constructor(
+    @InjectModel(Segment) private readonly segmentModel: typeof Segment,
+    @InjectModel(Subsegment) private readonly subsegmentModel: typeof Subsegment,
     private readonly leadsService: LeadsService,
     private readonly campaignsService: CampaignsService,
     private readonly interactionsService: InteractionsService,
@@ -70,12 +77,17 @@ export class DemandGenerationService {
   async createLead(
     dto: CreateLeadDto,
     createdBy: string,
+    roleName?: string,
   ): Promise<LeadResponseDto> {
-    return this.leadsService.create(dto, createdBy);
+    return this.leadsService.create(dto, createdBy, roleName);
   }
 
-  async findLeadById(leadId: string): Promise<LeadResponseDto> {
-    return this.leadsService.findById(leadId);
+  async findLeadById(
+    leadId: string,
+    actorUserId?: string,
+    roleName?: string,
+  ): Promise<LeadResponseDto> {
+    return this.leadsService.findById(leadId, actorUserId, roleName);
   }
 
   async updateLead(
@@ -92,8 +104,12 @@ export class DemandGenerationService {
     return this.leadsService.persistIcpScore(leadId, icpScore);
   }
 
-  async listLeads(query: LeadsQueryDto): Promise<PaginatedLeadsResponseDto> {
-    return this.leadsService.findAll(query);
+  async listLeads(
+    query: LeadsQueryDto,
+    actorUserId?: string,
+    roleName?: string,
+  ): Promise<PaginatedLeadsResponseDto> {
+    return this.leadsService.findAll(query, actorUserId, roleName);
   }
 
   async recycleLead(
@@ -200,9 +216,41 @@ export class DemandGenerationService {
     return this.leadsService.toResponseDto(lead);
   }
 
+  async listSegments(): Promise<SegmentResponseDto[]> {
+    const segments = await this.segmentModel.findAll({
+      where: { active: true },
+      include: [
+        {
+          model: Subsegment,
+          as: 'subsegments',
+          where: { active: true },
+          required: false,
+        },
+      ],
+      order: [
+        ['name', 'ASC'],
+        [{ model: Subsegment, as: 'subsegments' }, 'name', 'ASC'],
+      ],
+    });
+
+    return segments.map((segment) => ({
+      id: segment.id,
+      name: segment.name,
+      subsegments:
+        segment.subsegments?.map((subsegment) => ({
+          id: subsegment.id,
+          name: subsegment.name,
+        })) ?? [],
+    }));
+  }
+
   // ----- Campaigns -----
 
-  async createCampaign(dto: CreateCampaignDto): Promise<CampaignResponseDto> {
+  async createCampaign(
+    dto: CreateCampaignDto,
+    roleName?: string,
+  ): Promise<CampaignResponseDto> {
+    this.assertTraductorCannotWriteCampaigns(roleName);
     return this.campaignsService.create(dto);
   }
 
@@ -215,7 +263,9 @@ export class DemandGenerationService {
   async updateCampaignStatus(
     campanaId: string,
     dto: UpdateCampaignStatusDto,
+    roleName?: string,
   ): Promise<CampaignResponseDto> {
+    this.assertTraductorCannotWriteCampaigns(roleName);
     return this.campaignsService.updateStatus(campanaId, dto);
   }
 
@@ -247,5 +297,13 @@ export class DemandGenerationService {
     query: MarketingDashboardQueryDto,
   ): Promise<MarketingDashboardResponseDto> {
     return this.dashboardService.getMarketingDashboard(query);
+  }
+
+  private assertTraductorCannotWriteCampaigns(roleName?: string): void {
+    if (roleName === DEMAND_GENERATION_ROLES.TRADUCTOR_DE_NEGOCIO) {
+      throw new ForbiddenException(
+        'TraductorDeNegocio cannot create or update campaigns',
+      );
+    }
   }
 }

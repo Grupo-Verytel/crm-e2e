@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { DatabaseModule } from './database/database.module';
+import { AccountsModule } from './modules/accounts/accounts.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { DemandGenerationModule } from './modules/demand-generation/demand-generation.module';
@@ -14,6 +15,7 @@ import { WorkflowEngineModule } from './modules/workflow-engine/workflow-engine.
     DatabaseModule,
     AuthModule,
     AuditModule,
+    AccountsModule,
     DemandGenerationModule,
     DiscoveryModule,
     QualificationModule,

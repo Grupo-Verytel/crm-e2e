@@ -50,7 +50,11 @@ export class LeadsController {
     @Body() dto: CreateLeadDto,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<LeadResponseDto> {
-    return this.demandGenerationService.createLead(dto, user.userId);
+    return this.demandGenerationService.createLead(
+      dto,
+      user.userId,
+      user.roleName,
+    );
   }
 
   @Post('bulk-import')
@@ -82,8 +86,15 @@ export class LeadsController {
 
   @Get()
   @CheckAbility({ action: 'read', subject: 'Lead' })
-  findAll(@Query() query: LeadsQueryDto): Promise<PaginatedLeadsResponseDto> {
-    return this.demandGenerationService.listLeads(query);
+  findAll(
+    @Query() query: LeadsQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<PaginatedLeadsResponseDto> {
+    return this.demandGenerationService.listLeads(
+      query,
+      user.userId,
+      user.roleName,
+    );
   }
 
   @Get('appointment-commercials')
@@ -94,8 +105,15 @@ export class LeadsController {
 
   @Get(':id')
   @CheckAbility({ action: 'read', subject: 'Lead' })
-  findOne(@Param('id') id: string): Promise<LeadResponseDto> {
-    return this.demandGenerationService.findLeadById(id);
+  findOne(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<LeadResponseDto> {
+    return this.demandGenerationService.findLeadById(
+      id,
+      user.userId,
+      user.roleName,
+    );
   }
 
   @Put(':id')

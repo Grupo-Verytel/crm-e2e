@@ -35,24 +35,9 @@ export class LeadContact extends Model {
   @Column({ type: DataType.TINYINT.UNSIGNED, allowNull: false })
   declare position: number;
 
-  @Column({
-    type: DataType.STRING(120),
-    field: 'empresa_nombre',
-    allowNull: false,
-  })
-  declare empresaNombre: string;
-
-  @Column({ type: DataType.STRING(120), allowNull: false })
-  declare nombre: string;
-
-  @Column({ type: DataType.STRING(80), allowNull: true })
-  declare cargo: string | null;
-
-  @Column({ type: DataType.STRING(180), allowNull: false })
-  declare email: string;
-
-  @Column({ type: DataType.STRING(20), allowNull: true })
-  declare telefono: string | null;
+  /** FK to people.person_id — enriched via AccountsService (no cross-module BelongsTo). */
+  @Column({ type: DataType.CHAR(36), field: 'person_id', allowNull: false })
+  declare personId: string;
 
   @CreatedAt
   @Column({ type: DataType.DATE, field: 'created_at' })

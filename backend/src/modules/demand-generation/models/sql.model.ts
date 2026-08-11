@@ -13,6 +13,7 @@ import {
 } from 'sequelize-typescript';
 import { User } from '../../auth/models/user.model';
 import { Mql } from './mql.model';
+import { SqlOrigenCreacion } from './enums/sql-origen.enum';
 import { SqlEstado } from './enums/sql.enums';
 
 @Table({
@@ -54,7 +55,15 @@ export class Sql extends Model {
   @Column({ type: DataType.BOOLEAN, field: 'en_backlog', allowNull: false })
   declare enBacklog: boolean;
 
-  /** Assigned by Profesional Soporte Comercial (qualification module). */
+  @Default(SqlOrigenCreacion.EnrutamientoNormal)
+  @Column({
+    type: DataType.ENUM(...Object.values(SqlOrigenCreacion)),
+    field: 'origen_creacion',
+    allowNull: false,
+  })
+  declare origenCreacion: SqlOrigenCreacion;
+
+  /** Assigned by SoporteComercial (qualification module) or KAM on direct route. */
   @ForeignKey(() => User)
   @Column({
     type: DataType.CHAR(36),

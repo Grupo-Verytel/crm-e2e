@@ -54,6 +54,12 @@ const MotivosDescartePage = lazy(
 const ZonaChecklistAdminPage = lazy(
   () => import('../modules/discovery/pages/ZonaChecklistAdminPageLazy'),
 );
+const AccountsListPage = lazy(
+  () => import('../modules/accounts/pages/AccountsListPageLazy'),
+);
+const PeopleListPage = lazy(
+  () => import('../modules/accounts/pages/PeopleListPageLazy'),
+);
 
 function protectedElement(title: string, description: string) {
   return (
@@ -252,6 +258,22 @@ export function AppRoutes() {
       element: protectedElement(
         'Posventa',
         'Renovaciones y ChurnRate — módulo post-sales (próximamente).',
+      ),
+    },
+    {
+      path: '/accounts/empresas',
+      element: (
+        <ProtectedRoute>
+          <AccountsListPage />
+        </ProtectedRoute>
+      ),
+    },
+    {
+      path: '/accounts/contactos',
+      element: (
+        <ProtectedRoute>
+          <PeopleListPage />
+        </ProtectedRoute>
       ),
     },
     {

@@ -21,6 +21,13 @@ import { ExpectedRoute } from '../components/leads/ExpectedRoute';
 import { ChecklistModal } from '../components/leads/ChecklistModal';
 import { RegisterAppointmentModal } from '../components/leads/RegisterAppointmentModal';
 import { CANAL_ORIGEN_LABEL } from '../lib/lead-vocab';
+import {
+  contactAccountName,
+  contactEmail,
+  contactJobTitle,
+  contactPersonName,
+  contactPhone,
+} from '../lib/contact-display';
 import type { Checklist, Lead } from '../types';
 
 function isChecklistComplete(checklist: Checklist | null): boolean {
@@ -35,6 +42,7 @@ function isChecklistComplete(checklist: Checklist | null): boolean {
 export function LeadDetailPage() {
   const { id = '' } = useParams();
   const { user } = useAuth();
+  const isTraductor = user?.role_name === 'TraductorDeNegocio';
   const [lead, setLead] = useState<Lead | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -124,8 +132,14 @@ export function LeadDetailPage() {
       user?.role_name === 'GestorMercadeo' ||
       user?.role_name === 'Admin');
 
+  const primaryContact = lead.contacts[0];
+  const headerCompany =
+    primaryContact != null
+      ? contactAccountName(primaryContact, lead.empresa_nombre)
+      : lead.empresa_nombre;
+
   return (
-    <AppLayout title={lead.empresa_nombre}>
+    <AppLayout title={headerCompany}>
       <DemandNav />
 
       <Link to="/demand" className="mb-3 inline-block text-sm text-muted hover:text-ink">
@@ -135,7 +149,7 @@ export function LeadDetailPage() {
       <div className={`${cardClass} mb-4 p-5`}>
         <div className="mb-4 flex items-start justify-between">
           <div>
-            <h1 className="text-lg font-bold text-ink">{lead.empresa_nombre}</h1>
+            <h1 className="text-lg font-bold text-ink">{headerCompany}</h1>
             <p className="text-sm text-muted">
               {lead.contacto_nombre} · {lead.email}
             </p>
@@ -166,16 +180,23 @@ export function LeadDetailPage() {
             Contactos ({lead.contacts.length})
           </h2>
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {lead.contacts.map((contact) => (
+            {lead.contacts.map((contact) => {
+              const personName = contactPersonName(contact);
+              const jobTitle = contactJobTitle(contact);
+              const accountName = contactAccountName(contact, lead.empresa_nombre);
+              const email = contactEmail(contact);
+              const phone = contactPhone(contact);
+
+              return (
               <div
                 key={contact.contact_id}
                 className="rounded border border-border bg-bg p-3 text-sm"
               >
                 <div className="mb-2 flex items-start justify-between gap-2">
                   <div>
-                    <p className="font-bold text-ink">{contact.nombre}</p>
+                    <p className="font-bold text-ink">{personName}</p>
                     <p className="text-xs text-muted">
-                      {contact.cargo ?? 'Sin cargo'} · {contact.empresa_nombre}
+                      {jobTitle ?? 'Sin cargo'} · {accountName}
                     </p>
                   </div>
                   {contact.position === 1 ? (
@@ -184,22 +205,27 @@ export function LeadDetailPage() {
                     </span>
                   ) : null}
                 </div>
-                <a
-                  href={`mailto:${contact.email}`}
-                  className="block truncate text-brand hover:text-brand-700"
-                >
-                  {contact.email}
-                </a>
-                {contact.telefono ? (
+                {email ? (
                   <a
-                    href={`tel:${contact.telefono}`}
+                    href={`mailto:${email}`}
+                    className="block truncate text-brand hover:text-brand-700"
+                  >
+                    {email}
+                  </a>
+                ) : (
+                  <p className="text-xs text-muted">Sin correo</p>
+                )}
+                {phone ? (
+                  <a
+                    href={`tel:${phone}`}
                     className="mt-1 block text-ink hover:text-brand"
                   >
-                    {contact.telefono}
+                    {phone}
                   </a>
                 ) : null}
               </div>
-            ))}
+              );
+            })}
           </div>
         </section>
 
@@ -216,6 +242,7 @@ export function LeadDetailPage() {
           </p>
         ) : null}
 
+        {!isTraductor ? (
         <div className="mt-5 flex flex-wrap gap-2">
           {lead.estado === 'TOFU' && lead.canal_origen !== 'FABRICA' ? (
             <button
@@ -278,6 +305,11 @@ export function LeadDetailPage() {
             </button>
           ) : null}
         </div>
+        ) : (
+          <p className="mt-5 text-sm text-muted">
+            Vista de solo lectura para traductores de negocio.
+          </p>
+        )}
 
         {lead.estado === 'MQL_PENDING' ? (
           <p className="mt-3 text-xs text-muted">
@@ -295,12 +327,17 @@ export function LeadDetailPage() {
           key={`checklist-${lead.estado}`}
           leadId={lead.lead_id}
           editable={
-            lead.estado === 'MOFU' ||
-            (lead.estado === 'TOFU' && lead.canal_origen === 'FABRICA')
+            !isTraductor &&
+            (lead.estado === 'MOFU' ||
+              (lead.estado === 'TOFU' && lead.canal_origen === 'FABRICA'))
           }
           onSaved={loadLead}
         />
-        <InteractionTimeline leadId={lead.lead_id} onRegistered={loadLead} />
+        <InteractionTimeline
+          leadId={lead.lead_id}
+          onRegistered={loadLead}
+          readOnly={isTraductor}
+        />
       </div>
 
       {showDiscard ? (

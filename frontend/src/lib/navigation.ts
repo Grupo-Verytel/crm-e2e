@@ -3,7 +3,7 @@
 import type { ComponentType } from 'react';
 import {
   Megaphone, Filter, Compass, Cpu, Calculator, FileSignature,
-  Wrench, RefreshCw, ShieldCheck, ScrollText,
+  Wrench, RefreshCw, ShieldCheck, ScrollText, Building2, Contact,
 } from 'lucide-react';
 
 export type NavItem = {
@@ -27,7 +27,9 @@ export const NAV_ITEMS: NavItem[] = [
   { key: 'offer-closing',         label: 'Oferta & Cierre',       path: '/offers',        icon: FileSignature, group: 'commercial', subjects: ['Proposal', 'Contract'] },
   { key: 'implementation',        label: 'Implementación (SER)',  path: '/services',      icon: Wrench,        group: 'commercial', subjects: ['Service'] },
   { key: 'post-sales',            label: 'Posventa',              path: '/after-sales',   icon: RefreshCw,     group: 'commercial', subjects: ['PostSale'] },
-  // Platform — the +2
+  // Platform — auth, audit, accounts (adelanto Módulo 12)
+  { key: 'accounts-empresas',     label: 'Empresas',              path: '/accounts/empresas',  icon: Building2, group: 'platform', subjects: ['Account'] },
+  { key: 'accounts-contactos',    label: 'Contactos',             path: '/accounts/contactos', icon: Contact,   group: 'platform', subjects: ['Person'] },
   { key: 'auth',                  label: 'Usuarios y roles',      path: '/admin/users',   icon: ShieldCheck,   group: 'platform',   subjects: ['User', 'Role'] },
   { key: 'audit',                 label: 'Auditoría',             path: '/admin/audit',   icon: ScrollText,    group: 'platform',   subjects: ['AuditLog'] },
 ];

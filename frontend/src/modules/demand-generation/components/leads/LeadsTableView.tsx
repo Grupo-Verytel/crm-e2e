@@ -43,6 +43,7 @@ type Props = {
   total: number;
   onPageChange: (page: number) => void;
   onReload: () => void | Promise<void>;
+  readOnly?: boolean;
 };
 
 export function LeadsTableView({
@@ -54,6 +55,7 @@ export function LeadsTableView({
   total,
   onPageChange,
   onReload,
+  readOnly = false,
 }: Props) {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -141,7 +143,7 @@ export function LeadsTableView({
 
   return (
     <>
-      {selected.size > 0 ? (
+      {!readOnly && selected.size > 0 ? (
         <div className="mb-3 flex flex-wrap items-center gap-3 rounded bg-surface px-4 py-2 shadow-card">
           <span className="text-sm font-bold text-ink">
             {selected.size} seleccionado{selected.size === 1 ? '' : 's'}
@@ -186,6 +188,7 @@ export function LeadsTableView({
             <table className="w-full min-w-[1040px] text-left text-sm">
               <thead>
                 <tr className="border-b border-border text-xs uppercase tracking-wide text-muted">
+                  {!readOnly ? (
                   <th className="w-10 px-4 py-3">
                     <input
                       type="checkbox"
@@ -194,6 +197,7 @@ export function LeadsTableView({
                       aria-label="Seleccionar todos los leads de la página"
                     />
                   </th>
+                  ) : null}
                   <th className="px-4 py-3 font-bold">Empresa / contacto</th>
                   <th className="px-4 py-3 font-bold">Segmento</th>
                   <th className="px-4 py-3 font-bold">Canal</th>
@@ -227,6 +231,7 @@ export function LeadsTableView({
                     onClick={() => navigate(`/demand/leads/${lead.lead_id}`)}
                     className="cursor-pointer border-b border-border hover:bg-bg"
                   >
+                    {!readOnly ? (
                     <td
                       className="px-4 py-3"
                       onClick={(event) => event.stopPropagation()}
@@ -238,6 +243,7 @@ export function LeadsTableView({
                         aria-label={`Seleccionar ${lead.empresa_nombre}`}
                       />
                     </td>
+                    ) : null}
                     <td className="px-4 py-3">
                       <Link
                         to={`/demand/leads/${lead.lead_id}`}

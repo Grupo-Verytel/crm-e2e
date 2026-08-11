@@ -14,9 +14,11 @@ import { cardClass, inputClass, labelClass, primaryButtonClass } from './ui';
 export function InteractionTimeline({
   leadId,
   onRegistered,
+  readOnly = false,
 }: {
   leadId: string;
   onRegistered: () => void;
+  readOnly?: boolean;
 }) {
   const [items, setItems] = useState<Interaction[]>([]);
   const [tipo, setTipo] = useState<InteractionTipo>('Llamada');
@@ -64,6 +66,7 @@ export function InteractionTimeline({
     <div className={`${cardClass} p-5`}>
       <h2 className="mb-3 text-sm font-bold text-ink">Interacciones</h2>
 
+      {!readOnly ? (
       <form onSubmit={handleSubmit} className="mb-4 grid gap-3 md:grid-cols-4">
         <div>
           <span className={labelClass}>Tipo</span>
@@ -107,6 +110,7 @@ export function InteractionTimeline({
           </button>
         </div>
       </form>
+      ) : null}
 
       {error ? <p className="mb-2 text-sm text-danger">{error}</p> : null}
 

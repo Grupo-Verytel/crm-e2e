@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { LayoutGrid, List } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { AppLayout } from '../../../layout/AppLayout';
 import { useAuth } from '../../auth/hooks/useAuth';
 import { fetchCampaigns } from '../api/campaigns-api';
@@ -16,9 +17,12 @@ import { LeadsKanbanView } from '../components/leads/LeadsKanbanView';
 import { LeadsTableView } from '../components/leads/LeadsTableView';
 import { useLeadsViewPreference } from '../hooks/useLeadsViewPreference';
 import { primaryButtonClass } from '../components/ui';
-import type { Lead, LeadsQuery } from '../types';
+import type { Lead, LeadFormMode, LeadsQuery } from '../types';
 
 const LIST_LIMIT = 20;
+const PRODUCT_MANAGER_ROLE = 'ProductManager';
+const EJECUTIVO_ROLE = 'EjecutivoComercial';
+const TRADUCTOR_ROLE = 'TraductorDeNegocio';
 
 type CampaignOption = { campana_id: string; nombre: string };
 
@@ -33,8 +37,37 @@ function toQuery(filters: LeadFilterValues): Partial<LeadsQuery> {
   };
 }
 
+function resolveFormMode(roleName: string | undefined): LeadFormMode {
+  if (roleName === PRODUCT_MANAGER_ROLE) {
+    return 'product_manager';
+  }
+  if (roleName === EJECUTIVO_ROLE) {
+    return 'ejecutivo';
+  }
+  return 'standard';
+}
+
+function canCreateLead(roleName: string | undefined): boolean {
+  if (!roleName || roleName === TRADUCTOR_ROLE) {
+    return false;
+  }
+  return (
+    roleName === PRODUCT_MANAGER_ROLE ||
+    roleName === EJECUTIVO_ROLE ||
+    roleName === 'GestorMercadeo' ||
+    roleName === 'DirectorMercadeo' ||
+    roleName === 'Admin'
+  );
+}
+
 export function LeadsPage() {
+  const navigate = useNavigate();
   const { user } = useAuth();
+  const roleName = user?.role_name;
+  const isTraductor = roleName === TRADUCTOR_ROLE;
+  const formMode = resolveFormMode(roleName);
+  const showCreateButton = canCreateLead(roleName);
+
   const [view, setView] = useLeadsViewPreference();
   const [showExceptions, setShowExceptions] = useState(false);
 
@@ -51,6 +84,11 @@ export function LeadsPage() {
   const [total, setTotal] = useState(0);
   const [listLoading, setListLoading] = useState(true);
   const [listError, setListError] = useState<string | null>(null);
+
+  const pageTitle = useMemo(
+    () => (isTraductor ? 'Mis referidos' : 'Leads'),
+    [isTraductor],
+  );
 
   const loadLeads = useCallback(async () => {
     setListLoading(true);
@@ -72,6 +110,10 @@ export function LeadsPage() {
   }, [appliedKey, page]);
 
   const refreshExceptionsCount = useCallback(async () => {
+    if (isTraductor) {
+      setExceptionsCount(null);
+      return;
+    }
     try {
       const [reciclaje, descartado] = await Promise.all([
         fetchLeads({ ...toQuery(applied), estado: 'Reciclaje', page: 1, limit: 1 }),
@@ -82,7 +124,7 @@ export function LeadsPage() {
       setExceptionsCount(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- appliedKey captures filters
-  }, [appliedKey]);
+  }, [appliedKey, isTraductor]);
 
   useEffect(() => {
     if (view === 'list' && !showExceptions) {
@@ -97,6 +139,9 @@ export function LeadsPage() {
   }, [refreshExceptionsCount]);
 
   useEffect(() => {
+    if (isTraductor) {
+      return;
+    }
     let active = true;
     void fetchCampaigns({ page: 1, limit: 100 })
       .then((data) => {
@@ -116,7 +161,7 @@ export function LeadsPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [isTraductor]);
 
   function handleApply() {
     setApplied(draft);
@@ -134,94 +179,112 @@ export function LeadsPage() {
     setView(next);
   }
 
+  function handleLeadCreated(lead: Lead) {
+    void loadLeads();
+    void refreshExceptionsCount();
+    if (formMode === 'ejecutivo' && lead.estado === 'SQL') {
+      navigate('/qualification/assigned');
+    }
+  }
+
   return (
     <AppLayout title="Generación de demanda">
       <DemandNav
         actions={
-          user ? (
+          showCreateButton && user ? (
             <button
               type="button"
               onClick={() => setShowCreate(true)}
               className={primaryButtonClass}
             >
-              Nuevo lead
+              {formMode === 'ejecutivo' ? 'Nuevo lead directo' : 'Nuevo lead'}
             </button>
           ) : null
         }
       />
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <h1 className="text-lg font-bold text-ink">Leads</h1>
+        <h1 className="text-lg font-bold text-ink">{pageTitle}</h1>
 
-        <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
-          <div
-            className="inline-flex rounded border border-border bg-surface p-0.5"
-            role="group"
-            aria-label="Cambiar vista de leads"
-          >
+        {!isTraductor ? (
+          <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+            <div
+              className="inline-flex rounded border border-border bg-surface p-0.5"
+              role="group"
+              aria-label="Cambiar vista de leads"
+            >
+              <button
+                type="button"
+                onClick={() => handleSelectView('list')}
+                aria-pressed={!showExceptions && view === 'list'}
+                className={[
+                  'inline-flex items-center gap-1.5 rounded-sm px-3 py-1.5 text-sm font-bold transition-colors',
+                  !showExceptions && view === 'list'
+                    ? 'bg-brand text-white'
+                    : 'text-muted hover:text-ink',
+                ].join(' ')}
+              >
+                <List size={15} strokeWidth={1.75} />
+                Lista
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSelectView('kanban')}
+                aria-pressed={!showExceptions && view === 'kanban'}
+                className={[
+                  'inline-flex items-center gap-1.5 rounded-sm px-3 py-1.5 text-sm font-bold transition-colors',
+                  !showExceptions && view === 'kanban'
+                    ? 'bg-brand text-white'
+                    : 'text-muted hover:text-ink',
+                ].join(' ')}
+              >
+                <LayoutGrid size={15} strokeWidth={1.75} />
+                Tablero
+              </button>
+            </div>
+
             <button
               type="button"
-              onClick={() => handleSelectView('list')}
-              aria-pressed={!showExceptions && view === 'list'}
+              onClick={() => setShowExceptions(true)}
+              aria-pressed={showExceptions}
               className={[
-                'inline-flex items-center gap-1.5 rounded-sm px-3 py-1.5 text-sm font-bold transition-colors',
-                !showExceptions && view === 'list'
-                  ? 'bg-brand text-white'
-                  : 'text-muted hover:text-ink',
+                'rounded border px-3 py-1.5 text-sm font-bold transition-colors',
+                showExceptions
+                  ? 'border-warning bg-surface text-warning'
+                  : 'border-border bg-surface text-muted hover:text-ink',
               ].join(' ')}
             >
-              <List size={15} strokeWidth={1.75} />
-              Lista
-            </button>
-            <button
-              type="button"
-              onClick={() => handleSelectView('kanban')}
-              aria-pressed={!showExceptions && view === 'kanban'}
-              className={[
-                'inline-flex items-center gap-1.5 rounded-sm px-3 py-1.5 text-sm font-bold transition-colors',
-                !showExceptions && view === 'kanban'
-                  ? 'bg-brand text-white'
-                  : 'text-muted hover:text-ink',
-              ].join(' ')}
-            >
-              <LayoutGrid size={15} strokeWidth={1.75} />
-              Tablero
+              Excepciones
+              {exceptionsCount != null ? (
+                <span className="ml-1.5 text-xs font-normal">
+                  ({exceptionsCount})
+                </span>
+              ) : null}
             </button>
           </div>
-
-          <button
-            type="button"
-            onClick={() => setShowExceptions(true)}
-            aria-pressed={showExceptions}
-            className={[
-              'rounded border px-3 py-1.5 text-sm font-bold transition-colors',
-              showExceptions
-                ? 'border-warning bg-surface text-warning'
-                : 'border-border bg-surface text-muted hover:text-ink',
-            ].join(' ')}
-          >
-            Excepciones
-            {exceptionsCount != null ? (
-              <span className="ml-1.5 text-xs font-normal">({exceptionsCount})</span>
-            ) : null}
-          </button>
-        </div>
+        ) : null}
       </div>
 
-      <GlobalLeadFilters
-        draft={draft}
-        onChange={setDraft}
-        onApply={handleApply}
-        onClear={handleClear}
-        campaigns={campaigns}
-      />
+      {isTraductor ? (
+        <p className="mb-4 text-sm text-muted">
+          Vista de solo lectura de los leads que referiste.
+        </p>
+      ) : (
+        <GlobalLeadFilters
+          draft={draft}
+          onChange={setDraft}
+          onApply={handleApply}
+          onClear={handleClear}
+          campaigns={campaigns}
+        />
+      )}
 
-      {showExceptions ? (
+      {showExceptions && !isTraductor ? (
         <LeadsExceptionsView
           filters={applied}
           onChanged={() => void refreshExceptionsCount()}
         />
-      ) : view === 'kanban' ? (
+      ) : !isTraductor && view === 'kanban' ? (
         <LeadsKanbanView filters={applied} />
       ) : (
         <LeadsTableView
@@ -233,16 +296,15 @@ export function LeadsPage() {
           total={total}
           onPageChange={setPage}
           onReload={loadLeads}
+          readOnly={isTraductor}
         />
       )}
 
       {showCreate && user ? (
         <LeadFormModal
+          mode={formMode}
           responsableId={user.user_id}
-          onCreated={() => {
-            void loadLeads();
-            void refreshExceptionsCount();
-          }}
+          onCreated={handleLeadCreated}
           onClose={() => setShowCreate(false)}
         />
       ) : null}

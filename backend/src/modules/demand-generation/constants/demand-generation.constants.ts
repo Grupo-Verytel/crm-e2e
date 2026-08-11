@@ -23,6 +23,9 @@ export const DEMAND_GENERATION_ROLES = {
   DIRECTOR_MERCADEO: 'DirectorMercadeo',
   GESTOR_MERCADEO: 'GestorMercadeo',
   SOPORTE_COMERCIAL: 'SoporteComercial',
+  PRODUCT_MANAGER: 'ProductManager',
+  TRADUCTOR_DE_NEGOCIO: 'TraductorDeNegocio',
+  EJECUTIVO_COMERCIAL: 'EjecutivoComercial',
 } as const;
 
 export const CSV_LEAD_HEADERS = [
@@ -33,8 +36,8 @@ export const CSV_LEAD_HEADERS = [
   'industria',
   'region',
   'pais',
-  'empresa_nombre',
-  'nit',
+  'account_name',
+  'tax_id',
   'contacto_nombre',
   'cargo',
   'email',

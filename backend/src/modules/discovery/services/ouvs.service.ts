@@ -74,7 +74,7 @@ export class OuvsService {
   ): Promise<Ouv> {
     const lead = await this.demandGeneration.findLeadById(input.leadId);
     const empresaNombre =
-      lead.contacts?.[0]?.empresa_nombre?.trim() ||
+      lead.contacts?.[0]?.account_name?.trim() ||
       lead.empresa_nombre?.trim() ||
       'PENDIENTE';
 
