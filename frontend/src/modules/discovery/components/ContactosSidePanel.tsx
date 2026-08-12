@@ -125,7 +125,7 @@ export function ContactosSidePanel({
             <ul>
               {contactos.map((c) => {
                 const roles = influenciaByContacto.get(c.contacto_ouv_id) ?? [];
-                const meta = [c.cargo, c.email, c.telefono]
+                const meta = [c.job_title, c.email, c.phone, c.account_name]
                   .filter(Boolean)
                   .join(' · ');
                 return (
@@ -138,11 +138,11 @@ export function ContactosSidePanel({
                         className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand/10 text-xs font-bold text-brand"
                         aria-hidden
                       >
-                        {initials(c.nombre)}
+                        {initials(c.name)}
                       </span>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-bold text-ink">
-                          {c.nombre}
+                          {c.name}
                         </p>
                         {meta ? (
                           <p
@@ -179,7 +179,7 @@ export function ContactosSidePanel({
                           <button
                             type="button"
                             className="inline-flex h-8 w-8 items-center justify-center rounded text-muted hover:bg-surface hover:text-ink"
-                            aria-label={`Editar ${c.nombre}`}
+                            aria-label={`Editar ${c.name}`}
                             onClick={() => onEdit(c)}
                           >
                             <Pencil size={15} strokeWidth={2} />
@@ -187,7 +187,7 @@ export function ContactosSidePanel({
                           <button
                             type="button"
                             className="inline-flex h-8 w-8 items-center justify-center rounded text-muted hover:bg-surface hover:text-danger"
-                            aria-label={`Eliminar ${c.nombre}`}
+                            aria-label={`Eliminar ${c.name}`}
                             onClick={() => onDelete(c)}
                           >
                             <Trash2 size={15} strokeWidth={2} />

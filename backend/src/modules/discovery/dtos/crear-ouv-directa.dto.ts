@@ -4,6 +4,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  IsUUID,
   MaxLength,
 } from 'class-validator';
 import {
@@ -35,4 +36,16 @@ export class CrearOuvDirectaDto {
   @IsString()
   @IsNotEmpty()
   descripcion!: string;
+
+  @IsOptional()
+  @IsUUID('4')
+  account_id?: string;
+
+  @IsOptional()
+  @IsUUID('4')
+  segment_id?: string;
+
+  @IsOptional()
+  @IsUUID('4')
+  subsegment_id?: string;
 }

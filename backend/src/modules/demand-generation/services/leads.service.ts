@@ -18,6 +18,8 @@ import {
 import { AccountsService } from '../../accounts/services/accounts.service';
 import { User } from '../../auth/models/user.model';
 import { UsersService } from '../../auth/services/users.service';
+import { EntityType } from '../../workflow-engine/enums/entity-type.enum';
+import { WorkflowEngineService } from '../../workflow-engine/workflow-engine.service';
 import {
   DEMAND_GENERATION_ERROR_CODES,
   DEMAND_GENERATION_ROLES,
@@ -91,6 +93,7 @@ export class LeadsService {
     private readonly campaignsService: CampaignsService,
     private readonly usersService: UsersService,
     private readonly accountsService: AccountsService,
+    private readonly workflowEngine: WorkflowEngineService,
     @Inject(NOTIFICATION_PORT)
     private readonly notifications: NotificationPort,
   ) {}
@@ -914,7 +917,7 @@ export class LeadsService {
         { transaction },
       );
 
-      await this.sqlModel.create(
+      const sql = await this.sqlModel.create(
         {
           mqlId: mql.mqlId,
           estado: SqlEstado.Asignado,
@@ -924,6 +927,35 @@ export class LeadsService {
           fechaAsignacion: new Date(),
         },
         { transaction },
+      );
+
+      const primaryPersonId = contacts[0]?.personId;
+      const peopleMap = primaryPersonId
+        ? await this.accountsService.getPeopleWithAccounts([primaryPersonId])
+        : new Map();
+      const entityLabel =
+        (primaryPersonId
+          ? peopleMap.get(primaryPersonId)?.account_name
+          : null) ?? 'Lead';
+
+      await this.workflowEngine.transition(
+        EntityType.SQL,
+        sql.sqlId,
+        'sql.creado_directo',
+        {
+          estadoAnterior: null,
+          estadoNuevo: SqlEstado.Asignado,
+          entityLabel,
+          actorUserId: createdBy,
+          payload: {
+            leadId: lead.leadId,
+            mqlId: mql.mqlId,
+            sqlId: sql.sqlId,
+            comercial_asignado_id: createdBy,
+            origen_creacion: SqlOrigenCreacion.DirectoComercial,
+          },
+        },
+        transaction,
       );
 
       return lead.leadId;

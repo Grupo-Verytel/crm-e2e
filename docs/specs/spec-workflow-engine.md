@@ -1,7 +1,7 @@
 # Spec — Platform: Workflow Engine (Fase A)
 **Versión:** 1.1
 **Fecha:** 2026-08-05
-**Autor:** Evilio Díaz (Frisson Technologies / Grupo Verytel)
+**Autor:** Evilio Polo (Frisson Technologies / Grupo Verytel)
 **Estado:** Pendiente de aprobación para implementación
 **Tipo:** Módulo de plataforma (transversal, fuera de los 8 módulos de proceso)
 **Depende de:** DR-2026-08 (motor intermedio incremental)

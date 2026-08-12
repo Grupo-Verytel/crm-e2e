@@ -324,7 +324,7 @@ export function OuvDetailPage() {
 
   async function handleDeleteContacto(contacto: OuvContacto) {
     if (!id) return;
-    if (!window.confirm(`¿Eliminar contacto ${contacto.nombre}?`)) return;
+    if (!window.confirm(`¿Eliminar contacto ${contacto.name}?`)) return;
     try {
       await deleteOuvContacto(id, contacto.contacto_ouv_id);
       await load({ silent: true });
@@ -494,17 +494,17 @@ export function OuvDetailPage() {
                   <button
                     key={c.contacto_ouv_id}
                     type="button"
-                    title={[c.nombre, c.cargo, roles.join(', ')]
+                    title={[c.name, c.job_title, roles.join(', ')]
                       .filter(Boolean)
                       .join(' · ')}
                     className="inline-flex max-w-[10rem] items-center gap-1.5 rounded-full border border-border bg-bg py-0.5 pl-0.5 pr-2 text-left hover:border-brand"
                     onClick={() => setShowContactosPanel(true)}
                   >
                     <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand/10 text-[10px] font-bold text-brand">
-                      {contactInitials(c.nombre)}
+                      {contactInitials(c.name)}
                     </span>
                     <span className="truncate text-xs font-bold text-ink">
-                      {c.nombre}
+                      {c.name}
                     </span>
                   </button>
                 );
@@ -610,7 +610,7 @@ export function OuvDetailPage() {
                   <option value="">Sin asignar</option>
                   {contactos.map((c) => (
                     <option key={c.contacto_ouv_id} value={c.contacto_ouv_id}>
-                      {c.nombre}
+                      {c.name}
                     </option>
                   ))}
                 </select>
@@ -818,6 +818,7 @@ export function OuvDetailPage() {
       {contactoModal ? (
         <ContactoFormModal
           initial={contactoModal === 'new' ? null : contactoModal}
+          lockAccountId={ouv.account_id}
           onClose={() => setContactoModal(null)}
           onSave={handleSaveContacto}
         />

@@ -12,10 +12,13 @@ export type Ouv = {
   sql_id_origen: string | null;
   origen_via: string;
   comercial_id: string;
+  account_id: string | null;
   titulo: string;
   empresa_nombre: string;
   descripcion: string | null;
   segmento: string;
+  segment_id: string | null;
+  subsegment_id: string | null;
   vertical: string;
   zona_actual: OuvZona;
   resultado: OuvResultado;
@@ -60,10 +63,13 @@ export type OuvsQuery = {
 export type OuvContacto = {
   contacto_ouv_id: string;
   ouv_id: string;
-  nombre: string;
-  cargo: string | null;
+  person_id: string;
+  name: string;
+  job_title: string | null;
   email: string | null;
-  telefono: string | null;
+  phone: string | null;
+  account_id: string;
+  account_name: string;
   notas: string | null;
   created_at: string;
   updated_at: string;
@@ -99,14 +105,14 @@ export type CrearOuvDirectaPayload = {
   segmento: string;
   vertical: string;
   descripcion: string;
+  account_id?: string;
+  segment_id?: string;
+  subsegment_id?: string;
 };
 
 export type ContactoPayload = {
-  nombre: string;
-  cargo?: string;
-  email?: string;
-  telefono?: string;
-  notas?: string;
+  person_id?: string;
+  notas?: string | null;
 };
 
 export async function fetchOuvs(query: OuvsQuery): Promise<PaginatedOuvs> {

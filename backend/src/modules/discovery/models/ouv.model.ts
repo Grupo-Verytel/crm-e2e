@@ -70,10 +70,18 @@ export class Ouv extends Model {
   @BelongsTo(() => User, { foreignKey: 'comercialId', as: 'comercial' })
   declare comercial: User;
 
+  /** GC-13 — Vía 1 auto-populated; Vías 2/3/4 nullable. */
+  @Column({
+    type: DataType.CHAR(36),
+    field: 'account_id',
+    allowNull: true,
+  })
+  declare accountId: string | null;
+
   @Column({ type: DataType.STRING(200), allowNull: false })
   declare titulo: string;
 
-  /** Snapshot of client name (from lead in Vía 1, or captured by comercial). */
+  /** Snapshot of client name (from accounts.name in Vía 1, or captured by comercial). */
   @Column({
     type: DataType.STRING(200),
     field: 'empresa_nombre',
@@ -89,6 +97,20 @@ export class Ouv extends Model {
     allowNull: false,
   })
   declare segmento: OuvSegmento;
+
+  @Column({
+    type: DataType.CHAR(36),
+    field: 'segment_id',
+    allowNull: true,
+  })
+  declare segmentId: string | null;
+
+  @Column({
+    type: DataType.CHAR(36),
+    field: 'subsegment_id',
+    allowNull: true,
+  })
+  declare subsegmentId: string | null;
 
   /** VARCHAR in DB; validated against OuvVertical in DTOs. */
   @Column({ type: DataType.STRING(80), allowNull: false })

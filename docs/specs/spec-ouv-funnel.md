@@ -1,26 +1,27 @@
 # Spec — Módulo 2: OUV Funnel (Embudo Comercial Verytel)
-**Versión:** 1.3
+**Versión:** 1.4 — clarify 2026-08-10
 **Fecha:** 2026-08-10
 **Autor:** Evilio Díaz (Frisson Technologies / Grupo Verytel)
-**Estado:** Pendiente de aprobación para implementación
-**Depende de:** `spec-calificacion.md` v2.2, `spec-workflow-engine.md` v1.1, `spec-gestion-cuentas.md` v0.4
+**Estado:** Aprobado
+**Depende de:** `spec-calificacion.md` **v2.3**, `spec-workflow-engine.md` v1.1, `spec-gestion-cuentas.md` v0.4, `spec-demand-generation.md` v2.5
 **Referencia de negocio:** `FILTROS_EMBUDO_COMERCIAL_v5.pdf`, `Frisson_CRM_Blueprint_V2_19062026.pdf`
 **Decisiones estructurales:** DR-2026-08-B (con adendas A y B), `2026-08-DR-unificacion-contactos-cuentas-wave1.md`, `2026-08-DR-auto-poblar-ouv-account-id.md`, `2026-08-DR-accounts-por-lead.md`
 
+**Changelog v1.3 → v1.4 (speckit-clarify):**
+- Frontera Vía 1: calificación orquesta la txn (EARS-12); este módulo aporta schema + servicio público `reutilizarDesdeLead` (EARS-01/02 = contrato).
+- §2.1 `empresa_nombre`: Vía 1 desde `accounts.name`; Vías 2/3/4 captura comercial.
+- EARS-08b: un `account_id` por OUV (paridad leads / DR accounts-por-lead).
+- Roles PascalCase en EARS/CASL (`EjecutivoComercial`, `SoporteComercial`).
+- Migración: ALTER directo; truncate solo defensivo con guarda de producción.
+
 **Changelog v1.2 → v1.3:**
-- **EARS-02 reemplazado**: ya no se copian contactos del lead a `ouv_contactos` — se reutiliza el mismo `person_id` (maestro nuevo `people`, ver `spec-gestion-cuentas.md`). Consistente con `spec-calificacion.md` v2.2 EARS-12.
-- `ouv_contactos` pierde `nombre`/`cargo`/`email`/`telefono` denormalizados, gana `person_id` (FK a `people`, columna nueva en inglés). Mantiene `contacto_ouv_id` (PK, sin cambio) — `ouv_influencias.contacto_ouv_id` **no requiere ningún cambio**.
-- Tabla `contactos` (§2.3) corregida: el nombre real es `lead_contacts`, no `contactos` — esta spec la nombraba mal.
-- Columna nueva **`ouvs.account_id`** (inglés, nullable, FK `accounts`) — **no** existía en el repo; no usar el nombre `cuenta_id`. En Vía 1 se **auto-puebla** (GC-13 / `2026-08-DR-auto-poblar-ouv-account-id.md`); en Vías 2/3/4 permanece nullable/seleccionable.
-- **Se remueve de §10** la línea "Modelo unificado de contactos Lead↔OUV↔Cuenta (Módulo 12)" — **ya no aplica**, se movió a Wave 1.
-- EARS-08/09 ajustados: agregar contacto a una OUV ahora es seleccionar/crear un `person` (no un formulario de texto libre); editar datos de la persona ya no se hace desde el panel de OUV — solo `notas` es local.
-- `OUVContactosService.crearDesdeLead` cambia de "copiar" a "reutilizar" `person_id`, renombrado `reutilizarDesdeLead`.
+- EARS-02 reutiliza `person_id`; `ouv_contactos` reestructurada; `ouvs.account_id` (GC-13); unificación Wave 1; EARS-08/09 vía `people`.
 
 ---
 
 ## 1. Alcance
 
-Cubre el ciclo de vida completo de la OUV a través de 4 zonas formales del embudo comercial: dos vías de creación (desde SQL o directa), transiciones de zona, gestión de contactos propios de la OUV (vía `people` reutilizado), gestión de influencias compradoras, checklist por zona, presupuesto estructurado, alertas de gap, cierre, bandeja del Ejecutivo Comercial.
+Cubre el ciclo de vida completo de la OUV a través de 4 zonas formales del embudo comercial: dos vías de creación (desde SQL o directa), transiciones de zona, gestión de contactos propios de la OUV (vía `people` reutilizado), gestión de influencias compradoras, checklist por zona, presupuesto estructurado, alertas de gap, cierre, bandeja del `EjecutivoComercial` (UI: “Ejecutivo Comercial”).
 
 **Explícitamente diferido a Wave 2:** Override de Ganada, reapertura, vista Marketing.
 
@@ -39,9 +40,9 @@ Cubre el ciclo de vida completo de la OUV a través de 4 zonas formales del embu
 | `comercial_id` | UUID | Sí (FK users) | Dueño exclusivo |
 | `account_id` *(nuevo)* | UUID | No (FK `accounts.account_id`) | Columna **nueva** (inglés). Vía 1: auto-poblada (GC-13). Vías 2/3/4: nullable/seleccionable |
 | `titulo` | VARCHAR(200) | Sí | — |
-| `empresa_nombre` | VARCHAR(200) | Sí | Snapshot. Vía 1: hereda del lead; Vías 2/3/4: lo captura el comercial |
+| `empresa_nombre` | VARCHAR(200) | Sí | Snapshot. **Vía 1:** desde `accounts.name` del contacto principal del lead (EARS-01 / demand-gen EARS-42). **Vías 2/3/4:** lo captura el comercial; si elige `account_id`, PUEDE alinearse al `name` de esa cuenta |
 | `descripcion` | TEXT | No | — |
-| `segmento` | ENUM(Gobierno, DefensaSeguridad, ProyectosEspeciales, B2B) | Sí | Legado — coexiste con `segment_id` (`spec-calificacion.md` v2.2 §2.5) |
+| `segmento` | ENUM(Gobierno, DefensaSeguridad, ProyectosEspeciales, B2B) | Sí | Legado — coexiste con `segment_id` (`spec-calificacion.md` v2.3 §2.5) |
 | `segment_id` *(nuevo)* | UUID | No | FK `segments.id` |
 | `subsegment_id` *(nuevo)* | UUID | No | FK `subsegments.id` |
 | `vertical` | ENUM (7 valores, ver 2.6) | Sí | — |
@@ -77,13 +78,14 @@ Cubre el ciclo de vida completo de la OUV a través de 4 zonas formales del embu
 | `created_at` / `updated_at` | TIMESTAMPTZ | Sí | — |
 | `deleted_at` | TIMESTAMPTZ | No | Soft-delete estándar |
 
-Índice: `(ouv_id, deleted_at)`.
+Índice: `(ouv_id, deleted_at)`; índice en `person_id`.
 
 > ~~`nombre`, `cargo`, `email`, `telefono`~~ eliminados — ahora viven en `people`, se editan desde `spec-gestion-cuentas.md`.
 
+**Migración (clarify 5A):** ALTER directo — ADD `person_id` NOT NULL FK → `people`, DROP denormalizados; ADD `ouvs.account_id` nullable FK → `accounts`. **Truncate solo defensivo** si quedan filas residuales (demand-gen EARS-43 ya truncó en oleada previa). Si se trunca: misma guarda que demand-gen (`NODE_ENV=production` exige `ALLOW_CONTACT_TRUNCATE=true`; no truncar a ciegas).
 ### 2.3 Tabla `lead_contacts` *(nombre corregido v1.3 — antes se llamaba "contactos" en esta spec)*
 
-Ver `spec-demand-generation.md` v2.3 §3.2 — también reestructurada para usar `person_id`.
+Ver `spec-demand-generation.md` **v2.5** §3.2 — reestructurada con `person_id`.
 
 ### 2.4 Tabla `ouv_influencias` (sin cambios en v1.3)
 
@@ -108,21 +110,23 @@ Sin cambios respecto a v1.1.
 Sin cambios respecto a v1.1.
 
 ### 2.7 Catálogos administrables
-`motivos_perdida`, `motivos_descarte`, `zona_checklist_templates` — sin cambios. CRUD por Soporte Comercial.
+`motivos_perdida`, `motivos_descarte`, `zona_checklist_templates` — sin cambios. CRUD por `SoporteComercial` (UI: “Profesional Soporte Comercial”).
 
 ---
 
 ## 3. Criterios EARS
 
-### 3.1 Creación desde SQL — Vía 1 (EARS-01 a EARS-04)
+### 3.1 Creación desde SQL — Vía 1 (EARS-01 a EARS-04) — contrato de servicios Discovery
 
-**EARS-01** *(ajustado v1.3)*. Al crear una OUV desde SQL (vía `spec-calificacion.md` v2.2 EARS-10..14), el sistema DEBE inicializar en la misma transacción:
-- `ouvs`: `zona_actual = UNIVERSO`, `resultado = EnCurso`, `origen_via = desde_sql`, `sql_id_origen = <SQL de origen>`
-- `account_id` = `account_id` del `person` del contacto principal del lead (`lead_contacts.position = 1`) — ver `2026-08-DR-auto-poblar-ouv-account-id.md` / GC-13
-- `empresa_nombre` heredado desde `accounts.name` de esa misma `account` (snapshot; ya no vía campo denormalizado eliminado en `spec-demand-generation.md` v2.3)
+> **Frontera de módulo (clarify):** la **orquestación** de la conversión SQL→OUV vive en `spec-calificacion.md` EARS-12 (txn del módulo calificación). Este módulo implementa el **schema** (`ouv_contactos.person_id`, `ouvs.account_id`) y expone servicios públicos (p. ej. `reutilizarDesdeLead`, helpers de inicialización OUV) que calificación invoca **dentro de esa txn**. EARS-01/02 **no** definen un endpoint de conversión separado en discovery.
+
+**EARS-01** *(ajustado v1.3 — contrato de servicio)*. Cuando calificación solicita la inicialización de una OUV desde SQL, el servicio de discovery DEBE, en la misma transacción recibida:
+- Crear/preparar `ouvs`: `zona_actual = UNIVERSO`, `resultado = EnCurso`, `origen_via = desde_sql`, `sql_id_origen = <SQL de origen>`, `comercial_id` según actor
+- Setear `account_id` = `account_id` del `person` del contacto principal del lead (`lead_contacts.position = 1`) — GC-13 / `2026-08-DR-auto-poblar-ouv-account-id.md`
+- Setear `empresa_nombre` desde `accounts.name` de esa misma `account` (snapshot)
 - Consecutivo `OUV-####`; tres filas en `ouv_influencias` en `SinEvaluar`; items de checklist zona UNIVERSO
 
-**EARS-02** *(REEMPLAZADO v1.3 — antes "copiar", ahora "reutilizar")*. En la misma transacción, el sistema DEBE **reutilizar** los contactos del lead origen, no copiarlos:
+**EARS-02** *(REEMPLAZADO v1.3 — contrato `reutilizarDesdeLead`)*. En la misma transacción, el servicio DEBE **reutilizar** los contactos del lead origen, no copiarlos:
 - Se consultan filas de `lead_contacts` con `lead_id = <origen>` y su `person_id`
 - Por cada `person_id` único, se crea una fila en `ouv_contactos` con `ouv_id` + el mismo `person_id` (sin duplicar la persona)
 - `notas` queda vacío; `position` no se copia (no aplica en discovery)
@@ -130,7 +134,7 @@ Sin cambios respecto a v1.1.
 
 **EARS-03.** Los contactos reutilizados NO se auto-asignan a ninguna influencia — todas nacen `contacto_ouv_id = NULL`.
 
-**EARS-04.** El sistema DEBE emitir `ouv.creada_desde_sql` a Soporte Comercial.
+**EARS-04.** El sistema DEBE emitir `ouv.creada_desde_sql` a `SoporteComercial` (típicamente invocado desde la txn de calificación tras completar EARS-01/02).
 
 ### 3.2 Creación directa — Vías 2/3/4 (EARS-05 a EARS-07)
 
@@ -138,15 +142,19 @@ Sin cambios respecto a v1.1.
 
 **EARS-06.** Al crear OUV directa: `origen_via = directa`, `sql_id_origen = NULL`, `comercial_id = actor`, 3 `ouv_influencias`, checklist UNIVERSO, consecutivo. `account_id` nullable (opcional en el alta). **NO se crean filas en `ouv_contactos`.**
 
-**EARS-07.** Emitir `ouv.creada_directa` a Soporte Comercial.
+**EARS-07.** Emitir `ouv.creada_directa` a `SoporteComercial`.
 
 ### 3.3 Gestión de contactos de OUV (EARS-08 a EARS-11) *(ajustados v1.3)*
 
-**EARS-08** *(ajustado)*. El Ejecutivo Comercial dueño DEBE poder agregar un contacto vía `POST /discovery/ouvs/:id/contactos`, con payload `{ person_id }` o `{ person: {...} }` para crear un `person` nuevo en el acto (delega a `spec-gestion-cuentas.md`).
+**EARS-08** *(ajustado)*. El `EjecutivoComercial` dueño DEBE poder agregar un contacto vía `POST /discovery/ouvs/:id/contactos`, con payload `{ person_id }` o `{ person: {...} }` para crear un `person` nuevo en el acto (delega a `spec-gestion-cuentas.md`).
 
-**EARS-09** *(ajustado — ya no edita datos de la persona)*. El Ejecutivo Comercial dueño DEBE poder actualizar únicamente `notas` de una fila `ouv_contactos`. Editar nombre/email/teléfono/cargo de la persona **no se hace desde este panel** — va en `spec-gestion-cuentas.md`, porque el dato es compartido.
+**EARS-08b** *(nuevo — paridad con demand-gen EARS-40/41 / DR accounts-por-lead)*. CUANDO se agrega un `person` a `ouv_contactos`:
+- SI `ouvs.account_id` ya está informado, el sistema DEBE rechazar la operación SI `person.account_id` ≠ `ouvs.account_id`.
+- SI `ouvs.account_id` es NULL (p. ej. OUV directa sin cuenta), al agregar el **primer** contacto el sistema DEBE setear `ouvs.account_id = person.account_id` (y PUEDE alinear `empresa_nombre` al `accounts.name` de esa cuenta). Contactos posteriores DEBEN cumplir la misma `account_id`.
 
-**EARS-10.** El Ejecutivo Comercial dueño DEBE poder eliminar (soft-delete) filas de `ouv_contactos` — elimina la **relación**, no el `person`. Si está referenciado por `ouv_influencias`, setear `contacto_ouv_id = NULL` ahí y registrar en `audit_log`.
+**EARS-09** *(ajustado — ya no edita datos de la persona)*. El `EjecutivoComercial` dueño DEBE poder actualizar únicamente `notas` de una fila `ouv_contactos`. Editar nombre/email/teléfono/cargo de la persona **no se hace desde este panel** — va en `spec-gestion-cuentas.md`, porque el dato es compartido.
+
+**EARS-10.** El `EjecutivoComercial` dueño DEBE poder eliminar (soft-delete) filas de `ouv_contactos` — elimina la **relación**, no el `person`. Si está referenciado por `ouv_influencias`, setear `contacto_ouv_id = NULL` ahí y registrar en `audit_log`.
 
 **EARS-11.** Los contactos de OUV NO se sincronizan automáticamente con los del lead tras la conversión.
 
@@ -192,7 +200,7 @@ Postergada a Wave 2.
 
 ## 4. Permisos CASL
 
-| Acción | Ejecutivo Comercial (dueño) | Soporte Comercial | Otros |
+| Acción | `EjecutivoComercial` (dueño) | `SoporteComercial` *(UI: “Profesional Soporte Comercial”)* | Otros |
 |---|---|---|---|
 | Ver OUV propia | ✅ | ✅ (todas) | ❌ |
 | Crear OUV directa | ✅ | ❌ | ❌ |
@@ -218,9 +226,9 @@ Sin cambios respecto a v1.2 (lista completa en la versión original).
 ### 7.1 `OUVService`
 Sin cambios.
 
-### 7.2 `OUVContactosService` *(ajustado v1.3)*
-- `reutilizarDesdeLead(ouvId, leadId, transaction)` *(renombrado de `crearDesdeLead` — ya no copia, reutiliza `person_id`)*
-- `crear(ouvId, dto, actorUserId)` — `dto` acepta `{ person_id }` o `{ person: {...} }`
+### 7.2 `OUVContactosService` *(ajustado v1.3/v1.4)*
+- `reutilizarDesdeLead(ouvId, leadId, transaction)` *(renombrado de `crearDesdeLead` — ya no copia, reutiliza `person_id`)* — **API pública** exportada por el módulo discovery para que calificación la invoque dentro de su txn (EARS-02)
+- `crear(ouvId, dto, actorUserId)` — `dto` acepta `{ person_id }` o `{ person: {...} }`; aplica EARS-08b
 - `actualizarNotas(contactoOuvId, notas, actorUserId)` *(renombrado de `actualizar` — solo `notas`)*
 - `eliminar(contactoOuvId, actorUserId)` — soft-delete + limpieza FK
 - `listByOuv(ouvId)` — join a `people` para el response
@@ -265,3 +273,13 @@ Sin cambios — todo pasa por `WorkflowEngineService.transition()`.
 - Predicción de cierre basada en histórico
 - Catálogo administrable de verticales
 - Jerarquía de cuentas padre/hijas, indicadores de salud (resto de Módulo 12, ver `spec-gestion-cuentas.md` §6)
+
+---
+
+## Checklist clarify
+
+- [x] Frontera Vía 1: calificación orquesta; discovery = schema + servicios (1A)
+- [x] `empresa_nombre` Vía 1 desde `accounts.name` (2A)
+- [x] EARS-08b un account por OUV (3A)
+- [x] Roles PascalCase en EARS/CASL (4A)
+- [x] Migración ALTER + truncate defensivo (5A)

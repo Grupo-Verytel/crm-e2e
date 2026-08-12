@@ -1,4 +1,6 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { fetchSegments } from '../../demand-generation/api/segments-api';
+import type { Segment } from '../../demand-generation/types';
 import { ApiError } from '../../auth/types';
 import {
   convertirSqlEnOuv,
@@ -12,13 +14,6 @@ import {
   primaryButtonClass,
 } from './ui';
 
-const SEGMENTOS: ConvertirSqlPayload['segmento'][] = [
-  'Gobierno',
-  'D&S',
-  'ProyectosEspeciales',
-  'B2B',
-];
-
 const VERTICALES = [
   'Seguridad Ciudadana',
   'Defensa',
@@ -29,6 +24,15 @@ const VERTICALES = [
   'Salud',
   'Otros',
 ] as const;
+
+/** Map segments.name → legacy OuvSegmento ENUM (coexistence). */
+function segmentNameToEnum(
+  name: string,
+): ConvertirSqlPayload['segmento'] {
+  if (name === 'Proyectos Especiales') return 'ProyectosEspeciales';
+  if (name === 'Gobierno' || name === 'D&S' || name === 'B2B') return name;
+  return 'B2B';
+}
 
 type Props = {
   sql: SqlDetail;
@@ -41,11 +45,47 @@ export function ConvertirSqlEnOuvModal({ sql, onClose, onConverted }: Props) {
     String(sql.lead.empresa_nombre ?? ''),
   );
   const [descripcion, setDescripcion] = useState('');
-  const [segmento, setSegmento] =
-    useState<ConvertirSqlPayload['segmento']>('Gobierno');
+  const [segments, setSegments] = useState<Segment[]>([]);
+  const [segmentId, setSegmentId] = useState<string>(
+    String(sql.lead.segment_id ?? ''),
+  );
+  const [subsegmentId, setSubsegmentId] = useState<string>('');
   const [vertical, setVertical] = useState<string>(VERTICALES[0]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [loadingSegments, setLoadingSegments] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const data = await fetchSegments();
+        if (cancelled) return;
+        setSegments(data);
+        if (!segmentId && data[0]?.id) {
+          setSegmentId(data[0].id);
+        }
+      } catch {
+        if (!cancelled) {
+          setError('No se pudieron cargar los segmentos.');
+        }
+      } finally {
+        if (!cancelled) setLoadingSegments(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // Prefill segment_id from lead once; do not depend on segmentId to avoid loops.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const selectedSegment = useMemo(
+    () => segments.find((s) => s.id === segmentId) ?? null,
+    [segments, segmentId],
+  );
+
+  const subsegments = selectedSegment?.subsegments ?? [];
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -53,13 +93,25 @@ export function ConvertirSqlEnOuvModal({ sql, onClose, onConverted }: Props) {
       setError('El título es obligatorio.');
       return;
     }
+    if (!segmentId) {
+      setError('El segmento es obligatorio.');
+      return;
+    }
+    const segment = segments.find((s) => s.id === segmentId);
+    if (!segment) {
+      setError('Segmento inválido.');
+      return;
+    }
+
     setBusy(true);
     setError(null);
     try {
       const result = await convertirSqlEnOuv(sql.sql_id, {
         titulo: titulo.trim(),
         ...(descripcion.trim() ? { descripcion: descripcion.trim() } : {}),
-        segmento,
+        segmento: segmentNameToEnum(segment.name),
+        segment_id: segmentId,
+        ...(subsegmentId ? { subsegment_id: subsegmentId } : {}),
         vertical,
       });
       onConverted(result.ouv.consecutivo);
@@ -81,7 +133,7 @@ export function ConvertirSqlEnOuvModal({ sql, onClose, onConverted }: Props) {
     <div className="fixed inset-0 z-50 grid place-items-center bg-ink/40 p-4">
       <form
         onSubmit={(e) => void handleSubmit(e)}
-        className="w-full max-w-lg rounded bg-surface p-5 shadow-card"
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded bg-surface p-5 shadow-card"
       >
         <h2 className="text-lg font-bold text-ink">Crear OUV</h2>
         <p className="mt-1 text-sm text-muted">
@@ -116,25 +168,51 @@ export function ConvertirSqlEnOuvModal({ sql, onClose, onConverted }: Props) {
           </div>
 
           <div>
-            <label className={labelClass} htmlFor="ouv-segmento">
+            <label className={labelClass} htmlFor="ouv-segment-id">
               Segmento
             </label>
             <select
-              id="ouv-segmento"
+              id="ouv-segment-id"
               className={inputClass}
-              value={segmento}
-              onChange={(e) =>
-                setSegmento(e.target.value as ConvertirSqlPayload['segmento'])
-              }
+              value={segmentId}
+              onChange={(e) => {
+                setSegmentId(e.target.value);
+                setSubsegmentId('');
+              }}
               required
+              disabled={loadingSegments}
             >
-              {SEGMENTOS.map((s) => (
-                <option key={s} value={s}>
-                  {s}
+              <option value="" disabled>
+                {loadingSegments ? 'Cargando…' : 'Seleccionar'}
+              </option>
+              {segments.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
                 </option>
               ))}
             </select>
           </div>
+
+          {subsegments.length > 0 ? (
+            <div>
+              <label className={labelClass} htmlFor="ouv-subsegment-id">
+                Subsegmento (opcional)
+              </label>
+              <select
+                id="ouv-subsegment-id"
+                className={inputClass}
+                value={subsegmentId}
+                onChange={(e) => setSubsegmentId(e.target.value)}
+              >
+                <option value="">Sin subsegmento</option>
+                {subsegments.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
 
           <div>
             <label className={labelClass} htmlFor="ouv-vertical">
@@ -157,7 +235,7 @@ export function ConvertirSqlEnOuvModal({ sql, onClose, onConverted }: Props) {
         </div>
 
         {error ? (
-          <p className="mt-3 text-sm text-red-600" role="alert">
+          <p className="mt-3 text-sm text-danger" role="alert">
             {error}
           </p>
         ) : null}

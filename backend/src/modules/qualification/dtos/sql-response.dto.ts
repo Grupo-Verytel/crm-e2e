@@ -40,6 +40,7 @@ export class SqlDetailDto {
   mql_id: string;
   estado: string;
   en_backlog: boolean;
+  origen_creacion: string;
   comercial_asignado_id: string | null;
   fecha_asignacion: Date | null;
   fecha_creacion: Date;

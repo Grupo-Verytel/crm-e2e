@@ -20,6 +20,7 @@ export type SqlDetail = {
   mql_id: string;
   estado: string;
   en_backlog: boolean;
+  origen_creacion: 'enrutamiento_normal' | 'directo_comercial' | string;
   comercial_asignado_id: string | null;
   fecha_asignacion: string | null;
   fecha_creacion: string;
@@ -32,6 +33,9 @@ export type SqlDetail = {
     email?: string;
     icp_score?: number | null;
     origen?: string;
+    segment_id?: string | null;
+    subsegment_id?: string | null;
+    segmento?: string;
     [key: string]: unknown;
   };
   interactions: unknown[];
@@ -103,6 +107,8 @@ export type ConvertirSqlPayload = {
   titulo: string;
   descripcion?: string;
   segmento: 'Gobierno' | 'D&S' | 'ProyectosEspeciales' | 'B2B';
+  segment_id: string;
+  subsegment_id?: string | null;
   vertical: string;
 };
 

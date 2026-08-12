@@ -100,6 +100,18 @@ export function SqlDetailPage() {
                 <dd className="font-bold text-ink">{sql.estado}</dd>
               </div>
               <div className="flex justify-between gap-4">
+                <dt className="text-muted">Origen</dt>
+                <dd className="text-ink">
+                  {sql.origen_creacion === 'directo_comercial' ? (
+                    <span className="rounded bg-brand/10 px-1.5 py-0.5 text-xs font-bold text-brand">
+                      Directo
+                    </span>
+                  ) : (
+                    'Enrutamiento normal'
+                  )}
+                </dd>
+              </div>
+              <div className="flex justify-between gap-4">
                 <dt className="text-muted">Contacto</dt>
                 <dd className="text-ink">
                   {String(sql.lead.contacto_nombre ?? '—')}

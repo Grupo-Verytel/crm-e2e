@@ -39,6 +39,16 @@ export const workflowRules: WorkflowRule[] = [
       `Se creó el SQL de ${ctx.entityLabel}. Pendiente de asignación.`,
   },
   {
+    // Ruta EjecutivoComercial (demand-gen EARS-29 / calificación EARS-09):
+    // audit_log only — no enrutamiento / sin destinatarios.
+    eventType: 'sql.creado_directo',
+    guards: [],
+    destinatarios: [],
+    titulo: () => 'SQL creado por ruta directa comercial',
+    mensaje: (ctx) =>
+      `Se creó el SQL de ${ctx.entityLabel} (ruta directa, ya asignado).`,
+  },
+  {
     eventType: 'sql.asignado',
     guards: [
       guardEntidadEnEstado(EntityType.SQL, 'PendienteAsignacion'),
@@ -47,7 +57,10 @@ export const workflowRules: WorkflowRule[] = [
     destinatarios: [
       {
         tipo: 'usuario',
-        resolver: (ctx) => String(ctx.payload.comercial_id ?? ''),
+        resolver: (ctx) =>
+          String(
+            ctx.payload.comercial_asignado_id ?? ctx.payload.comercial_id ?? '',
+          ),
       },
     ],
     titulo: () => 'Nuevo SQL asignado',

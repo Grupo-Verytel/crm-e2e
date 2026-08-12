@@ -1,18 +1,23 @@
 # Spec — Módulo 2: Calificación
-**Versión:** 2.2
+**Versión:** 2.3 — clarify 2026-08-10
 **Fecha:** 2026-08-10
 **Autor:** Evilio Díaz (Frisson Technologies / Grupo Verytel)
-**Estado:** Pendiente de aprobación para implementación
-**Precede a:** `spec-ouv-funnel.md` v1.3
-**Depende de:** `spec-workflow-engine.md` v1.1, Módulo 1 (Generación de Demanda) v2.3, `spec-gestion-cuentas.md` v0.4
+**Estado:** Aprobado
+**Precede a:** `spec-ouv-funnel.md` v1.4
+**Depende de:** `spec-workflow-engine.md` v1.1, Módulo 1 (Generación de Demanda) **v2.5**, `spec-gestion-cuentas.md` v0.4; **schema** `ouv_contactos.person_id` + `ouvs.account_id` vía implementación de `spec-ouv-funnel.md` (antes o en oleada coordinada previa a EARS-12)
+
+**Changelog v2.2 → v2.3 (speckit-clarify):**
+- Canónico `sqls.comercial_asignado_id` (no `comercial_id` de SQL).
+- EARS-11 sin herencia de `empresa_nombre`; herencia solo en EARS-12 vía `accounts.name`.
+- Roles PascalCase en EARS/CASL (`SoporteComercial`, `EjecutivoComercial`, `DirectorMercadeo`).
+- Alta SQL ruta directa: dueño = demand-gen (EARS-29) + `sql.creado_directo` en misma txn; EARS-01b = contrato; EARS-09 excepción controlada.
+- Schema `ouv_contactos.person_id` + `ouvs.account_id` → prompt `spec-ouv-funnel.md` (EARS-12 solo consume).
+- §7 KPI por `origen_creacion` → diferido explícito; no bloquea aprobación ni entra al prompt Wave 1 de calificación.
 
 **Changelog v2.1 → v2.2:**
-- EARS-01 se mantiene para el flujo estándar; se agrega **EARS-01b** para SQLs creados por la Ruta directa `EjecutivoComercial` (`spec-demand-generation.md` v2.3) — nacen en `Asignado`, no en `PendienteAsignacion`
-- Nuevo campo `sqls.origen_creacion` consumido de `spec-demand-generation.md` v2.3, usado para el ajuste de KPI (sección 7)
-- `ouvs.segment_id`/`ouvs.subsegment_id` nuevos (coexisten con `ouvs.segmento` ENUM)
-- **EARS-12 reemplazado**: ya no se copian contactos del lead a `ouv_contactos`, se reutiliza `person_id` (ver `2026-08-DR-unificacion-contactos-cuentas-wave1.md`); alineado con `spec-ouv-funnel.md` v1.3 EARS-02
-- **EARS-12 + GC-13:** en la misma transacción se setea `ouvs.account_id` desde el contacto principal del lead (`2026-08-DR-auto-poblar-ouv-account-id.md`)
-- Decision records de origen: `2026-08-DR-lead-directo-sql.md`, `2026-08-DR-unificacion-contactos-cuentas-wave1.md`, `2026-08-DR-subsegmentos.md`, `2026-08-DR-auto-poblar-ouv-account-id.md`, `2026-08-DR-accounts-por-lead.md`
+- EARS-01b para SQLs ruta `EjecutivoComercial` (`spec-demand-generation.md`) — nacen en `Asignado`.
+- `sqls.origen_creacion`; `ouvs.segment_id`/`subsegment_id`; EARS-12 reutiliza `person_id` + GC-13 `account_id`.
+- DRs: lead-directo-sql, unificacion-contactos-cuentas-wave1, subsegmentos, auto-poblar-ouv-account-id, accounts-por-lead.
 
 ---
 
@@ -20,15 +25,16 @@
 
 Este módulo cubre el ciclo del SQL desde su creación (por WF002 al aprobar MQL, o directo por la ruta `EjecutivoComercial`) hasta su conversión en OUV. Tres sub-flujos:
 
-**2a. Enrutamiento SQL** (Soporte Comercial → Ejecutivo Comercial) — flujo estándar
+**2a. Enrutamiento SQL** (`SoporteComercial` → `EjecutivoComercial`) — flujo estándar
 - Estado inicial: SQL en `PendienteAsignacion`
 - Acción: Soporte selecciona un comercial exclusivo, opcionalmente agenda cita
 - Estado final: SQL en `Asignado`
 
-**2a-bis. Creación directa** (`EjecutivoComercial`, nuevo v2.2) — ver `spec-demand-generation.md` v2.3 EARS-27..30
-- El SQL nace directo en `Asignado`, sin pasar por `PendienteAsignacion` ni por Soporte Comercial
+**2a-bis. Creación directa** (`EjecutivoComercial`, nuevo v2.2) — ver `spec-demand-generation.md` v2.5 EARS-27..30
+- El SQL nace directo en `Asignado`, sin pasar por `PendienteAsignacion` ni por `SoporteComercial`
+- El **alta** del registro vive en Generación de Demanda; este módulo consume el contrato (EARS-01b)
 
-**2b. Conversión SQL → OUV** (Ejecutivo Comercial)
+**2b. Conversión SQL → OUV** (`EjecutivoComercial`)
 - Estado inicial: SQL en `Asignado` (dueño = comercial actual)
 - Acción: comercial trabaja el SQL, decide crear OUV
 - Estado final: SQL en `ConvertidoOUV`, OUV creada en zona `UNIVERSO`
@@ -50,12 +56,15 @@ Sin cambios respecto a v2.1.
 ### 2.3 Referencia a `ouvs`
 `sqls.ouv_id` (nullable, FK) — se llena al convertir.
 
-### 2.4 `sqls.origen_creacion` *(consumido de spec-demand-generation.md v2.3)*
-ENUM `enrutamiento_normal`\|`directo_comercial`. Usado en el ajuste de KPI de la sección 7.
+### 2.4 `sqls.origen_creacion` *(consumido de spec-demand-generation.md v2.5)*
+ENUM `enrutamiento_normal`\|`directo_comercial`. Campo persistido y usable en filtros/bandejas. El **ajuste de fórmulas KPI** que lo consume queda diferido (§7).
 
 ### 2.5 `ouvs.segment_id` / `ouvs.subsegment_id` *(nuevo v2.2)*
 - `segment_id`: FK a `segments.id` (tabla nueva, inglés). Coexiste con `ouvs.segmento` ENUM existente hasta migración.
 - `subsegment_id`: FK opcional a `subsegments.id`, **independiente** del `subsegment_id` del lead de origen — no se copia automáticamente en la conversión.
+
+### 2.6 Columna canónica de asignación SQL
+`sqls.comercial_asignado_id` (UUID, FK users) — nombre canónico en repo y en este spec. No usar `comercial_id` para la asignación del SQL (`comercial_id` en `ouvs` es otra columna, régimen español).
 
 ---
 
@@ -63,31 +72,31 @@ ENUM `enrutamiento_normal`\|`directo_comercial`. Usado en el ajuste de KPI de la
 
 ### 3.1 Enrutamiento SQL (EARS-01 a EARS-09)
 
-**EARS-01.** Cuando un MQL es aprobado por Director de Mercadeo, el sistema DEBE crear el SQL en estado `PendienteAsignacion` invocando `workflowEngine.transition('SQL', sqlId, 'sql.creado', ctx, transaction)`. El motor persiste la notificación al rol SoporteComercial y dispara el push WebSocket.
+**EARS-01.** Cuando un MQL es aprobado por `DirectorMercadeo`, el sistema DEBE dejar el SQL en estado `PendienteAsignacion` con `origen_creacion = enrutamiento_normal`. **Dueño del alta:** Generación de Demanda (misma txn que el approve MQL), que DEBE invocar `workflowEngine.transition('SQL', sqlId, 'sql.creado', ctx, transaction)`. El motor persiste la notificación al rol `SoporteComercial` y dispara el push WebSocket. Este módulo no re-crea el SQL.
 
-**EARS-01b** *(nuevo v2.2)*. Cuando un SQL se crea por la Ruta directa `EjecutivoComercial` (`spec-demand-generation.md` v2.3 EARS-29), el sistema DEBE crearlo directamente en `estado = Asignado` (no `PendienteAsignacion`), con `comercial_id` = el mismo KAM creador, `origen_creacion = directo_comercial`, **sin invocar el enrutamiento de Soporte Comercial**.
+**EARS-01b** *(nuevo v2.2)*. Cuando un SQL se crea por la Ruta directa `EjecutivoComercial` (`spec-demand-generation.md` EARS-29), el sistema DEBE dejarlo en `estado = Asignado` (no `PendienteAsignacion`), con `comercial_asignado_id` = el mismo KAM creador y `origen_creacion = directo_comercial`, **sin invocar el enrutamiento de `SoporteComercial`**. **Dueño del alta:** módulo Generación de Demanda (no este módulo). Este criterio solo fija el **contrato resultante** visible en calificación (bandeja del KAM, exclusión de bandeja de enrutamiento).
 
-**EARS-02.** El sistema DEBE mostrar a Profesional Soporte Comercial una bandeja de enrutamiento con los SQLs en `PendienteAsignacion`, con información completa del lead visible. *(No aplica a SQLs con `origen_creacion = directo_comercial` — nunca pasan por esta bandeja.)*
+**EARS-02.** El sistema DEBE mostrar a `SoporteComercial` una bandeja de enrutamiento con los SQLs en `PendienteAsignacion`, con información completa del lead visible. *(No aplica a SQLs con `origen_creacion = directo_comercial` — nunca pasan por esta bandeja.)*
 
-**EARS-03.** Profesional Soporte Comercial DEBE poder seleccionar exactamente un Ejecutivo Comercial como destino de asignación por SQL (exclusiva).
+**EARS-03.** `SoporteComercial` DEBE poder seleccionar exactamente un `EjecutivoComercial` como destino de asignación por SQL (exclusiva).
 
-**EARS-04.** Cuando Soporte confirma la asignación, el sistema DEBE invocar `workflowEngine.transition('SQL', sqlId, 'sql.asignado', ctx, transaction)` con `payload.comercial_id`. El motor valida guards, persiste notificación al comercial destino, registra en `audit_log`, dispara push WS post-commit.
+**EARS-04.** Cuando `SoporteComercial` confirma la asignación, el sistema DEBE invocar `workflowEngine.transition('SQL', sqlId, 'sql.asignado', ctx, transaction)` con `payload.comercial_asignado_id`. El motor valida guards, persiste notificación al comercial destino, registra en `audit_log`, dispara push WS post-commit.
 
-**EARS-05.** Profesional Soporte Comercial DEBE tener la opción, no obligatoria, de crear un registro en `sql_citas` en el mismo acto de asignación.
+**EARS-05.** `SoporteComercial` DEBE tener la opción, no obligatoria, de crear un registro en `sql_citas` en el mismo acto de asignación.
 
 **EARS-06.** Si existe `sql_citas` al momento de asignar, el motor DEBE incluir sus datos en `payload` para que la notificación refleje la cita.
 
-**EARS-07.** El Ejecutivo Comercial asignado DEBE poder actualizar (reagendar) `sql_citas` en cualquier momento posterior. La actualización dispara `sql.cita_reagendada` con notificación informativa a Soporte Comercial.
+**EARS-07.** El `EjecutivoComercial` asignado DEBE poder actualizar (reagendar) `sql_citas` en cualquier momento posterior. La actualización dispara `sql.cita_reagendada` con notificación informativa a `SoporteComercial`.
 
 **EARS-08.** Toda creación/actualización de `sql_citas` DEBE quedar registrada en `audit_log`.
 
-**EARS-09.** Toda transición del SQL DEBE pasar por el motor. Escribir `sqls.estado = ...` fuera del motor viola el patrón. **Esto incluye la creación directa EARS-01b** — también debe pasar por `workflowEngine.transition()`, no por un `.create()` directo.
+**EARS-09.** Toda transición del SQL DEBE pasar por el motor. Escribir `sqls.estado = ...` fuera del motor viola el patrón. **Excepción controlada (altas en demand-gen — EARS-01 / EARS-01b):** se permite `sqls.create(...)` **únicamente** si, en la **misma transacción**, se invoca de inmediato `workflowEngine.transition(...)` con `sql.creado` (enrutamiento normal) o `sql.creado_directo` (ruta KAM). Un `.create()` suelto sin ese `transition` está prohibido.
 
 ### 3.2 Conversión SQL → OUV (EARS-10 a EARS-14)
 
-**EARS-10.** El Ejecutivo Comercial dueño de un SQL en estado `Asignado` DEBE poder iniciar la conversión a OUV.
+**EARS-10.** El `EjecutivoComercial` dueño de un SQL en estado `Asignado` DEBE poder iniciar la conversión a OUV.
 
-**EARS-11.** La conversión DEBE requerir al menos: `titulo` de la OUV, `segment_id` (nuevo, reemplaza el ENUM `segmento` como campo primario — ver 2.5), y `vertical`. El sistema hereda automáticamente el `empresa_nombre` desde el lead origen.
+**EARS-11.** La conversión DEBE requerir al menos: `titulo` de la OUV, `segment_id` (campo primario frente al ENUM `segmento` durante coexistencia — ver 2.5), y `vertical`.
 
 **EARS-12** *(reemplazado v2.2 — ya no copia contactos; auto-puebla `account_id`)*. Al confirmar la conversión, el sistema DEBE en la misma transacción:
 - Crear la fila `ouvs` en `zona_actual = UNIVERSO`, `resultado = EnCurso`, `origen_via = desde_sql`, `sql_id_origen = sqlId`, `comercial_id = actor`
@@ -97,15 +106,15 @@ ENUM `enrutamiento_normal`\|`directo_comercial`. Usado en el ajuste de KPI de la
 - **Para cada `person_id` asociado al lead de origen vía `lead_contacts`, crear una fila nueva en `ouv_contactos` con `ouv_id` + el mismo `person_id`** (reutiliza la persona, no duplica el dato — reemplaza el texto anterior de "copiar todos los contactos del lead")
 - Sembrar 3 filas en `ouv_influencias` (Economica, Tecnica, Fabrica) en `SinEvaluar` con `contacto_ouv_id = NULL`
 - Sembrar items de checklist para zona UNIVERSO
-- Invocar `workflowEngine.transition('OUV', ouvId, 'ouv.creada_desde_sql', ctx, transaction)` que persiste notificación al Soporte Comercial
+- Invocar `workflowEngine.transition('OUV', ouvId, 'ouv.creada_desde_sql', ctx, transaction)` que persiste notificación a `SoporteComercial`
 
-> Alineado con `spec-ouv-funnel.md` v1.3 EARS-01/EARS-02. La columna `ouvs.account_id` y este auto-poblado se implementan en el prompt de discovery/calificación (no en el prompt Wave 1a de `accounts` GC-01…11).
+> **Prerrequisito de schema (fuera de este módulo):** `ouv_contactos.person_id` (reestructura + drop denormalizados) y la columna nueva `ouvs.account_id` (GC-13) se implementan en el prompt de **`spec-ouv-funnel.md`**, no en calificación. EARS-12 **asume** ese schema ya aplicado y solo escribe filas/`account_id` en la conversión SQL→OUV. Alineado con `spec-ouv-funnel.md` EARS-01/EARS-02.
 
 **EARS-13.** Guards para `ouv.creada_desde_sql`:
 - `guardEntidadEnEstado('SQL', 'Asignado', (ctx) => ctx.payload.sqlId)` — el SQL de origen debe estar en `Asignado`
-- `guardUsuarioEsComercialDelSQL` — solo el comercial dueño del SQL puede convertir
+- `guardUsuarioEsComercialDelSQL` — solo el comercial dueño del SQL (`comercial_asignado_id`) puede convertir
 
-**EARS-14.** Si el Ejecutivo Comercial decide **no** convertir el SQL, DEBE poder marcarlo como `Descartado`. **Postergado**: requiere decision record propio para definir catálogo de motivos de descarte SQL.
+**EARS-14.** Si el `EjecutivoComercial` decide **no** convertir el SQL, DEBE poder marcarlo como `Descartado`. **Postergado**: requiere decision record propio para definir catálogo de motivos de descarte SQL.
 
 ### 3.3 Segmentación de OUV *(nuevo v2.2)*
 
@@ -119,7 +128,7 @@ ENUM `enrutamiento_normal`\|`directo_comercial`. Usado en el ajuste de KPI de la
 
 ## 4. Permisos CASL
 
-| Acción | Profesional Soporte Comercial | Ejecutivo Comercial (dueño del SQL) | Director Mercadeo | Otros |
+| Acción | `SoporteComercial` *(UI: “Profesional Soporte Comercial”)* | `EjecutivoComercial` (dueño del SQL) | `DirectorMercadeo` | Otros |
 |---|---|---|---|---|
 | Ver SQL en `PendienteAsignacion` | ✅ | ❌ | ✅ (lectura) | ❌ |
 | Asignar SQL a comercial | ✅ | ❌ | ❌ | ❌ |
@@ -128,7 +137,7 @@ ENUM `enrutamiento_normal`\|`directo_comercial`. Usado en el ajuste de KPI de la
 | Actualizar `sql_citas` (reagendar) | ❌ | ✅ (solo dueño) | ❌ | ❌ |
 | Convertir SQL → OUV | ❌ | ✅ (solo dueño) | ❌ | ❌ |
 | Descartar SQL | ❌ | ✅ (solo dueño) | ✅ (any) | ❌ |
-| **Crear SQL directo (Ruta EjecutivoComercial)** | ❌ | ✅ (solo para sí mismo) | ❌ | ❌ |
+| **Crear SQL directo (Ruta `EjecutivoComercial`)** | ❌ | ✅ (solo para sí mismo; enforce en demand-gen) | ❌ | ❌ |
 
 ---
 
@@ -142,18 +151,18 @@ Sin cambios estructurales respecto a v2.1. Al convertir SQL → OUV, redirect a 
 
 | Evento | Origen | Destinatarios |
 |---|---|---|
-| `sql.creado` | WF002 (auto al aprobar MQL) | Rol SoporteComercial |
-| `sql.creado_directo` *(nuevo v2.2)* | Ejecutivo Comercial (EARS-01b) | Ninguno — no requiere enrutamiento, solo `audit_log` |
-| `sql.asignado` | Soporte Comercial (EARS-04) | Usuario `comercial_id` |
-| `sql.cita_reagendada` | Ejecutivo Comercial (EARS-07) | Rol SoporteComercial (informativo) |
-| `ouv.creada_desde_sql` | Ejecutivo Comercial (EARS-12) | Rol SoporteComercial (informativo) |
+| `sql.creado` | Generación de Demanda (approve MQL / WF002) en la misma txn del alta | Rol `SoporteComercial` |
+| `sql.creado_directo` *(nuevo v2.2)* | Generación de Demanda (EARS-29) en la misma txn del alta | Ninguno — no requiere enrutamiento; sí `audit_log` |
+| `sql.asignado` | `SoporteComercial` (EARS-04) | Usuario `comercial_asignado_id` |
+| `sql.cita_reagendada` | `EjecutivoComercial` (EARS-07) | Rol `SoporteComercial` (informativo) |
+| `ouv.creada_desde_sql` | `EjecutivoComercial` (EARS-12) | Rol `SoporteComercial` (informativo) |
 | `sql.descartado` | Diferido (EARS-14 pendiente DR) | Diferido |
 
 ---
 
-## 7. KPIs — ajuste pendiente
+## 7. KPIs — ajuste diferido
 
-🟡 **Pendiente (no resuelto, requiere confirmación de Gerencia/Marketing):** los `sql` con `origen_creacion = directo_comercial` nunca pasaron por `MQL_PENDING`. Definir si se excluyen del denominador de `MQL Rate`/`SQL Rate` en el dashboard de KPIs. **No implementar el ajuste sin esta confirmación.**
+🟡 **Diferido (no bloquea aprobación de este spec ni el prompt Wave 1 de calificación):** los `sql` con `origen_creacion = directo_comercial` nunca pasaron por `MQL_PENDING`. Cuando Gerencia/Marketing confirme el criterio, se definirá si se excluyen del denominador de `MQL Rate`/`SQL Rate`. **No implementar ese ajuste en el prompt de calificación hasta esa confirmación.**
 
 ---
 
@@ -164,3 +173,16 @@ Sin cambios estructurales respecto a v2.1. Al convertir SQL → OUV, redirect a 
 - Ciclo posterior de la OUV — vive en `spec-ouv-funnel.md`
 - Motor de reglas automáticas para asignación — Wave 2
 - Jerarquía de cuentas, indicadores de salud — Wave 2 (`spec-gestion-cuentas.md` §6)
+- Reestructurar `ouv_contactos` / agregar `ouvs.account_id` — prompt de `spec-ouv-funnel.md` (prerrequisito de EARS-12)
+- Ajuste de KPI `MQL Rate`/`SQL Rate` por `origen_creacion` — §7 diferido
+
+---
+
+## Checklist clarify
+
+- [x] `comercial_asignado_id` canónico (1A)
+- [x] EARS-11 sin herencia lead `empresa_nombre` (2A)
+- [x] Roles PascalCase en EARS/CASL (3A)
+- [x] Frontera alta SQL + `sql.creado_directo` (4A)
+- [x] Schema OUV contactos/`account_id` en ouv-funnel (5B)
+- [x] KPI §7 diferido (6A)

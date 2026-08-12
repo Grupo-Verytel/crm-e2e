@@ -16,8 +16,8 @@ import { OuvInfluencia } from './ouv-influencia.model';
 import { Ouv } from './ouv.model';
 
 /**
- * Contactos owned by an OUV (discovery module).
- * Autocontained — no FK to lead_contacts / demand-generation.
+ * Contact bridge for an OUV — person_id reuses people (accounts module).
+ * PK contacto_ouv_id kept so ouv_influencias.contacto_ouv_id stays unchanged.
  */
 @Table({
   tableName: 'ouv_contactos',
@@ -38,17 +38,12 @@ export class OuvContacto extends Model {
   @BelongsTo(() => Ouv, { foreignKey: 'ouvId', as: 'ouv' })
   declare ouv: Ouv;
 
-  @Column({ type: DataType.STRING(120), allowNull: false })
-  declare nombre: string;
-
-  @Column({ type: DataType.STRING(80), allowNull: true })
-  declare cargo: string | null;
-
-  @Column({ type: DataType.STRING(180), allowNull: true })
-  declare email: string | null;
-
-  @Column({ type: DataType.STRING(20), allowNull: true })
-  declare telefono: string | null;
+  @Column({
+    type: DataType.CHAR(36),
+    field: 'person_id',
+    allowNull: false,
+  })
+  declare personId: string;
 
   @Column({ type: DataType.TEXT, allowNull: true })
   declare notas: string | null;

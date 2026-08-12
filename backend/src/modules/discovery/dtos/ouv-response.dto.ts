@@ -4,10 +4,13 @@ export class OuvResponseDto {
   sql_id_origen!: string | null;
   origen_via!: string;
   comercial_id!: string;
+  account_id!: string | null;
   titulo!: string;
   empresa_nombre!: string;
   descripcion!: string | null;
   segmento!: string;
+  segment_id!: string | null;
+  subsegment_id!: string | null;
   vertical!: string;
   zona_actual!: string;
   resultado!: string;
@@ -40,10 +43,13 @@ export class PaginatedOuvsResponseDto {
 export class OuvContactoResponseDto {
   contacto_ouv_id!: string;
   ouv_id!: string;
-  nombre!: string;
-  cargo!: string | null;
+  person_id!: string;
+  name!: string;
+  job_title!: string | null;
   email!: string | null;
-  telefono!: string | null;
+  phone!: string | null;
+  account_id!: string;
+  account_name!: string;
   notas!: string | null;
   created_at!: Date;
   updated_at!: Date;

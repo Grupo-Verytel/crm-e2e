@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { UsersService } from '../../auth/services/users.service';
 import { DEMAND_GENERATION_ROLES } from '../constants/demand-generation.constants';
@@ -242,6 +242,39 @@ export class DemandGenerationService {
           name: subsegment.name,
         })) ?? [],
     }));
+  }
+
+  /**
+   * Public API for discovery/qualification — EARS-17 subsegment belongs to segment.
+   */
+  async assertSegmentSubsegment(
+    segmentId: string,
+    subsegmentId?: string | null,
+  ): Promise<void> {
+    const segment = await this.segmentModel.findOne({
+      where: { id: segmentId, active: true },
+    });
+    if (!segment) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'Invalid or inactive segment_id',
+      });
+    }
+
+    if (!subsegmentId) {
+      return;
+    }
+
+    const subsegment = await this.subsegmentModel.findOne({
+      where: { id: subsegmentId, segmentId, active: true },
+    });
+    if (!subsegment) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message:
+          'Invalid or inactive subsegment_id, or it does not belong to segment_id',
+      });
+    }
   }
 
   // ----- Campaigns -----

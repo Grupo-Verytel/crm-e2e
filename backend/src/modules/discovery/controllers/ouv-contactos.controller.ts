@@ -28,8 +28,7 @@ export class OuvContactosController {
   async list(
     @Param('ouvId') ouvId: string,
   ): Promise<OuvContactoResponseDto[]> {
-    const rows = await this.contactosService.listByOuv(ouvId);
-    return rows.map((r) => this.toResponse(r));
+    return this.contactosService.listByOuv(ouvId);
   }
 
   @Post()
@@ -40,8 +39,7 @@ export class OuvContactosController {
     @Body() dto: CrearOuvContactoDto,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<OuvContactoResponseDto> {
-    const row = await this.contactosService.crear(ouvId, dto, user.userId);
-    return this.toResponse(row);
+    return this.contactosService.crear(ouvId, dto, user.userId);
   }
 
   @Patch(':contactoOuvId')
@@ -51,12 +49,11 @@ export class OuvContactosController {
     @Body() dto: ActualizarOuvContactoDto,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<OuvContactoResponseDto> {
-    const row = await this.contactosService.actualizar(
+    return this.contactosService.actualizarNotas(
       contactoOuvId,
       dto,
       user.userId,
     );
-    return this.toResponse(row);
   }
 
   @Delete(':contactoOuvId')
@@ -67,29 +64,5 @@ export class OuvContactosController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<void> {
     await this.contactosService.eliminar(contactoOuvId, user.userId);
-  }
-
-  private toResponse(r: {
-    contactoOuvId: string;
-    ouvId: string;
-    nombre: string;
-    cargo: string | null;
-    email: string | null;
-    telefono: string | null;
-    notas: string | null;
-    createdAt: Date;
-    updatedAt: Date;
-  }): OuvContactoResponseDto {
-    return {
-      contacto_ouv_id: r.contactoOuvId,
-      ouv_id: r.ouvId,
-      nombre: r.nombre,
-      cargo: r.cargo,
-      email: r.email,
-      telefono: r.telefono,
-      notas: r.notas,
-      created_at: r.createdAt,
-      updated_at: r.updatedAt,
-    };
   }
 }

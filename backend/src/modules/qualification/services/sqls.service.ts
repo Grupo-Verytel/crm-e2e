@@ -196,7 +196,7 @@ export class SqlsService {
           ),
           actorUserId: soporteUserId,
           payload: {
-            comercial_id: dto.comercial_asignado_id,
+            comercial_asignado_id: dto.comercial_asignado_id,
             sqlId: sql.sqlId,
             leadId: sql.mql.leadId,
             mqlId: sql.mqlId,
@@ -566,6 +566,7 @@ export class SqlsService {
       mql_id: sql.mqlId,
       estado: sql.estado,
       en_backlog: sql.enBacklog,
+      origen_creacion: sql.origenCreacion,
       comercial_asignado_id: sql.comercialAsignadoId,
       fecha_asignacion: sql.fechaAsignacion,
       fecha_creacion: sql.fechaCreacion,

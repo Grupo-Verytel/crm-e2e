@@ -47,7 +47,7 @@ export function AssignedSqlsPage() {
     function onNotification(event: Event) {
       const detail = (event as CustomEvent<InAppNotificationEventDetail>)
         .detail;
-      if (detail?.event_type === 'sql.asignado') {
+      if (detail?.event_type === 'sql.asignado' || detail?.event_type === 'sql.creado_directo') {
         void load({ silent: true });
       }
     }
@@ -74,6 +74,7 @@ export function AssignedSqlsPage() {
               <tr>
                 <th className="px-4 py-3 font-bold">Empresa</th>
                 <th className="px-4 py-3 font-bold">Estado</th>
+                <th className="px-4 py-3 font-bold">Origen</th>
                 <th className="px-4 py-3 font-bold">Asignado</th>
               </tr>
             </thead>
@@ -89,6 +90,15 @@ export function AssignedSqlsPage() {
                     </Link>
                   </td>
                   <td className="px-4 py-3 text-ink">{sql.estado}</td>
+                  <td className="px-4 py-3">
+                    {sql.origen_creacion === 'directo_comercial' ? (
+                      <span className="rounded bg-brand/10 px-1.5 py-0.5 text-xs font-bold text-brand">
+                        Directo
+                      </span>
+                    ) : (
+                      <span className="text-xs text-muted">Enrutamiento</span>
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-muted">
                     {formatDateTime(sql.fecha_asignacion)}
                   </td>

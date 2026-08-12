@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import type { Transaction } from 'sequelize';
+import { AccountsService } from '../../accounts/services/accounts.service';
 import { DemandGenerationService } from '../../demand-generation/services/demand-generation.service';
 import { EntityType } from '../../workflow-engine/enums/entity-type.enum';
 import { WorkflowEngineService } from '../../workflow-engine/workflow-engine.service';
@@ -13,10 +14,11 @@ import type {
   ActualizarOuvContactoDto,
   CrearOuvContactoDto,
 } from '../dtos/ouv-contacto.dto';
+import type { OuvContactoResponseDto } from '../dtos/ouv-response.dto';
+import { OuvResultado } from '../models/enums/ouv.enums';
 import { OuvContacto } from '../models/ouv-contacto.model';
 import { OuvInfluencia } from '../models/ouv-influencia.model';
 import { Ouv } from '../models/ouv.model';
-import { OuvResultado } from '../models/enums/ouv.enums';
 
 @Injectable()
 export class OuvContactosService {
@@ -27,29 +29,33 @@ export class OuvContactosService {
     @InjectModel(OuvInfluencia)
     private readonly influenciaModel: typeof OuvInfluencia,
     private readonly demandGeneration: DemandGenerationService,
+    private readonly accountsService: AccountsService,
     private readonly workflowEngine: WorkflowEngineService,
   ) {}
 
   /**
-   * Copy all active lead contacts into ouv_contactos (EARS-02).
-   * Uses DemandGenerationService public API — no deep import of LeadContact.
+   * Reuse lead people as ouv_contactos rows (EARS-02) — no copy of denorm fields.
+   * Public API for qualification txn via crearDesdeSql.
    */
-  async crearDesdeLead(
+  async reutilizarDesdeLead(
     ouvId: string,
     leadId: string,
     transaction: Transaction,
   ): Promise<OuvContacto[]> {
     const lead = await this.demandGeneration.findLeadById(leadId);
     const created: OuvContacto[] = [];
+    const seen = new Set<string>();
 
     for (const contact of lead.contacts ?? []) {
+      const personId = contact.person_id;
+      if (!personId || seen.has(personId)) {
+        continue;
+      }
+      seen.add(personId);
       const row = await this.contactoModel.create(
         {
           ouvId,
-          nombre: contact.name,
-          cargo: contact.job_title ?? null,
-          email: contact.email || null,
-          telefono: contact.phone ?? null,
+          personId,
           notas: null,
         },
         { transaction },
@@ -60,28 +66,37 @@ export class OuvContactosService {
     return created;
   }
 
-  async listByOuv(ouvId: string): Promise<OuvContacto[]> {
-    return this.contactoModel.findAll({
+  async listByOuv(ouvId: string): Promise<OuvContactoResponseDto[]> {
+    const rows = await this.contactoModel.findAll({
       where: { ouvId },
-      order: [['nombre', 'ASC']],
+      order: [['createdAt', 'ASC']],
     });
+    return this.toEnrichedResponses(rows);
   }
 
   async crear(
     ouvId: string,
     dto: CrearOuvContactoDto,
     actorUserId: string,
-  ): Promise<OuvContacto> {
+  ): Promise<OuvContactoResponseDto> {
     return this.ouvModel.sequelize!.transaction(async (transaction) => {
       const ouv = await this.lockOwnedOuv(ouvId, actorUserId, transaction);
+      const personId = await this.resolvePersonId(dto);
+
+      const people = await this.accountsService.getPeopleWithAccounts([
+        personId,
+      ]);
+      const person = people.get(personId);
+      if (!person) {
+        throw new NotFoundException(`Person ${personId} not found`);
+      }
+
+      await this.applyAccountConstraint(ouv, person.account_id, transaction);
 
       const contacto = await this.contactoModel.create(
         {
           ouvId,
-          nombre: dto.nombre.trim(),
-          cargo: dto.cargo?.trim() || null,
-          email: dto.email?.trim() || null,
-          telefono: dto.telefono?.trim() || null,
+          personId,
           notas: dto.notas?.trim() || null,
         },
         { transaction },
@@ -99,22 +114,24 @@ export class OuvContactosService {
           payload: {
             comercial_id: ouv.comercialId,
             contacto_ouv_id: contacto.contactoOuvId,
-            nombre: contacto.nombre,
+            person_id: personId,
+            name: person.name,
           },
           entity: { estado: ouv.zonaActual },
         },
         transaction,
       );
 
-      return contacto;
+      const [enriched] = await this.toEnrichedResponses([contacto]);
+      return enriched;
     });
   }
 
-  async actualizar(
+  async actualizarNotas(
     contactoOuvId: string,
     dto: ActualizarOuvContactoDto,
     actorUserId: string,
-  ): Promise<OuvContacto> {
+  ): Promise<OuvContactoResponseDto> {
     return this.ouvModel.sequelize!.transaction(async (transaction) => {
       const contacto = await this.contactoModel.findByPk(contactoOuvId, {
         transaction,
@@ -128,18 +145,6 @@ export class OuvContactosService {
 
       await contacto.update(
         {
-          ...(dto.nombre !== undefined
-            ? { nombre: dto.nombre.trim() }
-            : {}),
-          ...(dto.cargo !== undefined
-            ? { cargo: dto.cargo?.trim() || null }
-            : {}),
-          ...(dto.email !== undefined
-            ? { email: dto.email?.trim() || null }
-            : {}),
-          ...(dto.telefono !== undefined
-            ? { telefono: dto.telefono?.trim() || null }
-            : {}),
           ...(dto.notas !== undefined
             ? { notas: dto.notas?.trim() || null }
             : {}),
@@ -147,7 +152,8 @@ export class OuvContactosService {
         { transaction },
       );
 
-      return contacto;
+      const [enriched] = await this.toEnrichedResponses([contacto]);
+      return enriched;
     });
   }
 
@@ -192,12 +198,129 @@ export class OuvContactosService {
           payload: {
             comercial_id: ouv.comercialId,
             contacto_ouv_id: contactoOuvId,
-            nombre: contacto.nombre,
+            person_id: contacto.personId,
           },
           entity: { estado: ouv.zonaActual },
         },
         transaction,
       );
+    });
+  }
+
+  private async resolvePersonId(dto: CrearOuvContactoDto): Promise<string> {
+    if (dto.person_id) {
+      return dto.person_id;
+    }
+    if (!dto.person) {
+      throw new BadRequestException(
+        'Provide person_id or person to create an OUV contact',
+      );
+    }
+    const inline = dto.person;
+    if (inline.account_id) {
+      const created = await this.accountsService.createPerson({
+        name: inline.name,
+        job_title: inline.job_title ?? null,
+        email: inline.email ?? null,
+        phone: inline.phone ?? null,
+        account_id: inline.account_id,
+      });
+      return created.person_id;
+    }
+    if (!inline.account?.name) {
+      throw new BadRequestException(
+        'Inline person requires account_id or account.name',
+      );
+    }
+    const created = await this.accountsService.findOrCreateAccountAndPerson({
+      account_name: inline.account.name,
+      tax_id: inline.account.tax_id ?? null,
+      person_name: inline.name,
+      job_title: inline.job_title ?? null,
+      email: inline.email ?? null,
+      phone: inline.phone ?? null,
+    });
+    return created.person_id;
+  }
+
+  /** EARS-08b — one account per OUV. */
+  private async applyAccountConstraint(
+    ouv: Ouv,
+    personAccountId: string,
+    transaction: Transaction,
+  ): Promise<void> {
+    if (ouv.accountId) {
+      if (ouv.accountId !== personAccountId) {
+        throw new BadRequestException(
+          'El contacto pertenece a una empresa distinta a la asociada a esta OUV.',
+        );
+      }
+      return;
+    }
+
+    const existing = await this.contactoModel.findAll({
+      where: { ouvId: ouv.ouvId },
+      transaction,
+    });
+
+    if (existing.length === 0) {
+      const account = await this.accountsService.getAccount(personAccountId);
+      await ouv.update(
+        {
+          accountId: personAccountId,
+          empresaNombre: account.name,
+        },
+        { transaction },
+      );
+      return;
+    }
+
+    const existingPeople = await this.accountsService.getPeopleWithAccounts(
+      existing.map((row) => row.personId),
+    );
+    const existingAccountIds = new Set(
+      [...existingPeople.values()].map((p) => p.account_id),
+    );
+    if (
+      existingAccountIds.size > 0 &&
+      !existingAccountIds.has(personAccountId)
+    ) {
+      throw new BadRequestException(
+        'El contacto pertenece a una empresa distinta a la asociada a esta OUV.',
+      );
+    }
+
+    const account = await this.accountsService.getAccount(personAccountId);
+    await ouv.update(
+      {
+        accountId: personAccountId,
+        empresaNombre: account.name,
+      },
+      { transaction },
+    );
+  }
+
+  private async toEnrichedResponses(
+    rows: OuvContacto[],
+  ): Promise<OuvContactoResponseDto[]> {
+    const personIds = rows.map((r) => r.personId);
+    const people = await this.accountsService.getPeopleWithAccounts(personIds);
+    return rows.map((r) => {
+      const p = people.get(r.personId);
+      return {
+        contacto_ouv_id: r.contactoOuvId,
+        ouv_id: r.ouvId,
+        person_id: r.personId,
+        name: p?.name ?? '',
+        job_title: p?.job_title ?? null,
+        email: p?.email ?? null,
+        phone: p?.phone ?? null,
+        account_id: p?.account_id ?? '',
+        account_name: p?.account_name ?? '',
+        notas: r.notas,
+        created_at: r.createdAt,
+        updated_at: r.updatedAt,
+      };
     });
   }
 
@@ -215,7 +338,7 @@ export class OuvContactosService {
     }
     if (ouv.comercialId !== actorUserId) {
       throw new ForbiddenException(
-        'Only the owning Ejecutivo Comercial can manage OUV contacts',
+        'Only the owning EjecutivoComercial can manage OUV contacts',
       );
     }
     if (ouv.resultado !== OuvResultado.EnCurso) {

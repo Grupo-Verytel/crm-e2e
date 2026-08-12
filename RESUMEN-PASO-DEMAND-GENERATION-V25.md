@@ -35,6 +35,12 @@ Sin `ouvs.account_id`; sin reestructurar schema de `ouv_contactos` (solo truncat
 
 ---
 
+## Parche post-v2.5 — `sql.creado_directo` (2026-08-10)
+
+Ruta `EjecutivoComercial` (EARS-29): tras `sqls.create` en la misma txn se invoca `workflowEngine.transition(..., 'sql.creado_directo', { estadoAnterior: null, estadoNuevo: Asignado })`. Regla añadida en `workflow.rules.ts` con `destinatarios: []` (solo audit). Tests leads + workflow OK; build OK.
+
+---
+
 ## Cómo probar
 
 1. En `backend/`:  

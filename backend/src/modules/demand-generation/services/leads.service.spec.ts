@@ -46,6 +46,7 @@ describe('LeadsService channel flows', () => {
       (overrides?.accountsService ?? {
         getPeopleWithAccounts: jest.fn().mockResolvedValue(new Map()),
       }) as AccountsService,
+      { transition: jest.fn().mockResolvedValue(undefined) } as never,
       (overrides?.notifications ?? {}) as NotificationPort,
     );
   }

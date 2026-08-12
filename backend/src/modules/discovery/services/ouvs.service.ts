@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/sequelize';
 import { Op, QueryTypes, Sequelize, type Transaction } from 'sequelize';
+import { AccountsService } from '../../accounts/services/accounts.service';
 import { DemandGenerationService } from '../../demand-generation/services/demand-generation.service';
 import { EntityType } from '../../workflow-engine/enums/entity-type.enum';
 import { WorkflowEngineService } from '../../workflow-engine/workflow-engine.service';
@@ -57,6 +58,7 @@ export class OuvsService {
     @InjectModel(MotivoDescarte)
     private readonly motivoDescarteModel: typeof MotivoDescarte,
     private readonly demandGeneration: DemandGenerationService,
+    private readonly accountsService: AccountsService,
     private readonly contactosService: OuvContactosService,
     private readonly influenciasService: OuvInfluenciasService,
     private readonly checklistService: OuvChecklistService,
@@ -66,17 +68,35 @@ export class OuvsService {
 
   /**
    * Vía 1 — create OUV from SQL inside caller's transaction (EARS-01..03).
-   * Workflow event `ouv.creada_desde_sql` is emitted by SqlsService (PASO 3).
+   * Workflow event `ouv.creada_desde_sql` is emitted by SqlsService (qualification).
    */
   async crearDesdeSql(
     input: CrearDesdeSqlInput,
     transaction: Transaction,
   ): Promise<Ouv> {
     const lead = await this.demandGeneration.findLeadById(input.leadId);
-    const empresaNombre =
-      lead.contacts?.[0]?.account_name?.trim() ||
-      lead.empresa_nombre?.trim() ||
-      'PENDIENTE';
+    const primary =
+      lead.contacts?.find((c) => c.position === 1) ?? lead.contacts?.[0];
+    if (!primary?.person_id) {
+      throw new BadRequestException(
+        'Lead must have a primary contact (position=1) with person_id to create OUV from SQL',
+      );
+    }
+
+    const people = await this.accountsService.getPeopleWithAccounts([
+      primary.person_id,
+    ]);
+    const person = people.get(primary.person_id);
+    if (!person?.account_id || !person.account_name?.trim()) {
+      throw new BadRequestException(
+        'Cannot resolve accounts.name for the lead primary contact (GC-13 / EARS-01)',
+      );
+    }
+
+    await this.demandGeneration.assertSegmentSubsegment(
+      input.dto.segment_id,
+      input.dto.subsegment_id,
+    );
 
     const consecutivo = await this.nextOuvConsecutivo(transaction);
 
@@ -86,10 +106,13 @@ export class OuvsService {
         sqlIdOrigen: input.sqlId,
         origenVia: OuvOrigenVia.DesdeSql,
         comercialId: input.comercialId,
+        accountId: person.account_id,
         titulo: input.dto.titulo.trim(),
-        empresaNombre,
+        empresaNombre: person.account_name.trim(),
         descripcion: input.dto.descripcion?.trim() || null,
         segmento: input.dto.segmento,
+        segmentId: input.dto.segment_id,
+        subsegmentId: input.dto.subsegment_id ?? null,
         vertical: input.dto.vertical,
         zonaActual: OuvZona.Universo,
         resultado: OuvResultado.EnCurso,
@@ -99,7 +122,7 @@ export class OuvsService {
       { transaction },
     );
 
-    await this.contactosService.crearDesdeLead(
+    await this.contactosService.reutilizarDesdeLead(
       ouv.ouvId,
       input.leadId,
       transaction,
@@ -125,16 +148,27 @@ export class OuvsService {
     return this.sequelize.transaction(async (transaction) => {
       const consecutivo = await this.nextOuvConsecutivo(transaction);
 
+      let accountId: string | null = dto.account_id?.trim() || null;
+      let empresaNombre = dto.empresa_nombre.trim();
+      if (accountId) {
+        const account = await this.accountsService.getAccount(accountId);
+        // Spec §2.1: MAY align snapshot to accounts.name when account chosen.
+        empresaNombre = account.name.trim() || empresaNombre;
+      }
+
       const ouv = await this.ouvModel.create(
         {
           consecutivo,
           sqlIdOrigen: null,
           origenVia: OuvOrigenVia.Directa,
           comercialId: actorUserId,
+          accountId,
           titulo: dto.titulo.trim(),
-          empresaNombre: dto.empresa_nombre.trim(),
+          empresaNombre,
           descripcion: dto.descripcion.trim(),
           segmento: dto.segmento,
+          segmentId: dto.segment_id ?? null,
+          subsegmentId: dto.subsegment_id ?? null,
           vertical: dto.vertical,
           zonaActual: OuvZona.Universo,
           resultado: OuvResultado.EnCurso,
@@ -167,6 +201,7 @@ export class OuvsService {
             comercial_id: actorUserId,
             titulo: ouv.titulo,
             empresa_nombre: ouv.empresaNombre,
+            account_id: ouv.accountId,
           },
           entity: { estado: OuvZona.Universo },
         },
@@ -607,10 +642,13 @@ export class OuvsService {
       sql_id_origen: ouv.sqlIdOrigen,
       origen_via: ouv.origenVia,
       comercial_id: ouv.comercialId,
+      account_id: ouv.accountId ?? null,
       titulo: ouv.titulo,
       empresa_nombre: ouv.empresaNombre,
       descripcion: ouv.descripcion,
       segmento: ouv.segmento,
+      segment_id: ouv.segmentId ?? null,
+      subsegment_id: ouv.subsegmentId ?? null,
       vertical: ouv.vertical,
       zona_actual: ouv.zonaActual,
       resultado: ouv.resultado,

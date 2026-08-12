@@ -415,42 +415,17 @@ export class AccountsService {
 
   /**
    * GC-11: block soft-delete when active lead_contacts / ouv_contactos
-   * reference person_id. Wave 1a: those columns do not exist → no block (R3).
+   * reference person_id. Both bridges have person_id (demand-gen v2.5 + OUV Funnel v1.4).
    */
   private async personIsReferenced(personId: string): Promise<boolean> {
     for (const table of ['lead_contacts', 'ouv_contactos'] as const) {
-      const colRows = await this.sequelize.query<{ cnt: number }>(
-        `
-          SELECT COUNT(*) AS cnt
-          FROM information_schema.COLUMNS
-          WHERE TABLE_SCHEMA = DATABASE()
-            AND TABLE_NAME = :table
-            AND COLUMN_NAME = 'person_id'
-        `,
-        { replacements: { table }, type: QueryTypes.SELECT },
+      const refs = await this.sequelize.query<{ cnt: number }>(
+        `SELECT COUNT(*) AS cnt FROM \`${table}\` WHERE person_id = :personId AND deleted_at IS NULL`,
+        {
+          replacements: { personId },
+          type: QueryTypes.SELECT,
+        },
       );
-      if (Number(colRows[0]?.cnt ?? 0) === 0) {
-        continue;
-      }
-
-      const delCol = await this.sequelize.query<{ cnt: number }>(
-        `
-          SELECT COUNT(*) AS cnt
-          FROM information_schema.COLUMNS
-          WHERE TABLE_SCHEMA = DATABASE()
-            AND TABLE_NAME = :table
-            AND COLUMN_NAME = 'deleted_at'
-        `,
-        { replacements: { table }, type: QueryTypes.SELECT },
-      );
-      const hasDeletedAt = Number(delCol[0]?.cnt ?? 0) > 0;
-      const sql = hasDeletedAt
-        ? `SELECT COUNT(*) AS cnt FROM \`${table}\` WHERE person_id = :personId AND deleted_at IS NULL`
-        : `SELECT COUNT(*) AS cnt FROM \`${table}\` WHERE person_id = :personId`;
-      const refs = await this.sequelize.query<{ cnt: number }>(sql, {
-        replacements: { personId },
-        type: QueryTypes.SELECT,
-      });
       if (Number(refs[0]?.cnt ?? 0) > 0) {
         return true;
       }
