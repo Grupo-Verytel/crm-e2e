@@ -358,15 +358,7 @@ export class SqlsService {
         transaction,
       );
 
-      await sql.update(
-        {
-          estado: SqlEstado.ConvertidoOUV,
-          ouvId: ouv.ouvId,
-          enBacklog: false,
-        },
-        { transaction },
-      );
-
+      // Emit while SQL is still Asignado in DB (guard EARS-13); then mark converted.
       await this.workflowEngine.transition(
         EntityType.OUV,
         ouv.ouvId,
@@ -385,6 +377,15 @@ export class SqlsService {
           entity: { estado: estadoAnterior },
         },
         transaction,
+      );
+
+      await sql.update(
+        {
+          estado: SqlEstado.ConvertidoOUV,
+          ouvId: ouv.ouvId,
+          enBacklog: false,
+        },
+        { transaction },
       );
 
       const detail = await this.toDetailResponse(

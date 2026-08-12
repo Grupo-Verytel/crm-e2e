@@ -122,17 +122,26 @@ export class OuvsService {
       { transaction },
     );
 
+    const ouvId = String(ouv.getDataValue('ouvId') ?? ouv.ouvId ?? '').trim();
+    if (!ouvId) {
+      throw new BadRequestException(
+        'OUV was created without ouv_id; cannot attach contacts (EARS-02)',
+      );
+    }
+
+    const personIds = (lead.contacts ?? [])
+      .map((c) => c.person_id)
+      .filter((id): id is string => Boolean(id?.trim()));
+
     await this.contactosService.reutilizarDesdeLead(
-      ouv.ouvId,
+      ouvId,
       input.leadId,
       transaction,
+      personIds,
     );
-    await this.influenciasService.seedInfluenciasParaOuv(
-      ouv.ouvId,
-      transaction,
-    );
+    await this.influenciasService.seedInfluenciasParaOuv(ouvId, transaction);
     await this.checklistService.seedChecklistParaZona(
-      ouv.ouvId,
+      ouvId,
       OuvZona.Universo,
       transaction,
     );

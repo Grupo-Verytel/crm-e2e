@@ -29,7 +29,8 @@
 ### Qualification
 - `SqlDetailDto` + `toDetailResponse`: exponen `origen_creacion`.
 - `assign` WF payload: `comercial_asignado_id` (canónico EARS-04).
-- `convertirEnOuv`: sigue orquestando → `crearDesdeSql` + update SQL + `ouv.creada_desde_sql` (sin reescribir contactos/account).
+- `convertirEnOuv`: orquesta → `crearDesdeSql` (EARS-02 `reutilizarDesdeLead` fail-fast) → WF `ouv.creada_desde_sql` (SQL aún Asignado) → marca `ConvertidoOUV`.
+- FE: tras convertir, redirect a `/opportunities/:ouvId`; enlace “Abrir detalle de OUV” en SQL ya convertido.
 
 ### Workflow
 - `sql.asignado` destinatario: `payload.comercial_asignado_id` (fallback `comercial_id`).

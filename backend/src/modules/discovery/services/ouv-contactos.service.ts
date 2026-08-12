@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
+import { randomUUID } from 'crypto';
 import type { Transaction } from 'sequelize';
 import { AccountsService } from '../../accounts/services/accounts.service';
 import { DemandGenerationService } from '../../demand-generation/services/demand-generation.service';
@@ -36,24 +37,43 @@ export class OuvContactosService {
   /**
    * Reuse lead people as ouv_contactos rows (EARS-02) — no copy of denorm fields.
    * Public API for qualification txn via crearDesdeSql.
+   * Prefer passing personIds already resolved from the lead (same txn context).
    */
   async reutilizarDesdeLead(
     ouvId: string,
     leadId: string,
     transaction: Transaction,
+    personIdsFromLead?: string[],
   ): Promise<OuvContacto[]> {
-    const lead = await this.demandGeneration.findLeadById(leadId);
-    const created: OuvContacto[] = [];
-    const seen = new Set<string>();
+    if (!ouvId?.trim()) {
+      throw new BadRequestException(
+        'ouvId is required to reuse lead contacts into ouv_contactos',
+      );
+    }
 
-    for (const contact of lead.contacts ?? []) {
-      const personId = contact.person_id;
-      if (!personId || seen.has(personId)) {
-        continue;
-      }
-      seen.add(personId);
+    let personIds = (personIdsFromLead ?? [])
+      .map((id) => id?.trim())
+      .filter((id): id is string => Boolean(id));
+
+    if (personIds.length === 0) {
+      const lead = await this.demandGeneration.findLeadById(leadId);
+      personIds = (lead.contacts ?? [])
+        .map((contact) => contact.person_id?.trim())
+        .filter((id): id is string => Boolean(id));
+    }
+
+    const uniquePersonIds = [...new Set(personIds)];
+    if (uniquePersonIds.length === 0) {
+      throw new BadRequestException(
+        `Lead ${leadId} has no contacts with person_id to reuse on OUV (EARS-02)`,
+      );
+    }
+
+    const created: OuvContacto[] = [];
+    for (const personId of uniquePersonIds) {
       const row = await this.contactoModel.create(
         {
+          contactoOuvId: randomUUID(),
           ouvId,
           personId,
           notas: null,
@@ -61,6 +81,12 @@ export class OuvContactosService {
         { transaction },
       );
       created.push(row);
+    }
+
+    if (created.length === 0) {
+      throw new BadRequestException(
+        `Failed to create ouv_contactos for OUV ${ouvId} from lead ${leadId} (EARS-02)`,
+      );
     }
 
     return created;

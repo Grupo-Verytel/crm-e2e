@@ -37,7 +37,7 @@ function segmentNameToEnum(
 type Props = {
   sql: SqlDetail;
   onClose: () => void;
-  onConverted: (consecutivo: string) => void;
+  onConverted: (ouvId: string, consecutivo: string) => void;
 };
 
 export function ConvertirSqlEnOuvModal({ sql, onClose, onConverted }: Props) {
@@ -114,7 +114,7 @@ export function ConvertirSqlEnOuvModal({ sql, onClose, onConverted }: Props) {
         ...(subsegmentId ? { subsegment_id: subsegmentId } : {}),
         vertical,
       });
-      onConverted(result.ouv.consecutivo);
+      onConverted(result.ouv.ouv_id, result.ouv.consecutivo);
       onClose();
     } catch (err) {
       if (err instanceof ApiError && err.status === 422) {

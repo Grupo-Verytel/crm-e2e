@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { AppLayout } from '../../../layout/AppLayout';
 import { formatDateTime } from '../../../lib/format';
 import { useAuth } from '../../auth/hooks/useAuth';
@@ -14,25 +14,12 @@ import {
 
 export function SqlDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [sql, setSql] = useState<SqlDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [successToast, setSuccessToast] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showConvertModal, setShowConvertModal] = useState(false);
-
-  async function loadSql(sqlId: string) {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const data = await fetchSql(sqlId);
-      setSql(data);
-    } catch {
-      setError('No se pudo cargar el SQL.');
-    } finally {
-      setIsLoading(false);
-    }
-  }
 
   useEffect(() => {
     if (!id) {
@@ -62,14 +49,6 @@ export function SqlDetailPage() {
       cancelled = true;
     };
   }, [id]);
-
-  useEffect(() => {
-    if (!successToast) {
-      return;
-    }
-    const timer = window.setTimeout(() => setSuccessToast(null), 5000);
-    return () => window.clearTimeout(timer);
-  }, [successToast]);
 
   const canConvert =
     user?.role_name === 'EjecutivoComercial' &&
@@ -152,9 +131,12 @@ export function SqlDetailPage() {
                 <p className="font-bold text-ink">
                   OUV asociada: {sql.ouv.consecutivo}
                 </p>
-                <p className="mt-1 text-muted">
-                  Vista de detalle de OUV aún no disponible.
-                </p>
+                <Link
+                  to={`/opportunities/${sql.ouv.ouv_id}`}
+                  className="mt-2 inline-block text-sm font-bold text-brand hover:underline"
+                >
+                  Abrir detalle de OUV →
+                </Link>
               </div>
             ) : null}
           </section>
@@ -189,23 +171,10 @@ export function SqlDetailPage() {
         <ConvertirSqlEnOuvModal
           sql={sql}
           onClose={() => setShowConvertModal(false)}
-          onConverted={(consecutivo) => {
-            setSuccessToast(`OUV ${consecutivo} creada correctamente.`);
-            if (id) {
-              void loadSql(id);
-            }
+          onConverted={(ouvId) => {
+            navigate(`/opportunities/${ouvId}`);
           }}
         />
-      ) : null}
-
-      {successToast ? (
-        <div
-          className="fixed bottom-4 right-4 z-50 w-80 rounded border border-border bg-surface p-4 shadow-card"
-          role="status"
-        >
-          <p className="text-sm font-bold text-ink">Conversión exitosa</p>
-          <p className="mt-1 text-sm text-muted">{successToast}</p>
-        </div>
       ) : null}
     </AppLayout>
   );
