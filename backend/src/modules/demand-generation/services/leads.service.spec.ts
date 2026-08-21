@@ -1,12 +1,17 @@
 import { ConflictException } from '@nestjs/common';
 import { Sequelize } from 'sequelize';
+import { AccountsService } from '../../accounts/services/accounts.service';
 import { User } from '../../auth/models/user.model';
 import { UsersService } from '../../auth/services/users.service';
 import { RegisterAppointmentDto } from '../dtos/register-appointment.dto';
 import { CanalOrigen, LeadEstado } from '../models/enums/lead.enums';
+import { LeadChecklist } from '../models/lead-checklist.model';
 import { LeadContact } from '../models/lead-contact.model';
 import { Lead } from '../models/lead.model';
 import { Mql } from '../models/mql.model';
+import { Segment } from '../models/segment.model';
+import { Sql } from '../models/sql.model';
+import { Subsegment } from '../models/subsegment.model';
 import type { NotificationPort } from '../ports/notification.port';
 import { CampaignsService } from './campaigns.service';
 import { LeadsService } from './leads.service';
@@ -16,19 +21,32 @@ describe('LeadsService channel flows', () => {
     leadModel?: Partial<typeof Lead>;
     leadContactModel?: Partial<typeof LeadContact>;
     mqlModel?: Partial<typeof Mql>;
+    sqlModel?: Partial<typeof Sql>;
+    checklistModel?: Partial<typeof LeadChecklist>;
+    segmentModel?: Partial<typeof Segment>;
+    subsegmentModel?: Partial<typeof Subsegment>;
     userModel?: Partial<typeof User>;
     sequelize?: Partial<Sequelize>;
     notifications?: Partial<NotificationPort>;
     usersService?: Partial<UsersService>;
+    accountsService?: Partial<AccountsService>;
   }): LeadsService {
     return new LeadsService(
       (overrides?.leadModel ?? {}) as typeof Lead,
       (overrides?.leadContactModel ?? {}) as typeof LeadContact,
       (overrides?.mqlModel ?? {}) as typeof Mql,
+      (overrides?.sqlModel ?? {}) as typeof Sql,
+      (overrides?.checklistModel ?? {}) as typeof LeadChecklist,
+      (overrides?.segmentModel ?? {}) as typeof Segment,
+      (overrides?.subsegmentModel ?? {}) as typeof Subsegment,
       (overrides?.userModel ?? {}) as typeof User,
       (overrides?.sequelize ?? {}) as Sequelize,
       {} as CampaignsService,
       (overrides?.usersService ?? {}) as UsersService,
+      (overrides?.accountsService ?? {
+        getPeopleWithAccounts: jest.fn().mockResolvedValue(new Map()),
+      }) as AccountsService,
+      { transition: jest.fn().mockResolvedValue(undefined) } as never,
       (overrides?.notifications ?? {}) as NotificationPort,
     );
   }
@@ -44,7 +62,7 @@ describe('LeadsService channel flows', () => {
     );
   });
 
-  it('keeps TRADUCTOR_NEGOCIO blocked while its flow is TBD', () => {
+  it('keeps TRADUCTOR_NEGOCIO blocked on standard create path', () => {
     const service = createService();
 
     expect(() =>
@@ -57,7 +75,7 @@ describe('LeadsService channel flows', () => {
       leadId: 'lead-1',
       canalOrigen: CanalOrigen.GeneracionDemandaAgencia,
       estado: LeadEstado.MOFU,
-      empresaNombre: 'Acme',
+      contacts: [{ personId: 'person-1', position: 1 }],
       update: jest.fn(async (values: Partial<Lead>) => {
         Object.assign(lead, values);
       }),
@@ -72,6 +90,25 @@ describe('LeadsService channel flows', () => {
       },
       userModel: { findByPk: jest.fn().mockResolvedValue({ userId: 'user-1' }) },
       usersService: { isActiveWithRole: jest.fn().mockResolvedValue(true) },
+      accountsService: {
+        getPeopleWithAccounts: jest.fn().mockResolvedValue(
+          new Map([
+            [
+              'person-1',
+              {
+                person_id: 'person-1',
+                name: 'Contact',
+                job_title: null,
+                email: 'c@example.com',
+                phone: null,
+                account_id: 'acc-1',
+                account_name: 'Acme',
+                account_tax_id: null,
+              },
+            ],
+          ]),
+        ),
+      },
       sequelize: {
         transaction: jest.fn(async (callback) => callback({})),
       },
@@ -79,7 +116,7 @@ describe('LeadsService channel flows', () => {
     });
     jest
       .spyOn(service, 'toResponseDto')
-      .mockReturnValue({ estado: LeadEstado.MqlPending } as never);
+      .mockResolvedValue({ estado: LeadEstado.MqlPending } as never);
 
     const dto: RegisterAppointmentDto = {
       fecha_cita: '2026-07-20T10:00:00.000Z',
@@ -89,6 +126,7 @@ describe('LeadsService channel flows', () => {
       'lead-1',
       dto,
       'support-1',
+      'SoporteComercial',
     );
 
     expect(mqlCreate).toHaveBeenCalledWith(

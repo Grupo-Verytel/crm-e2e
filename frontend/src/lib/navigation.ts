@@ -3,7 +3,7 @@
 import type { ComponentType } from 'react';
 import {
   Megaphone, Filter, Compass, Cpu, Calculator, FileSignature,
-  Wrench, RefreshCw, ShieldCheck, ScrollText,
+  Wrench, RefreshCw, ShieldCheck, ScrollText, Building2, Contact,
 } from 'lucide-react';
 
 export type NavItem = {
@@ -12,24 +12,24 @@ export type NavItem = {
   path: string;
   icon: ComponentType<{ size?: number; strokeWidth?: number }>;
   group: 'commercial' | 'platform';
-  // CASL subjects that gate this module. The item is shown when the user's role
-  // has at least one permission on any of these subjects (matches the backend
-  // RBAC matrix in role-permissions.js). `qualification` has no dedicated
-  // subject yet, so it rides on Lead (marketing-owned MOFU stage).
+  // CASL subjects that gate this module. Qualification uses Opportunity
+  // (Soporte/Ejecutivo) for SQL routing; Lead remains for marketing adjacency.
   subjects: string[];
 };
 
 export const NAV_ITEMS: NavItem[] = [
   // Commercial — the 8 phases
   { key: 'demand-generation',     label: 'Generación de demanda', path: '/demand',        icon: Megaphone,     group: 'commercial', subjects: ['Lead', 'Campaign'] },
-  { key: 'qualification',         label: 'Calificación',          path: '/qualification', icon: Filter,        group: 'commercial', subjects: ['Lead'] },
+  { key: 'qualification',         label: 'Calificación',          path: '/qualification', icon: Filter,        group: 'commercial', subjects: ['Opportunity', 'Lead'] },
   { key: 'discovery',             label: 'Oportunidades (OUV)',   path: '/opportunities', icon: Compass,       group: 'commercial', subjects: ['Opportunity'] },
   { key: 'technical-feasibility', label: 'Preventa (PRE)',        path: '/presales',      icon: Cpu,           group: 'commercial', subjects: ['Presale'] },
   { key: 'pricing',               label: 'Pricing (PRI)',         path: '/pricing',       icon: Calculator,    group: 'commercial', subjects: ['Pricing'] },
   { key: 'offer-closing',         label: 'Oferta & Cierre',       path: '/offers',        icon: FileSignature, group: 'commercial', subjects: ['Proposal', 'Contract'] },
   { key: 'implementation',        label: 'Implementación (SER)',  path: '/services',      icon: Wrench,        group: 'commercial', subjects: ['Service'] },
   { key: 'post-sales',            label: 'Posventa',              path: '/after-sales',   icon: RefreshCw,     group: 'commercial', subjects: ['PostSale'] },
-  // Platform — the +2
+  // Platform — auth, audit, accounts (adelanto Módulo 12)
+  { key: 'accounts-empresas',     label: 'Empresas',              path: '/accounts/empresas',  icon: Building2, group: 'platform', subjects: ['Account'] },
+  { key: 'accounts-contactos',    label: 'Contactos',             path: '/accounts/contactos', icon: Contact,   group: 'platform', subjects: ['Person'] },
   { key: 'auth',                  label: 'Usuarios y roles',      path: '/admin/users',   icon: ShieldCheck,   group: 'platform',   subjects: ['User', 'Role'] },
   { key: 'audit',                 label: 'Auditoría',             path: '/admin/audit',   icon: ScrollText,    group: 'platform',   subjects: ['AuditLog'] },
 ];

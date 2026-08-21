@@ -28,8 +28,8 @@ const CRITERIA: { key: CriterionKey; label: string }[] = [
 ];
 
 /**
- * Checklist gate for "En nutrición" → "Pendiente de aprobación" (DG-13). Saving
- * the four criteria as true both persists the checklist and promotes the lead;
+ * Checklist gate for MOFU → BOFU (DG-13 / EARS-19 for FABRICA TOFU → BOFU).
+ * Saving all four criteria as true both persists the checklist and promotes;
  * partial progress can be saved without promoting.
  */
 export function ChecklistModal({
@@ -128,8 +128,8 @@ export function ChecklistModal({
     <ModalShell title="Checklist de calificación" onClose={onClose}>
       <div className="space-y-4">
         <p className="text-sm text-muted">
-          {leadName} — marca los cuatro criterios para enviarlo a aprobación del
-          Director.
+          {leadName} — marca los cuatro criterios para avanzar a BOFU
+          (aprobación del Director).
         </p>
 
         {isLoading ? (
@@ -179,7 +179,7 @@ export function ChecklistModal({
             disabled={isSaving || isLoading || !allChecked}
             className={primaryButtonClass}
           >
-            Guardar y enviar a aprobación
+            Guardar y avanzar a BOFU
           </button>
         </div>
       </div>

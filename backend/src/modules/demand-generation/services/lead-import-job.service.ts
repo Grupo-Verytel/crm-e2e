@@ -110,7 +110,7 @@ export class LeadImportJobService {
 
     for (const row of rows) {
       const email = row.values.email?.toLowerCase();
-      const nit = row.values.nit || null;
+      const nit = row.values.tax_id || row.values.nit || null;
 
       if (!email) {
         job.skipped.push({

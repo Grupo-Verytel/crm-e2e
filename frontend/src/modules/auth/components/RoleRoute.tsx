@@ -5,9 +5,12 @@ import { useAuth } from '../hooks/useAuth';
 
 export function RoleRoute({
   role,
+  roles,
   children,
 }: {
-  role: string;
+  role?: string;
+  /** Any of these roles may access (Admin always allowed). */
+  roles?: string[];
   children: ReactNode;
 }) {
   const { user, isLoading } = useAuth();
@@ -16,9 +19,11 @@ export function RoleRoute({
     return <LoadingScreen />;
   }
 
-  if (user?.role_name !== role) {
-    return <Navigate to="/opportunities" replace />;
+  const allowed = new Set(roles ?? (role ? [role] : []));
+  const roleName = user?.role_name;
+  if (roleName === 'Admin' || (roleName && allowed.has(roleName))) {
+    return children;
   }
 
-  return children;
+  return <Navigate to="/opportunities" replace />;
 }

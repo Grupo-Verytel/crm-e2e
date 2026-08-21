@@ -9,7 +9,7 @@ import type { MarketingDashboard } from '../types';
 const FUNNEL_LABELS: Record<string, string> = {
   TOFU: 'TOFU',
   MOFU: 'MOFU',
-  MQL_PENDING: 'MQL',
+  MQL_PENDING: 'BOFU',
   SQL: 'SQL',
 };
 
@@ -65,7 +65,7 @@ export function MarketingDashboardPage() {
           <div className="grid gap-4 lg:grid-cols-2">
             <div className={`${cardClass} p-5`}>
               <h2 className="mb-4 text-sm font-bold text-ink">
-                Embudo TOFU → MOFU → MQL → SQL
+                Embudo TOFU → MOFU → BOFU → SQL
               </h2>
               <Funnel funnel={data.funnel} />
             </div>

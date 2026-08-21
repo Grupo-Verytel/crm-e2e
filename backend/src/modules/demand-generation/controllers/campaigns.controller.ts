@@ -1,5 +1,7 @@
 import { Body, Controller, Get, Param, Post, Put, Query } from '@nestjs/common';
 import { CheckAbility } from '../../auth/casl/check-ability.decorator';
+import { CurrentUser } from '../../auth/decorators/current-user.decorator';
+import type { AuthenticatedUser } from '../../auth/interfaces/authenticated-user.interface';
 import { CreateCampaignDto } from '../dtos/create-campaign.dto';
 import {
   CampaignResponseDto,
@@ -17,8 +19,11 @@ export class CampaignsController {
 
   @Post()
   @CheckAbility({ action: 'create', subject: 'Campaign' })
-  create(@Body() dto: CreateCampaignDto): Promise<CampaignResponseDto> {
-    return this.demandGenerationService.createCampaign(dto);
+  create(
+    @Body() dto: CreateCampaignDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<CampaignResponseDto> {
+    return this.demandGenerationService.createCampaign(dto, user.roleName);
   }
 
   @Get()
@@ -34,7 +39,12 @@ export class CampaignsController {
   updateStatus(
     @Param('id') id: string,
     @Body() dto: UpdateCampaignStatusDto,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<CampaignResponseDto> {
-    return this.demandGenerationService.updateCampaignStatus(id, dto);
+    return this.demandGenerationService.updateCampaignStatus(
+      id,
+      dto,
+      user.roleName,
+    );
   }
 }

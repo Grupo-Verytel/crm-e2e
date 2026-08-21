@@ -30,6 +30,36 @@ const MarketingDashboardPage = lazy(
 const AgendaInboxPage = lazy(
   () => import('../modules/demand-generation/pages/AgendaInboxPageLazy'),
 );
+const QualificationHomePage = lazy(
+  () => import('../modules/qualification/pages/QualificationHomePageLazy'),
+);
+const AssignedSqlsPage = lazy(
+  () => import('../modules/qualification/pages/AssignedSqlsPageLazy'),
+);
+const SqlDetailPage = lazy(
+  () => import('../modules/qualification/pages/SqlDetailPageLazy'),
+);
+const OuvsBoardPage = lazy(
+  () => import('../modules/discovery/pages/OuvsBoardPageLazy'),
+);
+const OuvDetailPage = lazy(
+  () => import('../modules/discovery/pages/OuvDetailPageLazy'),
+);
+const MotivosPerdidaPage = lazy(
+  () => import('../modules/discovery/pages/MotivosPerdidaPageLazy'),
+);
+const MotivosDescartePage = lazy(
+  () => import('../modules/discovery/pages/MotivosDescartePageLazy'),
+);
+const ZonaChecklistAdminPage = lazy(
+  () => import('../modules/discovery/pages/ZonaChecklistAdminPageLazy'),
+);
+const AccountsListPage = lazy(
+  () => import('../modules/accounts/pages/AccountsListPageLazy'),
+);
+const PeopleListPage = lazy(
+  () => import('../modules/accounts/pages/PeopleListPageLazy'),
+);
 
 function protectedElement(title: string, description: string) {
   return (
@@ -67,9 +97,48 @@ export function AppRoutes() {
     },
     {
       path: '/opportunities',
-      element: protectedElement(
-        'Oportunidades (OUV)',
-        'Pipeline de oportunidades — módulo discovery (próximamente).',
+      element: (
+        <ProtectedRoute>
+          <OuvsBoardPage />
+        </ProtectedRoute>
+      ),
+    },
+    {
+      path: '/opportunities/admin/motivos-perdida',
+      element: (
+        <ProtectedRoute>
+          <RoleRoute roles={['SoporteComercial', 'Admin']}>
+            <MotivosPerdidaPage />
+          </RoleRoute>
+        </ProtectedRoute>
+      ),
+    },
+    {
+      path: '/opportunities/admin/motivos-descarte',
+      element: (
+        <ProtectedRoute>
+          <RoleRoute roles={['SoporteComercial', 'Admin']}>
+            <MotivosDescartePage />
+          </RoleRoute>
+        </ProtectedRoute>
+      ),
+    },
+    {
+      path: '/opportunities/admin/zona-checklist-templates',
+      element: (
+        <ProtectedRoute>
+          <RoleRoute roles={['SoporteComercial', 'Admin']}>
+            <ZonaChecklistAdminPage />
+          </RoleRoute>
+        </ProtectedRoute>
+      ),
+    },
+    {
+      path: '/opportunities/:id',
+      element: (
+        <ProtectedRoute>
+          <OuvDetailPage />
+        </ProtectedRoute>
       ),
     },
     {
@@ -116,7 +185,7 @@ export function AppRoutes() {
       path: '/demand/agenda',
       element: (
         <ProtectedRoute>
-          <RoleRoute role="SoporteComercial">
+          <RoleRoute roles={['SoporteComercial', 'GestorMercadeo']}>
             <AgendaInboxPage />
           </RoleRoute>
         </ProtectedRoute>
@@ -132,9 +201,28 @@ export function AppRoutes() {
     },
     {
       path: '/qualification',
-      element: protectedElement(
-        'Calificación',
-        'Nurturing y scoring — módulo qualification (próximamente).',
+      element: (
+        <ProtectedRoute>
+          <QualificationHomePage />
+        </ProtectedRoute>
+      ),
+    },
+    {
+      path: '/qualification/assigned',
+      element: (
+        <ProtectedRoute>
+          <RoleRoute role="EjecutivoComercial">
+            <AssignedSqlsPage />
+          </RoleRoute>
+        </ProtectedRoute>
+      ),
+    },
+    {
+      path: '/qualification/sqls/:id',
+      element: (
+        <ProtectedRoute>
+          <SqlDetailPage />
+        </ProtectedRoute>
       ),
     },
     {
@@ -170,6 +258,22 @@ export function AppRoutes() {
       element: protectedElement(
         'Posventa',
         'Renovaciones y ChurnRate — módulo post-sales (próximamente).',
+      ),
+    },
+    {
+      path: '/accounts/empresas',
+      element: (
+        <ProtectedRoute>
+          <AccountsListPage />
+        </ProtectedRoute>
+      ),
+    },
+    {
+      path: '/accounts/contactos',
+      element: (
+        <ProtectedRoute>
+          <PeopleListPage />
+        </ProtectedRoute>
       ),
     },
     {

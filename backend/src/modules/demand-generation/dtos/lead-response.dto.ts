@@ -66,13 +66,18 @@ export class LeadResponseDto {
   industria: string | null;
   region: string;
   pais: string;
+  /** Computed from primary contact → account (UI compat). */
   empresa_nombre: string;
   nit: string | null;
+  /** Computed from primary contact person (UI compat). */
   contacto_nombre: string;
   cargo: string | null;
   email: string;
   telefono: string | null;
   contacts: LeadContactResponseDto[];
+  business_referrer_id: string | null;
+  segment_id: string | null;
+  subsegment_id: string | null;
   tipo_influencia: string | null;
   estado: string;
   icp_score: number | null;

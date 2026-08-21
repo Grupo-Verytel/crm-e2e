@@ -16,6 +16,7 @@ export {
   TipoLead,
 } from './enums/lead.enums';
 export { MqlEstado } from './enums/mql.enums';
+export { SqlEstado } from './enums/sql.enums';
 export { Segmento, SegmentoObjetivo } from './enums/segment.enum';
 export { Campaign } from './campaign.model';
 export { Interaction } from './interaction.model';

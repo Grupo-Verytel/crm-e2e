@@ -160,20 +160,44 @@ export const INTERACTION_RESULTADOS: InteractionResultado[] = [
 export type LeadContact = {
   contact_id: string;
   position: number;
-  empresa_nombre: string;
-  nombre: string;
-  cargo: string | null;
-  email: string;
-  telefono: string | null;
+  person_id: string;
+  name: string;
+  job_title: string | null;
+  email: string | null;
+  phone: string | null;
+  account_id: string;
+  account_name: string;
+  account_tax_id: string | null;
+  /** Legacy API fields — use fallbacks when reading older payloads */
+  nombre?: string;
+  cargo?: string | null;
+  empresa_nombre?: string;
+  telefono?: string | null;
 };
 
 export type LeadContactInput = {
-  empresa_nombre: string;
-  nombre: string;
-  cargo: string;
-  email: string;
-  telefono: string;
+  person_id: string;
 };
+
+export type Subsegment = {
+  id: string;
+  name: string;
+};
+
+export type Segment = {
+  id: string;
+  name: string;
+  subsegments: Subsegment[];
+};
+
+export type CreateLeadChecklistInput = {
+  criterio_sector_objetivo: boolean;
+  criterio_necesidad_portafolio: boolean;
+  criterio_acceso_decisor: boolean;
+  criterio_presupuesto_indicios: boolean;
+};
+
+export type LeadFormMode = 'standard' | 'product_manager' | 'ejecutivo';
 
 export type Lead = {
   lead_id: string;
@@ -193,6 +217,9 @@ export type Lead = {
   email: string;
   telefono: string | null;
   contacts: LeadContact[];
+  business_referrer_id: string | null;
+  segment_id: string | null;
+  subsegment_id: string | null;
   tipo_influencia: string | null;
   estado: LeadEstado;
   icp_score: number | null;
@@ -236,6 +263,8 @@ export type CreateLeadPayload = {
   origen: OrigenLead;
   canal_origen: CanalOrigen;
   segmento: Segmento;
+  segment_id?: string;
+  subsegment_id?: string;
   industria?: string;
   region: string;
   pais: string;
@@ -244,6 +273,8 @@ export type CreateLeadPayload = {
   responsable_id: string;
   campana_id?: string;
   sub_origen?: string;
+  business_referrer_id?: string;
+  checklist?: CreateLeadChecklistInput;
 };
 
 export type RegisterAppointmentPayload = {

@@ -27,12 +27,12 @@ const ESTADO_TONE: Record<string, keyof typeof TONE_CLASS> = {
 };
 
 const LABELS: Record<string, string> = {
-  // Lead estados use the Mercadeo vocabulary (spec §5); never expose the ENUM.
+  // Lead estados — spec §1/§4 machine: TOFU → MOFU → BOFU → SQL
   Nuevo: 'Nuevo',
-  TOFU: 'Por contactar',
-  MOFU: 'En nutrición',
-  MQL_PENDING: 'Pendiente de aprobación',
-  SQL: 'Calificado (a ventas)',
+  TOFU: 'TOFU',
+  MOFU: 'MOFU',
+  MQL_PENDING: 'BOFU',
+  SQL: 'SQL',
   Reciclaje: 'En reciclaje',
   Descartado: 'Descartado',
   // MQL lifecycle

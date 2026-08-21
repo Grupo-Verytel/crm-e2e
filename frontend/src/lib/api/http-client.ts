@@ -123,9 +123,17 @@ export async function apiRequest<T>(
     let code: string | undefined;
 
     try {
-      const body = (await response.json()) as ApiErrorBody;
-      code = body.code;
-      if (Array.isArray(body.message)) {
+      const body = (await response.json()) as ApiErrorBody & {
+        detalle?: string;
+        codigo_error?: string;
+        guard?: string;
+      };
+      code = body.codigo_error ?? body.code;
+      if (typeof body.detalle === 'string' && body.detalle.trim()) {
+        message = body.guard
+          ? `${body.guard}: ${body.detalle}`
+          : body.detalle;
+      } else if (Array.isArray(body.message)) {
         message = body.message.join(', ');
       } else if (typeof body.message === 'string') {
         message = body.message;

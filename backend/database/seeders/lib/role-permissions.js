@@ -4,12 +4,20 @@ const ACTION_MAP = {
   U: 'update',
   A: 'approve',
   X: 'close',
+  D: 'delete',
 };
 
 const SUBJECTS = {
   'users/roles': ['User', 'Role'],
   'leads/campaigns': ['Lead', 'Campaign'],
   opportunities: ['Opportunity'],
+  accounts: ['Account', 'Person'],
+  'ouv-catalogs': [
+    'MotivoPerdida',
+    'MotivoDescarte',
+    'ZonaChecklistTemplate',
+  ],
+  'ouv-motivos': ['MotivoPerdida', 'MotivoDescarte'],
   presales: ['Presale'],
   pricing: ['Pricing'],
   'proposals/contracts': ['Proposal', 'Contract'],
@@ -26,6 +34,8 @@ const MATRIX = {
     // Full demand-gen so Admin can operate without switching roles in local/dev.
     'leads/campaigns': 'CRUA',
     opportunities: 'R',
+    accounts: 'CRU',
+    'ouv-catalogs': 'CRUD',
     presales: 'R',
     pricing: 'R',
     'proposals/contracts': 'R',
@@ -37,22 +47,36 @@ const MATRIX = {
   DirectorMercadeo: {
     'leads/campaigns': 'CRUA',
     opportunities: 'R',
+    accounts: 'CRU',
   },
   GestorMercadeo: {
     'leads/campaigns': 'CRU',
+    accounts: 'CRU',
   },
   EjecutivoComercial: {
-    'leads/campaigns': 'R',
+    'leads/campaigns': 'CRU',
     opportunities: 'CRUX',
+    accounts: 'CRU',
+    'ouv-motivos': 'R',
     presales: 'R',
     pricing: 'R',
     'proposals/contracts': 'CRU',
     services: 'R',
     'post-sales': 'R',
   },
+  ProductManager: {
+    'leads/campaigns': 'CRU',
+    accounts: 'CRU',
+  },
+  TraductorDeNegocio: {
+    'leads/campaigns': 'R',
+    accounts: 'R',
+  },
   SoporteComercial: {
     'leads/campaigns': 'R',
     opportunities: 'CRU',
+    accounts: 'CRUD',
+    'ouv-catalogs': 'CRUD',
     presales: 'R',
     pricing: 'R',
     'proposals/contracts': 'CRUA',
@@ -62,26 +86,32 @@ const MATRIX = {
   },
   Preventa: {
     opportunities: 'R',
+    accounts: 'CRU',
     presales: 'CRUA',
     pricing: 'R',
     'proposals/contracts': 'R',
   },
   Pricing: {
     opportunities: 'R',
+    accounts: 'CRU',
     presales: 'R',
     pricing: 'CRUA',
     'proposals/contracts': 'R',
   },
   PMO: {
+    accounts: 'CRU',
     services: 'CRUAX',
     billing: 'R',
     'post-sales': 'R',
   },
   FyA: {
+    accounts: 'CRU',
     services: 'R',
     billing: 'CRUA',
   },
-  Cliente: {},
+  Cliente: {
+    accounts: 'CRU',
+  },
 };
 
 const BASE_ROLES = [
@@ -104,6 +134,14 @@ const BASE_ROLES = [
   {
     name: 'SoporteComercial',
     description: 'Soporte Comercial — commercial support',
+  },
+  {
+    name: 'ProductManager',
+    description: 'Product Manager — direct lead creation to MQL_PENDING',
+  },
+  {
+    name: 'TraductorDeNegocio',
+    description: 'Traductor de Negocio — read-only referred leads',
   },
   {
     name: 'Preventa',

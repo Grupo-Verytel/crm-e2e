@@ -1,42 +1,40 @@
+import { Type } from 'class-transformer';
 import {
-  IsEmail,
+  IsBoolean,
   IsNotEmpty,
-  IsString,
-  MaxLength,
+  IsOptional,
+  IsUUID,
+  ValidateNested,
 } from 'class-validator';
 
 export class LeadContactInputDto {
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(120)
-  empresa_nombre: string;
+  @IsUUID('4')
+  person_id: string;
+}
 
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(120)
-  nombre: string;
+export class DirectChecklistDto {
+  @IsBoolean()
+  criterio_sector_objetivo: boolean;
 
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(80)
-  cargo: string;
+  @IsBoolean()
+  criterio_necesidad_portafolio: boolean;
 
-  @IsEmail()
-  @MaxLength(180)
-  email: string;
+  @IsBoolean()
+  criterio_acceso_decisor: boolean;
 
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(20)
-  telefono: string;
+  @IsBoolean()
+  criterio_presupuesto_indicios: boolean;
 }
 
 export class LeadContactResponseDto {
   contact_id: string;
   position: number;
-  empresa_nombre: string;
-  nombre: string;
-  cargo: string | null;
-  email: string;
-  telefono: string | null;
+  person_id: string;
+  name: string;
+  job_title: string | null;
+  email: string | null;
+  phone: string | null;
+  account_id: string;
+  account_name: string;
+  account_tax_id: string | null;
 }

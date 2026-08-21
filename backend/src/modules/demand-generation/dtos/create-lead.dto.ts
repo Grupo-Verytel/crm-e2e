@@ -18,7 +18,10 @@ import {
   TipoLead,
 } from '../models/enums/lead.enums';
 import { Segmento } from '../models/enums/segment.enum';
-import { LeadContactInputDto } from './lead-contact.dto';
+import {
+  DirectChecklistDto,
+  LeadContactInputDto,
+} from './lead-contact.dto';
 
 export class CreateLeadDto {
   @IsEnum(TipoLead)
@@ -48,6 +51,14 @@ export class CreateLeadDto {
   @MaxLength(80)
   industria?: string;
 
+  @IsOptional()
+  @IsUUID('4')
+  segment_id?: string;
+
+  @IsOptional()
+  @IsUUID('4')
+  subsegment_id?: string;
+
   @IsString()
   @MinLength(1)
   @MaxLength(60)
@@ -71,6 +82,18 @@ export class CreateLeadDto {
 
   @IsUUID('4')
   responsable_id: string;
+
+  @ValidateIf(
+    (dto: CreateLeadDto) => dto.canal_origen === CanalOrigen.TraductorNegocio,
+  )
+  @IsUUID('4')
+  business_referrer_id?: string;
+
+  /** Required for ProductManager / EjecutivoComercial direct routes. */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => DirectChecklistDto)
+  checklist?: DirectChecklistDto;
 
   @IsOptional()
   @IsString()

@@ -1,6 +1,7 @@
 import {
   BelongsTo,
   Column,
+  CreatedAt,
   DataType,
   Default,
   DeletedAt,
@@ -8,9 +9,12 @@ import {
   Model,
   PrimaryKey,
   Table,
+  UpdatedAt,
 } from 'sequelize-typescript';
 import { User } from '../../auth/models/user.model';
 import { Mql } from './mql.model';
+import { SqlOrigenCreacion } from './enums/sql-origen.enum';
+import { SqlEstado } from './enums/sql.enums';
 
 @Table({
   tableName: 'sqls',
@@ -36,11 +40,30 @@ export class Sql extends Model {
   @BelongsTo(() => Mql)
   declare mql: Mql;
 
+  @Default(SqlEstado.PendienteAsignacion)
+  @Column({
+    type: DataType.ENUM(...Object.values(SqlEstado)),
+    allowNull: false,
+  })
+  declare estado: SqlEstado;
+
+  /**
+   * Legacy flag kept in sync with estado for DG consumers.
+   * true when PendienteAsignacion or Backlog; false otherwise.
+   */
   @Default(true)
   @Column({ type: DataType.BOOLEAN, field: 'en_backlog', allowNull: false })
   declare enBacklog: boolean;
 
-  /** Assigned later by Soporte Comercial — outside this module's scope. */
+  @Default(SqlOrigenCreacion.EnrutamientoNormal)
+  @Column({
+    type: DataType.ENUM(...Object.values(SqlOrigenCreacion)),
+    field: 'origen_creacion',
+    allowNull: false,
+  })
+  declare origenCreacion: SqlOrigenCreacion;
+
+  /** Assigned by SoporteComercial (qualification module) or KAM on direct route. */
   @ForeignKey(() => User)
   @Column({
     type: DataType.CHAR(36),
@@ -55,9 +78,24 @@ export class Sql extends Model {
   })
   declare comercialAsignado: User;
 
+  @Column({ type: DataType.DATE, field: 'fecha_asignacion', allowNull: true })
+  declare fechaAsignacion: Date | null;
+
+  /** Set when the SQL is converted to an OUV (spec-calificacion EARS-12). */
+  @Column({ type: DataType.CHAR(36), field: 'ouv_id', allowNull: true })
+  declare ouvId: string | null;
+
   @Default(DataType.NOW)
   @Column({ type: DataType.DATE, field: 'fecha_creacion', allowNull: false })
   declare fechaCreacion: Date;
+
+  @CreatedAt
+  @Column({ type: DataType.DATE, field: 'created_at' })
+  declare createdAt: Date;
+
+  @UpdatedAt
+  @Column({ type: DataType.DATE, field: 'updated_at' })
+  declare updatedAt: Date;
 
   @DeletedAt
   @Column({ type: DataType.DATE, field: 'deleted_at' })

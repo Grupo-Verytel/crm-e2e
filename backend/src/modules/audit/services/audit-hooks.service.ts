@@ -26,7 +26,8 @@ export class AuditHooksService implements OnModuleInit {
   private shouldSkipModel(model: ModelStatic<Model>): boolean {
     const tableName = model.tableName ?? model.options?.tableName ?? model.name;
 
-    return tableName === 'audit_log';
+    // notifications are written by the workflow engine (own audit via STATE_CHANGE)
+    return tableName === 'audit_log' || tableName === 'notifications';
   }
 
   private registerModelHooks(model: ModelStatic<Model>): void {

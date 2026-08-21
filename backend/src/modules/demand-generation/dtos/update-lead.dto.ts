@@ -1,5 +1,4 @@
 import {
-  IsEmail,
   IsEnum,
   IsInt,
   IsNotEmpty,
@@ -56,32 +55,16 @@ export class UpdateLeadDto {
 
   @IsOptional()
   @IsString()
-  @MaxLength(120)
-  empresa_nombre?: string;
-
-  @IsOptional()
-  @IsString()
   @MaxLength(20)
   nit?: string | null;
 
   @IsOptional()
-  @IsString()
-  @MaxLength(120)
-  contacto_nombre?: string;
+  @IsUUID('4')
+  segment_id?: string | null;
 
   @IsOptional()
-  @IsString()
-  @MaxLength(80)
-  cargo?: string | null;
-
-  @IsOptional()
-  @IsEmail()
-  email?: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(20)
-  telefono?: string | null;
+  @IsUUID('4')
+  subsegment_id?: string | null;
 
   @IsOptional()
   @IsUUID('4')

@@ -5,6 +5,7 @@ import { formatDateTime } from '../../../lib/format';
 import { useAuth } from '../../auth/hooks/useAuth';
 import {
   discardLead,
+  fetchChecklist,
   fetchLead,
   recycleLead,
   transitionLeadToMofu,
@@ -17,17 +18,38 @@ import { MotivoModal } from '../components/MotivoModal';
 import { StatusBadge } from '../components/StatusBadge';
 import { cardClass, ghostButtonClass, primaryButtonClass } from '../components/ui';
 import { ExpectedRoute } from '../components/leads/ExpectedRoute';
+import { ChecklistModal } from '../components/leads/ChecklistModal';
+import { RegisterAppointmentModal } from '../components/leads/RegisterAppointmentModal';
 import { CANAL_ORIGEN_LABEL } from '../lib/lead-vocab';
-import type { Lead } from '../types';
+import {
+  contactAccountName,
+  contactEmail,
+  contactJobTitle,
+  contactPersonName,
+  contactPhone,
+} from '../lib/contact-display';
+import type { Checklist, Lead } from '../types';
 
+function isChecklistComplete(checklist: Checklist | null): boolean {
+  return (
+    !!checklist &&
+    checklist.criterio_sector_objetivo &&
+    checklist.criterio_necesidad_portafolio &&
+    checklist.criterio_acceso_decisor &&
+    checklist.criterio_presupuesto_indicios
+  );
+}
 export function LeadDetailPage() {
   const { id = '' } = useParams();
   const { user } = useAuth();
+  const isTraductor = user?.role_name === 'TraductorDeNegocio';
   const [lead, setLead] = useState<Lead | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [showDiscard, setShowDiscard] = useState(false);
+  const [showAppointment, setShowAppointment] = useState(false);
+  const [showChecklist, setShowChecklist] = useState(false);
 
   const loadLead = useCallback(async () => {
     setIsLoading(true);
@@ -55,6 +77,23 @@ export function LeadDetailPage() {
     }
   }
 
+  /** Spec §4: MOFU → BOFU (or FABRICA TOFU → BOFU) via complete checklist. */
+  async function advanceToBofu() {
+    setActionError(null);
+    try {
+      const checklist = await fetchChecklist(lead!.lead_id);
+      if (isChecklistComplete(checklist)) {
+        setLead(await transitionLeadToMql(lead!.lead_id));
+        return;
+      }
+      setShowChecklist(true);
+    } catch (err) {
+      setActionError(
+        err instanceof Error ? err.message : 'No se pudo avanzar a BOFU.',
+      );
+    }
+  }
+
   if (isLoading) {
     return (
       <AppLayout title="Lead">
@@ -78,8 +117,29 @@ export function LeadDetailPage() {
   const canDiscard =
     lead.estado !== 'SQL' && lead.estado !== 'Descartado';
 
+  const isAgencyMofu =
+    lead.estado === 'MOFU' &&
+    lead.canal_origen === 'GENERACION_DEMANDA_AGENCIA';
+
+  const canAdvanceViaChecklist =
+    (lead.estado === 'MOFU' &&
+      lead.canal_origen !== 'GENERACION_DEMANDA_AGENCIA') ||
+    (lead.estado === 'TOFU' && lead.canal_origen === 'FABRICA');
+
+  const canRegisterAppointment =
+    isAgencyMofu &&
+    (user?.role_name === 'SoporteComercial' ||
+      user?.role_name === 'GestorMercadeo' ||
+      user?.role_name === 'Admin');
+
+  const primaryContact = lead.contacts[0];
+  const headerCompany =
+    primaryContact != null
+      ? contactAccountName(primaryContact, lead.empresa_nombre)
+      : lead.empresa_nombre;
+
   return (
-    <AppLayout title={lead.empresa_nombre}>
+    <AppLayout title={headerCompany}>
       <DemandNav />
 
       <Link to="/demand" className="mb-3 inline-block text-sm text-muted hover:text-ink">
@@ -89,7 +149,7 @@ export function LeadDetailPage() {
       <div className={`${cardClass} mb-4 p-5`}>
         <div className="mb-4 flex items-start justify-between">
           <div>
-            <h1 className="text-lg font-bold text-ink">{lead.empresa_nombre}</h1>
+            <h1 className="text-lg font-bold text-ink">{headerCompany}</h1>
             <p className="text-sm text-muted">
               {lead.contacto_nombre} · {lead.email}
             </p>
@@ -120,16 +180,23 @@ export function LeadDetailPage() {
             Contactos ({lead.contacts.length})
           </h2>
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {lead.contacts.map((contact) => (
+            {lead.contacts.map((contact) => {
+              const personName = contactPersonName(contact);
+              const jobTitle = contactJobTitle(contact);
+              const accountName = contactAccountName(contact, lead.empresa_nombre);
+              const email = contactEmail(contact);
+              const phone = contactPhone(contact);
+
+              return (
               <div
                 key={contact.contact_id}
                 className="rounded border border-border bg-bg p-3 text-sm"
               >
                 <div className="mb-2 flex items-start justify-between gap-2">
                   <div>
-                    <p className="font-bold text-ink">{contact.nombre}</p>
+                    <p className="font-bold text-ink">{personName}</p>
                     <p className="text-xs text-muted">
-                      {contact.cargo ?? 'Sin cargo'} · {contact.empresa_nombre}
+                      {jobTitle ?? 'Sin cargo'} · {accountName}
                     </p>
                   </div>
                   {contact.position === 1 ? (
@@ -138,22 +205,27 @@ export function LeadDetailPage() {
                     </span>
                   ) : null}
                 </div>
-                <a
-                  href={`mailto:${contact.email}`}
-                  className="block truncate text-accent hover:text-accent-700"
-                >
-                  {contact.email}
-                </a>
-                {contact.telefono ? (
+                {email ? (
                   <a
-                    href={`tel:${contact.telefono}`}
+                    href={`mailto:${email}`}
+                    className="block truncate text-accent hover:text-accent-700"
+                  >
+                    {email}
+                  </a>
+                ) : (
+                  <p className="text-xs text-muted">Sin correo</p>
+                )}
+                {phone ? (
+                  <a
+                    href={`tel:${phone}`}
                     className="mt-1 block text-ink hover:text-accent"
                   >
-                    {contact.telefono}
+                    {phone}
                   </a>
                 ) : null}
               </div>
-            ))}
+              );
+            })}
           </div>
         </section>
 
@@ -170,6 +242,7 @@ export function LeadDetailPage() {
           </p>
         ) : null}
 
+        {!isTraductor ? (
         <div className="mt-5 flex flex-wrap gap-2">
           {lead.estado === 'TOFU' && lead.canal_origen !== 'FABRICA' ? (
             <button
@@ -181,16 +254,35 @@ export function LeadDetailPage() {
             </button>
           ) : null}
 
-          {(lead.estado === 'MOFU' &&
-            lead.canal_origen !== 'GENERACION_DEMANDA_AGENCIA') ||
-          (lead.estado === 'TOFU' && lead.canal_origen === 'FABRICA') ? (
+          {canAdvanceViaChecklist ? (
             <button
               type="button"
-              onClick={() => runAction(() => transitionLeadToMql(lead.lead_id))}
+              onClick={() => void advanceToBofu()}
               className={primaryButtonClass}
             >
-              Enviar a MQL
+              Avanzar a BOFU
             </button>
+          ) : null}
+
+          {canRegisterAppointment ? (
+            <button
+              type="button"
+              onClick={() => setShowAppointment(true)}
+              className={primaryButtonClass}
+            >
+              Registrar cita (avanzar a BOFU)
+            </button>
+          ) : null}
+
+          {isAgencyMofu && !canRegisterAppointment ? (
+            <p className="w-full text-sm text-muted">
+              Este lead de agencia avanza a BOFU registrando una cita (Gestor de
+              Mercadeo o Soporte Comercial) desde el detalle o la{' '}
+              <Link to="/demand/agenda" className="font-bold text-accent hover:underline">
+                Bandeja de Agenda
+              </Link>
+              .
+            </p>
           ) : null}
 
           {(lead.estado === 'Descartado' || lead.estado === 'Reciclaje') && user ? (
@@ -213,6 +305,11 @@ export function LeadDetailPage() {
             </button>
           ) : null}
         </div>
+        ) : (
+          <p className="mt-5 text-sm text-muted">
+            Vista de solo lectura para traductores de negocio.
+          </p>
+        )}
 
         {lead.estado === 'MQL_PENDING' ? (
           <p className="mt-3 text-xs text-muted">
@@ -230,12 +327,17 @@ export function LeadDetailPage() {
           key={`checklist-${lead.estado}`}
           leadId={lead.lead_id}
           editable={
-            lead.estado === 'MOFU' ||
-            (lead.estado === 'TOFU' && lead.canal_origen === 'FABRICA')
+            !isTraductor &&
+            (lead.estado === 'MOFU' ||
+              (lead.estado === 'TOFU' && lead.canal_origen === 'FABRICA'))
           }
           onSaved={loadLead}
         />
-        <InteractionTimeline leadId={lead.lead_id} onRegistered={loadLead} />
+        <InteractionTimeline
+          leadId={lead.lead_id}
+          onRegistered={loadLead}
+          readOnly={isTraductor}
+        />
       </div>
 
       {showDiscard ? (
@@ -246,6 +348,31 @@ export function LeadDetailPage() {
             setLead(await discardLead(lead.lead_id, motivo));
           }}
           onClose={() => setShowDiscard(false)}
+        />
+      ) : null}
+
+      {showAppointment ? (
+        <RegisterAppointmentModal
+          lead={lead}
+          onRegistered={(updated) => {
+            setLead(updated);
+            setShowAppointment(false);
+          }}
+          onClose={() => setShowAppointment(false)}
+        />
+      ) : null}
+
+      {showChecklist ? (
+        <ChecklistModal
+          leadId={lead.lead_id}
+          leadName={lead.empresa_nombre}
+          onQualified={async () => {
+            await loadLead();
+          }}
+          onSaved={async () => {
+            await loadLead();
+          }}
+          onClose={() => setShowChecklist(false)}
         />
       ) : null}
     </AppLayout>
