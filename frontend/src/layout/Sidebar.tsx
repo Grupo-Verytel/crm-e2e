@@ -45,7 +45,7 @@ export function Sidebar({
         <button
           type="button"
           onClick={onToggle}
-          className="btn-glow-outline grid h-9 w-9 flex-none place-items-center rounded"
+          className="icon-btn grid h-9 w-9 flex-none place-items-center rounded"
           aria-label={isCollapsed ? 'Expandir menú lateral' : 'Colapsar menú lateral'}
           aria-expanded={!isCollapsed}
         >
@@ -93,7 +93,7 @@ export function Sidebar({
           type="button"
           onClick={() => void handleLogout()}
           className={[
-            'btn-glow-outline inline-flex w-full items-center rounded text-sm font-bold',
+            'icon-btn inline-flex w-full items-center rounded text-sm font-bold',
             isCollapsed ? 'h-9 justify-center px-0' : 'h-9 gap-2 px-3',
           ].join(' ')}
           aria-label="Cerrar sesión"

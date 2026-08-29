@@ -55,7 +55,7 @@ export function NotificationBell() {
           setOpen((value) => !value);
           void refresh();
         }}
-        className="btn-glow-outline relative grid h-9 w-9 place-items-center rounded"
+        className="icon-btn relative grid h-9 w-9 place-items-center rounded"
         aria-label={
           unread > 0
             ? `Notificaciones, ${unread} sin leer`

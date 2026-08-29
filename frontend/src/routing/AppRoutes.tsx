@@ -60,6 +60,21 @@ const AccountsListPage = lazy(
 const PeopleListPage = lazy(
   () => import('../modules/accounts/pages/PeopleListPageLazy'),
 );
+const SoporteComercialInboxPage = lazy(
+  () => import('../modules/offer-closing/pages/SoporteComercialInboxPageLazy'),
+);
+const VentaGanadaDetailPage = lazy(
+  () => import('../modules/offer-closing/pages/VentaGanadaDetailPageLazy'),
+);
+const ServicesListPage = lazy(
+  () => import('../modules/implementation/pages/ServicesListPageLazy'),
+);
+const ProjectDetailPage = lazy(
+  () => import('../modules/implementation/pages/ProjectDetailPageLazy'),
+);
+const ReportesProyectoPage = lazy(
+  () => import('../modules/implementation/pages/ReportesProyectoPageLazy'),
+);
 
 function protectedElement(title: string, description: string) {
   return (
@@ -241,16 +256,42 @@ export function AppRoutes() {
     },
     {
       path: '/offers',
-      element: protectedElement(
-        'Oferta & Cierre',
-        'Propuestas y contratos — módulo offer-closing (próximamente).',
+      element: (
+        <ProtectedRoute>
+          <SoporteComercialInboxPage />
+        </ProtectedRoute>
+      ),
+    },
+    {
+      path: '/offers/:ouvId',
+      element: (
+        <ProtectedRoute>
+          <VentaGanadaDetailPage />
+        </ProtectedRoute>
       ),
     },
     {
       path: '/services',
-      element: protectedElement(
-        'Implementación (SER)',
-        'Servicios y hitos RFS/RFB — módulo implementation (próximamente).',
+      element: (
+        <ProtectedRoute>
+          <ServicesListPage />
+        </ProtectedRoute>
+      ),
+    },
+    {
+      path: '/services/reportes',
+      element: (
+        <ProtectedRoute>
+          <ReportesProyectoPage />
+        </ProtectedRoute>
+      ),
+    },
+    {
+      path: '/services/:ouvId',
+      element: (
+        <ProtectedRoute>
+          <ProjectDetailPage />
+        </ProtectedRoute>
       ),
     },
     {

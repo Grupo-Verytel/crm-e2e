@@ -77,9 +77,10 @@ export function LoginPage() {
   const DetailIcon = slide.detailIcon;
 
   return (
-    <main className="min-h-screen bg-surface lg:grid lg:grid-cols-[minmax(0,1.08fr)_minmax(28rem,0.92fr)]">
+    <main className="min-h-screen bg-login-right [color-scheme:dark] lg:grid lg:grid-cols-[minmax(0,1.08fr)_minmax(28rem,0.92fr)]">
+      {/* Left — grey branding panel */}
       <section
-        className="relative hidden min-h-screen overflow-hidden bg-accent px-12 py-10 text-white lg:flex lg:flex-col xl:px-20 xl:py-14"
+        className="relative hidden min-h-screen overflow-hidden bg-login-left px-12 py-10 text-white lg:flex lg:flex-col xl:px-20 xl:py-14"
         aria-label="Beneficios de Frisson CRM"
       >
         <div className="absolute -left-16 top-1/4 h-48 w-48 rounded-full border border-white/15" />
@@ -87,7 +88,11 @@ export function LoginPage() {
         <div className="absolute right-16 top-16 h-3 w-3 rounded-full bg-white/80" />
 
         <div className="relative z-10">
-          <BrandMark className="h-8 w-auto" />
+          <BrandMark
+            className="h-[3.4rem] w-auto gap-4"
+            wordmarkClassName="text-[22px] text-white"
+            variant="dark"
+          />
         </div>
 
         <div className="relative z-10 my-auto">
@@ -96,7 +101,7 @@ export function LoginPage() {
             aria-hidden="true"
           >
             <div className="relative grid h-52 w-80 place-items-center rounded border border-white/25 bg-white/10 shadow-card">
-              <div className="absolute -left-8 top-8 grid h-16 w-16 place-items-center rounded bg-surface text-accent shadow-card">
+              <div className="absolute -left-8 top-8 grid h-16 w-16 place-items-center rounded bg-login-right text-accent shadow-card">
                 <DetailIcon size={28} strokeWidth={1.7} />
               </div>
               <div className="absolute -right-7 bottom-7 grid h-14 w-14 place-items-center rounded-full bg-white text-accent shadow-card">
@@ -137,25 +142,22 @@ export function LoginPage() {
         </div>
       </section>
 
-      <section className="flex min-h-screen items-center justify-center bg-surface px-5 py-10 sm:px-10 lg:px-16">
+      {/* Right — near-black form panel */}
+      <section className="flex min-h-screen items-center justify-center bg-login-right px-5 py-10 sm:px-10 lg:px-16">
         <div className="w-full max-w-md">
-          <div className="mb-12">
-            <BrandMark className="h-8 w-auto" />
-          </div>
-
           <div className="mb-8">
             <p className="mb-2 text-sm text-accent">Bienvenido de nuevo</p>
-            <h1 className="mb-3 text-3xl font-bold tracking-tight text-ink">
+            <h1 className="mb-3 text-3xl font-bold tracking-tight text-white">
               Inicia sesión
             </h1>
-            <p className="text-sm leading-6 text-muted">
+            <p className="text-sm leading-6 text-white/70">
               Accede a tu espacio de trabajo y continúa gestionando tus relaciones comerciales.
             </p>
           </div>
 
           <form className="space-y-5" onSubmit={handleSubmit}>
             <div>
-              <label htmlFor="email" className="mb-2 block text-sm text-ink">
+              <label htmlFor="email" className="mb-2 block text-sm text-white">
                 Correo corporativo
               </label>
               <input
@@ -166,13 +168,13 @@ export function LoginPage() {
                 required
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
-                className="h-12 w-full rounded border border-border bg-bg px-4 text-sm text-ink outline-none transition-colors placeholder:text-muted focus:border-accent focus:bg-surface focus:ring-2 focus:ring-accent/20"
+                className="login-input h-12 w-full rounded border border-white/15 bg-login-left px-4 text-sm text-white outline-none transition-colors placeholder:text-white/40 focus:border-accent focus:ring-2 focus:ring-accent/20"
                 placeholder="nombre@verytel.com"
               />
             </div>
 
             <div>
-              <label htmlFor="password" className="mb-2 block text-sm text-ink">
+              <label htmlFor="password" className="mb-2 block text-sm text-white">
                 Contraseña
               </label>
               <div className="relative">
@@ -184,12 +186,12 @@ export function LoginPage() {
                   minLength={8}
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
-                  className="h-12 w-full rounded border border-border bg-bg px-4 pr-12 text-sm text-ink outline-none transition-colors focus:border-accent focus:bg-surface focus:ring-2 focus:ring-accent/20"
+                  className="login-input h-12 w-full rounded border border-white/15 bg-login-left px-4 pr-12 text-sm text-white outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/20"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword((visible) => !visible)}
-                  className="btn-glow-outline absolute inset-y-0 right-0 m-1 grid w-10 place-items-center rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                  className="btn-glow-outline absolute inset-y-0 right-0 m-1 grid w-10 place-items-center rounded text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                   aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
                   aria-pressed={showPassword}
                 >
@@ -200,7 +202,7 @@ export function LoginPage() {
 
             {error ? (
               <p
-                className="rounded-sm border border-danger/20 bg-bg px-4 py-3 text-sm text-danger"
+                className="rounded-sm border border-danger/40 bg-danger/10 px-4 py-3 text-sm text-danger"
                 role="alert"
               >
                 {error}
@@ -210,13 +212,13 @@ export function LoginPage() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="btn-glow flex h-12 w-full items-center justify-center gap-2 rounded text-sm text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+              className="btn-glow flex h-12 w-full items-center justify-center gap-2 rounded text-sm text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-login-right disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isSubmitting ? 'Ingresando…' : 'Ingresar al CRM'}
             </button>
           </form>
 
-          <div className="mt-10 flex items-center gap-2 border-t border-border pt-6 text-xs text-muted">
+          <div className="mt-10 flex items-center gap-2 border-t border-white/10 pt-6 text-xs text-white/60">
             <ShieldCheck size={16} className="text-accent" aria-hidden="true" />
             <span>Acceso seguro para colaboradores autorizados.</span>
           </div>

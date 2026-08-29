@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { Filter, LayoutGrid, List } from 'lucide-react';
 import { Pagination } from '../../../components/Pagination';
 import { AppLayout } from '../../../layout/AppLayout';
 import { formatDateTime } from '../../../lib/format';
@@ -12,13 +13,16 @@ import { fetchOuvs, type Ouv } from '../api/ouvs-api';
 import { CrearOuvDirectaModal } from '../components/CrearOuvDirectaModal';
 import { DiscoveryNav } from '../components/DiscoveryNav';
 import { GapBadge, ResultadoBadge, ZonaBadge } from '../components/OuvBadges';
+import { OuvFiltersPanel } from '../components/OuvFiltersPanel';
 import {
   cardClass,
-  ghostButtonClass,
-  inputClass,
-  labelClass,
   primaryButtonClass,
 } from '../components/ui';
+import {
+  countActiveOuvFilters,
+  EMPTY_OUV_FILTERS,
+  type DraftFilters,
+} from '../lib/ouv-filters';
 import {
   isOuvNotificationEvent,
   OUV_ZONA_LABEL,
@@ -31,22 +35,6 @@ const KANBAN_LIMIT = 30;
 
 type ViewMode = 'lista' | 'kanban';
 
-type DraftFilters = {
-  zona: string;
-  tiene_gap: string;
-  q: string;
-  created_from: string;
-  created_to: string;
-};
-
-const EMPTY_FILTERS: DraftFilters = {
-  zona: '',
-  tiene_gap: '',
-  q: '',
-  created_from: '',
-  created_to: '',
-};
-
 export function OuvsBoardPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -55,9 +43,10 @@ export function OuvsBoardPage() {
   const canListAll =
     user?.role_name === 'SoporteComercial' || user?.role_name === 'Admin';
 
-  const [view, setView] = useState<ViewMode>('lista');
-  const [draft, setDraft] = useState<DraftFilters>(EMPTY_FILTERS);
-  const [applied, setApplied] = useState<DraftFilters>(EMPTY_FILTERS);
+  const [view, setView] = useState<ViewMode>('kanban');
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [draft, setDraft] = useState<DraftFilters>(EMPTY_OUV_FILTERS);
+  const [applied, setApplied] = useState<DraftFilters>(EMPTY_OUV_FILTERS);
   const [page, setPage] = useState(1);
   const [items, setItems] = useState<Ouv[]>([]);
   const [total, setTotal] = useState(0);
@@ -70,6 +59,8 @@ export function OuvsBoardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+
+  const activeFilterCount = countActiveOuvFilters(applied);
 
   const queryBase = useCallback(() => {
     return {
@@ -168,6 +159,14 @@ export function OuvsBoardPage() {
     setPage(1);
   }
 
+  const viewToggleClass = (active: boolean) =>
+    [
+      'grid h-9 w-9 place-items-center rounded',
+      active
+        ? 'btn-glow text-white'
+        : 'btn-glow-outline',
+    ].join(' ');
+
   return (
     <AppLayout title="Oportunidades (OUV)">
       <DiscoveryNav />
@@ -181,22 +180,46 @@ export function OuvsBoardPage() {
         <h1 className="text-lg font-bold text-ink">
           {isSoporte ? 'Bandeja OUV (Soporte)' : 'Bandeja OUV'}
         </h1>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Kanban first — primary view */}
           <button
             type="button"
-            className={view === 'lista' ? primaryButtonClass : ghostButtonClass}
-            onClick={() => setView('lista')}
+            className={viewToggleClass(view === 'kanban')}
+            onClick={() => setView('kanban')}
+            aria-label="Vista Kanban"
+            aria-pressed={view === 'kanban'}
+            title="Kanban"
           >
-            Lista
+            <LayoutGrid size={18} strokeWidth={2} />
           </button>
           <button
             type="button"
-            className={
-              view === 'kanban' ? primaryButtonClass : ghostButtonClass
-            }
-            onClick={() => setView('kanban')}
+            className={viewToggleClass(view === 'lista')}
+            onClick={() => setView('lista')}
+            aria-label="Vista Lista"
+            aria-pressed={view === 'lista'}
+            title="Lista"
           >
-            Kanban
+            <List size={18} strokeWidth={2} />
+          </button>
+          <button
+            type="button"
+            className={[
+              viewToggleClass(filtersOpen),
+              'relative',
+            ].join(' ')}
+            onClick={() => setFiltersOpen((open) => !open)}
+            aria-label="Mostrar filtros"
+            aria-expanded={filtersOpen}
+            aria-controls="ouv-filters-panel"
+            title="Filtros"
+          >
+            <Filter size={18} strokeWidth={2} />
+            {activeFilterCount > 0 ? (
+              <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-accent px-0.5 text-[10px] font-bold text-white">
+                {activeFilterCount}
+              </span>
+            ) : null}
           </button>
           {isEjecutivo ? (
             <button
@@ -210,100 +233,18 @@ export function OuvsBoardPage() {
         </div>
       </div>
 
-      <div className={`${cardClass} mb-4 p-4`}>
-        <div className="grid gap-3 md:grid-cols-5">
-          <div>
-            <label className={labelClass} htmlFor="f-q">
-              Buscar
-            </label>
-            <input
-              id="f-q"
-              className={inputClass}
-              value={draft.q}
-              onChange={(e) => setDraft({ ...draft, q: e.target.value })}
-              placeholder="Título, empresa, OUV-"
-            />
-          </div>
-          <div>
-            <label className={labelClass} htmlFor="f-zona">
-              Zona
-            </label>
-            <select
-              id="f-zona"
-              className={inputClass}
-              value={draft.zona}
-              onChange={(e) => setDraft({ ...draft, zona: e.target.value })}
-            >
-              <option value="">Todas</option>
-              {OUV_ZONAS.map((z) => (
-                <option key={z} value={z}>
-                  {OUV_ZONA_LABEL[z]}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className={labelClass} htmlFor="f-gap">
-              Gap
-            </label>
-            <select
-              id="f-gap"
-              className={inputClass}
-              value={draft.tiene_gap}
-              onChange={(e) =>
-                setDraft({ ...draft, tiene_gap: e.target.value })
-              }
-            >
-              <option value="">Todos</option>
-              <option value="true">Con gap</option>
-              <option value="false">Sin gap</option>
-            </select>
-          </div>
-          <div>
-            <label className={labelClass} htmlFor="f-from">
-              Desde
-            </label>
-            <input
-              id="f-from"
-              type="date"
-              className={inputClass}
-              value={draft.created_from}
-              onChange={(e) =>
-                setDraft({ ...draft, created_from: e.target.value })
-              }
-            />
-          </div>
-          <div>
-            <label className={labelClass} htmlFor="f-to">
-              Hasta
-            </label>
-            <input
-              id="f-to"
-              type="date"
-              className={inputClass}
-              value={draft.created_to}
-              onChange={(e) =>
-                setDraft({ ...draft, created_to: e.target.value })
-              }
-            />
-          </div>
-        </div>
-        <div className="mt-3 flex gap-2">
-          <button type="button" className={primaryButtonClass} onClick={handleApply}>
-            Aplicar filtros
-          </button>
-          <button
-            type="button"
-            className={ghostButtonClass}
-            onClick={() => {
-              setDraft(EMPTY_FILTERS);
-              setApplied(EMPTY_FILTERS);
-              setPage(1);
-            }}
-          >
-            Limpiar
-          </button>
-        </div>
+      <div id="ouv-filters-panel">
+        <OuvFiltersPanel
+          open={filtersOpen}
+          draft={draft}
+          onDraftChange={setDraft}
+          onApply={handleApply}
+          onClear={() => {
+            setDraft(EMPTY_OUV_FILTERS);
+            setApplied(EMPTY_OUV_FILTERS);
+            setPage(1);
+          }}
+        />
       </div>
 
       {error ? <p className="mb-3 text-sm text-danger">{error}</p> : null}

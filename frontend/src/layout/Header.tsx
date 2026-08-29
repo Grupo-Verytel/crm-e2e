@@ -1,5 +1,4 @@
-import { useNavigate } from 'react-router-dom';
-import { LogOut, Moon, Sun } from 'lucide-react';
+import { Moon, Sun } from 'lucide-react';
 import { NotificationBell } from '../modules/auth/components/NotificationBell';
 import { useAuth } from '../modules/auth/hooks/useAuth';
 import { useTheme } from '../theme/useTheme';
@@ -17,16 +16,10 @@ function getInitials(fullName: string): string {
 
 /** Top header: global search, theme toggle and authenticated user. */
 export function Header({ title }: { title: string }) {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const { theme, setTheme } = useTheme();
-  const navigate = useNavigate();
   const initials = user ? getInitials(user.full_name) : '?';
   const isDark = theme === 'dark';
-
-  async function handleLogout() {
-    await logout();
-    navigate('/login', { replace: true });
-  }
 
   return (
     <header className="flex h-14 items-center gap-4 border-b border-border bg-surface px-6">
@@ -47,7 +40,7 @@ export function Header({ title }: { title: string }) {
         <button
           type="button"
           onClick={() => setTheme(isDark ? 'light' : 'dark')}
-          className="btn-glow-outline grid h-9 w-9 place-items-center rounded"
+          className="icon-btn grid h-9 w-9 place-items-center rounded"
           aria-label={isDark ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
           title={isDark ? 'Modo claro' : 'Modo oscuro'}
         >
@@ -69,16 +62,6 @@ export function Header({ title }: { title: string }) {
         >
           {initials}
         </div>
-
-        <button
-          type="button"
-          onClick={() => void handleLogout()}
-          className="btn-glow-outline inline-flex h-9 items-center gap-2 rounded px-2 text-sm"
-          aria-label="Cerrar sesión"
-        >
-          <LogOut size={16} strokeWidth={1.75} />
-          <span className="hidden sm:inline">Salir</span>
-        </button>
       </div>
     </header>
   );
