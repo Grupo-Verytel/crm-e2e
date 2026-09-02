@@ -1,6 +1,4 @@
 import { useEffect, useState } from 'react';
-import { ExternalLink, FileText, ListChecks } from 'lucide-react';
-import { formatDateTime } from '../../../lib/format';
 import { ApiError } from '../../auth/types';
 import type { Ouv } from '../api/ouvs-api';
 import {
@@ -9,67 +7,438 @@ import {
   type SolicitudServicio,
 } from '../api/solicitudes-preventa-api';
 import {
-  CAPACITY_STATUS_LABEL,
-  ROUTE_STATUS_LABEL,
-  SERVICE_HORIZON_LABEL,
-} from '../lib/preventa-vocab';
-import {
-  MilestoneBadge,
-  OutcomeBadge,
-  ProcessingStatusBadge,
-  ServiceStatusBadge,
-} from './PreventaBadges';
+  SOLICITUD_PREVENTA_FIELDS,
+  SERVICE_LABELS,
+} from '../lib/opportunity-context-fields';
+import { FloatingToast } from './FloatingToast';
+import { ModalShell } from './ModalShell';
 import { SolicitudPreventaModal } from './SolicitudPreventaModal';
-import { cardClass, ghostButtonClass, primaryButtonClass } from './ui';
+import { badgeClass, cardClass, ghostButtonClass, labelClass } from './ui';
 
 type Props = {
   ouv: Ouv;
+  commercialOwnerName?: string;
 };
 
-function mensajeDeError(err: unknown): string {
-  return err instanceof ApiError
-    ? err.message
-    : 'No fue posible cargar las solicitudes de preventa.';
+/** Estado que la UI muestra por solicitud, derivado de los datos reales. */
+export type MepSolicitudStatus =
+  | 'Aceptado'
+  | 'Aprobado'
+  | 'Rechazado'
+  | 'Pendiente';
+
+const MEP_STATUS_CLASS: Record<MepSolicitudStatus, string> = {
+  Aceptado: 'bg-brand text-white',
+  Aprobado: 'bg-success text-white',
+  Rechazado: 'bg-danger text-white',
+  Pendiente: 'bg-border text-muted',
+};
+
+function MepStatusBadge({ status }: { status: MepSolicitudStatus }) {
+  return (
+    <span className={`${badgeClass} ${MEP_STATUS_CLASS[status]}`}>
+      {status}
+    </span>
+  );
 }
 
 /**
- * Actividad de preventa de una OUV — Fase 3 (T-302, T-303, T-304).
- *
- * Tres reglas de presentación que el spec exige y que aquí se ven:
- *  - La narrativa de MEP va de más reciente a más antigua, con el contenido
- *    original del comercial siempre visible (T-302).
- *  - Planner, el registro de SharePoint List y los entregables de SharePoint
- *    Documents se muestran diferenciados (T-303 / AC-10): el registro de ruta
- *    y capacidad no es un entregable (INV-23, AC-29).
- *  - Los acuses técnicos viven en su propia pista, sin duplicar la narrativa
- *    comercial (T-304 / INV-12).
+ * En el diseño este estado se sorteaba al azar (`MEP_MOCK_STATUSES`). Acá sale
+ * de los hechos reales: el cierre comercial manda; si no, el último acuse
+ * técnico; si no hay nada, la solicitud sigue pendiente.
  */
-export function PreventaActivityPanel({ ouv }: Props) {
-  const [solicitudes, setSolicitudes] = useState<SolicitudPreventa[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [showModal, setShowModal] = useState(false);
-  const [expandida, setExpandida] = useState<string | null>(null);
-  /** Se incrementa para forzar una recarga desde el botón de reintento. */
-  const [recargas, setRecargas] = useState(0);
+function derivarMepStatus(solicitud: SolicitudPreventa): MepSolicitudStatus {
+  if (solicitud.estado.hito === 'INTERACTION_COMPLETED') {
+    return 'Aprobado';
+  }
 
-  /**
-   * El estado se actualiza solo dentro de los callbacks de la promesa, nunca
-   * en el cuerpo del efecto. `vigente` descarta la respuesta de una OUV
-   * anterior si el usuario navegó antes de que llegara.
-   */
+  const acuse = solicitud.pista_tecnica[0];
+  if (acuse) {
+    if (
+      acuse.processing_status === 'REJECTED' ||
+      acuse.processing_status === 'QUARANTINED'
+    ) {
+      return 'Rechazado';
+    }
+    return 'Aceptado';
+  }
+
+  return solicitud.estado.hito ? 'Aceptado' : 'Pendiente';
+}
+
+/** Nombre del combo a partir de los servicios que devolvió el backend. */
+function nombreDelTipo(solicitud: SolicitudPreventa): string {
+  const servicios = solicitud.requested_services;
+  const tieneTecnica = servicios.some((s) => s.service === 'TECHNICAL_DESIGN');
+  const tieneFinanciera = servicios.some(
+    (s) => s.service === 'FINANCIAL_DESIGN',
+  );
+  const dependiente = servicios.some((s) => s.dependency !== 'NONE');
+
+  if (tieneTecnica && tieneFinanciera) {
+    return dependiente ? 'Técnico y luego financiero' : 'Técnico y financiero';
+  }
+  return tieneTecnica ? 'Técnica' : 'Financiera';
+}
+
+/** Los dos servicios van en el mismo contenedor cuando son independientes. */
+function esMismoContenedor(solicitud: SolicitudPreventa): boolean {
+  return (
+    solicitud.requested_services.length > 1 &&
+    solicitud.requested_services.every((s) => s.dependency === 'NONE')
+  );
+}
+
+type ServiceCardView = {
+  service: string;
+  label: string;
+  dependency: string;
+  state: 'active' | 'blocked';
+};
+
+/**
+ * Tarjetas de servicio. Cuando MEP ya respondió, el bloqueo sale de
+ * `bloqueado_por_dependencia`; antes, de la dependencia declarada (caso C-4).
+ */
+function tarjetasDeServicio(solicitud: SolicitudPreventa): ServiceCardView[] {
+  const resultados = new Map<string, SolicitudServicio>(
+    solicitud.servicios.map((s) => [s.service, s]),
+  );
+
+  return solicitud.requested_services.map((solicitado) => {
+    const resultado = resultados.get(solicitado.service);
+    const bloqueado = resultado
+      ? resultado.bloqueado_por_dependencia
+      : solicitado.dependency !== 'NONE';
+
+    return {
+      service: solicitado.service,
+      label: SERVICE_LABELS[solicitado.service] ?? solicitado.service,
+      dependency: solicitado.dependency,
+      state: bloqueado ? 'blocked' : 'active',
+    };
+  });
+}
+
+/** Valores que muestra el modal de detalle, con los campos del contrato. */
+function valoresDeSolicitud(
+  solicitud: SolicitudPreventa,
+): Record<string, string> {
+  return {
+    crm_interaction_ref: solicitud.crm_interaction_ref,
+    crm_opportunity_ref: solicitud.crm_opportunity_ref ?? '',
+    activity_type:
+      solicitud.service_horizon === 'IMMEDIATE'
+        ? 'interaccion_asap'
+        : 'interaccion_sombra',
+    service_horizon: solicitud.service_horizon,
+    subject: solicitud.subject ?? '',
+    source_content: solicitud.source_content,
+    source_created_at: solicitud.source_created_at ?? '',
+    source_version: solicitud.source_version,
+    etag: solicitud.etag,
+  };
+}
+
+function formatFieldValue(key: string, value: string): string {
+  if (!value) {
+    return '—';
+  }
+  if (key === 'source_created_at') {
+    const d = new Date(value);
+    return Number.isNaN(d.getTime()) ? value : d.toLocaleString('es-CO');
+  }
+  return value;
+}
+
+function ServiceCard({
+  card,
+  mepStatus,
+  onOpen,
+}: {
+  card: ServiceCardView;
+  mepStatus: MepSolicitudStatus;
+  onOpen: () => void;
+}) {
+  const active = card.state === 'active';
+
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className={[
+        'w-full rounded border p-3 text-left transition-colors',
+        active
+          ? 'border-accent/50 bg-accent/10 hover:border-accent'
+          : 'border-border bg-bg opacity-55 hover:opacity-80',
+      ].join(' ')}
+    >
+      <div className="mb-1 flex flex-wrap items-center gap-2">
+        <span
+          className={[
+            badgeClass,
+            active ? 'bg-accent text-white' : 'bg-border text-muted',
+          ].join(' ')}
+        >
+          {card.label}
+        </span>
+        <MepStatusBadge status={mepStatus} />
+        {active ? (
+          <span className="text-xs font-bold text-accent">Activa</span>
+        ) : (
+          <span className="text-xs font-bold text-muted">Bloqueada</span>
+        )}
+      </div>
+      <p className="text-xs text-muted">
+        {card.service}
+        {card.dependency !== 'NONE' ? ` · depende de ${card.dependency}` : ''}
+      </p>
+      {!active ? (
+        <p className="mt-2 text-xs text-muted">
+          Disponible cuando Preventa retorne el documento de viabilidad técnica.
+        </p>
+      ) : null}
+    </button>
+  );
+}
+
+function SolicitudDetailModal({
+  solicitud,
+  service,
+  onClose,
+}: {
+  solicitud: SolicitudPreventa;
+  service: ServiceCardView;
+  onClose: () => void;
+}) {
+  const values = valoresDeSolicitud(solicitud);
+  const resultado = solicitud.servicios.find(
+    (s) => s.service === service.service,
+  );
+
+  return (
+    <ModalShell
+      title={`Detalle — ${service.label}`}
+      onClose={onClose}
+      size="wide"
+      headerAside={<MepStatusBadge status={derivarMepStatus(solicitud)} />}
+    >
+      <div className="mb-4 flex flex-wrap gap-2">
+        <span
+          className={[
+            badgeClass,
+            service.state === 'active'
+              ? 'bg-accent text-white'
+              : 'bg-border text-muted',
+          ].join(' ')}
+        >
+          {service.label}
+        </span>
+        <span className={`${badgeClass} bg-border text-ink`}>
+          {nombreDelTipo(solicitud)}
+        </span>
+        <span className={`${badgeClass} bg-accent/15 text-accent`}>
+          {solicitud.service_horizon === 'IMMEDIATE' ? 'ASAP' : 'Sombra'}
+        </span>
+        {service.state === 'blocked' ? (
+          <span className={`${badgeClass} bg-border text-muted`}>
+            Bloqueada — espera viabilidad Preventa
+          </span>
+        ) : null}
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        {SOLICITUD_PREVENTA_FIELDS.map((field) => (
+          <div
+            key={field.key}
+            className={field.spanFull ? 'sm:col-span-2' : undefined}
+          >
+            <p className={labelClass}>{field.label}</p>
+            <p className="whitespace-pre-wrap text-sm text-ink">
+              {formatFieldValue(field.key, values[field.key] ?? '')}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      {resultado ? (
+        <div className="mt-4 rounded border border-border bg-bg p-3">
+          <p className={`${labelClass} mb-2`}>Respuesta de Preventa</p>
+          {resultado.summary ? (
+            <p className="text-sm text-ink">{resultado.summary}</p>
+          ) : null}
+          {/* Entregables: SharePoint Documents; el registro de ruta no lo es. */}
+          {resultado.entregables.length > 0 ? (
+            <ul className="mt-2 space-y-1">
+              {resultado.entregables.map((entregable) => (
+                <li key={entregable.url}>
+                  <a
+                    href={entregable.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-xs font-bold text-accent hover:underline"
+                  >
+                    {entregable.label ?? 'Entregable'}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
+
+      {/* Narrativa MEP: más reciente primero (T-302). */}
+      {solicitud.narrativa.length > 0 ? (
+        <div className="mt-4">
+          <p className={`${labelClass} mb-2`}>Historial de Preventa</p>
+          <ol className="space-y-2">
+            {solicitud.narrativa.map((entrada) => (
+              <li
+                key={entrada.response_version}
+                className="border-l-2 border-accent pl-3"
+              >
+                <p className="text-xs text-muted">
+                  v{entrada.response_version} ·{' '}
+                  {entrada.responded_by.display_name}
+                </p>
+                {entrada.narrative_note ? (
+                  <p className="whitespace-pre-wrap text-sm text-ink">
+                    {entrada.narrative_note}
+                  </p>
+                ) : null}
+              </li>
+            ))}
+          </ol>
+        </div>
+      ) : null}
+
+      {/* Pista técnica separada de la narrativa comercial (INV-12). */}
+      {solicitud.pista_tecnica.length > 0 ? (
+        <details className="mt-4 rounded bg-bg p-3">
+          <summary className="cursor-pointer text-xs font-bold text-muted">
+            Pista técnica · {solicitud.pista_tecnica.length} acuse(s)
+          </summary>
+          <ul className="mt-2 space-y-1 text-xs text-muted">
+            {solicitud.pista_tecnica.map((acuse) => (
+              <li key={`${acuse.receipt_id}#${acuse.receipt_version}`}>
+                {acuse.processing_status}
+                {acuse.reason_code ? ` · ${acuse.reason_code}` : ''}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-xs text-muted">
+            Confirma que la fábrica recibió la solicitud. No es un hito
+            comercial.
+          </p>
+        </details>
+      ) : null}
+    </ModalShell>
+  );
+}
+
+function SolicitudListItem({
+  solicitud,
+  onOpenService,
+}: {
+  solicitud: SolicitudPreventa;
+  onOpenService: (service: ServiceCardView) => void;
+}) {
+  const services = tarjetasDeServicio(solicitud);
+  const showPair = services.length > 1;
+  const mepStatus = derivarMepStatus(solicitud);
+  const sameContainer = esMismoContenedor(solicitud);
+
+  return (
+    <li className="rounded border border-border bg-bg p-3">
+      <div className="mb-2 flex flex-wrap items-start justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <MepStatusBadge status={mepStatus} />
+          <span className={`${badgeClass} bg-accent/15 text-accent`}>
+            {solicitud.service_horizon === 'IMMEDIATE' ? 'ASAP' : 'Sombra'}
+          </span>
+          <span className={`${badgeClass} bg-border text-ink`}>
+            {nombreDelTipo(solicitud)}
+          </span>
+          <span className="text-xs text-muted">
+            {solicitud.source_created_at
+              ? new Date(solicitud.source_created_at).toLocaleString('es-CO')
+              : '—'}
+          </span>
+        </div>
+        <code className="text-xs text-muted">
+          {solicitud.crm_interaction_ref}
+        </code>
+      </div>
+
+      {showPair ? (
+        <div
+          className={[
+            'grid gap-2 sm:grid-cols-2',
+            sameContainer ? 'rounded border border-accent/30 bg-surface p-2' : '',
+          ].join(' ')}
+        >
+          {sameContainer ? (
+            <p className="text-xs font-bold text-muted sm:col-span-2">
+              Misma solicitud — dos servicios
+            </p>
+          ) : (
+            <p className="text-xs font-bold text-muted sm:col-span-2">
+              Secuencia: técnica primero, financiera al recibir viabilidad
+            </p>
+          )}
+          {services.map((card) => (
+            <ServiceCard
+              key={card.service}
+              card={card}
+              mepStatus={mepStatus}
+              onOpen={() => onOpenService(card)}
+            />
+          ))}
+        </div>
+      ) : services[0] ? (
+        <div className="max-w-sm">
+          <ServiceCard
+            card={services[0]}
+            mepStatus={mepStatus}
+            onOpen={() => onOpenService(services[0])}
+          />
+        </div>
+      ) : null}
+    </li>
+  );
+}
+
+/** Listado de Solicitudes Preventa. La creación va en modal por fases. */
+export function PreventaActivityPanel({ ouv, commercialOwnerName }: Props) {
+  const [items, setItems] = useState<SolicitudPreventa[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [recargas, setRecargas] = useState(0);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [detail, setDetail] = useState<{
+    solicitud: SolicitudPreventa;
+    service: ServiceCardView;
+  } | null>(null);
+  const [toast, setToast] = useState<{ ok: boolean; message: string } | null>(
+    null,
+  );
+
   useEffect(() => {
     let vigente = true;
 
     fetchSolicitudesPreventa(ouv.ouv_id)
       .then((data) => {
         if (!vigente) return;
-        setSolicitudes(data);
-        setError(null);
+        setItems(data);
+        setLoadError(null);
       })
       .catch((err: unknown) => {
         if (!vigente) return;
-        setError(mensajeDeError(err));
+        setLoadError(
+          err instanceof ApiError
+            ? err.message
+            : 'No fue posible cargar las solicitudes de preventa.',
+        );
       })
       .finally(() => {
         if (vigente) setLoading(false);
@@ -80,345 +449,107 @@ export function PreventaActivityPanel({ ouv }: Props) {
     };
   }, [ouv.ouv_id, recargas]);
 
-  /** Reintento manual: en un handler sí se puede actualizar estado directo. */
-  function reintentar() {
-    setLoading(true);
-    setError(null);
-    setRecargas((n) => n + 1);
+  // Al cambiar de OUV se cierran modales y toast. En render, no en efecto.
+  const [ouvCargada, setOuvCargada] = useState(ouv.ouv_id);
+  if (ouvCargada !== ouv.ouv_id) {
+    setOuvCargada(ouv.ouv_id);
+    setModalOpen(false);
+    setDetail(null);
+    setToast(null);
+  }
+
+  function handleResult(result: {
+    ok: boolean;
+    message: string;
+    record?: SolicitudPreventa;
+  }) {
+    if (result.ok && result.record) {
+      setItems((prev) => [result.record as SolicitudPreventa, ...prev]);
+      setModalOpen(false);
+    }
+    setToast({ ok: result.ok, message: result.message });
+    window.setTimeout(() => setToast(null), 4500);
   }
 
   return (
-    <section className={`${cardClass} p-4`}>
-      <div className="mb-4 flex items-center justify-between">
+    <section className={`${cardClass} mb-4 p-4`}>
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-sm font-bold text-ink">Preventa</h2>
+          <h2 className="text-sm font-bold text-ink">Solicitudes Preventa</h2>
           <p className="text-xs text-muted">
-            Solicitudes enviadas a la fábrica y sus respuestas.
+            Historial de solicitudes enviadas a Preventa para esta OUV.
           </p>
         </div>
         <button
           type="button"
-          className={primaryButtonClass}
-          onClick={() => setShowModal(true)}
+          className={ghostButtonClass}
+          onClick={() => setModalOpen(true)}
         >
-          Solicitar preventa
+          Nueva solicitud
         </button>
       </div>
 
-      {error ? (
+      {toast ? (
+        <FloatingToast
+          message={toast.message}
+          tone={toast.ok ? 'success' : 'error'}
+          onDismiss={() => setToast(null)}
+        />
+      ) : null}
+
+      {loadError ? (
         <div className="mb-3 flex items-center justify-between rounded border border-danger px-3 py-2">
-          <span className="text-sm text-danger">{error}</span>
-          <button type="button" className={ghostButtonClass} onClick={reintentar}>
+          <span className="text-sm text-danger">{loadError}</span>
+          <button
+            type="button"
+            className={ghostButtonClass}
+            onClick={() => {
+              setLoading(true);
+              setLoadError(null);
+              setRecargas((n) => n + 1);
+            }}
+          >
             Reintentar
           </button>
         </div>
       ) : null}
 
       {loading ? (
-        <p className="text-sm text-muted">Cargando solicitudes…</p>
-      ) : solicitudes.length === 0 ? (
-        <p className="text-sm text-muted">
-          Todavía no hay solicitudes de preventa para esta OUV.
+        <p className="rounded border border-dashed border-border bg-bg px-3 py-8 text-center text-sm text-muted">
+          Cargando solicitudes…
+        </p>
+      ) : items.length === 0 ? (
+        <p className="rounded border border-dashed border-border bg-bg px-3 py-8 text-center text-sm text-muted">
+          Aún no hay solicitudes. Usa &quot;Nueva solicitud&quot; para crear una.
         </p>
       ) : (
         <ul className="space-y-3">
-          {solicitudes.map((solicitud) => (
-            <SolicitudCard
+          {items.map((solicitud) => (
+            <SolicitudListItem
               key={solicitud.crm_interaction_ref}
               solicitud={solicitud}
-              expandida={expandida === solicitud.crm_interaction_ref}
-              onToggle={() =>
-                setExpandida(
-                  expandida === solicitud.crm_interaction_ref
-                    ? null
-                    : solicitud.crm_interaction_ref,
-                )
-              }
+              onOpenService={(service) => setDetail({ solicitud, service })}
             />
           ))}
         </ul>
       )}
 
-      {showModal ? (
+      {modalOpen ? (
         <SolicitudPreventaModal
           ouv={ouv}
-          onClose={() => setShowModal(false)}
-          onCreated={(solicitud) => {
-            setShowModal(false);
-            setSolicitudes((prev) => [solicitud, ...prev]);
-            setExpandida(solicitud.crm_interaction_ref);
-          }}
+          commercialOwnerName={commercialOwnerName}
+          onClose={() => setModalOpen(false)}
+          onResult={handleResult}
+        />
+      ) : null}
+
+      {detail ? (
+        <SolicitudDetailModal
+          solicitud={detail.solicitud}
+          service={detail.service}
+          onClose={() => setDetail(null)}
         />
       ) : null}
     </section>
-  );
-}
-
-function SolicitudCard({
-  solicitud,
-  expandida,
-  onToggle,
-}: {
-  solicitud: SolicitudPreventa;
-  expandida: boolean;
-  onToggle: () => void;
-}) {
-  const { estado, ruta_capacidad: ruta } = solicitud;
-
-  return (
-    <li className="rounded border border-border p-3">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <MilestoneBadge hito={estado.hito} />
-            <span className="text-xs text-muted">
-              {SERVICE_HORIZON_LABEL[solicitud.service_horizon]}
-            </span>
-            <code className="text-xs text-muted">
-              {solicitud.crm_interaction_ref}
-            </code>
-          </div>
-          <p className="mt-1 text-sm font-bold text-ink">
-            {solicitud.subject ?? 'Solicitud de preventa'}
-          </p>
-          <p className="text-xs text-muted">
-            Enviada {formatDateTime(solicitud.source_created_at)}
-            {estado.eta_date ? ` · ETA ${estado.eta_date}` : ''}
-          </p>
-        </div>
-        <button type="button" className={ghostButtonClass} onClick={onToggle}>
-          {expandida ? 'Ocultar' : 'Ver detalle'}
-        </button>
-      </div>
-
-      {estado.next_milestone ? (
-        <p className="mt-2 text-xs text-muted">
-          Siguiente: {estado.next_milestone}
-        </p>
-      ) : null}
-
-      {expandida ? (
-        <div className="mt-4 space-y-4 border-t border-border pt-4">
-          {/* T-302: el contenido original, siempre visible. */}
-          <div>
-            <h3 className="mb-1 text-xs font-bold text-ink">
-              Contenido original
-            </h3>
-            <p className="whitespace-pre-wrap rounded bg-bg p-3 text-sm text-ink">
-              {solicitud.source_content}
-            </p>
-          </div>
-
-          {solicitud.asignacion ? (
-            <p className="text-sm text-ink">
-              <span className="font-bold">Ingeniero:</span>{' '}
-              {solicitud.asignacion.engineer.display_name}
-              <span className="text-muted">
-                {' '}
-                · asignado {formatDateTime(solicitud.asignacion.assigned_at)}
-              </span>
-            </p>
-          ) : null}
-
-          <ServiciosSection servicios={solicitud.servicios} />
-
-          {/* T-303 / AC-29: el registro de ruta/capacidad NO es un entregable. */}
-          {ruta ? (
-            <div>
-              <h3 className="mb-1 text-xs font-bold text-ink">
-                Ruta y capacidad · {ruta.version}
-              </h3>
-              <p className="text-sm text-ink">
-                {ruta.route_status ? ROUTE_STATUS_LABEL[ruta.route_status] : '—'}
-                {' · '}
-                {ruta.capacity_status
-                  ? CAPACITY_STATUS_LABEL[ruta.capacity_status]
-                  : '—'}
-              </p>
-              {ruta.summary ? (
-                <p className="text-sm text-muted">{ruta.summary}</p>
-              ) : null}
-              {ruta.registro_url ? (
-                <a
-                  href={ruta.registro_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mt-1 inline-flex items-center gap-1 text-xs font-bold text-brand hover:underline"
-                >
-                  <ListChecks size={14} aria-hidden />
-                  Registro de ruta y capacidad
-                  <span className="font-normal text-muted">
-                    (SharePoint List — no es el entregable)
-                  </span>
-                </a>
-              ) : null}
-            </div>
-          ) : null}
-
-          {solicitud.planner_url ? (
-            <a
-              href={solicitud.planner_url}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1 text-xs font-bold text-brand hover:underline"
-            >
-              <ExternalLink size={14} aria-hidden />
-              Tarea en Planner
-            </a>
-          ) : null}
-
-          {solicitud.clasificacion_entregada ? (
-            <p className="text-sm text-ink">
-              <span className="font-bold">Clasificación entregada:</span>{' '}
-              {solicitud.clasificacion_entregada}
-            </p>
-          ) : null}
-
-          <NarrativaSection solicitud={solicitud} />
-          <PistaTecnicaSection solicitud={solicitud} />
-        </div>
-      ) : null}
-    </li>
-  );
-}
-
-function ServiciosSection({ servicios }: { servicios: SolicitudServicio[] }) {
-  if (servicios.length === 0) {
-    return null;
-  }
-
-  return (
-    <div>
-      <h3 className="mb-2 text-xs font-bold text-ink">Servicios</h3>
-      <ul className="space-y-2">
-        {servicios.map((servicio) => (
-          <li
-            key={servicio.service}
-            className="rounded border border-border p-2"
-          >
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm font-bold text-ink">
-                {servicio.label}
-              </span>
-              <ServiceStatusBadge status={servicio.status} />
-              {servicio.outcome ? (
-                <OutcomeBadge outcome={servicio.outcome} />
-              ) : null}
-              {servicio.bloqueado_por_dependencia ? (
-                <span className="text-xs text-muted">
-                  Espera el resultado técnico
-                </span>
-              ) : null}
-            </div>
-
-            {servicio.summary ? (
-              <p className="mt-1 text-sm text-muted">{servicio.summary}</p>
-            ) : null}
-
-            {servicio.reason_code ? (
-              <p className="mt-1 text-xs text-danger">
-                Motivo: {servicio.reason_code}
-              </p>
-            ) : null}
-
-            {/* T-303: los entregables son SharePoint Documents. */}
-            {servicio.entregables.length > 0 ? (
-              <ul className="mt-2 space-y-1">
-                {servicio.entregables.map((entregable) => (
-                  <li key={entregable.url}>
-                    <a
-                      href={entregable.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-1 text-xs font-bold text-brand hover:underline"
-                    >
-                      <FileText size={14} aria-hidden />
-                      {entregable.label ?? 'Entregable'}
-                      <span className="font-normal text-muted">
-                        {entregable.published_at
-                          ? ` · ${formatDateTime(entregable.published_at)}`
-                          : ''}
-                      </span>
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-/** T-302 / TS-VER-08: de más reciente a más antigua, una entrada por versión. */
-function NarrativaSection({ solicitud }: { solicitud: SolicitudPreventa }) {
-  if (solicitud.narrativa.length === 0) {
-    return (
-      <p className="text-sm text-muted">
-        Preventa todavía no ha publicado respuestas.
-      </p>
-    );
-  }
-
-  return (
-    <div>
-      <h3 className="mb-2 text-xs font-bold text-ink">Respuestas de Preventa</h3>
-      <ol className="space-y-2">
-        {solicitud.narrativa.map((entrada) => (
-          <li
-            key={entrada.response_version}
-            className="border-l-2 border-brand pl-3"
-          >
-            <div className="flex flex-wrap items-center gap-2">
-              <MilestoneBadge hito={entrada.business_milestone} />
-              <span className="text-xs text-muted">
-                v{entrada.response_version} ·{' '}
-                {formatDateTime(entrada.responded_at)} ·{' '}
-                {entrada.responded_by.display_name}
-              </span>
-            </div>
-            {entrada.narrative_note ? (
-              <p className="mt-1 whitespace-pre-wrap text-sm text-ink">
-                {entrada.narrative_note}
-              </p>
-            ) : null}
-          </li>
-        ))}
-      </ol>
-    </div>
-  );
-}
-
-/**
- * T-304 / INV-12: pista técnica, separada de la narrativa comercial. Un acuse
- * confirma que MEP recibió el mensaje; no es el hito «Recibida».
- */
-function PistaTecnicaSection({ solicitud }: { solicitud: SolicitudPreventa }) {
-  if (solicitud.pista_tecnica.length === 0) {
-    return null;
-  }
-
-  return (
-    <details className="rounded bg-bg p-3">
-      <summary className="cursor-pointer text-xs font-bold text-muted">
-        Pista técnica · {solicitud.pista_tecnica.length} acuse(s) de recepción
-      </summary>
-      <ul className="mt-2 space-y-1">
-        {solicitud.pista_tecnica.map((acuse) => (
-          <li
-            key={`${acuse.receipt_id}#${acuse.receipt_version}`}
-            className="flex flex-wrap items-center gap-2 text-xs text-muted"
-          >
-            <ProcessingStatusBadge status={acuse.processing_status} />
-            <span>{formatDateTime(acuse.observed_at)}</span>
-            {acuse.reason_code ? <span>· {acuse.reason_code}</span> : null}
-          </li>
-        ))}
-      </ul>
-      <p className="mt-2 text-xs text-muted">
-        Confirma que la fábrica recibió la solicitud. No es un hito comercial.
-      </p>
-    </details>
   );
 }

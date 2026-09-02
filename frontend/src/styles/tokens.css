@@ -6,6 +6,11 @@
   --brand-turquoise: #2DCCD3;   /* ACCENT ONLY: positive indicators, single active icon */
   --ink: #1D1D1B;               /* primary text / high contrast */
 
+  /* Acento Oriole — botones de accion en flujos de preventa (rama Design_JD) */
+  --accent: #C25E00;
+  --accent-700: color-mix(in srgb, var(--accent) 80%, black 20%);
+  --success: var(--positive);
+
   /* Extended blues — charts & states only, never navigation */
   --navy: #0E1B5C;
   --blue-500: #1E4FD8;

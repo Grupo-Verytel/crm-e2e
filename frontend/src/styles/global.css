@@ -24,3 +24,48 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/**
+ * Botones Oriole con glow del 10% que sigue al puntero.
+ * Traido de la rama Design_JD; `--glow-x` / `--glow-y` los fija PointerGlow.
+ */
+.btn-glow,
+.btn-glow-outline {
+  --glow-x: 50%;
+  --glow-y: 50%;
+  --glow-opacity: 0;
+  background-image: radial-gradient(
+    140px circle at var(--glow-x) var(--glow-y),
+    rgba(255, 255, 255, calc(0.1 * var(--glow-opacity))),
+    transparent 55%
+  );
+  transition:
+    background-color 140ms ease,
+    color 140ms ease,
+    border-color 140ms ease;
+}
+
+.btn-glow {
+  background-color: var(--accent);
+  color: #ffffff;
+}
+
+.btn-glow:hover,
+.btn-glow:focus-visible {
+  --glow-opacity: 1;
+  background-color: var(--accent-700);
+}
+
+.btn-glow-outline {
+  background-color: transparent;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+}
+
+.btn-glow-outline:hover,
+.btn-glow-outline:focus-visible {
+  --glow-opacity: 1;
+  background-color: var(--accent-700);
+  border-color: var(--accent-700);
+  color: #ffffff;
+}
