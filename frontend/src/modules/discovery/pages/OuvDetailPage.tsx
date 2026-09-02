@@ -32,6 +32,7 @@ import { ContactoFormModal } from '../components/ContactoFormModal';
 import { ContactosSidePanel } from '../components/ContactosSidePanel';
 import { DiscoveryNav } from '../components/DiscoveryNav';
 import { GapBadge, ResultadoBadge, ZonaBadge } from '../components/OuvBadges';
+import { PreventaActivityPanel } from '../components/PreventaActivityPanel';
 import { RetrocesoZonaModal } from '../components/RetrocesoZonaModal';
 import {
   badgeClass,
@@ -814,6 +815,11 @@ export function OuvDetailPage() {
           </dl>
         </section>
       ) : null}
+
+      {/* Fase 3 de SPEC-CRM-MEPLEAN-001: actividad con la fábrica de preventa. */}
+      <div className="mb-4">
+        <PreventaActivityPanel ouv={ouv} />
+      </div>
 
       {contactoModal ? (
         <ContactoFormModal
