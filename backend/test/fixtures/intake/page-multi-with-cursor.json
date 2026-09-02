@@ -1,0 +1,34 @@
+{
+  "items": [
+    {
+      "crm_interaction_ref": "int_20001",
+      "crm_opportunity_ref": "ouv_9101",
+      "service_horizon": "IMMEDIATE",
+      "requested_services": [
+        { "service": "TECHNICAL_DESIGN", "dependency": "NONE" }
+      ],
+      "subject": "Sólo diseño técnico",
+      "source_content": "Se requiere únicamente el diseño técnico.",
+      "source_created_at": "2026-08-21T14:30:00Z",
+      "source_version": "1",
+      "etag": "\"int-20001-v1\""
+    },
+    {
+      "crm_interaction_ref": "int_20002",
+      "crm_opportunity_ref": null,
+      "service_horizon": "DEFERRED",
+      "requested_services": [
+        { "service": "FINANCIAL_DESIGN", "dependency": "NONE" }
+      ],
+      "subject": null,
+      "source_content": "Modelo financiero directo, sin fase técnica previa.",
+      "source_created_at": "2026-08-21T14:32:00Z",
+      "source_version": "1",
+      "etag": "\"int-20002-v1\""
+    }
+  ],
+  "has_more": true,
+  "next_cursor": "eyJ0IjoxNzg2ODAxOTIwMDAwLCJpIjoiMiIsImgiOm51bGwsImlhdCI6MTc4NjgwMTk5OTAwMH0.PLACEHOLDER_SIGNATURE",
+  "page_observed_at": "2026-08-21T14:37:12Z",
+  "high_watermark": "2026-08-21T14:32:00Z"
+}

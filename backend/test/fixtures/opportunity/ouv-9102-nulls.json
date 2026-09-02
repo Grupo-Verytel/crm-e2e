@@ -1,0 +1,14 @@
+{
+  "crm_opportunity_ref": "ouv_9102",
+  "title": null,
+  "organization": null,
+  "commercial_value": null,
+  "stage": null,
+  "status": null,
+  "expected_close_date": null,
+  "commercial_owner": null,
+  "commercial_archetype": null,
+  "context_observed_at": "2026-08-21T14:31:20Z",
+  "source_version": "1",
+  "etag": "\"ouv-9102-v1\""
+}

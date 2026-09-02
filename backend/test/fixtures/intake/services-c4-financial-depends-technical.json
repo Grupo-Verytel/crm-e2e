@@ -1,0 +1,4 @@
+[
+  { "service": "TECHNICAL_DESIGN", "dependency": "NONE" },
+  { "service": "FINANCIAL_DESIGN", "dependency": "TECHNICAL_DESIGN" }
+]

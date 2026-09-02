@@ -1,0 +1,29 @@
+{
+  "crm_opportunity_ref": "ouv_9101",
+  "title": "OUV de ejemplo para integración",
+  "organization": {
+    "ref": "org_4101",
+    "name": "Cliente de ejemplo"
+  },
+  "commercial_value": {
+    "amount": 125000000,
+    "currency": "COP"
+  },
+  "stage": {
+    "ref": "stage_design",
+    "name": "Diseño de preventa"
+  },
+  "status": "OPEN",
+  "expected_close_date": "2026-09-30",
+  "commercial_owner": {
+    "ref": "commercial_17",
+    "display_name": "Ejecutivo Comercial"
+  },
+  "commercial_archetype": {
+    "ref": "arch_b2g_structured",
+    "name": "B2G-ESTRUCTURADO"
+  },
+  "context_observed_at": "2026-08-21T14:31:20Z",
+  "source_version": "7",
+  "etag": "\"ouv-9101-v7\""
+}
