@@ -1,5 +1,8 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { SequelizeModule } from '@nestjs/sequelize';
+import { Ouv } from '../discovery/models/ouv.model';
+import { PresalesRequestsController } from './crm-projection/presales-requests.controller';
+import { PresalesRequestsService } from './crm-projection/presales-requests.service';
 import { CommercialInteractionsController } from './controllers/commercial-interactions.controller';
 import { CommercialOpportunitiesController } from './controllers/commercial-opportunities.controller';
 import { MepProblemFilter } from './filters/mep-problem.filter';
@@ -31,10 +34,13 @@ import { ResponseSemanticValidator } from './validation/response-semantic.valida
  * del CRM conserva su JWT + CASL y su prefijo `api/v1` sin cambios.
  */
 @Module({
-  imports: [SequelizeModule.forFeature(MEP_INTEGRATION_MODELS)],
+  imports: [SequelizeModule.forFeature([...MEP_INTEGRATION_MODELS, Ouv])],
   controllers: [
+    // Contrato MEP-LEAN bajo `/v1` (X-API-Key, servidor-a-servidor)
     CommercialInteractionsController,
     CommercialOpportunitiesController,
+    // Proyección para la UI del CRM bajo `api/v1` (JWT + CASL) — Fase 3
+    PresalesRequestsController,
   ],
   providers: [
     // Fase 0 — fundaciones
@@ -56,6 +62,8 @@ import { ResponseSemanticValidator } from './validation/response-semantic.valida
     // Fase 2 — escritura
     ProcessingReceiptService,
     MepResponseService,
+    // Fase 3 — proyección al CRM
+    PresalesRequestsService,
   ],
   exports: [ApiKeyService, MepAuditService, IdempotencyService],
 })

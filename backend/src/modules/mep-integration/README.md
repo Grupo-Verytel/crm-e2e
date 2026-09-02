@@ -9,7 +9,24 @@ Contrato versionado: [`openapi/crm-mep.yaml`](../../../../openapi/crm-mep.yaml).
 
 ---
 
-## 1. Superficie
+## 1. Dos superficies, dos audiencias
+
+Este módulo expone **dos** conjuntos de rutas que nunca se mezclan:
+
+| | Contrato MEP-LEAN | Proyección al CRM (Fase 3) |
+|---|---|---|
+| Prefijo | `/v1` | `api/v1` |
+| Consumidor | MEP-LEAN (sistema) | La UI del CRM (persona) |
+| Autenticación | `X-API-Key` (service account) | JWT + CASL |
+| CORS | cerrado, servidor-a-servidor | el del CRM |
+| Errores | `application/problem+json` | formato de error del CRM |
+
+**La UI nunca debe consumir `/v1`.** Esa `X-API-Key` es una credencial no
+humana (§10.1): en el navegador quedaría expuesta a cualquier usuario, y §10.3
+prohíbe abrir CORS sobre esa superficie. Para la UI existe la proyección de la
+§4 bis, que lee las mismas tablas con la sesión del usuario comercial.
+
+## 1.1 Contrato MEP-LEAN (`/v1`)
 
 | # | Método/ruta | Scope | Clase de cuota |
 |---|---|---|---|
