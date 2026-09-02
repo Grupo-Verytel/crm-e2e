@@ -40,6 +40,21 @@ export class CreateAccountDto {
   @IsString()
   @MaxLength(20)
   tax_id?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  economic_sector?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  address?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  website?: string | null;
 }
 
 export class UpdateAccountDto {
@@ -53,12 +68,30 @@ export class UpdateAccountDto {
   @IsString()
   @MaxLength(20)
   tax_id?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  economic_sector?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  address?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  website?: string | null;
 }
 
 export class AccountResponseDto {
   account_id!: string;
   name!: string;
   tax_id!: string | null;
+  economic_sector!: string | null;
+  address!: string | null;
+  website!: string | null;
   created_at!: Date;
   updated_at!: Date;
 }

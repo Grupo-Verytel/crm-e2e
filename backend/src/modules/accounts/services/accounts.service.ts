@@ -80,7 +80,13 @@ export class AccountsService {
     const taxId = this.normalizeOptional(dto.tax_id);
     await this.assertAccountUniqueness(name, taxId);
 
-    const account = await this.accountModel.create({ name, taxId });
+    const account = await this.accountModel.create({
+      name,
+      taxId,
+      economicSector: this.normalizeOptional(dto.economic_sector),
+      address: this.normalizeOptional(dto.address),
+      website: this.normalizeOptional(dto.website),
+    });
     return this.toAccountDto(account);
   }
 
@@ -96,7 +102,19 @@ export class AccountsService {
         : account.taxId;
 
     await this.assertAccountUniqueness(name, taxId, accountId);
-    await account.update({ name, taxId });
+    await account.update({
+      name,
+      taxId,
+      ...(dto.economic_sector !== undefined
+        ? { economicSector: this.normalizeOptional(dto.economic_sector) }
+        : {}),
+      ...(dto.address !== undefined
+        ? { address: this.normalizeOptional(dto.address) }
+        : {}),
+      ...(dto.website !== undefined
+        ? { website: this.normalizeOptional(dto.website) }
+        : {}),
+    });
     return this.toAccountDto(account);
   }
 
@@ -470,6 +488,9 @@ export class AccountsService {
       account_id: account.accountId,
       name: account.name,
       tax_id: account.taxId,
+      economic_sector: account.economicSector,
+      address: account.address,
+      website: account.website,
       created_at: account.createdAt,
       updated_at: account.updatedAt,
     };

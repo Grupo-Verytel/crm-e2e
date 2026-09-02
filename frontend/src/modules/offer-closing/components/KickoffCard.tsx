@@ -1,153 +1,154 @@
-import type { KickoffRecord, VentaGanadaRecord } from '../../shared/project/types';
-import { puedeEnviarAPmo } from '../../shared/project/mock-store';
-import { AlertaBanner } from '../../shared/project/AlertaBadge';
-import { badgeClass, cardClass, ghostButtonClass, inputClass, labelClass, primaryButtonClass } from './ui';
+import { useState } from 'react';
+import { CalendarPlus } from 'lucide-react';
+import type { KickoffRecord } from '../../shared/project/types';
+import { createEmptyKickoff } from '../../shared/project/mock-data';
+import { formatKickoffRange } from '../lib/kickoff-scheduling';
+import { KickoffProgramacionPanel } from './KickoffProgramacionPanel';
+import { KickoffScheduleModal } from './KickoffScheduleModal';
+import {
+  badgeClass,
+  cardClass,
+  ghostButtonClass,
+  primaryButtonClass,
+} from './ui';
+
+type Props = {
+  ouvId: string;
+  accountId?: string | null;
+  empresaNombre?: string | null;
+  kickoff: KickoffRecord;
+  onChange: (kickoff: KickoffRecord) => void;
+};
 
 const ESTADO_TONE: Record<KickoffRecord['estado'], string> = {
-  Programado: 'bg-brand/15 text-brand',
+  Programado: 'bg-turquoise/25 text-turquoise',
   Realizado: 'bg-positive/15 text-positive',
   Cancelado: 'bg-border text-muted',
 };
 
-type Props = {
-  record: VentaGanadaRecord;
-  onChange: (kickoff: KickoffRecord) => void;
-  onOpenResumen: () => void;
-};
+/**
+ * Pestaña Kickoff:
+ * - Sin agenda → CTA centrado "Agendar Kickoff" (abre modal con 3 pestañas).
+ * - Con agenda → programación en página + Reagendar (reabre el modal).
+ */
+export function KickoffCard({
+  ouvId,
+  accountId = null,
+  empresaNombre = null,
+  kickoff,
+  onChange,
+}: Props) {
+  const [modalOpen, setModalOpen] = useState(false);
+  const hasAgenda = Boolean(
+    kickoff.agendamientoConfirmado && kickoff.agenda,
+  );
 
-/** HU-F02 — Kickoff panel. */
-export function KickoffCard({ record, onChange, onOpenResumen }: Props) {
-  const { kickoff } = record;
-  const pmo = puedeEnviarAPmo(record);
-
-  function patch(partial: Partial<KickoffRecord>) {
-    onChange({ ...kickoff, ...partial });
+  function openSchedule() {
+    setModalOpen(true);
   }
 
-  function toggleAprobacion(id: string) {
+  function startReagendar() {
     onChange({
       ...kickoff,
-      aprobaciones: kickoff.aprobaciones.map((a) =>
-        a.id === id ? { ...a, completada: !a.completada } : a,
-      ),
+      agendamientoConfirmado: false,
+      estado: 'Programado',
+      fechaRealizacion: null,
+      validadoTeams: false,
+      aprobaciones: kickoff.aprobaciones.map((a) => ({
+        ...a,
+        completada: false,
+      })),
     });
+    setModalOpen(true);
+  }
+
+  function eliminarKickoff() {
+    setModalOpen(false);
+    onChange(createEmptyKickoff());
   }
 
   return (
-    <section className={cardClass}>
-      <h3 className="mb-3 text-sm font-bold text-ink">Kickoff de entrega</h3>
-
-      <div className="mb-4 grid gap-3 sm:grid-cols-2">
-        <div>
-          <label className={labelClass} htmlFor="kickoff-nombre">Sesión</label>
-          <input
-            id="kickoff-nombre"
-            className={inputClass}
-            value={kickoff.sesionNombre}
-            onChange={(e) => patch({ sesionNombre: e.target.value })}
-          />
+    <>
+      {hasAgenda ? (
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-muted">
+                {kickoff.estado === 'Realizado' && kickoff.validadoTeams
+                  ? 'Etapa 4 · Confirmación del Kickoff'
+                  : 'Kickoff agendado'}
+              </p>
+              {kickoff.agenda ? (
+                <p className="mt-0.5 truncate text-sm text-ink">
+                  {kickoff.agenda.nombreReunion}
+                  <span className="text-muted">
+                    {' '}
+                    ·{' '}
+                    {formatKickoffRange(
+                      kickoff.agenda.inicio,
+                      kickoff.agenda.fin,
+                    )}
+                  </span>
+                  <span
+                    className={`${badgeClass} ml-2 ${ESTADO_TONE[kickoff.estado]}`}
+                  >
+                    {kickoff.estado}
+                  </span>
+                </p>
+              ) : null}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                className={ghostButtonClass}
+                onClick={startReagendar}
+              >
+                Reagendar
+              </button>
+              <button
+                type="button"
+                className={ghostButtonClass}
+                onClick={eliminarKickoff}
+              >
+                Eliminar evento
+              </button>
+            </div>
+          </div>
+          <KickoffProgramacionPanel kickoff={kickoff} onChange={onChange} />
         </div>
-        <div>
-          <label className={labelClass} htmlFor="kickoff-fecha">Fecha sesión</label>
-          <input
-            id="kickoff-fecha"
-            type="date"
-            className={inputClass}
-            value={kickoff.sesionFecha}
-            onChange={(e) => patch({ sesionFecha: e.target.value })}
-          />
-        </div>
-        <div className="sm:col-span-2">
-          <label className={labelClass} htmlFor="kickoff-link">Enlace</label>
-          <input
-            id="kickoff-link"
-            className={inputClass}
-            value={kickoff.enlace}
-            onChange={(e) => patch({ enlace: e.target.value })}
-            placeholder="https://teams.microsoft.com/…"
-          />
-        </div>
-        <div>
-          <label className={labelClass} htmlFor="kickoff-estado">Estado</label>
-          <select
-            id="kickoff-estado"
-            className={inputClass}
-            value={kickoff.estado}
-            onChange={(e) => {
-              const estado = e.target.value as KickoffRecord['estado'];
-              patch({
-                estado,
-                fechaRealizacion:
-                  estado === 'Realizado' ? new Date().toISOString().slice(0, 10) : null,
-              });
-            }}
-          >
-            <option value="Programado">Programado</option>
-            <option value="Realizado">Realizado</option>
-            <option value="Cancelado">Cancelado</option>
-          </select>
-        </div>
-        <div className="flex items-end">
-          <span className={`${badgeClass} ${ESTADO_TONE[kickoff.estado]}`}>
-            {kickoff.estado}
-          </span>
-        </div>
-      </div>
-
-      <p className="mb-2 text-xs font-bold text-muted">Aprobaciones requeridas</p>
-      <ul className="mb-4 space-y-2">
-        {kickoff.aprobaciones.map((a) => (
-          <li key={a.id}>
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={a.completada}
-                onChange={() => toggleAprobacion(a.id)}
-              />
-              {a.label}
-            </label>
-          </li>
-        ))}
-      </ul>
-
-      <p className="mb-3 text-sm">
-        Validación Teams:{' '}
-        <span className={kickoff.validadoTeams ? 'text-positive' : 'text-muted'}>
-          {kickoff.validadoTeams ? 'Validado por Teams' : 'Pendiente de validación'}
-        </span>
-        <button
-          type="button"
-          className={`${ghostButtonClass} ml-2 px-2 py-0.5 text-xs`}
-          onClick={() => patch({ validadoTeams: !kickoff.validadoTeams })}
+      ) : (
+        <section
+          className={`${cardClass} flex min-h-[22rem] flex-col items-center justify-center gap-4 p-8 text-center`}
         >
-          Toggle mock
-        </button>
-      </p>
+          <CalendarPlus size={36} className="text-accent" aria-hidden />
+          <div className="max-w-md space-y-1">
+            <h3 className="text-base font-bold text-ink">
+              No hay Kickoff agendado
+            </h3>
+            <p className="text-sm text-muted">
+              Agenda la sesión de transferencia con datos, disponibilidad y
+              confirmación de programación.
+            </p>
+          </div>
+          <button
+            type="button"
+            className={primaryButtonClass}
+            onClick={openSchedule}
+          >
+            Agendar Kickoff
+          </button>
+        </section>
+      )}
 
-      {!pmo.ok && pmo.reason ? (
-        <AlertaBanner
-          alerta={{
-            id: 'kickoff-block',
-            tipo: 'Envío bloqueado',
-            estado: 'Activa',
-            descripcion: pmo.reason,
-            fecha: new Date().toISOString(),
-          }}
-        />
-      ) : null}
-
-      <button
-        type="button"
-        className={primaryButtonClass}
-        disabled={!pmo.ok}
-        title={pmo.reason ?? 'Confirmar envío a Control de Proyectos'}
-        onClick={onOpenResumen}
-      >
-        Creación de Proyecto
-      </button>
-      {!pmo.ok ? (
-        <p className="mt-2 text-xs text-muted">{pmo.reason}</p>
-      ) : null}
-    </section>
+      <KickoffScheduleModal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        ouvId={ouvId}
+        accountId={accountId}
+        empresaNombre={empresaNombre}
+        kickoff={kickoff}
+        onChange={onChange}
+      />
+    </>
   );
 }

@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -18,6 +17,7 @@ import { OuvContacto } from '../models/ouv-contacto.model';
 import { OuvInfluencia } from '../models/ouv-influencia.model';
 import { Ouv } from '../models/ouv.model';
 import { CriteriosZonaEvaluator } from './criterios-zona.evaluator';
+import { assertCanMutateOuvAsOwner } from '../lib/ouv-ownership';
 
 @Injectable()
 export class OuvInfluenciasService {
@@ -70,6 +70,7 @@ export class OuvInfluenciasService {
     tipo: InfluenciaTipo,
     dto: ActualizarInfluenciaDto,
     actorUserId: string,
+    actorRoleName: string,
   ): Promise<OuvInfluencia> {
     return this.ouvModel.sequelize!.transaction(async (transaction) => {
       const ouv = await this.ouvModel.findByPk(ouvId, {
@@ -79,11 +80,7 @@ export class OuvInfluenciasService {
       if (!ouv) {
         throw new NotFoundException(`OUV ${ouvId} not found`);
       }
-      if (ouv.comercialId !== actorUserId) {
-        throw new ForbiddenException(
-          'Only the owning Ejecutivo Comercial can update influencias',
-        );
-      }
+      assertCanMutateOuvAsOwner(ouv, actorUserId, actorRoleName);
       if (ouv.resultado !== OuvResultado.EnCurso) {
         throw new BadRequestException(
           `Cannot update influencias on a closed OUV (resultado=${ouv.resultado})`,

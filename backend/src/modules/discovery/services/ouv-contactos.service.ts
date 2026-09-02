@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -20,6 +19,7 @@ import { OuvResultado } from '../models/enums/ouv.enums';
 import { OuvContacto } from '../models/ouv-contacto.model';
 import { OuvInfluencia } from '../models/ouv-influencia.model';
 import { Ouv } from '../models/ouv.model';
+import { assertCanMutateOuvAsOwner } from '../lib/ouv-ownership';
 
 @Injectable()
 export class OuvContactosService {
@@ -104,9 +104,15 @@ export class OuvContactosService {
     ouvId: string,
     dto: CrearOuvContactoDto,
     actorUserId: string,
+    actorRoleName: string,
   ): Promise<OuvContactoResponseDto> {
     return this.ouvModel.sequelize!.transaction(async (transaction) => {
-      const ouv = await this.lockOwnedOuv(ouvId, actorUserId, transaction);
+      const ouv = await this.lockOwnedOuv(
+        ouvId,
+        actorUserId,
+        actorRoleName,
+        transaction,
+      );
       const personId = await this.resolvePersonId(dto);
 
       const people = await this.accountsService.getPeopleWithAccounts([
@@ -157,6 +163,7 @@ export class OuvContactosService {
     contactoOuvId: string,
     dto: ActualizarOuvContactoDto,
     actorUserId: string,
+    actorRoleName: string,
   ): Promise<OuvContactoResponseDto> {
     return this.ouvModel.sequelize!.transaction(async (transaction) => {
       const contacto = await this.contactoModel.findByPk(contactoOuvId, {
@@ -167,7 +174,12 @@ export class OuvContactosService {
         throw new NotFoundException(`Contacto OUV ${contactoOuvId} not found`);
       }
 
-      await this.lockOwnedOuv(contacto.ouvId, actorUserId, transaction);
+      await this.lockOwnedOuv(
+        contacto.ouvId,
+        actorUserId,
+        actorRoleName,
+        transaction,
+      );
 
       await contacto.update(
         {
@@ -186,6 +198,7 @@ export class OuvContactosService {
   async eliminar(
     contactoOuvId: string,
     actorUserId: string,
+    actorRoleName: string,
   ): Promise<void> {
     return this.ouvModel.sequelize!.transaction(async (transaction) => {
       const contacto = await this.contactoModel.findByPk(contactoOuvId, {
@@ -199,6 +212,7 @@ export class OuvContactosService {
       const ouv = await this.lockOwnedOuv(
         contacto.ouvId,
         actorUserId,
+        actorRoleName,
         transaction,
       );
 
@@ -353,6 +367,7 @@ export class OuvContactosService {
   private async lockOwnedOuv(
     ouvId: string,
     actorUserId: string,
+    actorRoleName: string,
     transaction: Transaction,
   ): Promise<Ouv> {
     const ouv = await this.ouvModel.findByPk(ouvId, {
@@ -362,11 +377,7 @@ export class OuvContactosService {
     if (!ouv) {
       throw new NotFoundException(`OUV ${ouvId} not found`);
     }
-    if (ouv.comercialId !== actorUserId) {
-      throw new ForbiddenException(
-        'Only the owning EjecutivoComercial can manage OUV contacts',
-      );
-    }
+    assertCanMutateOuvAsOwner(ouv, actorUserId, actorRoleName);
     if (ouv.resultado !== OuvResultado.EnCurso) {
       throw new BadRequestException(
         `Cannot modify contacts on a closed OUV (resultado=${ouv.resultado})`,

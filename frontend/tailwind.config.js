@@ -10,7 +10,7 @@ module.exports = {
         ink: 'var(--ink)',
         navy: 'var(--navy)', 'blue-500': 'var(--blue-500)', sky: 'var(--sky)',
         bg: 'var(--bg)', surface: 'var(--surface)', border: 'var(--border)', muted: 'var(--text-muted)',
-        positive: 'var(--positive)', success: 'var(--success)', warning: 'var(--warning)', danger: 'var(--danger)',
+        positive: 'var(--positive)', success: 'var(--success)', 'semaphore-verde': 'var(--semaphore-verde)', warning: 'var(--warning)', danger: 'var(--danger)',
         'login-left': 'var(--login-panel-left)',
         'login-right': 'var(--login-panel-right)',
       },

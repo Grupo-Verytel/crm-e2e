@@ -10,6 +10,7 @@ import { AccountsService } from '../../accounts/services/accounts.service';
 import { DemandGenerationService } from '../../demand-generation/services/demand-generation.service';
 import { EntityType } from '../../workflow-engine/enums/entity-type.enum';
 import { WorkflowEngineService } from '../../workflow-engine/workflow-engine.service';
+import type { ActualizarOuvDto } from '../dtos/actualizar-ouv.dto';
 import type { ActualizarPresupuestoDto } from '../dtos/actualizar-presupuesto.dto';
 import type {
   DescartarOuvDto,
@@ -20,6 +21,7 @@ import type { CrearOuvDirectaDto } from '../dtos/crear-ouv-directa.dto';
 import type { CrearOuvDto } from '../dtos/crear-ouv.dto';
 import type { ListarOuvsQueryDto } from '../dtos/listar-ouvs-query.dto';
 import type { OuvResponseDto } from '../dtos/ouv-response.dto';
+import { assertCanMutateOuvAsOwner } from '../lib/ouv-ownership';
 import { nextZona, prevZona } from '../lib/ouv-zona-order';
 import {
   OuvOrigenVia,
@@ -221,9 +223,18 @@ export class OuvsService {
     });
   }
 
-  async avanzarZona(ouvId: string, actorUserId: string): Promise<Ouv> {
+  async avanzarZona(
+    ouvId: string,
+    actorUserId: string,
+    actorRoleName: string,
+  ): Promise<Ouv> {
     return this.sequelize.transaction(async (transaction) => {
-      const ouv = await this.lockOwnedEnCurso(ouvId, actorUserId, transaction);
+      const ouv = await this.lockOwnedEnCurso(
+        ouvId,
+        actorUserId,
+        actorRoleName,
+        transaction,
+      );
       const destino = nextZona(ouv.zonaActual);
       if (!destino) {
         throw new BadRequestException(
@@ -276,6 +287,7 @@ export class OuvsService {
     ouvId: string,
     motivo: string,
     actorUserId: string,
+    actorRoleName: string,
   ): Promise<Ouv> {
     const motivoTrim = motivo?.trim();
     if (!motivoTrim) {
@@ -283,7 +295,12 @@ export class OuvsService {
     }
 
     return this.sequelize.transaction(async (transaction) => {
-      const ouv = await this.lockOwnedEnCurso(ouvId, actorUserId, transaction);
+      const ouv = await this.lockOwnedEnCurso(
+        ouvId,
+        actorUserId,
+        actorRoleName,
+        transaction,
+      );
       const destino = prevZona(ouv.zonaActual);
       if (!destino) {
         throw new BadRequestException(
@@ -323,9 +340,15 @@ export class OuvsService {
     ouvId: string,
     dto: GanarOuvDto,
     actorUserId: string,
+    actorRoleName: string,
   ): Promise<Ouv> {
     return this.sequelize.transaction(async (transaction) => {
-      const ouv = await this.lockOwnedEnCurso(ouvId, actorUserId, transaction);
+      const ouv = await this.lockOwnedEnCurso(
+        ouvId,
+        actorUserId,
+        actorRoleName,
+        transaction,
+      );
 
       if (ouv.zonaActual !== OuvZona.MayorProbabilidad) {
         throw new BadRequestException(
@@ -410,9 +433,15 @@ export class OuvsService {
     ouvId: string,
     dto: PerderOuvDto,
     actorUserId: string,
+    actorRoleName: string,
   ): Promise<Ouv> {
     return this.sequelize.transaction(async (transaction) => {
-      const ouv = await this.lockOwnedEnCurso(ouvId, actorUserId, transaction);
+      const ouv = await this.lockOwnedEnCurso(
+        ouvId,
+        actorUserId,
+        actorRoleName,
+        transaction,
+      );
 
       const motivo = await this.motivoPerdidaModel.findByPk(dto.motivo_id, {
         transaction,
@@ -474,9 +503,15 @@ export class OuvsService {
     ouvId: string,
     dto: DescartarOuvDto,
     actorUserId: string,
+    actorRoleName: string,
   ): Promise<Ouv> {
     return this.sequelize.transaction(async (transaction) => {
-      const ouv = await this.lockOwnedEnCurso(ouvId, actorUserId, transaction);
+      const ouv = await this.lockOwnedEnCurso(
+        ouvId,
+        actorUserId,
+        actorRoleName,
+        transaction,
+      );
 
       const motivo = await this.motivoDescarteModel.findByPk(dto.motivo_id, {
         transaction,
@@ -525,13 +560,53 @@ export class OuvsService {
     });
   }
 
+  async actualizarMetadatos(
+    ouvId: string,
+    dto: ActualizarOuvDto,
+    actorUserId: string,
+    actorRoleName: string,
+  ): Promise<Ouv> {
+    return this.sequelize.transaction(async (transaction) => {
+      const ouv = await this.lockOwnedEnCurso(
+        ouvId,
+        actorUserId,
+        actorRoleName,
+        transaction,
+      );
+
+      const patch: Partial<Ouv> = {};
+      if (dto.titulo !== undefined) patch.titulo = dto.titulo.trim();
+      if (dto.empresa_nombre !== undefined) {
+        patch.empresaNombre = dto.empresa_nombre.trim();
+      }
+      if (dto.segmento !== undefined) patch.segmento = dto.segmento;
+      if (dto.vertical !== undefined) patch.vertical = dto.vertical;
+      if (dto.descripcion !== undefined) {
+        patch.descripcion = dto.descripcion.trim() || null;
+      }
+
+      if (Object.keys(patch).length === 0) {
+        throw new BadRequestException('No fields to update');
+      }
+
+      await ouv.update(patch, { transaction });
+      return ouv;
+    });
+  }
+
   async actualizarPresupuesto(
     ouvId: string,
     dto: ActualizarPresupuestoDto,
     actorUserId: string,
+    actorRoleName: string,
   ): Promise<Ouv> {
     return this.sequelize.transaction(async (transaction) => {
-      const ouv = await this.lockOwnedEnCurso(ouvId, actorUserId, transaction);
+      const ouv = await this.lockOwnedEnCurso(
+        ouvId,
+        actorUserId,
+        actorRoleName,
+        transaction,
+      );
 
       await ouv.update(
         {
@@ -684,6 +759,7 @@ export class OuvsService {
   private async lockOwnedEnCurso(
     ouvId: string,
     actorUserId: string,
+    actorRoleName: string,
     transaction: Transaction,
   ): Promise<Ouv> {
     const ouv = await this.ouvModel.findByPk(ouvId, {
@@ -693,11 +769,7 @@ export class OuvsService {
     if (!ouv) {
       throw new NotFoundException(`OUV ${ouvId} not found`);
     }
-    if (ouv.comercialId !== actorUserId) {
-      throw new ForbiddenException(
-        'Only the owning Ejecutivo Comercial can perform this action',
-      );
-    }
+    assertCanMutateOuvAsOwner(ouv, actorUserId, actorRoleName);
     if (ouv.resultado !== OuvResultado.EnCurso) {
       throw new BadRequestException(
         `OUV is already closed (resultado=${ouv.resultado})`,

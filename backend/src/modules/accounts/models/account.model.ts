@@ -30,6 +30,19 @@ export class Account extends Model {
   @Column({ type: DataType.STRING(20), field: 'tax_id', allowNull: true })
   declare taxId: string | null;
 
+  @Column({
+    type: DataType.STRING(120),
+    field: 'economic_sector',
+    allowNull: true,
+  })
+  declare economicSector: string | null;
+
+  @Column({ type: DataType.STRING(255), allowNull: true })
+  declare address: string | null;
+
+  @Column({ type: DataType.STRING(255), allowNull: true })
+  declare website: string | null;
+
   @HasMany(() => Person, { foreignKey: 'accountId', as: 'people' })
   declare people: Person[];
 

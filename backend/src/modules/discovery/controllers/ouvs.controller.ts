@@ -14,6 +14,7 @@ import { CheckAbility } from '../../auth/casl/check-ability.decorator';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../../auth/interfaces/authenticated-user.interface';
 import { ActualizarInfluenciaDto } from '../dtos/actualizar-influencia.dto';
+import { ActualizarOuvDto } from '../dtos/actualizar-ouv.dto';
 import { ActualizarPresupuestoDto } from '../dtos/actualizar-presupuesto.dto';
 import {
   DescartarOuvDto,
@@ -94,7 +95,11 @@ export class OuvsController {
     @Param('id') id: string,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<OuvResponseDto> {
-    const ouv = await this.ouvsService.avanzarZona(id, user.userId);
+    const ouv = await this.ouvsService.avanzarZona(
+      id,
+      user.userId,
+      user.roleName,
+    );
     return this.ouvsService.toResponse(ouv);
   }
 
@@ -109,6 +114,7 @@ export class OuvsController {
       id,
       dto.motivo,
       user.userId,
+      user.roleName,
     );
     return this.ouvsService.toResponse(ouv);
   }
@@ -120,7 +126,7 @@ export class OuvsController {
     @Body() dto: GanarOuvDto,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<OuvResponseDto> {
-    const ouv = await this.ouvsService.ganar(id, dto, user.userId);
+    const ouv = await this.ouvsService.ganar(id, dto, user.userId, user.roleName);
     return this.ouvsService.toResponse(ouv);
   }
 
@@ -131,7 +137,12 @@ export class OuvsController {
     @Body() dto: PerderOuvDto,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<OuvResponseDto> {
-    const ouv = await this.ouvsService.perder(id, dto, user.userId);
+    const ouv = await this.ouvsService.perder(
+      id,
+      dto,
+      user.userId,
+      user.roleName,
+    );
     return this.ouvsService.toResponse(ouv);
   }
 
@@ -142,7 +153,12 @@ export class OuvsController {
     @Body() dto: DescartarOuvDto,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<OuvResponseDto> {
-    const ouv = await this.ouvsService.descartar(id, dto, user.userId);
+    const ouv = await this.ouvsService.descartar(
+      id,
+      dto,
+      user.userId,
+      user.roleName,
+    );
     return this.ouvsService.toResponse(ouv);
   }
 
@@ -178,6 +194,7 @@ export class OuvsController {
       tipo,
       dto,
       user.userId,
+      user.roleName,
     );
     return {
       influencia_id: r.influenciaId,
@@ -237,6 +254,22 @@ export class OuvsController {
     };
   }
 
+  @Patch(':id')
+  @CheckAbility({ action: 'update', subject: 'Opportunity' })
+  async actualizarMetadatos(
+    @Param('id') id: string,
+    @Body() dto: ActualizarOuvDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<OuvResponseDto> {
+    const ouv = await this.ouvsService.actualizarMetadatos(
+      id,
+      dto,
+      user.userId,
+      user.roleName,
+    );
+    return this.ouvsService.toResponse(ouv);
+  }
+
   @Patch(':id/presupuesto')
   @CheckAbility({ action: 'update', subject: 'Opportunity' })
   async actualizarPresupuesto(
@@ -248,6 +281,7 @@ export class OuvsController {
       id,
       dto,
       user.userId,
+      user.roleName,
     );
     return this.ouvsService.toResponse(ouv);
   }

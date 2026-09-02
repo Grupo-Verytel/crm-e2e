@@ -1,7 +1,8 @@
-import { DEMO_VENTAS_GANADAS } from './mock-data';
+import { DEMO_VENTAS_GANADAS, createEmptyKickoff } from './mock-data';
 import type { DatosBaseProyecto, VentaGanadaRecord } from './types';
 
 const STORAGE_KEY = 'crm-ventas-ganadas-mock-v2';
+const CLEAR_PRUEBAS_FLAG = 'crm-ventas-ganadas-clear-kickoff-pruebas-v1';
 
 function readStore(): Record<string, VentaGanadaRecord> {
   try {
@@ -17,6 +18,30 @@ function writeStore(map: Record<string, VentaGanadaRecord>): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(map));
 }
 
+function isKickoffPruebas(record: VentaGanadaRecord): boolean {
+  const nombre =
+    record.kickoff.agenda?.nombreReunion?.trim() ||
+    record.kickoff.sesionNombre.trim();
+  return nombre === 'Pruebas';
+}
+
+/** One-shot: remove demo "Pruebas" kickoff so scheduling stages can be retested. */
+function clearPruebasKickoffOnce(map: Record<string, VentaGanadaRecord>): void {
+  if (localStorage.getItem(CLEAR_PRUEBAS_FLAG)) return;
+  let changed = false;
+  for (const ouvId of Object.keys(map)) {
+    if (!isKickoffPruebas(map[ouvId])) continue;
+    map[ouvId] = {
+      ...map[ouvId],
+      kickoff: createEmptyKickoff(),
+      updatedAt: new Date().toISOString(),
+    };
+    changed = true;
+  }
+  localStorage.setItem(CLEAR_PRUEBAS_FLAG, '1');
+  if (changed) writeStore(map);
+}
+
 /** Seed demo records on first load; merges with persisted edits. */
 export function initVentaGanadaStore(): void {
   const existing = readStore();
@@ -27,6 +52,7 @@ export function initVentaGanadaStore(): void {
     }
   }
   writeStore(merged);
+  clearPruebasKickoffOnce(merged);
 }
 
 export function listVentasGanadas(): VentaGanadaRecord[] {
@@ -131,6 +157,12 @@ export function puedeEnviarAPmo(record: VentaGanadaRecord): { ok: boolean; reaso
   }
   if (record.kickoff.estado !== 'Realizado') {
     return { ok: false, reason: 'El kickoff debe estar marcado como Realizado.' };
+  }
+  if (!record.kickoff.validadoTeams) {
+    return {
+      ok: false,
+      reason: 'Pendiente validar asistencia del kickoff en Teams.',
+    };
   }
   if (!record.kickoff.aprobaciones.every((a) => a.completada)) {
     return { ok: false, reason: 'Faltan aprobaciones del kickoff.' };

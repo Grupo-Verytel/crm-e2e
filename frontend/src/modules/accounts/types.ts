@@ -2,6 +2,9 @@ export type Account = {
   account_id: string;
   name: string;
   tax_id: string | null;
+  economic_sector: string | null;
+  address: string | null;
+  website: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -41,11 +44,17 @@ export type PeopleQuery = {
 export type CreateAccountPayload = {
   name: string;
   tax_id?: string | null;
+  economic_sector?: string | null;
+  address?: string | null;
+  website?: string | null;
 };
 
 export type UpdateAccountPayload = {
   name?: string;
   tax_id?: string | null;
+  economic_sector?: string | null;
+  address?: string | null;
+  website?: string | null;
 };
 
 export type CreatePersonPayload = {

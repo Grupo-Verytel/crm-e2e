@@ -1,19 +1,15 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { Pencil, Trash2, Users } from 'lucide-react';
 import { AppLayout } from '../../../layout/AppLayout';
 import { Pagination } from '../../../components/Pagination';
 import { useAuth } from '../../auth/hooks/useAuth';
 import { ApiError } from '../../auth/types';
-import {
-  createAccount,
-  deleteAccount,
-  fetchAccounts,
-  updateAccount,
-} from '../api/accounts-api';
+import { deleteAccount, fetchAccounts } from '../api/accounts-api';
+import { AccountFormModal } from '../components/AccountFormModal';
+import { AccountPeopleModal } from '../components/AccountPeopleModal';
 import type { Account } from '../types';
 import {
   cardClass,
-  dangerButtonClass,
-  ghostButtonClass,
   inputClass,
   labelClass,
   primaryButtonClass,
@@ -36,13 +32,8 @@ export function AccountsListPage() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
   const [editing, setEditing] = useState<Account | null | 'new'>(null);
-  const [name, setName] = useState('');
-  const [taxId, setTaxId] = useState('');
-  const [searchHits, setSearchHits] = useState<Account[]>([]);
-  const [searching, setSearching] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [viewingPeople, setViewingPeople] = useState<Account | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -69,63 +60,6 @@ export function AccountsListPage() {
   function applyFilters() {
     setAppliedQ(draftQ.trim());
     setPage(1);
-  }
-
-  function openNew() {
-    setEditing('new');
-    setName('');
-    setTaxId('');
-    setSearchHits([]);
-  }
-
-  function openEdit(row: Account) {
-    setEditing(row);
-    setName(row.name);
-    setTaxId(row.tax_id ?? '');
-    setSearchHits([]);
-  }
-
-  async function runPreSearch() {
-    const q = [name.trim(), taxId.trim()].filter(Boolean).join(' ').trim();
-    if (!q) {
-      setSearchHits([]);
-      return;
-    }
-    setSearching(true);
-    try {
-      const data = await fetchAccounts({ q, page: 1, limit: 10 });
-      setSearchHits(data.items);
-    } catch {
-      setSearchHits([]);
-    } finally {
-      setSearching(false);
-    }
-  }
-
-  async function onSubmit(e: FormEvent) {
-    e.preventDefault();
-    if (!name.trim()) return;
-    setSaving(true);
-    setError(null);
-    try {
-      if (editing === 'new') {
-        await createAccount({
-          name: name.trim(),
-          tax_id: taxId.trim() || null,
-        });
-      } else if (editing) {
-        await updateAccount(editing.account_id, {
-          name: name.trim(),
-          tax_id: taxId.trim() || null,
-        });
-      }
-      setEditing(null);
-      await load();
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'No se pudo guardar.');
-    } finally {
-      setSaving(false);
-    }
   }
 
   async function onDelete(row: Account) {
@@ -158,7 +92,11 @@ export function AccountsListPage() {
           <button type="button" className={primaryButtonClass} onClick={applyFilters}>
             Aplicar
           </button>
-          <button type="button" className={primaryButtonClass} onClick={openNew}>
+          <button
+            type="button"
+            className={primaryButtonClass}
+            onClick={() => setEditing('new')}
+          >
             Nueva empresa
           </button>
         </div>
@@ -168,81 +106,6 @@ export function AccountsListPage() {
         <p className="mb-3 text-sm text-danger" role="alert">
           {error}
         </p>
-      ) : null}
-
-      {editing ? (
-        <form
-          onSubmit={onSubmit}
-          className={`${cardClass} mb-4 space-y-3 p-4`}
-        >
-          <h2 className="text-sm font-bold text-ink">
-            {editing === 'new' ? 'Crear empresa' : 'Editar empresa'}
-          </h2>
-          <div>
-            <label className={labelClass} htmlFor="account-name">
-              Nombre
-            </label>
-            <input
-              id="account-name"
-              className={inputClass}
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-              maxLength={160}
-            />
-          </div>
-          <div>
-            <label className={labelClass} htmlFor="account-tax">
-              NIT / tax_id (opcional)
-            </label>
-            <input
-              id="account-tax"
-              className={inputClass}
-              value={taxId}
-              onChange={(e) => setTaxId(e.target.value)}
-              maxLength={20}
-            />
-          </div>
-          {editing === 'new' ? (
-            <div className="space-y-2">
-              <button
-                type="button"
-                className={ghostButtonClass}
-                onClick={() => void runPreSearch()}
-                disabled={searching}
-              >
-                {searching ? 'Buscando…' : 'Buscar si ya existe'}
-              </button>
-              {searchHits.length > 0 ? (
-                <div className="rounded border border-border bg-bg p-3 text-sm">
-                  <p className="mb-2 font-bold text-ink">
-                    Posibles coincidencias — revisa antes de crear:
-                  </p>
-                  <ul className="space-y-1 text-muted">
-                    {searchHits.map((hit) => (
-                      <li key={hit.account_id}>
-                        {hit.name}
-                        {hit.tax_id ? ` · ${hit.tax_id}` : ''}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-            </div>
-          ) : null}
-          <div className="flex gap-2">
-            <button type="submit" className={primaryButtonClass} disabled={saving}>
-              {saving ? 'Guardando…' : 'Guardar'}
-            </button>
-            <button
-              type="button"
-              className={ghostButtonClass}
-              onClick={() => setEditing(null)}
-            >
-              Cancelar
-            </button>
-          </div>
-        </form>
       ) : null}
 
       <div className={cardClass}>
@@ -257,6 +120,9 @@ export function AccountsListPage() {
                 <tr className="border-b border-border text-xs text-muted">
                   <th className="px-4 py-3 font-bold">Nombre</th>
                   <th className="px-4 py-3 font-bold">NIT</th>
+                  <th className="px-4 py-3 font-bold">Sector económico</th>
+                  <th className="px-4 py-3 font-bold">Dirección</th>
+                  <th className="px-4 py-3 font-bold">Sitio web</th>
                   <th className="px-4 py-3 font-bold">Acciones</th>
                 </tr>
               </thead>
@@ -265,22 +131,41 @@ export function AccountsListPage() {
                   <tr key={row.account_id} className="border-b border-border">
                     <td className="px-4 py-3 text-ink">{row.name}</td>
                     <td className="px-4 py-3 text-muted">{row.tax_id ?? '—'}</td>
+                    <td className="px-4 py-3 text-muted">
+                      {row.economic_sector ?? '—'}
+                    </td>
+                    <td className="max-w-[200px] truncate px-4 py-3 text-muted">
+                      {row.address ?? '—'}
+                    </td>
+                    <td className="max-w-[180px] truncate px-4 py-3 text-muted">
+                      {row.website ?? '—'}
+                    </td>
                     <td className="px-4 py-3">
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-wrap items-center gap-1">
                         <button
                           type="button"
-                          className={ghostButtonClass}
-                          onClick={() => openEdit(row)}
+                          className="icon-btn grid h-9 w-9 place-items-center rounded"
+                          aria-label={`Editar ${row.name}`}
+                          onClick={() => setEditing(row)}
                         >
-                          Editar
+                          <Pencil size={16} strokeWidth={2} />
+                        </button>
+                        <button
+                          type="button"
+                          className="icon-btn grid h-9 w-9 place-items-center rounded"
+                          aria-label={`Ver contactos de ${row.name}`}
+                          onClick={() => setViewingPeople(row)}
+                        >
+                          <Users size={16} strokeWidth={2} />
                         </button>
                         {canDelete ? (
                           <button
                             type="button"
-                            className={dangerButtonClass}
+                            className="icon-btn grid h-9 w-9 place-items-center rounded text-danger"
+                            aria-label={`Eliminar ${row.name}`}
                             onClick={() => void onDelete(row)}
                           >
-                            Eliminar
+                            <Trash2 size={16} strokeWidth={2} />
                           </button>
                         ) : null}
                       </div>
@@ -298,6 +183,23 @@ export function AccountsListPage() {
           </div>
         )}
       </div>
+
+      {editing ? (
+        <AccountFormModal
+          editing={editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => void load()}
+        />
+      ) : null}
+
+      {viewingPeople ? (
+        <AccountPeopleModal
+          account={viewingPeople}
+          onClose={() => setViewingPeople(null)}
+        />
+      ) : null}
     </AppLayout>
   );
 }
+
+export default AccountsListPage;

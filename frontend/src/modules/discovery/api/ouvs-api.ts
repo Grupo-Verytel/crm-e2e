@@ -119,8 +119,26 @@ export async function fetchOuvs(query: OuvsQuery): Promise<PaginatedOuvs> {
   return apiRequest(`/discovery/ouvs${buildQueryString(query)}`);
 }
 
+export type ActualizarOuvPayload = {
+  titulo?: string;
+  empresa_nombre?: string;
+  segmento?: string;
+  vertical?: string;
+  descripcion?: string;
+};
+
 export async function fetchOuv(id: string): Promise<Ouv> {
   return apiRequest(`/discovery/ouvs/${id}`);
+}
+
+export async function updateOuv(
+  id: string,
+  payload: ActualizarOuvPayload,
+): Promise<Ouv> {
+  return apiRequest(`/discovery/ouvs/${id}`, {
+    method: 'PATCH',
+    body: payload,
+  });
 }
 
 export async function crearOuvDirecta(

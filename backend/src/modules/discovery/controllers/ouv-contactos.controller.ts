@@ -39,7 +39,7 @@ export class OuvContactosController {
     @Body() dto: CrearOuvContactoDto,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<OuvContactoResponseDto> {
-    return this.contactosService.crear(ouvId, dto, user.userId);
+    return this.contactosService.crear(ouvId, dto, user.userId, user.roleName);
   }
 
   @Patch(':contactoOuvId')
@@ -53,6 +53,7 @@ export class OuvContactosController {
       contactoOuvId,
       dto,
       user.userId,
+      user.roleName,
     );
   }
 
@@ -63,6 +64,10 @@ export class OuvContactosController {
     @Param('contactoOuvId') contactoOuvId: string,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<void> {
-    await this.contactosService.eliminar(contactoOuvId, user.userId);
+    await this.contactosService.eliminar(
+      contactoOuvId,
+      user.userId,
+      user.roleName,
+    );
   }
 }

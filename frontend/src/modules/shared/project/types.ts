@@ -74,6 +74,32 @@ export type ValidacionRecord = {
 
 export type KickoffEstado = 'Programado' | 'Realizado' | 'Cancelado';
 
+export type KickoffInviteeTipo = 'Interno' | 'ContactoOuv' | 'Externo';
+
+export type KickoffInvitee = {
+  id: string;
+  email: string;
+  nombre: string;
+  tipo: KickoffInviteeTipo;
+};
+
+export type KickoffUbicacionTipo = 'Teams' | 'Presencial';
+
+export type KickoffSalaVerytel = 'Sala Marte' | 'Sala Júpiter';
+
+export type KickoffAgendaConfirmada = {
+  nombreReunion: string;
+  invitados: KickoffInvitee[];
+  inicio: string;
+  fin: string;
+  /** One or both modalities (Teams and/or Presencial). */
+  ubicaciones: KickoffUbicacionTipo[];
+  salaVerytel: KickoffSalaVerytel | null;
+  ubicacionDetalle: string | null;
+  observacionesInvitados: string;
+  confirmadaEn: string;
+};
+
 export type KickoffRecord = {
   sesionNombre: string;
   sesionFecha: string;
@@ -82,6 +108,8 @@ export type KickoffRecord = {
   fechaRealizacion: string | null;
   aprobaciones: { id: string; label: string; completada: boolean }[];
   validadoTeams: boolean;
+  agendamientoConfirmado: boolean;
+  agenda: KickoffAgendaConfirmada | null;
 };
 
 export type EnvioPmoEstado =

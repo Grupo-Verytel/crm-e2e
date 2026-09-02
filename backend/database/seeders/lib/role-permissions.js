@@ -33,7 +33,8 @@ const MATRIX = {
     'users/roles': 'CRUA',
     // Full demand-gen so Admin can operate without switching roles in local/dev.
     'leads/campaigns': 'CRUA',
-    opportunities: 'R',
+    // Full opportunity ops so Admin can test OUV detalle (influencias, etc.).
+    opportunities: 'CRUX',
     accounts: 'CRU',
     'ouv-catalogs': 'CRUD',
     presales: 'R',
