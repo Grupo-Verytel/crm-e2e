@@ -24,7 +24,18 @@ const CONTRACT_PREFIX = '/v1/';
  * Nest no vuelve a procesar el cuerpo: el resto del CRM conserva su límite.
  */
 export function mepJsonBodyParser(): RequestHandler {
-  return json({ limit: MAX_BODY_BYTES, type: 'application/json' });
+  const parser = json({ limit: MAX_BODY_BYTES, type: 'application/json' });
+
+  // El handler se renombra a propósito. Nest decide si registrar su parser
+  // global comparando el **nombre** de las funciones ya montadas contra
+  // `jsonParser` (`ExpressAdapter.isMiddlewareApplied`). Si este se llamara
+  // así, Nest daría por hecho que ya hay parser y no montaría el suyo, y todo
+  // el CRM fuera de `/v1` se quedaría sin body.
+  const scoped: RequestHandler = (request, response, next) =>
+    parser(request, response, next);
+  Object.defineProperty(scoped, 'name', { value: 'mepJsonParser' });
+
+  return scoped;
 }
 
 /**

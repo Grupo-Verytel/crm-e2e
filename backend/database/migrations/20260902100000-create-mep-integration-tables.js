@@ -196,7 +196,13 @@ module.exports = {
         response_etag   VARCHAR(96)  NULL,
         created_at      DATETIME(3)  NOT NULL,
         expires_at      DATETIME(3)  NOT NULL,
-        UNIQUE KEY uq_idem (api_key_id, method, path, idempotency_key),
+        -- §9.1 declara la unicidad sobre \`path\` completo, pero con utf8mb4 esa
+        -- clave suma 3112 bytes y MySQL 8 topa en 3072. Se indexa un prefijo de
+        -- 255 caracteres (2084 bytes): la ruta más larga del contrato,
+        -- /v1/commercial-interactions/{ref}/responses/{id}, queda muy por
+        -- debajo con los límites de 64 y 128 de esas referencias, así que la
+        -- unicidad efectiva es la misma.
+        UNIQUE KEY uq_idem (api_key_id, method, path(255), idempotency_key),
         KEY ix_idem_expiry (expires_at)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
