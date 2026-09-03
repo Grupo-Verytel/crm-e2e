@@ -70,6 +70,31 @@ export const INFLUENCIA_ESTADOS = [
   'Rojo',
 ] as const;
 
+export type InfluenciaEstado = (typeof INFLUENCIA_ESTADOS)[number];
+
+/** Card / select tones for influencia estado (semaphore). */
+export const INFLUENCIA_ESTADO_TONE: Record<InfluenciaEstado, string> = {
+  SinEvaluar: 'border-border bg-bg text-muted',
+  Verde: 'border-semaphore-verde/50 bg-semaphore-verde/10 text-ink',
+  Amarillo: 'border-warning/50 bg-warning/15 text-ink',
+  Rojo: 'border-danger/50 bg-danger/10 text-danger',
+};
+
+export const INFLUENCIA_ESTADO_DOT: Record<InfluenciaEstado, string> = {
+  SinEvaluar: 'bg-muted',
+  Verde: 'bg-semaphore-verde',
+  Amarillo: 'bg-warning',
+  Rojo: 'bg-danger',
+};
+
+/** Full-card background when a contact is assigned. */
+export const INFLUENCIA_ESTADO_CARD: Record<InfluenciaEstado, string> = {
+  SinEvaluar: 'border-border bg-bg/90',
+  Verde: 'border-semaphore-verde/70 bg-semaphore-verde/20',
+  Amarillo: 'border-warning/70 bg-warning/25',
+  Rojo: 'border-danger/70 bg-danger/15',
+};
+
 export const VERTICALES = [
   'Seguridad Ciudadana',
   'Defensa',

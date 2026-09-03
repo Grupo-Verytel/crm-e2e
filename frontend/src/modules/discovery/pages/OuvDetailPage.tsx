@@ -31,6 +31,7 @@ import { CierreOuvModal } from '../components/CierreOuvModal';
 import { ContactoFormModal } from '../components/ContactoFormModal';
 import { ContactosSidePanel } from '../components/ContactosSidePanel';
 import { DiscoveryNav } from '../components/DiscoveryNav';
+import { OuvConfigMenu } from '../components/OuvConfigMenu';
 import { GapBadge, ResultadoBadge, ZonaBadge } from '../components/OuvBadges';
 import { RetrocesoZonaModal } from '../components/RetrocesoZonaModal';
 import {
@@ -42,9 +43,12 @@ import {
   primaryButtonClass,
 } from '../components/ui';
 import {
+  INFLUENCIA_ESTADO_CARD,
+  INFLUENCIA_ESTADO_DOT,
   INFLUENCIA_ESTADOS,
   INFLUENCIA_TIPOS,
   isOuvNotificationEvent,
+  type InfluenciaEstado,
   type InfluenciaTipo,
 } from '../lib/ouv-vocab';
 
@@ -426,45 +430,29 @@ export function OuvDetailPage() {
               {ouv.tiene_gap ? <GapBadge /> : null}
             </div>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              className={ghostButtonClass}
-              onClick={() => setShowContactosPanel(true)}
-            >
-              <span className="inline-flex items-center gap-2">
-                <Users size={16} strokeWidth={2} />
-                Contactos
-                <span className={`${badgeClass} bg-bg text-muted`}>
-                  {contactos.length}
-                </span>
-              </span>
-            </button>
+          <div className="flex flex-wrap items-center gap-2">
             {editable ? (
-              <>
-                <button
-                  type="button"
-                  className={primaryButtonClass}
-                  onClick={() => setShowAvance(true)}
-                >
-                  Avanzar zona
-                </button>
-                <button
-                  type="button"
-                  className={ghostButtonClass}
-                  onClick={() => setShowRetroceso(true)}
-                >
-                  Retroceder
-                </button>
-                <button
-                  type="button"
-                  className={ghostButtonClass}
-                  onClick={() => setShowCierre(true)}
-                >
-                  Cerrar OUV
-                </button>
-              </>
-            ) : null}
+              <OuvConfigMenu
+                onContactos={() => setShowContactosPanel(true)}
+                onAvanzar={() => setShowAvance(true)}
+                onRetroceder={() => setShowRetroceso(true)}
+                onCerrar={() => setShowCierre(true)}
+              />
+            ) : (
+              <button
+                type="button"
+                className={ghostButtonClass}
+                onClick={() => setShowContactosPanel(true)}
+              >
+                <span className="inline-flex items-center gap-2">
+                  <Users size={16} strokeWidth={2} />
+                  Contactos
+                  <span className={`${badgeClass} bg-bg text-muted`}>
+                    {contactos.length}
+                  </span>
+                </span>
+              </button>
+            )}
           </div>
         </div>
         {ouv.descripcion ? (
@@ -551,18 +539,23 @@ export function OuvDetailPage() {
         <div className="grid gap-3 md:grid-cols-3">
           {INFLUENCIA_TIPOS.map((tipo) => {
             const inf = influencias.find((x) => x.tipo === tipo);
+            const estado =
+              (inf?.estado as InfluenciaEstado | undefined) ?? 'SinEvaluar';
+            const cardTone =
+              INFLUENCIA_ESTADO_CARD[estado] ?? INFLUENCIA_ESTADO_CARD.SinEvaluar;
             const isSaving = Boolean(savingTipos[tipo]);
             const justSaved = influenciaFlash === tipo;
             return (
               <div
                 key={tipo}
                 className={[
-                  'rounded border bg-bg p-3 transition-[border-color,box-shadow] duration-300',
+                  'rounded border p-3 transition-[border-color,box-shadow] duration-300',
+                  cardTone,
                   justSaved
                     ? 'border-positive shadow-[0_0_0_1px_var(--positive)]'
                     : isSaving
                       ? 'border-accent'
-                      : 'border-border',
+                      : '',
                 ].join(' ')}
                 aria-live="polite"
               >
@@ -580,22 +573,28 @@ export function OuvDetailPage() {
                   ) : null}
                 </div>
                 <label className={labelClass}>Estado</label>
-                <select
-                  className={inputClass}
-                  disabled={!editable}
-                  value={inf?.estado ?? 'SinEvaluar'}
-                  onChange={(e) =>
-                    handleInfluenciaFieldChange(tipo, {
-                      estado: e.target.value,
-                    })
-                  }
-                >
-                  {INFLUENCIA_ESTADOS.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
+                <div className="relative">
+                  <span
+                    className={`pointer-events-none absolute left-3 top-1/2 h-2 w-2 -translate-y-1/2 rounded-full ${INFLUENCIA_ESTADO_DOT[estado] ?? INFLUENCIA_ESTADO_DOT.SinEvaluar}`}
+                    aria-hidden
+                  />
+                  <select
+                    className={`${inputClass} pl-7 disabled:opacity-60`}
+                    disabled={!editable}
+                    value={estado}
+                    onChange={(e) =>
+                      handleInfluenciaFieldChange(tipo, {
+                        estado: e.target.value,
+                      })
+                    }
+                  >
+                    {INFLUENCIA_ESTADOS.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 <label className={`${labelClass} mt-2`}>Contacto</label>
                 <select
                   className={inputClass}
