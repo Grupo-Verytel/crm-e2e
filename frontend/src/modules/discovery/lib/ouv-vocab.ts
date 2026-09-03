@@ -68,8 +68,21 @@ export const OUV_RESULTADOS = [
 
 export type OuvResultado = (typeof OUV_RESULTADOS)[number];
 
+export const OUV_RESULTADO_LABEL: Record<OuvResultado, string> = {
+  EnCurso: 'En curso',
+  Ganada: 'Ganada',
+  Perdida: 'Perdida',
+  Descartada: 'Descartada',
+};
+
 export const INFLUENCIA_TIPOS = ['Economica', 'Tecnica', 'Fabrica'] as const;
 export type InfluenciaTipo = (typeof INFLUENCIA_TIPOS)[number];
+
+export const INFLUENCIA_TIPO_LABEL: Record<InfluenciaTipo, string> = {
+  Economica: 'Económica',
+  Tecnica: 'Técnica',
+  Fabrica: 'Fábrica',
+};
 
 export const INFLUENCIA_ESTADOS = [
   'SinEvaluar',
@@ -80,6 +93,13 @@ export const INFLUENCIA_ESTADOS = [
 
 export type InfluenciaEstado = (typeof INFLUENCIA_ESTADOS)[number];
 
+export const INFLUENCIA_ESTADO_LABEL: Record<InfluenciaEstado, string> = {
+  SinEvaluar: 'Sin Evaluar',
+  Verde: 'Verde',
+  Amarillo: 'Amarillo',
+  Rojo: 'Rojo',
+};
+
 /** Card / select tones for influencia estado (semaphore). */
 export const INFLUENCIA_ESTADO_TONE: Record<InfluenciaEstado, string> = {
   SinEvaluar: 'border-border bg-bg text-muted',
@@ -87,6 +107,7 @@ export const INFLUENCIA_ESTADO_TONE: Record<InfluenciaEstado, string> = {
   Amarillo: 'border-warning/50 bg-warning/15 text-ink',
   Rojo: 'border-danger/50 bg-danger/10 text-danger',
 };
+
 
 export const INFLUENCIA_ESTADO_DOT: Record<InfluenciaEstado, string> = {
   SinEvaluar: 'bg-muted',

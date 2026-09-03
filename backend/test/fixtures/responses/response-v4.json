@@ -1,0 +1,49 @@
+{
+  "response_id": "mep:int_20004:response",
+  "response_version": 4,
+  "business_milestone": "ROUTE_CAPACITY_REGISTERED",
+  "response_status": "IN_PROGRESS",
+  "eta_date": "2026-08-28",
+  "next_milestone": "Completar diseño técnico y financiero",
+  "responded_at": "2026-08-25T11:25:00Z",
+  "responded_by": { "ref": "engineer_15", "display_name": "Ingeniero Preventa" },
+  "assignment": {
+    "engineer": { "ref": "engineer_15", "display_name": "Ingeniero Preventa" },
+    "assigned_at": "2026-08-21T14:59:30Z"
+  },
+  "route_capacity": {
+    "version": "V2",
+    "route_status": "VIABLE",
+    "capacity_status": "PLANNED",
+    "summary": "Ruta y capacidad replanificadas en V2.",
+    "registered_at": "2026-08-25T11:20:00Z",
+    "registered_by": { "ref": "engineer_15", "display_name": "Ingeniero Preventa" }
+  },
+  "service_results": [
+    {
+      "service": "TECHNICAL_DESIGN",
+      "status": "IN_PROGRESS",
+      "outcome": "VIABLE",
+      "dependency": "NONE",
+      "summary": "Diseño técnico en construcción sobre la ruta V2.",
+      "reason_code": null,
+      "deliverables": []
+    },
+    {
+      "service": "FINANCIAL_DESIGN",
+      "status": "IN_PROGRESS",
+      "outcome": null,
+      "dependency": "TECHNICAL_DESIGN",
+      "summary": "Modelo financiero iniciado tras la replanificación.",
+      "reason_code": null,
+      "deliverables": []
+    }
+  ],
+  "operational_links": {
+    "planner_interaction_url": "https://tasks.office.com/verytel/Home/Task/task-20004",
+    "route_capacity_register_url": "https://verytel.sharepoint.com/sites/preventa/Lists/Commitments/DispForm.aspx?ID=20004"
+  },
+  "narrative_note": "Se replanificaron ruta y capacidad en V2 conservando la ETA acordada.",
+  "delivered_interaction_type": null,
+  "semantic_fingerprint": "4444444444444444444444444444444444444444444444444444444444444444"
+}

@@ -33,7 +33,9 @@ import { ContactosSidePanel } from '../components/ContactosSidePanel';
 import { DiscoveryNav } from '../components/DiscoveryNav';
 import { OuvConfigMenu } from '../components/OuvConfigMenu';
 import { GapBadge, ResultadoBadge, ZonaBadge } from '../components/OuvBadges';
+import { InteraccionesPreventaPanel } from '../components/InteraccionesPreventaPanel';
 import { OuvFunnelRibbon } from '../components/OuvFunnelRibbon';
+import { PreventaActivityPanel } from '../components/PreventaActivityPanel';
 import { RetrocesoZonaModal } from '../components/RetrocesoZonaModal';
 import {
   badgeClass,
@@ -42,6 +44,8 @@ import {
   inputClass,
   labelClass,
   primaryButtonClass,
+  tabActiveClass,
+  tabClass,
 } from '../components/ui';
 import {
   INFLUENCIA_ESTADO_CARD,
@@ -102,6 +106,8 @@ function ouvHeaderMetaFields(ouv: Ouv): { label: string; value: string }[] {
   ];
 }
 
+type DetailTab = 'detalle' | 'preventa' | 'interacciones';
+
 /**
  * After a successful save for `justSavedTipo`, prefer that row from the server
  * but keep other local rows if they still have an in-flight save sequence
@@ -154,6 +160,7 @@ export function OuvDetailPage() {
   const [showAvance, setShowAvance] = useState(false);
   const [showRetroceso, setShowRetroceso] = useState(false);
   const [showCierre, setShowCierre] = useState(false);
+  const [tab, setTab] = useState<DetailTab>('detalle');
 
   const [presupuestoConfirmado, setPresupuestoConfirmado] = useState(false);
   const [presupuestoMonto, setPresupuestoMonto] = useState('');
@@ -567,12 +574,35 @@ export function OuvDetailPage() {
         </dl>
       </header>
 
-      {ouv.tiene_gap ? (
-        <div className="mb-4 rounded border border-warning bg-warning/15 p-3 text-sm text-ink">
-          Esta OUV tiene gap de criterios:{' '}
-          {(ouv.criterios_faltantes ?? []).join(', ') || 'revisar zona actual'}.
-        </div>
-      ) : null}
+      <nav
+        className="mb-4 flex flex-wrap gap-1 border-b border-border"
+        aria-label="Secciones de la OUV"
+      >
+        <button
+          type="button"
+          className={tab === 'detalle' ? tabActiveClass : tabClass}
+          aria-current={tab === 'detalle' ? 'page' : undefined}
+          onClick={() => setTab('detalle')}
+        >
+          Detalle OUV
+        </button>
+        <button
+          type="button"
+          className={tab === 'preventa' ? tabActiveClass : tabClass}
+          aria-current={tab === 'preventa' ? 'page' : undefined}
+          onClick={() => setTab('preventa')}
+        >
+          Solicitudes Preventa
+        </button>
+        <button
+          type="button"
+          className={tab === 'interacciones' ? tabActiveClass : tabClass}
+          aria-current={tab === 'interacciones' ? 'page' : undefined}
+          onClick={() => setTab('interacciones')}
+        >
+          Interacciones
+        </button>
+      </nav>
 
       {actionError ? (
         <p className="mb-3 text-sm text-danger" role="alert">
@@ -583,6 +613,15 @@ export function OuvDetailPage() {
         <p className="mb-3 text-sm text-positive" role="status">
           {actionSuccess}
         </p>
+      ) : null}
+
+      {tab === 'detalle' ? (
+      <>
+      {ouv.tiene_gap ? (
+        <div className="mb-4 rounded border border-warning bg-warning/15 p-3 text-sm text-ink">
+          Esta OUV tiene gap de criterios:{' '}
+          {(ouv.criterios_faltantes ?? []).join(', ') || 'revisar zona actual'}.
+        </div>
       ) : null}
 
       {/* Influencias — primary workspace */}
@@ -868,6 +907,13 @@ export function OuvDetailPage() {
             ) : null}
           </dl>
         </section>
+      ) : null}
+      </>
+      ) : null}
+
+      {tab === 'preventa' ? <PreventaActivityPanel ouv={ouv} /> : null}
+      {tab === 'interacciones' ? (
+        <InteraccionesPreventaPanel ouv={ouv} />
       ) : null}
 
       {contactoModal ? (

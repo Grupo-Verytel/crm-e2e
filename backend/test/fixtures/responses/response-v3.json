@@ -1,0 +1,49 @@
+{
+  "response_id": "mep:int_20004:response",
+  "response_version": 3,
+  "business_milestone": "ROUTE_CAPACITY_REGISTERED",
+  "response_status": "IN_PROGRESS",
+  "eta_date": "2026-08-28",
+  "next_milestone": "Completar diseño técnico",
+  "responded_at": "2026-08-21T16:00:00Z",
+  "responded_by": { "ref": "engineer_15", "display_name": "Ingeniero Preventa" },
+  "assignment": {
+    "engineer": { "ref": "engineer_15", "display_name": "Ingeniero Preventa" },
+    "assigned_at": "2026-08-21T14:59:30Z"
+  },
+  "route_capacity": {
+    "version": "V1",
+    "route_status": "VIABLE",
+    "capacity_status": "PLANNED",
+    "summary": "Ruta viable y capacidad planificada registradas.",
+    "registered_at": "2026-08-21T15:59:30Z",
+    "registered_by": { "ref": "engineer_15", "display_name": "Ingeniero Preventa" }
+  },
+  "service_results": [
+    {
+      "service": "TECHNICAL_DESIGN",
+      "status": "IN_PROGRESS",
+      "outcome": "VIABLE",
+      "dependency": "NONE",
+      "summary": "Ruta técnica viable; entregable en construcción.",
+      "reason_code": null,
+      "deliverables": []
+    },
+    {
+      "service": "FINANCIAL_DESIGN",
+      "status": "RECEIVED",
+      "outcome": null,
+      "dependency": "TECHNICAL_DESIGN",
+      "summary": "Pendiente del resultado técnico.",
+      "reason_code": null,
+      "deliverables": []
+    }
+  ],
+  "operational_links": {
+    "planner_interaction_url": "https://tasks.office.com/verytel/Home/Task/task-20004",
+    "route_capacity_register_url": "https://verytel.sharepoint.com/sites/preventa/Lists/Commitments/DispForm.aspx?ID=20004"
+  },
+  "narrative_note": "Ruta viable V1, ETA y capacidad planificada quedaron registradas.",
+  "delivered_interaction_type": null,
+  "semantic_fingerprint": "3333333333333333333333333333333333333333333333333333333333333333"
+}

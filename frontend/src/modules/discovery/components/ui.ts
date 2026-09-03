@@ -15,3 +15,9 @@ export const cardClass = 'rounded bg-surface shadow-card';
 
 export const badgeClass =
   'inline-flex items-center rounded px-2 py-0.5 text-xs font-bold';
+
+export const tabClass =
+  'border-b-2 border-transparent px-3 py-2 text-sm text-muted hover:text-accent';
+
+export const tabActiveClass =
+  'border-b-2 border-accent px-3 py-2 text-sm font-bold text-accent';

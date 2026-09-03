@@ -1,0 +1,61 @@
+{
+  "response_id": "mep:int_20004:response",
+  "response_version": 5,
+  "business_milestone": "INTERACTION_COMPLETED",
+  "response_status": "COMPLETED",
+  "eta_date": "2026-08-28",
+  "next_milestone": null,
+  "responded_at": "2026-08-28T18:10:00Z",
+  "responded_by": { "ref": "engineer_15", "display_name": "Ingeniero Preventa" },
+  "assignment": {
+    "engineer": { "ref": "engineer_15", "display_name": "Ingeniero Preventa" },
+    "assigned_at": "2026-08-21T14:59:30Z"
+  },
+  "route_capacity": {
+    "version": "V2",
+    "route_status": "VIABLE",
+    "capacity_status": "PLANNED",
+    "summary": "Ruta y capacidad replanificadas en V2.",
+    "registered_at": "2026-08-25T11:20:00Z",
+    "registered_by": { "ref": "engineer_15", "display_name": "Ingeniero Preventa" }
+  },
+  "service_results": [
+    {
+      "service": "TECHNICAL_DESIGN",
+      "status": "COMPLETED",
+      "outcome": "VIABLE",
+      "dependency": "NONE",
+      "summary": "Diseño técnico entregado.",
+      "reason_code": null,
+      "deliverables": [
+        {
+          "url": "https://verytel.sharepoint.com/sites/preventa/Shared%20Documents/int_20004/diseno-tecnico.pdf",
+          "label": "Diseño técnico",
+          "published_at": "2026-08-27T16:00:00Z"
+        }
+      ]
+    },
+    {
+      "service": "FINANCIAL_DESIGN",
+      "status": "COMPLETED",
+      "outcome": "VIABLE",
+      "dependency": "TECHNICAL_DESIGN",
+      "summary": "Modelo financiero entregado.",
+      "reason_code": null,
+      "deliverables": [
+        {
+          "url": "https://verytel.sharepoint.com/sites/preventa/Shared%20Documents/int_20004/modelo-financiero.xlsx",
+          "label": "Modelo financiero",
+          "published_at": "2026-08-28T17:40:00Z"
+        }
+      ]
+    }
+  ],
+  "operational_links": {
+    "planner_interaction_url": "https://tasks.office.com/verytel/Home/Task/task-20004",
+    "route_capacity_register_url": "https://verytel.sharepoint.com/sites/preventa/Lists/Commitments/DispForm.aspx?ID=20004"
+  },
+  "narrative_note": "Diseño técnico y financiero entregados; interacción cerrada.",
+  "delivered_interaction_type": "DISENO_TECNICO_Y_FINANCIERO",
+  "semantic_fingerprint": "5555555555555555555555555555555555555555555555555555555555555555"
+}
