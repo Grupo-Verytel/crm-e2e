@@ -87,7 +87,7 @@ function RoleEditModalBody({
                 type="text"
                 value={description}
                 onChange={(event) => setDescription(event.target.value)}
-                className="h-10 w-full rounded border border-border bg-bg px-3 text-sm text-ink outline-none focus:border-brand focus:bg-surface"
+                className="h-10 w-full rounded border border-border bg-bg px-3 text-sm text-ink outline-none focus:border-accent focus:bg-surface"
               />
             </div>
 
@@ -100,7 +100,7 @@ function RoleEditModalBody({
                 rows={14}
                 value={permissionsJson}
                 onChange={(event) => setPermissionsJson(event.target.value)}
-                className="w-full rounded border border-border bg-bg px-3 py-2 font-mono text-xs text-ink outline-none focus:border-brand focus:bg-surface"
+                className="w-full rounded border border-border bg-bg px-3 py-2 font-mono text-xs text-ink outline-none focus:border-accent focus:bg-surface"
                 spellCheck={false}
               />
             </div>
@@ -116,14 +116,14 @@ function RoleEditModalBody({
             <button
               type="button"
               onClick={onClose}
-              className="rounded px-4 py-2 text-sm text-ink hover:bg-bg"
+              className="btn-glow-outline rounded px-4 py-2 text-sm font-bold"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="rounded bg-brand px-4 py-2 text-sm font-bold text-white hover:bg-brand-700 disabled:opacity-60"
+              className="btn-glow rounded px-4 py-2 text-sm font-bold text-white disabled:opacity-60"
             >
               {isSubmitting ? 'Guardando…' : 'Guardar'}
             </button>

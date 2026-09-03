@@ -248,7 +248,7 @@ export function LeadsTableView({
                       <Link
                         to={`/demand/leads/${lead.lead_id}`}
                         onClick={(event) => event.stopPropagation()}
-                        className="font-bold text-ink hover:text-brand"
+                        className="font-bold text-ink hover:text-accent"
                       >
                         {lead.empresa_nombre}
                       </Link>

@@ -383,7 +383,7 @@ export function OuvDetailPage() {
     return (
       <AppLayout title="OUV">
         <p className="text-sm text-danger">{error ?? 'OUV no encontrada'}</p>
-        <Link to="/opportunities" className="mt-3 inline-block text-brand">
+        <Link to="/opportunities" className="mt-3 inline-block text-accent">
           Volver a bandeja
         </Link>
       </AppLayout>
@@ -399,7 +399,7 @@ export function OuvDetailPage() {
     <AppLayout title={ouv.consecutivo}>
       <DiscoveryNav />
       <div className="mb-4">
-        <Link to="/opportunities" className="text-sm text-brand hover:underline">
+        <Link to="/opportunities" className="text-sm text-accent hover:underline">
           ← Bandeja OUV
         </Link>
       </div>
@@ -477,7 +477,7 @@ export function OuvDetailPage() {
           {contactos.length === 0 ? (
             <button
               type="button"
-              className="text-xs font-bold text-brand hover:underline"
+              className="text-xs font-bold text-accent hover:underline"
               onClick={() => {
                 setShowContactosPanel(true);
                 if (editable) setContactoModal('new');
@@ -497,10 +497,10 @@ export function OuvDetailPage() {
                     title={[c.name, c.job_title, roles.join(', ')]
                       .filter(Boolean)
                       .join(' · ')}
-                    className="inline-flex max-w-[10rem] items-center gap-1.5 rounded-full border border-border bg-bg py-0.5 pl-0.5 pr-2 text-left hover:border-brand"
+                    className="inline-flex max-w-[10rem] items-center gap-1.5 rounded-full border border-border bg-bg py-0.5 pl-0.5 pr-2 text-left hover:border-accent"
                     onClick={() => setShowContactosPanel(true)}
                   >
-                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand/10 text-[10px] font-bold text-brand">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent/10 text-[10px] font-bold text-accent">
                       {contactInitials(c.name)}
                     </span>
                     <span className="truncate text-xs font-bold text-ink">
@@ -512,7 +512,7 @@ export function OuvDetailPage() {
               {contactos.length > 5 ? (
                 <button
                   type="button"
-                  className="text-xs font-bold text-brand hover:underline"
+                  className="text-xs font-bold text-accent hover:underline"
                   onClick={() => setShowContactosPanel(true)}
                 >
                   +{contactos.length - 5} más
@@ -561,7 +561,7 @@ export function OuvDetailPage() {
                   justSaved
                     ? 'border-positive shadow-[0_0_0_1px_var(--positive)]'
                     : isSaving
-                      ? 'border-brand'
+                      ? 'border-accent'
                       : 'border-border',
                 ].join(' ')}
                 aria-live="polite"
@@ -569,7 +569,7 @@ export function OuvDetailPage() {
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <p className="text-sm font-bold text-ink">{tipo}</p>
                   {isSaving ? (
-                    <span className="text-xs font-bold text-brand">
+                    <span className="text-xs font-bold text-accent">
                       Guardando…
                     </span>
                   ) : null}

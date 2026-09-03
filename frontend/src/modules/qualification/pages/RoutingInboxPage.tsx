@@ -103,7 +103,7 @@ export function RoutingInboxPage() {
                   <td className="px-4 py-3">
                     <Link
                       to={`/qualification/sqls/${sql.sql_id}`}
-                      className="font-bold text-brand hover:underline"
+                      className="font-bold text-accent hover:underline"
                     >
                       {String(sql.lead.empresa_nombre ?? '—')}
                     </Link>

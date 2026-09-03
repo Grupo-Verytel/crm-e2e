@@ -333,7 +333,7 @@ export function OuvsBoardPage() {
                       <td className="px-4 py-3">
                         <Link
                           to={`/opportunities/${ouv.ouv_id}`}
-                          className="font-bold text-brand hover:underline"
+                          className="font-bold text-accent hover:underline"
                         >
                           {ouv.consecutivo}
                         </Link>
@@ -388,9 +388,9 @@ export function OuvsBoardPage() {
                     <li key={ouv.ouv_id}>
                       <Link
                         to={`/opportunities/${ouv.ouv_id}`}
-                        className="block rounded border border-border bg-bg p-2 hover:border-brand"
+                        className="block rounded border border-border bg-bg p-2 hover:border-accent"
                       >
-                        <p className="text-xs font-bold text-brand">
+                        <p className="text-xs font-bold text-accent">
                           {ouv.consecutivo}
                         </p>
                         <p className="text-sm text-ink">{ouv.titulo}</p>

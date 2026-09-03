@@ -90,7 +90,7 @@ export function MqlInboxPage() {
                       {lead ? (
                         <Link
                           to={`/demand/leads/${lead.lead_id}`}
-                          className="hover:text-brand"
+                          className="hover:text-accent"
                         >
                           {lead.empresa_nombre}
                         </Link>

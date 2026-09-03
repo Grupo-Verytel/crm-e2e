@@ -95,7 +95,7 @@ export function AdminUsersPage() {
             <button
               type="button"
               onClick={openCreateUser}
-              className="my-3 inline-flex items-center gap-2 rounded bg-brand px-3 py-2 text-sm font-bold text-white hover:bg-brand-700"
+              className="btn-glow my-3 inline-flex items-center gap-2 rounded px-3 py-2 text-sm font-bold text-white"
             >
               <Plus size={16} />
               Nuevo usuario
@@ -142,7 +142,7 @@ export function AdminUsersPage() {
                           <button
                             type="button"
                             onClick={() => openEditUser(user)}
-                            className="rounded px-2 py-1 text-sm text-brand hover:bg-bg"
+                            className="btn-glow-outline rounded px-2 py-1 text-sm font-bold"
                           >
                             Editar
                           </button>
@@ -179,7 +179,7 @@ export function AdminUsersPage() {
                         <button
                           type="button"
                           onClick={() => openEditRole(role)}
-                          className="rounded px-2 py-1 text-sm text-brand hover:bg-bg"
+                          className="btn-glow-outline rounded px-2 py-1 text-sm font-bold"
                         >
                           Editar
                         </button>
@@ -257,7 +257,7 @@ function TabButton({
       onClick={onClick}
       className={[
         'border-b-2 px-4 py-3 text-sm font-bold transition-colors',
-        active ? 'border-brand text-brand' : 'border-transparent text-muted hover:text-ink',
+        active ? 'border-accent text-accent' : 'border-transparent text-muted hover:text-accent',
       ].join(' ')}
     >
       {children}

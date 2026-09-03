@@ -111,8 +111,8 @@ export function LeadsExceptionsView({
               className={[
                 'rounded-sm px-3 py-1 text-xs font-bold transition-colors',
                 subFilter === option.value
-                  ? 'bg-brand text-white'
-                  : 'text-muted hover:text-ink',
+                  ? 'btn-glow'
+                  : 'btn-glow-outline border-transparent',
               ].join(' ')}
             >
               {option.label}
@@ -146,7 +146,7 @@ export function LeadsExceptionsView({
                   <td className="px-4 py-3">
                     <Link
                       to={`/demand/leads/${lead.lead_id}`}
-                      className="font-bold text-ink hover:text-brand"
+                      className="font-bold text-ink hover:text-accent"
                     >
                       {lead.empresa_nombre}
                     </Link>

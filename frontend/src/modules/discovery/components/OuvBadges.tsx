@@ -5,7 +5,7 @@ import { OUV_ZONA_LABEL } from '../lib/ouv-vocab';
 const ZONA_TONE: Record<OuvZona, string> = {
   UNIVERSO: 'bg-bg text-ink',
   ENCIMA_FUNNEL: 'bg-sky/30 text-navy',
-  EN_FUNNEL: 'bg-brand/10 text-brand',
+  EN_FUNNEL: 'bg-accent/10 text-accent',
   MAYOR_PROBABILIDAD: 'bg-turquoise/20 text-ink',
 };
 

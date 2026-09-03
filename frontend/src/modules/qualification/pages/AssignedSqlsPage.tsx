@@ -84,7 +84,7 @@ export function AssignedSqlsPage() {
                   <td className="px-4 py-3">
                     <Link
                       to={`/qualification/sqls/${sql.sql_id}`}
-                      className="font-bold text-brand hover:underline"
+                      className="font-bold text-accent hover:underline"
                     >
                       {String(sql.lead.empresa_nombre ?? '—')}
                     </Link>
@@ -92,7 +92,7 @@ export function AssignedSqlsPage() {
                   <td className="px-4 py-3 text-ink">{sql.estado}</td>
                   <td className="px-4 py-3">
                     {sql.origen_creacion === 'directo_comercial' ? (
-                      <span className="rounded bg-brand/10 px-1.5 py-0.5 text-xs font-bold text-brand">
+                      <span className="rounded bg-accent/10 px-1.5 py-0.5 text-xs font-bold text-accent">
                         Directo
                       </span>
                     ) : (

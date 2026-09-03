@@ -18,9 +18,131 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+@property --glow-opacity {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 0;
+}
+
+/**
+ * Solid Oriole buttons + 10% white glow that follows the pointer.
+ * Set --glow-x / --glow-y from PointerGlow.
+ */
+.btn-glow,
+.btn-glow-outline {
+  --glow-x: 50%;
+  --glow-y: 50%;
+  --glow-opacity: 0;
+  background-image: radial-gradient(
+    140px circle at var(--glow-x) var(--glow-y),
+    rgba(255, 255, 255, calc(0.1 * var(--glow-opacity))),
+    transparent 55%
+  );
+  transition:
+    --glow-opacity 140ms ease,
+    background-color 140ms ease,
+    color 140ms ease,
+    border-color 140ms ease;
+}
+
+.btn-glow {
+  background-color: var(--accent);
+  color: #ffffff;
+}
+
+.btn-glow:hover,
+.btn-glow:focus-visible {
+  --glow-opacity: 1;
+  background-color: var(--accent-700);
+}
+
+/** Outline / secondary: Oriole border; fills solid + glow on hover. */
+.btn-glow-outline {
+  background-color: transparent;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+}
+
+.btn-glow-outline:hover,
+.btn-glow-outline:focus-visible {
+  --glow-opacity: 1;
+  background-color: var(--accent-700);
+  border-color: var(--accent-700);
+  color: #ffffff;
+}
+
+.btn-glow:disabled,
+.btn-glow-outline:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+/**
+ * Borderless icon controls (header/sidebar). Icon only; +10% orange intensity on hover.
+ */
+.icon-btn {
+  background: transparent;
+  border: none;
+  color: var(--ink);
+  transition: color 140ms ease;
+}
+
+.icon-btn:hover,
+.icon-btn:focus-visible {
+  color: var(--accent-icon-hover);
+  outline: none;
+}
+
+.icon-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+/**
+ * Login inputs on dark panels. Browser autofill (and OS dark mode) paints
+ * light backgrounds via :-webkit-autofill — override with inset box-shadow.
+ */
+.login-input {
+  color-scheme: dark;
+  background-color: var(--login-panel-left);
+  color: #ffffff;
+  caret-color: #ffffff;
+}
+
+.login-input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.login-input:-webkit-autofill,
+.login-input:-webkit-autofill:hover,
+.login-input:-webkit-autofill:focus,
+.login-input:-webkit-autofill:active {
+  -webkit-text-fill-color: #ffffff;
+  caret-color: #ffffff;
+  box-shadow: 0 0 0 1000px var(--login-panel-left) inset;
+  -webkit-box-shadow: 0 0 0 1000px var(--login-panel-left) inset;
+  transition: background-color 99999s ease-in-out 0s;
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+@keyframes fadeSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.toast-fade-in {
+  animation: fadeSlideIn 280ms ease-out;
 }

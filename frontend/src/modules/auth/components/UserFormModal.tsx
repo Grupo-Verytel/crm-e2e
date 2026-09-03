@@ -160,14 +160,14 @@ function UserFormModalBody({
             <button
               type="button"
               onClick={onClose}
-              className="rounded px-4 py-2 text-sm text-ink hover:bg-bg"
+              className="btn-glow-outline rounded px-4 py-2 text-sm font-bold"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="rounded bg-brand px-4 py-2 text-sm font-bold text-white hover:bg-brand-700 disabled:opacity-60"
+              className="btn-glow rounded px-4 py-2 text-sm font-bold text-white disabled:opacity-60"
             >
               {isSubmitting ? 'Guardando…' : 'Guardar'}
             </button>
@@ -198,4 +198,4 @@ function Field({
 }
 
 const inputClass =
-  'h-10 w-full rounded border border-border bg-bg px-3 text-sm text-ink outline-none focus:border-brand focus:bg-surface';
+  'h-10 w-full rounded border border-border bg-bg px-3 text-sm text-ink outline-none focus:border-accent focus:bg-surface';

@@ -82,7 +82,7 @@ export function SqlDetailPage() {
                 <dt className="text-muted">Origen</dt>
                 <dd className="text-ink">
                   {sql.origen_creacion === 'directo_comercial' ? (
-                    <span className="rounded bg-brand/10 px-1.5 py-0.5 text-xs font-bold text-brand">
+                    <span className="rounded bg-accent/10 px-1.5 py-0.5 text-xs font-bold text-accent">
                       Directo
                     </span>
                   ) : (
@@ -133,7 +133,7 @@ export function SqlDetailPage() {
                 </p>
                 <Link
                   to={`/opportunities/${sql.ouv.ouv_id}`}
-                  className="mt-2 inline-block text-sm font-bold text-brand hover:underline"
+                  className="mt-2 inline-block text-sm font-bold text-accent hover:underline"
                 >
                   Abrir detalle de OUV →
                 </Link>
