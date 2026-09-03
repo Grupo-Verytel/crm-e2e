@@ -58,6 +58,49 @@ function contactInitials(nombre: string): string {
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
   return `${parts[0][0] ?? ''}${parts[1][0] ?? ''}`.toUpperCase();
 }
+
+function dash(value: string | null | undefined): string {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : '—';
+}
+
+const SEGMENTO_LABEL: Record<string, string> = {
+  Gobierno: 'Gobierno',
+  'D&S': 'D&S',
+  ProyectosEspeciales: 'Proyectos especiales',
+  B2B: 'B2B',
+};
+
+const RESULTADO_LABEL: Record<string, string> = {
+  EnCurso: 'En curso',
+  Ganada: 'Ganada',
+  Perdida: 'Perdida',
+  Descartada: 'Descartada',
+};
+
+function ouvHeaderMetaFields(ouv: Ouv): { label: string; value: string }[] {
+  return [
+    { label: 'Organización', value: dash(ouv.empresa_nombre) },
+    {
+      label: 'Segmento',
+      value: dash(SEGMENTO_LABEL[ouv.segmento] ?? ouv.segmento),
+    },
+    { label: 'Vertical', value: dash(ouv.vertical) },
+    { label: 'Proyecto', value: '—' },
+    { label: 'Plazo ejecución', value: '—' },
+    { label: 'Probabilidad de cierre', value: '—' },
+    { label: 'Ciudad', value: '—' },
+    { label: 'Región', value: '—' },
+    { label: 'Etapa', value: 'Comercial' },
+    {
+      label: 'Estado OUV',
+      value: dash(RESULTADO_LABEL[ouv.resultado] ?? ouv.resultado),
+    },
+    { label: 'Fecha creación', value: formatDateTime(ouv.created_at) },
+    { label: 'Fecha actualización', value: formatDateTime(ouv.updated_at) },
+  ];
+}
+
 /**
  * After a successful save for `justSavedTipo`, prefer that row from the server
  * but keep other local rows if they still have an in-flight save sequence
@@ -420,7 +463,6 @@ export function OuvDetailPage() {
           <div className="min-w-0">
             <p className="text-xs font-bold text-muted">{ouv.consecutivo}</p>
             <h1 className="text-xl font-bold text-ink">{ouv.titulo}</h1>
-            <p className="text-sm text-ink">{ouv.empresa_nombre}</p>
             <div className="mt-2 flex flex-wrap gap-2">
               <ZonaBadge zona={ouv.zona_actual} />
               <ResultadoBadge resultado={ouv.resultado} />
@@ -509,6 +551,17 @@ export function OuvDetailPage() {
             </>
           )}
         </div>
+
+        <dl className="mt-3 grid gap-x-4 gap-y-3 border-t border-border pt-3 text-sm sm:grid-cols-3">
+          {ouvHeaderMetaFields(ouv).map((field) => (
+            <div key={field.label}>
+              <dt className="text-xs font-bold uppercase tracking-wide text-muted">
+                {field.label}
+              </dt>
+              <dd className="mt-0.5 break-words text-ink">{field.value}</dd>
+            </div>
+          ))}
+        </dl>
       </header>
 
       {ouv.tiene_gap ? (
