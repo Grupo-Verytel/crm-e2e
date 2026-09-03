@@ -33,6 +33,7 @@ import { ContactosSidePanel } from '../components/ContactosSidePanel';
 import { DiscoveryNav } from '../components/DiscoveryNav';
 import { OuvConfigMenu } from '../components/OuvConfigMenu';
 import { GapBadge, ResultadoBadge, ZonaBadge } from '../components/OuvBadges';
+import { OuvFunnelRibbon } from '../components/OuvFunnelRibbon';
 import { RetrocesoZonaModal } from '../components/RetrocesoZonaModal';
 import {
   badgeClass,
@@ -457,6 +458,8 @@ export function OuvDetailPage() {
           comercial dueño. Catálogos en el menú superior.
         </p>
       ) : null}
+
+      <OuvFunnelRibbon ouv={ouv} />
 
       <header className={`${cardClass} mb-4 p-4`}>
         <div className="flex flex-wrap items-start justify-between gap-3">

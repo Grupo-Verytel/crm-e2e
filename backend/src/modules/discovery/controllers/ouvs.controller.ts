@@ -85,7 +85,7 @@ export class OuvsController {
       user.userId,
       user.roleName,
     );
-    return this.ouvsService.toResponse(ouv);
+    return this.ouvsService.toDetailResponse(ouv);
   }
 
   @Post(':id/avanzar')
@@ -95,7 +95,7 @@ export class OuvsController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<OuvResponseDto> {
     const ouv = await this.ouvsService.avanzarZona(id, user.userId);
-    return this.ouvsService.toResponse(ouv);
+    return this.ouvsService.toDetailResponse(ouv);
   }
 
   @Post(':id/retroceder')
@@ -110,7 +110,7 @@ export class OuvsController {
       dto.motivo,
       user.userId,
     );
-    return this.ouvsService.toResponse(ouv);
+    return this.ouvsService.toDetailResponse(ouv);
   }
 
   @Post(':id/ganar')
@@ -121,7 +121,7 @@ export class OuvsController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<OuvResponseDto> {
     const ouv = await this.ouvsService.ganar(id, dto, user.userId);
-    return this.ouvsService.toResponse(ouv);
+    return this.ouvsService.toDetailResponse(ouv);
   }
 
   @Post(':id/perder')
@@ -132,7 +132,7 @@ export class OuvsController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<OuvResponseDto> {
     const ouv = await this.ouvsService.perder(id, dto, user.userId);
-    return this.ouvsService.toResponse(ouv);
+    return this.ouvsService.toDetailResponse(ouv);
   }
 
   @Post(':id/descartar')
@@ -143,7 +143,7 @@ export class OuvsController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<OuvResponseDto> {
     const ouv = await this.ouvsService.descartar(id, dto, user.userId);
-    return this.ouvsService.toResponse(ouv);
+    return this.ouvsService.toDetailResponse(ouv);
   }
 
   @Get(':id/influencias')

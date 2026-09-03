@@ -14,6 +14,14 @@ export const OUV_ZONA_LABEL: Record<OuvZona, string> = {
   MAYOR_PROBABILIDAD: 'Mayor Probabilidad',
 };
 
+/** Labels for the funnel traceability ribbon (uppercase, per blueprint). */
+export const OUV_ZONA_RIBBON_LABEL: Record<OuvZona, string> = {
+  UNIVERSO: 'UNIVERSO',
+  ENCIMA_FUNNEL: 'ENCIMA DEL FUNNEL',
+  EN_FUNNEL: 'FUNNEL',
+  MAYOR_PROBABILIDAD: 'MAYOR PROBABILIDAD',
+};
+
 export function nextOuvZona(zona: OuvZona): OuvZona | null {
   const idx = OUV_ZONAS.indexOf(zona);
   if (idx < 0 || idx >= OUV_ZONAS.length - 1) return null;

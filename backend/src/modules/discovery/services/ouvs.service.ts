@@ -9,6 +9,7 @@ import { Op, QueryTypes, Sequelize, type Transaction } from 'sequelize';
 import { AccountsService } from '../../accounts/services/accounts.service';
 import { DemandGenerationService } from '../../demand-generation/services/demand-generation.service';
 import { EntityType } from '../../workflow-engine/enums/entity-type.enum';
+import { StatusHistoryService } from '../../workflow-engine/services/status-history.service';
 import { WorkflowEngineService } from '../../workflow-engine/workflow-engine.service';
 import type { ActualizarPresupuestoDto } from '../dtos/actualizar-presupuesto.dto';
 import type {
@@ -20,6 +21,11 @@ import type { CrearOuvDirectaDto } from '../dtos/crear-ouv-directa.dto';
 import type { CrearOuvDto } from '../dtos/crear-ouv.dto';
 import type { ListarOuvsQueryDto } from '../dtos/listar-ouvs-query.dto';
 import type { OuvResponseDto } from '../dtos/ouv-response.dto';
+import {
+  computeOuvZonaDays,
+  parseZonaValue,
+  type OuvDiasPorZona,
+} from '../lib/ouv-zona-days';
 import { nextZona, prevZona } from '../lib/ouv-zona-order';
 import {
   OuvOrigenVia,
@@ -64,6 +70,7 @@ export class OuvsService {
     private readonly checklistService: OuvChecklistService,
     private readonly criteriosEvaluator: CriteriosZonaEvaluator,
     private readonly workflowEngine: WorkflowEngineService,
+    private readonly statusHistoryService: StatusHistoryService,
   ) {}
 
   /**
@@ -644,7 +651,7 @@ export class OuvsService {
     return ouv;
   }
 
-  toResponse(ouv: Ouv): OuvResponseDto {
+  toResponse(ouv: Ouv, diasPorZona?: OuvDiasPorZona): OuvResponseDto {
     return {
       ouv_id: ouv.ouvId,
       consecutivo: ouv.consecutivo,
@@ -678,7 +685,36 @@ export class OuvsService {
       fecha_cierre: ouv.fechaCierre,
       created_at: ouv.createdAt,
       updated_at: ouv.updatedAt,
+      ...(diasPorZona ? { dias_por_zona: diasPorZona } : {}),
     };
+  }
+
+  async toDetailResponse(ouv: Ouv): Promise<OuvResponseDto> {
+    return this.toResponse(ouv, await this.computeDiasPorZona(ouv));
+  }
+
+  private async computeDiasPorZona(ouv: Ouv): Promise<OuvDiasPorZona> {
+    const history = await this.statusHistoryService.findByEntity(
+      EntityType.OUV,
+      ouv.ouvId,
+    );
+    const closeEstados = new Set(['Ganada', 'Perdida', 'Descartada']);
+    const transitions = history.flatMap((row) => {
+      const to = parseZonaValue(row.toEstado);
+      if (!to) return [];
+      return [{ at: row.changedAt, to }];
+    });
+    const closeRow = [...history]
+      .reverse()
+      .find((row) => closeEstados.has(row.toEstado));
+    return computeOuvZonaDays({
+      createdAt: ouv.createdAt,
+      zonaActual: ouv.zonaActual,
+      resultado: ouv.resultado,
+      fechaCierre: ouv.fechaCierre ?? closeRow?.changedAt ?? null,
+      now: new Date(),
+      transitions,
+    });
   }
 
   private async lockOwnedEnCurso(

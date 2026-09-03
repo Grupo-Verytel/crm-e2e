@@ -370,6 +370,7 @@ export class SqlsService {
           actorUserId: comercialUserId,
           payload: {
             sqlId: sql.sqlId,
+            leadId: sql.mql.leadId,
             comercial_asignado_id: sql.comercialAsignadoId,
             ouv_id: ouv.ouvId,
             consecutivo: ouv.consecutivo,
