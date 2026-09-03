@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { Filter, LayoutGrid, List } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Pagination } from '../../../components/Pagination';
 import { AppLayout } from '../../../layout/AppLayout';
@@ -56,6 +57,7 @@ export function OuvsBoardPage() {
     user?.role_name === 'SoporteComercial' || user?.role_name === 'Admin';
 
   const [view, setView] = useState<ViewMode>('lista');
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [draft, setDraft] = useState<DraftFilters>(EMPTY_FILTERS);
   const [applied, setApplied] = useState<DraftFilters>(EMPTY_FILTERS);
   const [page, setPage] = useState(1);
@@ -168,9 +170,15 @@ export function OuvsBoardPage() {
     setPage(1);
   }
 
+  const toolbarIconClass = (active: boolean) =>
+    [
+      'grid h-9 w-9 place-items-center rounded',
+      active ? 'btn-glow text-white' : 'icon-btn',
+    ].join(' ');
+
   return (
     <AppLayout title="Oportunidades (OUV)">
-      <DiscoveryNav />
+      <DiscoveryNav showAdminTabs={false} />
       {isSoporte ? (
         <p className="mb-3 rounded border border-border bg-bg px-3 py-2 text-sm text-ink">
           Bandeja Soporte: ves todas las OUVs (solo lectura de avance/cierre).
@@ -181,22 +189,38 @@ export function OuvsBoardPage() {
         <h1 className="text-lg font-bold text-ink">
           {isSoporte ? 'Bandeja OUV (Soporte)' : 'Bandeja OUV'}
         </h1>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            className={view === 'lista' ? primaryButtonClass : ghostButtonClass}
+            className={toolbarIconClass(view === 'lista')}
             onClick={() => setView('lista')}
+            aria-label="Vista Lista"
+            aria-pressed={view === 'lista'}
+            title="Lista"
           >
-            Lista
+            <List size={18} strokeWidth={1.75} />
           </button>
           <button
             type="button"
-            className={
-              view === 'kanban' ? primaryButtonClass : ghostButtonClass
-            }
+            className={toolbarIconClass(view === 'kanban')}
             onClick={() => setView('kanban')}
+            aria-label="Vista Kanban"
+            aria-pressed={view === 'kanban'}
+            title="Kanban"
           >
-            Kanban
+            <LayoutGrid size={18} strokeWidth={1.75} />
+          </button>
+          <button
+            type="button"
+            className={toolbarIconClass(filtersOpen)}
+            onClick={() => setFiltersOpen((open) => !open)}
+            aria-label="Mostrar filtros"
+            aria-pressed={filtersOpen}
+            aria-expanded={filtersOpen}
+            aria-controls="ouv-filters-panel"
+            title="Filtros"
+          >
+            <Filter size={18} strokeWidth={1.75} />
           </button>
           {isEjecutivo ? (
             <button
@@ -210,101 +234,103 @@ export function OuvsBoardPage() {
         </div>
       </div>
 
-      <div className={`${cardClass} mb-4 p-4`}>
-        <div className="grid gap-3 md:grid-cols-5">
-          <div>
-            <label className={labelClass} htmlFor="f-q">
-              Buscar
-            </label>
-            <input
-              id="f-q"
-              className={inputClass}
-              value={draft.q}
-              onChange={(e) => setDraft({ ...draft, q: e.target.value })}
-              placeholder="Título, empresa, OUV-"
-            />
+      {filtersOpen ? (
+        <div id="ouv-filters-panel" className={`${cardClass} mb-4 p-4`}>
+          <div className="grid gap-3 md:grid-cols-5">
+            <div>
+              <label className={labelClass} htmlFor="f-q">
+                Buscar
+              </label>
+              <input
+                id="f-q"
+                className={inputClass}
+                value={draft.q}
+                onChange={(e) => setDraft({ ...draft, q: e.target.value })}
+                placeholder="Título, empresa, OUV-"
+              />
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="f-zona">
+                Zona
+              </label>
+              <select
+                id="f-zona"
+                className={inputClass}
+                value={draft.zona}
+                onChange={(e) => setDraft({ ...draft, zona: e.target.value })}
+              >
+                <option value="">Todas</option>
+                {OUV_ZONAS.map((z) => (
+                  <option key={z} value={z}>
+                    {OUV_ZONA_LABEL[z]}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="f-gap">
+                Gap
+              </label>
+              <select
+                id="f-gap"
+                className={inputClass}
+                value={draft.tiene_gap}
+                onChange={(e) =>
+                  setDraft({ ...draft, tiene_gap: e.target.value })
+                }
+              >
+                <option value="">Todos</option>
+                <option value="true">Con gap</option>
+                <option value="false">Sin gap</option>
+              </select>
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="f-from">
+                Desde
+              </label>
+              <input
+                id="f-from"
+                type="date"
+                className={inputClass}
+                value={draft.created_from}
+                onChange={(e) =>
+                  setDraft({ ...draft, created_from: e.target.value })
+                }
+              />
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="f-to">
+                Hasta
+              </label>
+              <input
+                id="f-to"
+                type="date"
+                className={inputClass}
+                value={draft.created_to}
+                onChange={(e) =>
+                  setDraft({ ...draft, created_to: e.target.value })
+                }
+              />
+            </div>
           </div>
-          <div>
-            <label className={labelClass} htmlFor="f-zona">
-              Zona
-            </label>
-            <select
-              id="f-zona"
-              className={inputClass}
-              value={draft.zona}
-              onChange={(e) => setDraft({ ...draft, zona: e.target.value })}
+          <div className="mt-3 flex gap-2">
+            <button type="button" className={primaryButtonClass} onClick={handleApply}>
+              Aplicar filtros
+            </button>
+            <button
+              type="button"
+              className={ghostButtonClass}
+              onClick={() => {
+                setDraft(EMPTY_FILTERS);
+                setApplied(EMPTY_FILTERS);
+                setPage(1);
+              }}
             >
-              <option value="">Todas</option>
-              {OUV_ZONAS.map((z) => (
-                <option key={z} value={z}>
-                  {OUV_ZONA_LABEL[z]}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className={labelClass} htmlFor="f-gap">
-              Gap
-            </label>
-            <select
-              id="f-gap"
-              className={inputClass}
-              value={draft.tiene_gap}
-              onChange={(e) =>
-                setDraft({ ...draft, tiene_gap: e.target.value })
-              }
-            >
-              <option value="">Todos</option>
-              <option value="true">Con gap</option>
-              <option value="false">Sin gap</option>
-            </select>
-          </div>
-          <div>
-            <label className={labelClass} htmlFor="f-from">
-              Desde
-            </label>
-            <input
-              id="f-from"
-              type="date"
-              className={inputClass}
-              value={draft.created_from}
-              onChange={(e) =>
-                setDraft({ ...draft, created_from: e.target.value })
-              }
-            />
-          </div>
-          <div>
-            <label className={labelClass} htmlFor="f-to">
-              Hasta
-            </label>
-            <input
-              id="f-to"
-              type="date"
-              className={inputClass}
-              value={draft.created_to}
-              onChange={(e) =>
-                setDraft({ ...draft, created_to: e.target.value })
-              }
-            />
+              Limpiar
+            </button>
           </div>
         </div>
-        <div className="mt-3 flex gap-2">
-          <button type="button" className={primaryButtonClass} onClick={handleApply}>
-            Aplicar filtros
-          </button>
-          <button
-            type="button"
-            className={ghostButtonClass}
-            onClick={() => {
-              setDraft(EMPTY_FILTERS);
-              setApplied(EMPTY_FILTERS);
-              setPage(1);
-            }}
-          >
-            Limpiar
-          </button>
-        </div>
-      </div>
+      ) : null}
 
       {error ? <p className="mb-3 text-sm text-danger">{error}</p> : null}
 
