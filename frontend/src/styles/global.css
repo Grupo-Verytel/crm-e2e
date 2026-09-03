@@ -45,8 +45,14 @@ body {
     border-color 140ms ease;
 }
 
+/**
+ * El borde va del mismo color que el fondo: invisible, pero mantiene la caja del
+ * mismo tamaño que .btn-glow-outline. Sin él, alternar entre las dos variantes
+ * cambia 1px por lado y empuja a los botones vecinos.
+ */
 .btn-glow {
   background-color: var(--accent);
+  border: 1px solid var(--accent);
   color: #ffffff;
 }
 
@@ -54,6 +60,7 @@ body {
 .btn-glow:focus-visible {
   --glow-opacity: 1;
   background-color: var(--accent-700);
+  border-color: var(--accent-700);
 }
 
 /** Outline / secondary: Oriole border; fills solid + glow on hover. */

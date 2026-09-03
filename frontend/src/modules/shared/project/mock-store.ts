@@ -1,13 +1,51 @@
 import { DEMO_VENTAS_GANADAS } from './mock-data';
-import type { DatosBaseProyecto, VentaGanadaRecord } from './types';
+import type {
+  DatosBaseProyecto,
+  EmpresaEjecutora,
+  MiembroEjecutor,
+  VentaGanadaRecord,
+} from './types';
 
 const STORAGE_KEY = 'crm-ventas-ganadas-mock-v2';
+
+/**
+ * Los registros guardados antes de que `MiembroEjecutor` tuviera `id`/`empresa`
+ * siguen en localStorage sin esos campos. Se completan al leer, para que una
+ * edición vieja no rompa la tabla de empresas ejecutoras.
+ */
+function normalizeMiembros(record: VentaGanadaRecord): VentaGanadaRecord {
+  const miembros = record.datosBase?.unionesTemporales;
+  if (!Array.isArray(miembros)) return record;
+
+  const inferirEmpresa = (nombre: string): EmpresaEjecutora | null => {
+    if (/frisson/i.test(nombre)) return 'Frisson';
+    if (/verytel/i.test(nombre)) return 'Verytel';
+    if (/^ut\b|uni[oó]n temporal/i.test(nombre)) return 'UT';
+    return null;
+  };
+
+  return {
+    ...record,
+    datosBase: {
+      ...record.datosBase,
+      unionesTemporales: miembros.map((m, i) => ({
+        id: m.id ?? `me-legacy-${record.ouvId}-${i}`,
+        nombre: m.nombre,
+        participacionPct: m.participacionPct,
+        empresa: m.empresa ?? inferirEmpresa(m.nombre),
+      })) as MiembroEjecutor[],
+    },
+  };
+}
 
 function readStore(): Record<string, VentaGanadaRecord> {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return {};
-    return JSON.parse(raw) as Record<string, VentaGanadaRecord>;
+    const map = JSON.parse(raw) as Record<string, VentaGanadaRecord>;
+    return Object.fromEntries(
+      Object.entries(map).map(([k, v]) => [k, normalizeMiembros(v)]),
+    );
   } catch {
     return {};
   }

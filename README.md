@@ -24,8 +24,9 @@ El repositorio agrupa **dos proyectos autónomos** (`backend/` y `frontend/`) ba
 14. [Convenciones del proyecto](#convenciones-del-proyecto)
 15. [Especificaciones (EARS)](#especificaciones-ears)
 16. [Usuarios de prueba](#usuarios-de-prueba)
-17. [Estado actual del desarrollo](#estado-actual-del-desarrollo)
-18. [Iniciar la aplicación](#iniciar-la-aplicación)
+17. [Integración PMO (Control Project)](#integración-pmo-control-project)
+18. [Estado actual del desarrollo](#estado-actual-del-desarrollo)
+19. [Iniciar la aplicación](#iniciar-la-aplicación)
 
 ---
 
@@ -109,7 +110,7 @@ Plataforma: auth (usuarios/roles) · audit (audit_log)
 | 4 | `technical-feasibility` | Preventa | **PRE**-#### | Scaffold |
 | 5 | `pricing` | Pricing | **PRI**-#### | Scaffold |
 | 6 | `offer-closing` | Oferta y cierre | Propuestas, contratos | Scaffold |
-| 7 | `implementation` | Implementación | **SER**-####, RFS/RFB | Scaffold |
+| 7 | `implementation` | Implementación | **SER**-####, RFS/RFB | Integración PMO implementada; resto scaffold |
 | 8 | `post-sales` | Posventa | Renovaciones, ChurnRate | Scaffold |
 
 Cada módulo existe en **ambos** proyectos:
@@ -207,9 +208,21 @@ Si una acción devuelve `403 Insufficient permissions`, el rol del usuario no ti
 ### Módulos activos en `app.module.ts`
 
 ```typescript
-imports: [DatabaseModule, AuthModule, AuditModule, DemandGenerationModule]
+imports: [
+  DatabaseModule,
+  AuthModule,
+  AuditModule,
+  AccountsModule,
+  DemandGenerationModule,
+  DiscoveryModule,
+  QualificationModule,
+  ImplementationModule,
+  WorkflowEngineModule,
+]
 ```
 
+`ImplementationModule` está cableado solo por su porción de integración con el PMO
+(ver [Integración PMO](#integración-pmo-control-project)); el resto del módulo sigue en scaffold.
 Los demás módulos comerciales tienen carpeta scaffold con `README.md` pero aún no están cableados.
 
 ---
@@ -335,6 +348,14 @@ create(@Body() dto: CreateLeadDto) { ... }
 | `POST` | `/mqls/:id/reject` | Rechazar → Reciclaje |
 | `GET` | `/dashboard/marketing` | KPIs |
 
+### Endpoints activos (implementation — integración PMO)
+
+| Método | Ruta | Acción |
+|--------|------|--------|
+| `GET` | `/implementation/projects/:ouvId/execution` | Indicadores de ejecución del proyecto en el PMO |
+| `GET` | `/implementation/projects/:ouvId/state-history` | Historial de cambios de estado del proyecto |
+| `POST` | `/integrations/execution/status-changes` | Webhook entrante del PMO (`x-api-key`, sin JWT) |
+
 ---
 
 ## Sistema de diseño (Verytel)
@@ -378,7 +399,7 @@ Abre la **raíz del repo** en Cursor para que cargue `AGENTS.md` y `.cursor/rule
 
 ```bash
 cd backend
-cp .env.sample .env          # Editar credenciales MySQL y JWT
+cp .env.sample .env          # Editar credenciales MySQL, JWT y claves PMO_*
 npm install
 npm run migration:run        # Crear tablas
 npm run seed:run             # Roles + usuario admin + usuario sistema
@@ -423,6 +444,9 @@ npm run seed:undo            # Revertir seeds
 | `20250627120000-create-demand-generation-tables` | leads, campaigns, interactions |
 | `20250703120000-create-demand-generation-checklist-mql-sql` | checklist, mqls, sqls |
 | `20250627130000-add-referido-origen-to-leads` | Ajuste enum origen |
+| `20260823120000-create-project-status-events` | Ingesta del webhook de estado del PMO |
+
+> La tabla lista los hitos principales; el directorio `backend/database/migrations/` es la fuente completa.
 
 ---
 
@@ -497,6 +521,47 @@ Significa que el rol del usuario **no tiene** el permiso CASL (`action` + `subje
 
 ---
 
+## Integración PMO (Control Project)
+
+El proyecto que se ejecuta tras ganar una OUV vive en el **PMO** (Control Project, repositorio
+`controlproject`). El CRM no replica esos datos: los lee cuando los necesita y recibe un aviso
+cuando el proyecto cambia de estado. La llave de correlación en ambos sistemas es el `ouv_id`.
+
+Todo el código vive en `backend/src/modules/implementation` — es la única puerta entre ambos
+sistemas, y ningún otro módulo habla con el PMO.
+
+| Dirección | Mecanismo | Detalle |
+|-----------|-----------|---------|
+| CRM → PMO (pull) | `PmoApiClient` | Indicadores de ejecución e historial de estados, bajo demanda |
+| PMO → CRM (push) | `POST /api/v1/integrations/execution/status-changes` | Webhook de solo ingesta; notifica al comercial de la OUV |
+
+### Decisiones de diseño
+
+- **Lectura sin caché.** Los indicadores se leen del PMO en cada consulta. Nada se copia a la base
+  del CRM, así que los números no pueden desincronizarse de su fuente.
+- **Ingesta sin validación.** El PMO es dueño de su máquina de estados: el CRM registra `newStatus`
+  tal cual llega, sin validar el valor ni la transición.
+- **Idempotencia por `external_event_id`.** Índice UNIQUE en `project_status_events`; un reenvío del
+  PMO responde `200` sin volver a notificar, mientras que una transición nueva siempre notifica.
+- **Notificación por el workflow engine.** Regla `ouv.estado_proyecto_cambiado`, destinatario
+  `comercial_id` de la OUV, actor el usuario de sistema. Ingesta y notificación comparten transacción.
+
+### Variables de entorno
+
+| Variable | Uso |
+|----------|-----|
+| `PMO_API_BASE_URL` | URL base de la API del PMO |
+| `PMO_API_KEY` | Clave que el CRM envía al PMO (saliente) |
+| `PMO_INBOUND_API_KEY` | Clave que el PMO debe enviar al webhook (entrante) |
+
+Plantilla: `backend/.env.sample`. `PMO_API_KEY` debe existir en `INTEGRATION_API_KEYS` del PMO, y
+`PMO_INBOUND_API_KEY` coincidir con su `CRM_WEBHOOK_API_KEY`.
+
+Contrato completo: [`backend/src/modules/implementation/README.md`](backend/src/modules/implementation/README.md).
+Lado PMO: `api/docs/integracion-crm.md` en el repositorio `controlproject`.
+
+---
+
 ## Estado actual del desarrollo
 
 | Área | Estado |
@@ -506,6 +571,7 @@ Significa que el rol del usuario **no tiene** el permiso CASL (`action` + `subje
 | Demand-generation (leads, campañas, MQL, dashboard) | Listo |
 | Leads UI (lista + kanban guiado + excepciones) | Listo |
 | Qualification → Post-sales (7 módulos) | Scaffold + placeholders |
+| Integración PMO (ejecución, historial, webhook de estado) | Listo (backend) |
 | Dashboards analíticos avanzados | Wave 2 (octubre) |
 | Integración ERP / migración Pipedrive | Wave 2 (octubre) |
 
@@ -531,7 +597,7 @@ Usa **dos terminales** — backend y frontend son proyectos independientes.
 
 ```bash
 cd backend
-cp .env.sample .env          # Editar credenciales MySQL y JWT
+cp .env.sample .env          # Editar credenciales MySQL, JWT y claves PMO_*
 npm install
 npm run migration:run
 npm run seed:run

@@ -8,6 +8,19 @@ export type ValidacionTipo = 'Tecnica' | 'Financiera';
 
 export type EmpresaEjecutora = 'Frisson' | 'Verytel' | 'UT';
 
+/**
+ * Miembro de la unión temporal que ejecuta el proyecto. La suma de
+ * `participacionPct` de todos los miembros debe dar 100%.
+ */
+export type MiembroEjecutor = {
+  /** Identidad propia: el nombre es editable, así que no sirve como llave. */
+  id: string;
+  nombre: string;
+  participacionPct: number;
+  /** Botón que creó la fila; `null` si se agregó a mano (socio externo). */
+  empresa: EmpresaEjecutora | null;
+};
+
 export type AlertaEstado = 'Pendiente' | 'Activa' | 'Resuelta';
 
 export type AlertaRecord = {
@@ -30,7 +43,7 @@ export type DatosBaseProyecto = {
   costoEstimado: number;
   recurrente: boolean;
   empresasEjecutoras: EmpresaEjecutora[];
-  unionesTemporales: { nombre: string; participacionPct: number }[];
+  unionesTemporales: MiembroEjecutor[];
   directorProyectoId: string | null;
   directorProyectoNombre: string | null;
   tipoVenta: TipoVenta;

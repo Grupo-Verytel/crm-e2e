@@ -69,8 +69,8 @@ const VentaGanadaDetailPage = lazy(
 const ServicesListPage = lazy(
   () => import('../modules/implementation/pages/ServicesListPageLazy'),
 );
-const ProjectDetailPage = lazy(
-  () => import('../modules/implementation/pages/ProjectDetailPageLazy'),
+const ProjectExecutionPage = lazy(
+  () => import('../modules/implementation/pages/ProjectExecutionPageLazy'),
 );
 const ReportesProyectoPage = lazy(
   () => import('../modules/implementation/pages/ReportesProyectoPageLazy'),
@@ -290,7 +290,7 @@ export function AppRoutes() {
       path: '/services/:ouvId',
       element: (
         <ProtectedRoute>
-          <ProjectDetailPage />
+          <ProjectExecutionPage />
         </ProtectedRoute>
       ),
     },

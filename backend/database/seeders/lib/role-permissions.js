@@ -39,7 +39,7 @@ const MATRIX = {
     presales: 'R',
     pricing: 'R',
     'proposals/contracts': 'R',
-    services: 'R',
+    services: 'CR',
     billing: 'R',
     'post-sales': 'R',
     'audit-log': 'R',
@@ -61,7 +61,7 @@ const MATRIX = {
     presales: 'R',
     pricing: 'R',
     'proposals/contracts': 'CRU',
-    services: 'R',
+    services: 'CR',
     'post-sales': 'R',
   },
   ProductManager: {
