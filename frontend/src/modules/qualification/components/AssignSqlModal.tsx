@@ -160,7 +160,7 @@ export function AssignSqlModal({ sql, onClose, onAssigned }: Props) {
             <label className={`${labelClass} sm:col-span-2`}>
               Descripción (opcional)
               <textarea
-                className="min-h-20 w-full rounded border border-border bg-bg px-3 py-2 text-sm text-ink outline-none focus:border-brand"
+                className="min-h-20 w-full rounded border border-border bg-bg px-3 py-2 text-sm text-ink outline-none focus:border-accent"
                 value={descripcion}
                 onChange={(e) => setDescripcion(e.target.value)}
               />

@@ -145,14 +145,14 @@ export function GlobalLeadFilters({
         <div className="flex items-end gap-2 md:col-span-5">
           <button
             type="submit"
-            className="rounded bg-brand px-4 py-2 text-sm font-bold text-white hover:bg-brand-700"
+            className="btn-glow rounded px-4 py-2 text-sm font-bold text-white"
           >
             Aplicar filtros
           </button>
           <button
             type="button"
             onClick={onClear}
-            className="rounded border border-border px-4 py-2 text-sm font-bold text-ink hover:bg-bg"
+            className="btn-glow-outline rounded px-4 py-2 text-sm font-bold"
           >
             Limpiar
           </button>
@@ -177,10 +177,8 @@ function ChannelChip({
       onClick={onClick}
       aria-pressed={active}
       className={[
-        'rounded-full border px-3 py-1 text-xs font-bold transition-colors',
-        active
-          ? 'border-brand bg-brand text-white'
-          : 'border-border bg-surface text-muted hover:text-ink',
+        'rounded-full px-3 py-1 text-xs font-bold',
+        active ? 'btn-glow' : 'btn-glow-outline',
       ].join(' ')}
     >
       {label}

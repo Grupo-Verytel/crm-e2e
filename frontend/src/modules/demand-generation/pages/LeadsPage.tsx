@@ -218,10 +218,10 @@ export function LeadsPage() {
                 onClick={() => handleSelectView('list')}
                 aria-pressed={!showExceptions && view === 'list'}
                 className={[
-                  'inline-flex items-center gap-1.5 rounded-sm px-3 py-1.5 text-sm font-bold transition-colors',
+                  'inline-flex items-center gap-1.5 rounded-sm px-3 py-1.5 text-sm font-bold',
                   !showExceptions && view === 'list'
-                    ? 'bg-brand text-white'
-                    : 'text-muted hover:text-ink',
+                    ? 'btn-glow'
+                    : 'btn-glow-outline border-transparent',
                 ].join(' ')}
               >
                 <List size={15} strokeWidth={1.75} />
@@ -232,10 +232,10 @@ export function LeadsPage() {
                 onClick={() => handleSelectView('kanban')}
                 aria-pressed={!showExceptions && view === 'kanban'}
                 className={[
-                  'inline-flex items-center gap-1.5 rounded-sm px-3 py-1.5 text-sm font-bold transition-colors',
+                  'inline-flex items-center gap-1.5 rounded-sm px-3 py-1.5 text-sm font-bold',
                   !showExceptions && view === 'kanban'
-                    ? 'bg-brand text-white'
-                    : 'text-muted hover:text-ink',
+                    ? 'btn-glow'
+                    : 'btn-glow-outline border-transparent',
                 ].join(' ')}
               >
                 <LayoutGrid size={15} strokeWidth={1.75} />
@@ -248,10 +248,8 @@ export function LeadsPage() {
               onClick={() => setShowExceptions(true)}
               aria-pressed={showExceptions}
               className={[
-                'rounded border px-3 py-1.5 text-sm font-bold transition-colors',
-                showExceptions
-                  ? 'border-warning bg-surface text-warning'
-                  : 'border-border bg-surface text-muted hover:text-ink',
+                'rounded px-3 py-1.5 text-sm font-bold',
+                showExceptions ? 'btn-glow' : 'btn-glow-outline',
               ].join(' ')}
             >
               Excepciones

@@ -35,7 +35,7 @@ export function ChecklistProgress({
               index < checked
                 ? complete
                   ? 'bg-turquoise'
-                  : 'bg-brand'
+                  : 'bg-accent'
                 : 'bg-border'
             }`}
           />

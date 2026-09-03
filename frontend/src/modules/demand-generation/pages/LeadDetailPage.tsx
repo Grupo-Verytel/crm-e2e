@@ -208,7 +208,7 @@ export function LeadDetailPage() {
                 {email ? (
                   <a
                     href={`mailto:${email}`}
-                    className="block truncate text-brand hover:text-brand-700"
+                    className="block truncate text-accent hover:text-accent-700"
                   >
                     {email}
                   </a>
@@ -218,7 +218,7 @@ export function LeadDetailPage() {
                 {phone ? (
                   <a
                     href={`tel:${phone}`}
-                    className="mt-1 block text-ink hover:text-brand"
+                    className="mt-1 block text-ink hover:text-accent"
                   >
                     {phone}
                   </a>
@@ -278,7 +278,7 @@ export function LeadDetailPage() {
             <p className="w-full text-sm text-muted">
               Este lead de agencia avanza a BOFU registrando una cita (Gestor de
               Mercadeo o Soporte Comercial) desde el detalle o la{' '}
-              <Link to="/demand/agenda" className="font-bold text-brand hover:underline">
+              <Link to="/demand/agenda" className="font-bold text-accent hover:underline">
                 Bandeja de Agenda
               </Link>
               .

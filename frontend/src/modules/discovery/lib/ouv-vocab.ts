@@ -14,6 +14,14 @@ export const OUV_ZONA_LABEL: Record<OuvZona, string> = {
   MAYOR_PROBABILIDAD: 'Mayor Probabilidad',
 };
 
+/** Labels for the funnel traceability ribbon (uppercase, per blueprint). */
+export const OUV_ZONA_RIBBON_LABEL: Record<OuvZona, string> = {
+  UNIVERSO: 'UNIVERSO',
+  ENCIMA_FUNNEL: 'ENCIMA DEL FUNNEL',
+  EN_FUNNEL: 'FUNNEL',
+  MAYOR_PROBABILIDAD: 'MAYOR PROBABILIDAD',
+};
+
 export function nextOuvZona(zona: OuvZona): OuvZona | null {
   const idx = OUV_ZONAS.indexOf(zona);
   if (idx < 0 || idx >= OUV_ZONAS.length - 1) return null;
@@ -92,15 +100,15 @@ export const INFLUENCIA_ESTADO_LABEL: Record<InfluenciaEstado, string> = {
   Rojo: 'Rojo',
 };
 
-/** Labels para el ribbon del embudo (mayúsculas, como en el blueprint). */
-export const OUV_ZONA_RIBBON_LABEL: Record<OuvZona, string> = {
-  UNIVERSO: 'UNIVERSO',
-  ENCIMA_FUNNEL: 'ENCIMA DEL FUNNEL',
-  EN_FUNNEL: 'FUNNEL',
-  MAYOR_PROBABILIDAD: 'MAYOR PROBABILIDAD',
+/** Card / select tones for influencia estado (semaphore). */
+export const INFLUENCIA_ESTADO_TONE: Record<InfluenciaEstado, string> = {
+  SinEvaluar: 'border-border bg-bg text-muted',
+  Verde: 'border-semaphore-verde/50 bg-semaphore-verde/10 text-ink',
+  Amarillo: 'border-warning/50 bg-warning/15 text-ink',
+  Rojo: 'border-danger/50 bg-danger/10 text-danger',
 };
 
-/** Punto de estado en el select de la tarjeta de influencia. */
+
 export const INFLUENCIA_ESTADO_DOT: Record<InfluenciaEstado, string> = {
   SinEvaluar: 'bg-muted',
   Verde: 'bg-semaphore-verde',
@@ -108,7 +116,7 @@ export const INFLUENCIA_ESTADO_DOT: Record<InfluenciaEstado, string> = {
   Rojo: 'bg-danger',
 };
 
-/** Fondo/borde completo de la tarjeta cuando el contacto ya está asignado. */
+/** Full-card background when a contact is assigned. */
 export const INFLUENCIA_ESTADO_CARD: Record<InfluenciaEstado, string> = {
   SinEvaluar: 'border-border bg-bg/90',
   Verde: 'border-semaphore-verde/70 bg-semaphore-verde/20',

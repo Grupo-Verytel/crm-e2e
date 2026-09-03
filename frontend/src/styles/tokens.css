@@ -4,12 +4,10 @@
   --brand-primary: #0033A0;     /* sidebar active, navigation */
   --brand-primary-700: #002B86;
   --brand-turquoise: #2DCCD3;   /* positive indicators, single active icon */
-  --ink: #1D1D1B;               /* primary text / high contrast */
-
-  /* Acento Oriole — botones de accion en flujos de preventa (rama Design_JD) */
-  --accent: #C25E00;            /* vivid orange — max saturation, -10% luminance vs prior */
-  --accent-700: color-mix(in srgb, var(--accent) 80%, black 20%); /* hover: -20% brightness */
+  --accent: #C25E00;            /* vivid orange — max saturation, −10% luminance vs prior */
+  --accent-700: color-mix(in srgb, var(--accent) 80%, black 20%); /* hover: −20% brightness */
   --accent-icon-hover: color-mix(in srgb, var(--accent) 90%, black 10%); /* icon hover: +10% intensity */
+  --ink: #1D1D1B;               /* primary text / high contrast */
 
   /* Extended blues — charts & states only, never navigation */
   --navy: #0E1B5C;

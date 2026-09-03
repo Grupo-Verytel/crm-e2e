@@ -23,19 +23,15 @@ function DetailField({ label, value }: { label: string; value: string }) {
 
 export function OuvDetailHeader({
   ouv,
-  editable,
   contactosCount,
   onOpenContactos,
-  onEditar,
   onAvanzar,
   onRetroceder,
   onCerrar,
 }: {
   ouv: Ouv;
-  editable: boolean;
   contactosCount: number;
   onOpenContactos: () => void;
-  onEditar: () => void;
   onAvanzar: () => void;
   onRetroceder: () => void;
   onCerrar: () => void;
@@ -89,8 +85,7 @@ export function OuvDetailHeader({
             ) : null}
           </button>
           <OuvConfigMenu
-            canEditWorkflow={editable}
-            onEditar={onEditar}
+            onContactos={onOpenContactos}
             onAvanzar={onAvanzar}
             onRetroceder={onRetroceder}
             onCerrar={onCerrar}

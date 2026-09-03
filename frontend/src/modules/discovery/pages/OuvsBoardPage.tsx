@@ -16,8 +16,6 @@ import { GapBadge, ResultadoBadge, ZonaBadge } from '../components/OuvBadges';
 import {
   cardClass,
   ghostButtonClass,
-  iconToggleActiveClass,
-  iconToggleClass,
   inputClass,
   labelClass,
   primaryButtonClass,
@@ -58,8 +56,8 @@ export function OuvsBoardPage() {
   const canListAll =
     user?.role_name === 'SoporteComercial' || user?.role_name === 'Admin';
 
-  const [view, setView] = useState<ViewMode>('kanban');
-  const [showFilters, setShowFilters] = useState(true);
+  const [view, setView] = useState<ViewMode>('lista');
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [draft, setDraft] = useState<DraftFilters>(EMPTY_FILTERS);
   const [applied, setApplied] = useState<DraftFilters>(EMPTY_FILTERS);
   const [page, setPage] = useState(1);
@@ -172,9 +170,15 @@ export function OuvsBoardPage() {
     setPage(1);
   }
 
+  const toolbarIconClass = (active: boolean) =>
+    [
+      'grid h-9 w-9 place-items-center rounded',
+      active ? 'btn-glow text-white' : 'icon-btn',
+    ].join(' ');
+
   return (
     <AppLayout title="Oportunidades (OUV)">
-      <DiscoveryNav />
+      <DiscoveryNav showAdminTabs={false} />
       {isSoporte ? (
         <p className="mb-3 rounded border border-border bg-bg px-3 py-2 text-sm text-ink">
           Bandeja Soporte: ves todas las OUVs (solo lectura de avance/cierre).
@@ -186,6 +190,38 @@ export function OuvsBoardPage() {
           {isSoporte ? 'Bandeja OUV (Soporte)' : 'Bandeja OUV'}
         </h1>
         <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            className={toolbarIconClass(view === 'lista')}
+            onClick={() => setView('lista')}
+            aria-label="Vista Lista"
+            aria-pressed={view === 'lista'}
+            title="Lista"
+          >
+            <List size={18} strokeWidth={1.75} />
+          </button>
+          <button
+            type="button"
+            className={toolbarIconClass(view === 'kanban')}
+            onClick={() => setView('kanban')}
+            aria-label="Vista Kanban"
+            aria-pressed={view === 'kanban'}
+            title="Kanban"
+          >
+            <LayoutGrid size={18} strokeWidth={1.75} />
+          </button>
+          <button
+            type="button"
+            className={toolbarIconClass(filtersOpen)}
+            onClick={() => setFiltersOpen((open) => !open)}
+            aria-label="Mostrar filtros"
+            aria-pressed={filtersOpen}
+            aria-expanded={filtersOpen}
+            aria-controls="ouv-filters-panel"
+            title="Filtros"
+          >
+            <Filter size={18} strokeWidth={1.75} />
+          </button>
           {isEjecutivo ? (
             <button
               type="button"
@@ -195,51 +231,11 @@ export function OuvsBoardPage() {
               Crear OUV directa
             </button>
           ) : null}
-          <div
-            className="flex items-center gap-2"
-            role="group"
-            aria-label="Vista y filtros de la bandeja"
-          >
-            <button
-              type="button"
-              className={
-                view === 'kanban' ? iconToggleActiveClass : iconToggleClass
-              }
-              onClick={() => setView('kanban')}
-              aria-pressed={view === 'kanban'}
-              aria-label="Vista kanban"
-              title="Vista kanban"
-            >
-              <LayoutGrid size={16} strokeWidth={1.75} />
-            </button>
-            <button
-              type="button"
-              className={
-                view === 'lista' ? iconToggleActiveClass : iconToggleClass
-              }
-              onClick={() => setView('lista')}
-              aria-pressed={view === 'lista'}
-              aria-label="Vista lista"
-              title="Vista lista"
-            >
-              <List size={16} strokeWidth={1.75} />
-            </button>
-            <button
-              type="button"
-              className={iconToggleClass}
-              onClick={() => setShowFilters((open) => !open)}
-              aria-pressed={showFilters}
-              aria-label={showFilters ? 'Ocultar filtros' : 'Mostrar filtros'}
-              title={showFilters ? 'Ocultar filtros' : 'Mostrar filtros'}
-            >
-              <Filter size={16} strokeWidth={1.75} />
-            </button>
-          </div>
         </div>
       </div>
 
-      {showFilters ? (
-        <div className={`${cardClass} mb-4 p-4`}>
+      {filtersOpen ? (
+        <div id="ouv-filters-panel" className={`${cardClass} mb-4 p-4`}>
           <div className="grid gap-3 md:grid-cols-5">
             <div>
               <label className={labelClass} htmlFor="f-q">

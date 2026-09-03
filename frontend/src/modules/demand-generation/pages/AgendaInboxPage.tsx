@@ -114,7 +114,7 @@ export function AgendaInboxPage() {
                     <td className="px-4 py-3">
                       <Link
                         to={`/demand/leads/${lead.lead_id}`}
-                        className="font-bold text-ink hover:text-brand"
+                        className="font-bold text-ink hover:text-accent"
                       >
                         {lead.contacto_nombre}
                       </Link>

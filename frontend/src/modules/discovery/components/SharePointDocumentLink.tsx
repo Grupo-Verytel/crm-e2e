@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Copy, ExternalLink, FileText } from 'lucide-react';
 import { sharePointDocumentName } from '../lib/sharepoint-document';
 import { ModalShell } from './ModalShell';
-import { ghostButtonClass, labelClass, primaryButtonClass } from './ui';
+import { ghostButtonClass, primaryButtonClass } from './ui';
 
 export function SharePointDocumentLink({ url }: { url: string }) {
   const [open, setOpen] = useState(false);

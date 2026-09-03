@@ -19,7 +19,7 @@ type BrandMarkProps = {
 };
 
 /**
- * Frisson TF mark — geometric brand plate.
+ * Frisson TF mark — new geometric brand plate.
  * Icon is never recolored via CSS filters; light/dark plates are separate assets.
  */
 export function BrandMark({

@@ -5,7 +5,14 @@ import {
   type ThemeMode,
 } from './theme-context';
 
-function readStoredTheme(): ThemeMode {
+function readSystemTheme(): ThemeMode {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+    return 'light';
+  }
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
+function readStoredTheme(): ThemeMode | null {
   try {
     const stored = localStorage.getItem(THEME_STORAGE_KEY);
     if (stored === 'light' || stored === 'dark') {
@@ -14,17 +21,21 @@ function readStoredTheme(): ThemeMode {
   } catch {
     // ignore storage access errors (private mode, etc.)
   }
-  return 'light';
+  return null;
 }
 
 function applyTheme(theme: ThemeMode): void {
   document.documentElement.setAttribute('data-theme', theme);
 }
 
-/** Persists light/dark preference and syncs `data-theme` on <html>. */
+/**
+ * Persists light/dark preference and syncs `data-theme` on <html>.
+ * Resolution: explicit localStorage → system prefers-color-scheme.
+ * While there is no stored choice, the theme follows OS changes.
+ */
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<ThemeMode>(() => {
-    const initial = readStoredTheme();
+    const initial = readStoredTheme() ?? readSystemTheme();
     applyTheme(initial);
     return initial;
   });
@@ -42,6 +53,26 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     applyTheme(theme);
   }, [theme]);
+
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') {
+      return undefined;
+    }
+
+    const media = window.matchMedia('(prefers-color-scheme: dark)');
+
+    function onSystemThemeChange(event: MediaQueryListEvent) {
+      if (readStoredTheme() !== null) {
+        return;
+      }
+      const next = event.matches ? 'dark' : 'light';
+      setThemeState(next);
+      applyTheme(next);
+    }
+
+    media.addEventListener('change', onSystemThemeChange);
+    return () => media.removeEventListener('change', onSystemThemeChange);
+  }, []);
 
   const value = useMemo(() => ({ theme, setTheme }), [theme, setTheme]);
 

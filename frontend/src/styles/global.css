@@ -25,8 +25,8 @@ body {
 }
 
 /**
- * Botones Oriole con glow del 10% que sigue al puntero.
- * Traido de la rama Design_JD; `--glow-x` / `--glow-y` los fija PointerGlow.
+ * Solid Oriole buttons + 10% white glow that follows the pointer.
+ * Set --glow-x / --glow-y from PointerGlow.
  */
 .btn-glow,
 .btn-glow-outline {
@@ -56,6 +56,7 @@ body {
   background-color: var(--accent-700);
 }
 
+/** Outline / secondary: Oriole border; fills solid + glow on hover. */
 .btn-glow-outline {
   background-color: transparent;
   border: 1px solid var(--accent);
@@ -77,7 +78,7 @@ body {
 }
 
 /**
- * Controles icono sin borde (header/sidebar). +10% de intensidad en hover.
+ * Borderless icon controls (header/sidebar). Icon only; +10% orange intensity on hover.
  */
 .icon-btn {
   background: transparent;
@@ -98,9 +99,8 @@ body {
 }
 
 /**
- * Inputs del login sobre paneles oscuros. El autofill del navegador (y el modo
- * oscuro del SO) pintan fondos claros via :-webkit-autofill; se compensa con
- * un box-shadow interno.
+ * Login inputs on dark panels. Browser autofill (and OS dark mode) paints
+ * light backgrounds via :-webkit-autofill — override with inset box-shadow.
  */
 .login-input {
   color-scheme: dark;

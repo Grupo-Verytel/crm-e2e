@@ -11,13 +11,6 @@ export const primaryButtonClass =
 export const ghostButtonClass =
   'btn-glow-outline rounded px-4 py-2 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-40';
 
-/** Toggle de icono (vista/filtro). Inactivo = outline Oriole; activo = fondo Oriole. */
-export const iconToggleClass =
-  'btn-glow-outline inline-flex h-9 w-9 items-center justify-center rounded';
-
-export const iconToggleActiveClass =
-  'btn-glow inline-flex h-9 w-9 items-center justify-center rounded text-white';
-
 export const cardClass = 'rounded bg-surface shadow-card';
 
 export const badgeClass =

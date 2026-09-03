@@ -146,7 +146,7 @@ export function AuditLogPage() {
           <div className="md:col-span-3 lg:col-span-6">
             <button
               type="submit"
-              className="rounded bg-brand px-4 py-2 text-sm font-bold text-white hover:bg-brand-700"
+              className="btn-glow rounded px-4 py-2 text-sm font-bold text-white"
             >
               Aplicar filtros
             </button>
@@ -229,4 +229,4 @@ function StateMessage({ children }: { children: string }) {
 }
 
 const inputClass =
-  'h-9 w-full rounded border border-border bg-bg px-3 text-sm text-ink outline-none focus:border-brand focus:bg-surface';
+  'h-9 w-full rounded border border-border bg-bg px-3 text-sm text-ink outline-none focus:border-accent focus:bg-surface';

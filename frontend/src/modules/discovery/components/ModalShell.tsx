@@ -1,5 +1,4 @@
 import { useEffect, type MouseEvent, type ReactNode } from 'react';
-import { X } from 'lucide-react';
 
 export function ModalShell({
   title,
@@ -12,7 +11,7 @@ export function ModalShell({
   onClose: () => void;
   children: ReactNode;
   size?: 'default' | 'wide' | 'compact';
-  /** Extra a la izquierda de la X (p. ej. un badge de estado). */
+  /** Extra to the left of close (e.g. a status badge on Preventa detail). */
   headerAside?: ReactNode;
 }) {
   useEffect(() => {
@@ -52,10 +51,10 @@ export function ModalShell({
             <button
               type="button"
               onClick={onClose}
-              className="inline-flex h-8 w-8 items-center justify-center rounded text-muted hover:bg-bg hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              className="btn-glow-outline rounded px-2 py-1 text-sm font-bold"
               aria-label="Cerrar"
             >
-              <X size={18} strokeWidth={2} />
+              Cerrar
             </button>
           </div>
         </div>

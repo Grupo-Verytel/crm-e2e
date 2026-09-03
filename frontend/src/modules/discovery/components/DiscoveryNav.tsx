@@ -9,7 +9,12 @@ const linkClass = ({ isActive }: { isActive: boolean }) =>
       : 'border-transparent text-muted hover:text-accent',
   ].join(' ');
 
-export function DiscoveryNav() {
+type DiscoveryNavProps = {
+  /** Catalog tabs stay on admin/detail pages; the OUV board hides them. */
+  showAdminTabs?: boolean;
+};
+
+export function DiscoveryNav({ showAdminTabs = true }: DiscoveryNavProps) {
   const { user } = useAuth();
   const isSoporte =
     user?.role_name === 'SoporteComercial' || user?.role_name === 'Admin';
@@ -22,7 +27,7 @@ export function DiscoveryNav() {
       <NavLink to="/opportunities" end className={linkClass}>
         Bandeja OUV
       </NavLink>
-      {isSoporte ? (
+      {showAdminTabs && isSoporte ? (
         <>
           <NavLink
             to="/opportunities/admin/motivos-perdida"

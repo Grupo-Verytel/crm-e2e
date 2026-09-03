@@ -31,6 +31,12 @@ export class OuvResponseDto {
   fecha_cierre!: Date | null;
   created_at!: Date;
   updated_at!: Date;
+  dias_por_zona?: {
+    UNIVERSO: number;
+    ENCIMA_FUNNEL: number;
+    EN_FUNNEL: number;
+    MAYOR_PROBABILIDAD: number;
+  };
 }
 
 export class PaginatedOuvsResponseDto {

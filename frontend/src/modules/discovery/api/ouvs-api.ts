@@ -39,6 +39,7 @@ export type Ouv = {
   fecha_cierre: string | null;
   created_at: string;
   updated_at: string;
+  dias_por_zona?: Record<OuvZona, number>;
 };
 
 export type PaginatedOuvs = {

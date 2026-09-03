@@ -38,7 +38,7 @@ export function ExpectedRoute({
               <span
                 className={[
                   'rounded-full border px-3 py-1 text-xs font-bold',
-                  current ? 'border-brand bg-brand text-white' : '',
+                  current ? 'border-accent bg-accent text-white' : '',
                   !current && applies
                     ? 'border-border bg-surface text-ink'
                     : '',

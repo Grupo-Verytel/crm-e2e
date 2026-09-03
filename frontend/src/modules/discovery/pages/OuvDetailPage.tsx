@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { X } from 'lucide-react';
 import { AppLayout } from '../../../layout/AppLayout';
 import { formatDateTime } from '../../../lib/format';
 import {
@@ -17,7 +16,6 @@ import {
   fetchOuvContactos,
   fetchOuvInfluencias,
   marcarChecklistItem,
-  updateOuv,
   updateOuvContacto,
   updateOuvInfluencia,
   updateOuvPresupuesto,
@@ -26,20 +24,23 @@ import {
   type OuvChecklistItem,
   type OuvContacto,
   type OuvInfluencia,
-  type UpdateOuvPayload,
 } from '../api/ouvs-api';
+import { Users } from 'lucide-react';
 import { AvanceZonaModal } from '../components/AvanceZonaModal';
 import { CierreOuvModal } from '../components/CierreOuvModal';
 import { ContactoFormModal } from '../components/ContactoFormModal';
 import { ContactosSidePanel } from '../components/ContactosSidePanel';
-import { EditOuvModal } from '../components/EditOuvModal';
-import { OuvDetailHeader } from '../components/OuvDetailHeader';
-import { OuvZonaStepper } from '../components/OuvZonaStepper';
+import { DiscoveryNav } from '../components/DiscoveryNav';
+import { OuvConfigMenu } from '../components/OuvConfigMenu';
+import { GapBadge, ResultadoBadge, ZonaBadge } from '../components/OuvBadges';
 import { InteraccionesPreventaPanel } from '../components/InteraccionesPreventaPanel';
+import { OuvFunnelRibbon } from '../components/OuvFunnelRibbon';
 import { PreventaActivityPanel } from '../components/PreventaActivityPanel';
 import { RetrocesoZonaModal } from '../components/RetrocesoZonaModal';
 import {
+  badgeClass,
   cardClass,
+  ghostButtonClass,
   inputClass,
   labelClass,
   primaryButtonClass,
@@ -49,14 +50,61 @@ import {
 import {
   INFLUENCIA_ESTADO_CARD,
   INFLUENCIA_ESTADO_DOT,
-  INFLUENCIA_ESTADO_LABEL,
   INFLUENCIA_ESTADOS,
-  INFLUENCIA_TIPO_LABEL,
   INFLUENCIA_TIPOS,
   isOuvNotificationEvent,
   type InfluenciaEstado,
   type InfluenciaTipo,
 } from '../lib/ouv-vocab';
+
+function contactInitials(nombre: string): string {
+  const parts = nombre.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0] ?? ''}${parts[1][0] ?? ''}`.toUpperCase();
+}
+
+function dash(value: string | null | undefined): string {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : '—';
+}
+
+const SEGMENTO_LABEL: Record<string, string> = {
+  Gobierno: 'Gobierno',
+  'D&S': 'D&S',
+  ProyectosEspeciales: 'Proyectos especiales',
+  B2B: 'B2B',
+};
+
+const RESULTADO_LABEL: Record<string, string> = {
+  EnCurso: 'En curso',
+  Ganada: 'Ganada',
+  Perdida: 'Perdida',
+  Descartada: 'Descartada',
+};
+
+function ouvHeaderMetaFields(ouv: Ouv): { label: string; value: string }[] {
+  return [
+    { label: 'Organización', value: dash(ouv.empresa_nombre) },
+    {
+      label: 'Segmento',
+      value: dash(SEGMENTO_LABEL[ouv.segmento] ?? ouv.segmento),
+    },
+    { label: 'Vertical', value: dash(ouv.vertical) },
+    { label: 'Proyecto', value: '—' },
+    { label: 'Plazo ejecución', value: '—' },
+    { label: 'Probabilidad de cierre', value: '—' },
+    { label: 'Ciudad', value: '—' },
+    { label: 'Región', value: '—' },
+    { label: 'Etapa', value: 'Comercial' },
+    {
+      label: 'Estado OUV',
+      value: dash(RESULTADO_LABEL[ouv.resultado] ?? ouv.resultado),
+    },
+    { label: 'Fecha creación', value: formatDateTime(ouv.created_at) },
+    { label: 'Fecha actualización', value: formatDateTime(ouv.updated_at) },
+  ];
+}
 
 type DetailTab = 'detalle' | 'preventa' | 'interacciones';
 
@@ -108,15 +156,10 @@ export function OuvDetailPage() {
   const [contactoModal, setContactoModal] = useState<OuvContacto | null | 'new'>(
     null,
   );
-  /** Cuando se abre el modal desde una card de influencia, el contacto recién
-   *  creado se linkea automáticamente a ese tipo. */
-  const [contactoModalContext, setContactoModalContext] =
-    useState<InfluenciaTipo | null>(null);
   const [showContactosPanel, setShowContactosPanel] = useState(false);
   const [showAvance, setShowAvance] = useState(false);
   const [showRetroceso, setShowRetroceso] = useState(false);
   const [showCierre, setShowCierre] = useState(false);
-  const [showEditOuv, setShowEditOuv] = useState(false);
   const [tab, setTab] = useState<DetailTab>('detalle');
 
   const [presupuestoConfirmado, setPresupuestoConfirmado] = useState(false);
@@ -134,11 +177,6 @@ export function OuvDetailPage() {
     }
     return map;
   }, [influencias]);
-
-  const influenciasVerdeCount = useMemo(
-    () => influencias.filter((inf) => inf.estado === 'Verde').length,
-    [influencias],
-  );
 
   const load = useCallback(
     async (opts?: { silent?: boolean }) => {
@@ -333,44 +371,10 @@ export function OuvDetailPage() {
     if (!id) return;
     if (contactoModal && contactoModal !== 'new') {
       await updateOuvContacto(id, contactoModal.contacto_ouv_id, payload);
-      await load({ silent: true });
-      return;
-    }
-    const created = await createOuvContacto(id, payload);
-    // Al crear desde una tarjeta de influencia, dejamos el contacto ya asignado
-    // a ese tipo — así el usuario no tiene que volver a abrir el select.
-    if (contactoModalContext) {
-      const targetTipo = contactoModalContext;
-      const current = influenciasRef.current.find(
-        (row) => row.tipo === targetTipo,
-      );
-      patchInfluenciaLocal(targetTipo, {
-        estado: current?.estado ?? 'SinEvaluar',
-        contacto_ouv_id: created.contacto_ouv_id,
-        notas: current?.notas ?? null,
-        motivo_estado: current?.motivo_estado ?? null,
-      });
-      void persistInfluencia(targetTipo, {
-        estado: current?.estado ?? 'SinEvaluar',
-        contacto_ouv_id: created.contacto_ouv_id,
-        notas: current?.notas ?? null,
-        motivo_estado: current?.motivo_estado ?? null,
-      });
+    } else {
+      await createOuvContacto(id, payload);
     }
     await load({ silent: true });
-  }
-
-  function openContactoModal(
-    target: OuvContacto | 'new',
-    linkTipo: InfluenciaTipo | null = null,
-  ) {
-    setContactoModal(target);
-    setContactoModalContext(target === 'new' ? linkTipo : null);
-  }
-
-  function closeContactoModal() {
-    setContactoModal(null);
-    setContactoModalContext(null);
   }
 
   async function handleDeleteContacto(contacto: OuvContacto) {
@@ -448,16 +452,127 @@ export function OuvDetailPage() {
 
   return (
     <AppLayout title={ouv.consecutivo}>
+      <DiscoveryNav />
       <div className="mb-4">
         <Link to="/opportunities" className="text-sm text-accent hover:underline">
           ← Bandeja OUV
         </Link>
       </div>
 
-      <OuvZonaStepper
-        zonaActual={ouv.zona_actual}
-        createdAt={ouv.created_at}
-      />
+      {isSoporte && !editable ? (
+        <p className="mb-3 rounded border border-border bg-bg px-3 py-2 text-sm text-muted">
+          Vista Soporte: lectura de OUV. La edición de zona/cierre es del
+          comercial dueño. Catálogos en el menú superior.
+        </p>
+      ) : null}
+
+      <OuvFunnelRibbon ouv={ouv} />
+
+      <header className={`${cardClass} mb-4 p-4`}>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs font-bold text-muted">{ouv.consecutivo}</p>
+            <h1 className="text-xl font-bold text-ink">{ouv.titulo}</h1>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <ZonaBadge zona={ouv.zona_actual} />
+              <ResultadoBadge resultado={ouv.resultado} />
+              <span className="rounded bg-bg px-2 py-0.5 text-xs font-bold text-ink">
+                {ouv.origen_via === 'directa' ? 'Directa' : 'Desde SQL'}
+              </span>
+              {ouv.tiene_gap ? <GapBadge /> : null}
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {editable ? (
+              <OuvConfigMenu
+                onContactos={() => setShowContactosPanel(true)}
+                onAvanzar={() => setShowAvance(true)}
+                onRetroceder={() => setShowRetroceso(true)}
+                onCerrar={() => setShowCierre(true)}
+              />
+            ) : (
+              <button
+                type="button"
+                className={ghostButtonClass}
+                onClick={() => setShowContactosPanel(true)}
+              >
+                <span className="inline-flex items-center gap-2">
+                  <Users size={16} strokeWidth={2} />
+                  Contactos
+                  <span className={`${badgeClass} bg-bg text-muted`}>
+                    {contactos.length}
+                  </span>
+                </span>
+              </button>
+            )}
+          </div>
+        </div>
+        {ouv.descripcion ? (
+          <p className="mt-3 text-sm text-muted">{ouv.descripcion}</p>
+        ) : null}
+
+        {/* Compact contact preview — click opens the side panel */}
+        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3">
+          <span className="text-xs font-bold text-muted">Equipo cliente</span>
+          {contactos.length === 0 ? (
+            <button
+              type="button"
+              className="text-xs font-bold text-accent hover:underline"
+              onClick={() => {
+                setShowContactosPanel(true);
+                if (editable) setContactoModal('new');
+              }}
+            >
+              {editable ? '+ Agregar contacto' : 'Sin contactos'}
+            </button>
+          ) : (
+            <>
+              {contactos.slice(0, 5).map((c) => {
+                const roles =
+                  contactoInfluenciaMap.get(c.contacto_ouv_id) ?? [];
+                return (
+                  <button
+                    key={c.contacto_ouv_id}
+                    type="button"
+                    title={[c.name, c.job_title, roles.join(', ')]
+                      .filter(Boolean)
+                      .join(' · ')}
+                    className="inline-flex max-w-[10rem] items-center gap-1.5 rounded-full border border-border bg-bg py-0.5 pl-0.5 pr-2 text-left hover:border-accent"
+                    onClick={() => setShowContactosPanel(true)}
+                  >
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent/10 text-[10px] font-bold text-accent">
+                      {contactInitials(c.name)}
+                    </span>
+                    <span className="truncate text-xs font-bold text-ink">
+                      {c.name}
+                    </span>
+                  </button>
+                );
+              })}
+              {contactos.length > 5 ? (
+                <button
+                  type="button"
+                  className="text-xs font-bold text-accent hover:underline"
+                  onClick={() => setShowContactosPanel(true)}
+                >
+                  +{contactos.length - 5} más
+                </button>
+              ) : null}
+            </>
+          )}
+        </div>
+
+        <dl className="mt-3 grid gap-x-4 gap-y-3 border-t border-border pt-3 text-sm sm:grid-cols-3">
+          {ouvHeaderMetaFields(ouv).map((field) => (
+            <div key={field.label}>
+              <dt className="text-xs font-bold uppercase tracking-wide text-muted">
+                {field.label}
+              </dt>
+              <dd className="mt-0.5 break-words text-ink">{field.value}</dd>
+            </div>
+          ))}
+        </dl>
+      </header>
 
       <nav
         className="mb-4 flex flex-wrap gap-1 border-b border-border"
@@ -489,33 +604,6 @@ export function OuvDetailPage() {
         </button>
       </nav>
 
-      {isSoporte && !editable ? (
-        <p className="mb-3 rounded border border-border bg-bg px-3 py-2 text-sm text-muted">
-          Vista Soporte: lectura de OUV. La edición de zona/cierre es del
-          comercial dueño.
-        </p>
-      ) : null}
-
-      {tab === 'detalle' ? (
-        <OuvDetailHeader
-          ouv={ouv}
-          editable={editable}
-          contactosCount={contactos.length}
-          onOpenContactos={() => setShowContactosPanel(true)}
-          onEditar={() => setShowEditOuv(true)}
-          onAvanzar={() => setShowAvance(true)}
-          onRetroceder={() => setShowRetroceso(true)}
-          onCerrar={() => setShowCierre(true)}
-        />
-      ) : null}
-
-      {tab === 'detalle' && ouv.tiene_gap ? (
-        <div className="mb-4 rounded border border-warning bg-warning/15 p-3 text-sm text-ink">
-          Esta OUV tiene gap de criterios:{' '}
-          {(ouv.criterios_faltantes ?? []).join(', ') || 'revisar zona actual'}.
-        </div>
-      ) : null}
-
       {actionError ? (
         <p className="mb-3 text-sm text-danger" role="alert">
           {actionError}
@@ -529,49 +617,35 @@ export function OuvDetailPage() {
 
       {tab === 'detalle' ? (
       <>
-      <section className={`${cardClass} mb-4 p-4`}>
-        <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-          <div>
-            <h2 className="text-sm font-bold text-ink">Influencias</h2>
-            <p className="mt-1 text-xs text-muted">
-              Asigna un contacto a cada rol (Económica, Técnica, Fábrica) y
-              marca su estado. Se necesitan al menos{' '}
-              <strong>2 en Verde</strong> para avanzar a EN_FUNNEL o
-              MAYOR_PROBABILIDAD.
-            </p>
-          </div>
-          <span
-            className={[
-              'inline-flex items-center rounded px-2 py-0.5 text-xs font-bold',
-              influenciasVerdeCount >= 2
-                ? 'bg-semaphore-verde/25 text-ink'
-                : 'bg-warning/25 text-ink',
-            ].join(' ')}
-            aria-label={`${influenciasVerdeCount} de 3 influencias en Verde`}
-          >
-            {influenciasVerdeCount}/3 en Verde
-          </span>
+      {ouv.tiene_gap ? (
+        <div className="mb-4 rounded border border-warning bg-warning/15 p-3 text-sm text-ink">
+          Esta OUV tiene gap de criterios:{' '}
+          {(ouv.criterios_faltantes ?? []).join(', ') || 'revisar zona actual'}.
         </div>
+      ) : null}
+
+      {/* Influencias — primary workspace */}
+      <section className={`${cardClass} mb-4 p-4`}>
+        <h2 className="mb-1 text-sm font-bold text-ink">Influencias</h2>
+        <p className="mb-3 text-xs text-muted">
+          Estado y contacto se guardan al instante (sin bloquear la tarjeta).
+          Notas se guardan medio segundo después de dejar de escribir.
+        </p>
         <div className="grid gap-3 md:grid-cols-3">
           {INFLUENCIA_TIPOS.map((tipo) => {
             const inf = influencias.find((x) => x.tipo === tipo);
-            const assignedContact = contactos.find(
-              (c) => c.contacto_ouv_id === inf?.contacto_ouv_id,
-            );
-            const estado = (inf?.estado ??
-              'SinEvaluar') as InfluenciaEstado;
+            const estado =
+              (inf?.estado as InfluenciaEstado | undefined) ?? 'SinEvaluar';
             const cardTone =
-              INFLUENCIA_ESTADO_CARD[estado] ??
-              INFLUENCIA_ESTADO_CARD.SinEvaluar;
-            const isUnassigned = !assignedContact;
+              INFLUENCIA_ESTADO_CARD[estado] ?? INFLUENCIA_ESTADO_CARD.SinEvaluar;
             const isSaving = Boolean(savingTipos[tipo]);
             const justSaved = influenciaFlash === tipo;
             return (
               <div
                 key={tipo}
                 className={[
-                  'rounded border p-3 transition-[border-color,box-shadow,opacity] duration-300',
-                  isUnassigned ? 'border-border bg-bg/80 opacity-75' : cardTone,
+                  'rounded border p-3 transition-[border-color,box-shadow] duration-300',
+                  cardTone,
                   justSaved
                     ? 'border-positive shadow-[0_0_0_1px_var(--positive)]'
                     : isSaving
@@ -580,14 +654,8 @@ export function OuvDetailPage() {
                 ].join(' ')}
                 aria-live="polite"
               >
-                <div className="mb-3 flex items-center justify-between gap-2">
-                  <p
-                    className={`text-sm font-bold ${
-                      isUnassigned ? 'text-muted' : 'text-ink'
-                    }`}
-                  >
-                    {INFLUENCIA_TIPO_LABEL[tipo]}
-                  </p>
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <p className="text-sm font-bold text-ink">{tipo}</p>
                   {isSaving ? (
                     <span className="text-xs font-bold text-accent">
                       Guardando…
@@ -598,89 +666,11 @@ export function OuvDetailPage() {
                       Guardado
                     </span>
                   ) : null}
-                  {!isSaving && !justSaved && isUnassigned ? (
-                    <span className="text-xs font-bold text-muted">
-                      Sin registrar
-                    </span>
-                  ) : null}
                 </div>
-
-                <label className={labelClass}>Contacto</label>
-                {assignedContact ? (
-                  <div className="relative rounded border border-border bg-surface p-2.5 pr-8 text-xs">
-                    {editable ? (
-                      <button
-                        type="button"
-                        className="icon-btn absolute right-1 top-1 grid h-6 w-6 place-items-center rounded text-muted hover:text-danger"
-                        aria-label={`Quitar contacto de ${INFLUENCIA_TIPO_LABEL[tipo]}`}
-                        onClick={() =>
-                          handleInfluenciaFieldChange(tipo, {
-                            contacto_ouv_id: null,
-                          })
-                        }
-                      >
-                        <X size={14} strokeWidth={2.5} />
-                      </button>
-                    ) : null}
-                    <p className="font-bold text-ink">{assignedContact.name}</p>
-                    {assignedContact.job_title ? (
-                      <p className="mt-0.5 text-muted">
-                        {assignedContact.job_title}
-                      </p>
-                    ) : null}
-                    {assignedContact.email ? (
-                      <p className="mt-0.5 text-ink">{assignedContact.email}</p>
-                    ) : null}
-                    {assignedContact.phone ? (
-                      <p className="mt-0.5 text-ink">{assignedContact.phone}</p>
-                    ) : null}
-                    {assignedContact.account_name ? (
-                      <p className="mt-0.5 text-muted">
-                        {assignedContact.account_name}
-                      </p>
-                    ) : null}
-                  </div>
-                ) : (
-                  <>
-                    <select
-                      className={`${inputClass} text-muted`}
-                      disabled={!editable}
-                      value={inf?.contacto_ouv_id ?? ''}
-                      onChange={(e) =>
-                        handleInfluenciaFieldChange(tipo, {
-                          contacto_ouv_id: e.target.value || null,
-                        })
-                      }
-                    >
-                      <option value="">Sin asignar</option>
-                      {contactos.map((c) => (
-                        <option
-                          key={c.contacto_ouv_id}
-                          value={c.contacto_ouv_id}
-                        >
-                          {c.name}
-                        </option>
-                      ))}
-                    </select>
-                    {editable ? (
-                      <button
-                        type="button"
-                        className="mt-2 text-xs font-bold text-accent hover:underline"
-                        onClick={() => openContactoModal('new', tipo)}
-                      >
-                        + Agregar contacto
-                      </button>
-                    ) : null}
-                  </>
-                )}
-
-                <label className={`${labelClass} mt-3`}>Estado</label>
+                <label className={labelClass}>Estado</label>
                 <div className="relative">
                   <span
-                    className={`pointer-events-none absolute left-3 top-1/2 h-2 w-2 -translate-y-1/2 rounded-full ${
-                      INFLUENCIA_ESTADO_DOT[estado] ??
-                      INFLUENCIA_ESTADO_DOT.SinEvaluar
-                    }`}
+                    className={`pointer-events-none absolute left-3 top-1/2 h-2 w-2 -translate-y-1/2 rounded-full ${INFLUENCIA_ESTADO_DOT[estado] ?? INFLUENCIA_ESTADO_DOT.SinEvaluar}`}
                     aria-hidden
                   />
                   <select
@@ -695,15 +685,32 @@ export function OuvDetailPage() {
                   >
                     {INFLUENCIA_ESTADOS.map((s) => (
                       <option key={s} value={s}>
-                        {INFLUENCIA_ESTADO_LABEL[s]}
+                        {s}
                       </option>
                     ))}
                   </select>
                 </div>
-
+                <label className={`${labelClass} mt-2`}>Contacto</label>
+                <select
+                  className={inputClass}
+                  disabled={!editable}
+                  value={inf?.contacto_ouv_id ?? ''}
+                  onChange={(e) =>
+                    handleInfluenciaFieldChange(tipo, {
+                      contacto_ouv_id: e.target.value || null,
+                    })
+                  }
+                >
+                  <option value="">Sin asignar</option>
+                  {contactos.map((c) => (
+                    <option key={c.contacto_ouv_id} value={c.contacto_ouv_id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
                 <label className={`${labelClass} mt-2`}>Notas</label>
                 <textarea
-                  className={`${inputClass} h-20 resize-y py-2`}
+                  className={`${inputClass} h-16 py-2`}
                   disabled={!editable}
                   value={inf?.notas ?? ''}
                   onChange={(e) =>
@@ -733,24 +740,27 @@ export function OuvDetailPage() {
         </div>
       </section>
 
-      <section className={`${cardClass} mb-4 border border-border p-4`}>
-        <h2 className="mb-3 text-sm font-bold text-ink">Presupuesto</h2>
+      {/* Presupuesto */}
+      <section className={`${cardClass} mb-4 p-4`}>
+        <h2 className="mb-1 text-sm font-bold text-ink">Presupuesto</h2>
+        <p className="mb-3 text-xs text-muted">
+          No se guarda solo: edita los campos y pulsa{' '}
+          <strong>Guardar presupuesto</strong>. Marca &quot;Confirmado&quot;
+          para poder avanzar a Encima Funnel.
+        </p>
         <div className="grid gap-3 md:grid-cols-4">
-          <div>
-            <span className={labelClass}>Confirmado</span>
-            <label className="flex h-9 items-center gap-2 text-sm text-ink">
-              <input
-                type="checkbox"
-                checked={presupuestoConfirmado}
-                disabled={!editable}
-                onChange={(e) => {
-                  setPresupuestoConfirmado(e.target.checked);
-                  setActionSuccess(null);
-                }}
-              />
-              Confirmado
-            </label>
-          </div>
+          <label className="flex items-center gap-2 text-sm text-ink">
+            <input
+              type="checkbox"
+              checked={presupuestoConfirmado}
+              disabled={!editable}
+              onChange={(e) => {
+                setPresupuestoConfirmado(e.target.checked);
+                setActionSuccess(null);
+              }}
+            />
+            Confirmado
+          </label>
           <div>
             <label className={labelClass}>Monto</label>
             <input
@@ -789,7 +799,7 @@ export function OuvDetailPage() {
                 setActionSuccess(null);
               }}
             >
-              <option value="cliente_declaro">Cliente declara</option>
+              <option value="cliente_declaro">Cliente declaró</option>
               <option value="contrato_previo">Contrato previo</option>
               <option value="licitacion_publicada">Licitación</option>
               <option value="estimacion_comercial">Estimación</option>
@@ -819,7 +829,8 @@ export function OuvDetailPage() {
         )}
       </section>
 
-      <section className={`${cardClass} mb-4 border border-border p-4`}>
+      {/* Checklist */}
+      <section className={`${cardClass} mb-4 p-4`}>
         <h2 className="mb-1 text-sm font-bold text-ink">
           Checklist — zona actual
         </h2>
@@ -861,8 +872,9 @@ export function OuvDetailPage() {
         )}
       </section>
 
+      {/* Cierre */}
       {ouv.resultado !== 'EnCurso' ? (
-        <section className={`${cardClass} mb-4 border border-border p-4`}>
+        <section className={`${cardClass} mb-4 p-4`}>
           <h2 className="mb-3 text-sm font-bold text-ink">Cierre</h2>
           <dl className="grid gap-2 text-sm md:grid-cols-2">
             <div>
@@ -908,7 +920,7 @@ export function OuvDetailPage() {
         <ContactoFormModal
           initial={contactoModal === 'new' ? null : contactoModal}
           lockAccountId={ouv.account_id}
-          onClose={closeContactoModal}
+          onClose={() => setContactoModal(null)}
           onSave={handleSaveContacto}
         />
       ) : null}
@@ -918,8 +930,8 @@ export function OuvDetailPage() {
         influenciaByContacto={contactoInfluenciaMap}
         editable={editable}
         onClose={() => setShowContactosPanel(false)}
-        onAdd={() => openContactoModal('new')}
-        onEdit={(c) => openContactoModal(c)}
+        onAdd={() => setContactoModal('new')}
+        onEdit={(c) => setContactoModal(c)}
         onDelete={(c) => void handleDeleteContacto(c)}
       />
       {showAvance ? (
@@ -941,20 +953,6 @@ export function OuvDetailPage() {
           ouv={ouv}
           onClose={() => setShowCierre(false)}
           onClosed={() => void load({ silent: true })}
-        />
-      ) : null}
-      {showEditOuv ? (
-        <EditOuvModal
-          ouv={ouv}
-          actorRoleName={user?.role_name}
-          onClose={() => setShowEditOuv(false)}
-          save={(payload: UpdateOuvPayload) => updateOuv(ouv.ouv_id, payload)}
-          onSaved={(updated) => {
-            setOuv(updated);
-            setShowEditOuv(false);
-            setActionSuccess('OUV actualizada.');
-            void load({ silent: true });
-          }}
         />
       ) : null}
     </AppLayout>

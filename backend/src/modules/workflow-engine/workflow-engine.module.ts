@@ -8,20 +8,23 @@ import { NotificationsController } from './controllers/notifications.controller'
 import { WorkflowExceptionFilter } from './filters/workflow-exception.filter';
 import { NotificationsGateway } from './gateway/notifications.gateway';
 import { Notification } from './models/notification.model';
+import { StatusHistory } from './models/status-history.model';
 import { NotificationsQueryService } from './services/notifications-query.service';
+import { StatusHistoryService } from './services/status-history.service';
 import { NOTIFICATION_PUSH_PORT } from './side-effects/notification-push.port';
 import { NotificationsPersister } from './side-effects/notifications-persister';
 import { WorkflowEngineService } from './workflow-engine.service';
 
 @Module({
   imports: [
-    SequelizeModule.forFeature([Notification, User]),
+    SequelizeModule.forFeature([Notification, StatusHistory, User]),
     AuthModule,
     AuditModule,
   ],
   controllers: [NotificationsController],
   providers: [
     WorkflowEngineService,
+    StatusHistoryService,
     NotificationsPersister,
     NotificationsQueryService,
     NotificationsGateway,
@@ -34,6 +37,6 @@ import { WorkflowEngineService } from './workflow-engine.service';
       useClass: WorkflowExceptionFilter,
     },
   ],
-  exports: [WorkflowEngineService, SequelizeModule],
+  exports: [WorkflowEngineService, StatusHistoryService, SequelizeModule],
 })
 export class WorkflowEngineModule {}

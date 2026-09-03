@@ -1,30 +1,24 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, Pencil, Settings, XCircle } from 'lucide-react';
+import {
+  ArrowLeft,
+  ArrowRight,
+  Settings,
+  Users,
+  XCircle,
+} from 'lucide-react';
 
 type Props = {
-  /** Habilita las acciones que exigen ser dueño y OUV en curso. */
-  canEditWorkflow: boolean;
-  /** Se muestra "Finalizar edición" en vez de "Editar OUV" cuando está en true. */
-  editingOuv?: boolean;
-  onEditar: () => void;
+  onContactos: () => void;
   onAvanzar: () => void;
   onRetroceder: () => void;
   onCerrar: () => void;
 };
 
 const menuItemClass =
-  'flex w-full items-center gap-2 border-t border-border px-3 py-2 text-left text-sm font-bold text-ink first:border-t-0 hover:bg-bg disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent';
+  'flex w-full items-center gap-2 border-t border-border px-3 py-2 text-left text-sm font-bold text-ink hover:bg-bg first:border-t-0';
 
-/**
- * Menú de acciones de la cabecera de una OUV. Reemplaza el popover ad-hoc que
- * vivía dentro de `OuvDetailHeader`; los ítems de workflow (avanzar / retroceder /
- * cerrar) se muestran deshabilitados cuando el usuario no puede tocarlos, en vez
- * de esconderse — así el menú no cambia de tamaño según el rol.
- */
 export function OuvConfigMenu({
-  canEditWorkflow,
-  editingOuv = false,
-  onEditar,
+  onContactos,
   onAvanzar,
   onRetroceder,
   onCerrar,
@@ -40,14 +34,6 @@ export function OuvConfigMenu({
     }
     document.addEventListener('mousedown', onPointerDown);
     return () => document.removeEventListener('mousedown', onPointerDown);
-  }, []);
-
-  useEffect(() => {
-    function onKey(event: KeyboardEvent) {
-      if (event.key === 'Escape') setOpen(false);
-    }
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
   }, []);
 
   function pick(action: () => void) {
@@ -77,17 +63,15 @@ export function OuvConfigMenu({
             type="button"
             role="menuitem"
             className={menuItemClass}
-            disabled={!canEditWorkflow}
-            onClick={() => pick(onEditar)}
+            onClick={() => pick(onContactos)}
           >
-            <Pencil size={16} strokeWidth={2} aria-hidden />
-            {editingOuv ? 'Finalizar edición' : 'Editar OUV'}
+            <Users size={16} strokeWidth={2} aria-hidden />
+            Contactos
           </button>
           <button
             type="button"
             role="menuitem"
             className={menuItemClass}
-            disabled={!canEditWorkflow}
             onClick={() => pick(onAvanzar)}
           >
             <ArrowRight size={16} strokeWidth={2} aria-hidden />
@@ -97,7 +81,6 @@ export function OuvConfigMenu({
             type="button"
             role="menuitem"
             className={menuItemClass}
-            disabled={!canEditWorkflow}
             onClick={() => pick(onRetroceder)}
           >
             <ArrowLeft size={16} strokeWidth={2} aria-hidden />
@@ -107,7 +90,6 @@ export function OuvConfigMenu({
             type="button"
             role="menuitem"
             className={menuItemClass}
-            disabled={!canEditWorkflow}
             onClick={() => pick(onCerrar)}
           >
             <XCircle size={16} strokeWidth={2} aria-hidden />

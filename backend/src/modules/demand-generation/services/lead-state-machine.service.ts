@@ -8,6 +8,8 @@ import { InjectConnection, InjectModel } from '@nestjs/sequelize';
 import { Sequelize } from 'sequelize';
 import { AccountsService } from '../../accounts/services/accounts.service';
 import { EntityType } from '../../workflow-engine/enums/entity-type.enum';
+import { StatusHistoryTrigger } from '../../workflow-engine/lib/status-history-trigger';
+import { StatusHistoryService } from '../../workflow-engine/services/status-history.service';
 import { WorkflowEngineService } from '../../workflow-engine/workflow-engine.service';
 import {
   DEMAND_GENERATION_ERROR_CODES,
@@ -53,6 +55,7 @@ export class LeadStateMachineService {
     private readonly interactionsService: InteractionsService,
     private readonly checklistService: LeadChecklistService,
     private readonly workflowEngine: WorkflowEngineService,
+    private readonly statusHistory: StatusHistoryService,
     private readonly accountsService: AccountsService,
     @Inject(NOTIFICATION_PORT)
     private readonly notifications: NotificationPort,
@@ -67,7 +70,16 @@ export class LeadStateMachineService {
     }
 
     assertValidLeadTransition(lead.estado, LeadEstado.TOFU);
+    const fromEstado = lead.estado;
     await lead.update({ estado: LeadEstado.TOFU });
+    await this.statusHistory.record({
+      entityType: EntityType.LEAD,
+      entityId: lead.leadId,
+      rootLeadId: lead.leadId,
+      fromEstado,
+      toEstado: LeadEstado.TOFU,
+      trigger: StatusHistoryTrigger.Create,
+    });
     return lead;
   }
 
@@ -114,6 +126,15 @@ export class LeadStateMachineService {
     }
 
     await lead.update({ estado: LeadEstado.MOFU });
+    await this.statusHistory.record({
+      entityType: EntityType.LEAD,
+      entityId: lead.leadId,
+      rootLeadId: lead.leadId,
+      fromEstado: LeadEstado.TOFU,
+      toEstado: LeadEstado.MOFU,
+      trigger: StatusHistoryTrigger.Advance,
+      changedBy: _userId,
+    });
     return lead;
   }
 
@@ -164,7 +185,18 @@ export class LeadStateMachineService {
     }
 
     const mql = await this.upsertActiveMql(lead, checklist, userId);
+    const fromEstado = lead.estado;
     await lead.update({ estado: LeadEstado.MqlPending });
+    await this.statusHistory.record({
+      entityType: EntityType.LEAD,
+      entityId: lead.leadId,
+      rootLeadId: lead.leadId,
+      fromEstado,
+      toEstado: LeadEstado.MqlPending,
+      trigger: StatusHistoryTrigger.Advance,
+      changedBy: userId,
+      metadata: { mql_id: mql.mqlId },
+    });
 
     const entityLabel = await this.getLeadDisplayLabel(lead);
     await this.notifications.notify({
@@ -278,7 +310,19 @@ export class LeadStateMachineService {
       estado: MqlEstado.Devuelto,
       motivoCalificacion: motivo,
     });
+    const fromEstado = lead.estado;
     await lead.update({ estado: LeadEstado.Reciclaje });
+    await this.statusHistory.record({
+      entityType: EntityType.LEAD,
+      entityId: lead.leadId,
+      rootLeadId: lead.leadId,
+      fromEstado,
+      toEstado: LeadEstado.Reciclaje,
+      trigger: StatusHistoryTrigger.Rejection,
+      changedBy: _userId,
+      motivo,
+      metadata: { mql_id: mql.mqlId },
+    });
 
     const entityLabel = await this.getLeadDisplayLabel(lead);
     await this.notifications.notify({
@@ -327,9 +371,20 @@ export class LeadStateMachineService {
       await activeMql.update({ estado: MqlEstado.Descartado });
     }
 
+    const fromEstado = lead.estado;
     await lead.update({
       estado: LeadEstado.Descartado,
       motivoDescarte: motivo,
+    });
+    await this.statusHistory.record({
+      entityType: EntityType.LEAD,
+      entityId: lead.leadId,
+      rootLeadId: lead.leadId,
+      fromEstado,
+      toEstado: LeadEstado.Descartado,
+      trigger: StatusHistoryTrigger.Discard,
+      changedBy: _userId,
+      motivo,
     });
 
     return lead;
