@@ -67,7 +67,7 @@ export function ContactosSidePanel({
         <header className="flex shrink-0 items-start justify-between gap-3 border-b border-border px-4 py-4">
           <div>
             <div className="flex items-center gap-2">
-              <Users size={18} className="text-brand" strokeWidth={2} />
+              <Users size={18} className="text-accent" strokeWidth={2} />
               <h2 className="text-base font-bold text-ink">Contactos</h2>
               <span className="rounded bg-bg px-1.5 py-0.5 text-xs font-bold text-muted">
                 {contactos.length}
@@ -135,7 +135,7 @@ export function ContactosSidePanel({
                   >
                     <div className="flex items-start gap-3">
                       <span
-                        className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand/10 text-xs font-bold text-brand"
+                        className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent/10 text-xs font-bold text-accent"
                         aria-hidden
                       >
                         {initials(c.name)}
@@ -157,7 +157,7 @@ export function ContactosSidePanel({
                             {roles.map((role) => (
                               <span
                                 key={role}
-                                className={`${badgeClass} bg-brand/10 text-brand`}
+                                className={`${badgeClass} bg-accent/10 text-accent`}
                               >
                                 {role}
                               </span>

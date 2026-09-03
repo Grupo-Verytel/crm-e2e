@@ -76,6 +76,8 @@ export interface PresalesRequestView {
   }[];
   /** Nota original del usuario comercial; siempre visible en la UI (T-302). */
   source_content: string;
+  /** Documento SharePoint adjunto por el comercial. Solo UI CRM. */
+  sharepoint_document_url: string | null;
   source_created_at: string | null;
   source_version: string;
   etag: string;
@@ -151,6 +153,7 @@ export function presentPresalesRequest(
       dependency: service.dependency,
     })),
     source_content: interaction.sourceContent,
+    sharepoint_document_url: interaction.sharepointDocumentUrl ?? null,
     source_created_at: toRfc3339(interaction.sourceCreatedAt),
     source_version: interaction.sourceVersion,
     etag: interaction.etag,

@@ -9,6 +9,7 @@ import type { Transaction } from 'sequelize';
 import { EntityType } from '../../workflow-engine/enums/entity-type.enum';
 import { WorkflowEngineService } from '../../workflow-engine/workflow-engine.service';
 import type { ActualizarInfluenciaDto } from '../dtos/actualizar-influencia.dto';
+import { canMutateOuvEnCurso } from '../lib/ouv-access';
 import {
   InfluenciaEstado,
   InfluenciaTipo,
@@ -70,6 +71,7 @@ export class OuvInfluenciasService {
     tipo: InfluenciaTipo,
     dto: ActualizarInfluenciaDto,
     actorUserId: string,
+    roleName: string,
   ): Promise<OuvInfluencia> {
     return this.ouvModel.sequelize!.transaction(async (transaction) => {
       const ouv = await this.ouvModel.findByPk(ouvId, {
@@ -79,9 +81,9 @@ export class OuvInfluenciasService {
       if (!ouv) {
         throw new NotFoundException(`OUV ${ouvId} not found`);
       }
-      if (ouv.comercialId !== actorUserId) {
+      if (!canMutateOuvEnCurso(ouv.comercialId, actorUserId, roleName)) {
         throw new ForbiddenException(
-          'Only the owning Ejecutivo Comercial can update influencias',
+          'Only the owning Ejecutivo Comercial or Admin can update influencias',
         );
       }
       if (ouv.resultado !== OuvResultado.EnCurso) {

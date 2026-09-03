@@ -58,6 +58,7 @@ function buildValues(ouv: Ouv, priority: ActivityPriority | null): FormValues {
     service_horizon: meta?.horizon ?? '',
     subject: '',
     source_content: '',
+    sharepoint_document_url: '',
     source_created_at: new Date().toISOString().slice(0, 16),
     source_version: '',
     etag: '',
@@ -112,6 +113,7 @@ export function SolicitudPreventaModal({ ouv, onClose, onResult }: Props) {
         subject: values.subject || undefined,
         // Sin trim: el contenido original se preserva sin alteración (P-07).
         source_content: values.source_content,
+        sharepoint_document_url: values.sharepoint_document_url || undefined,
       });
       onResult({
         ok: true,
@@ -277,6 +279,23 @@ export function SolicitudPreventaModal({ ouv, onClose, onResult }: Props) {
               </ul>
             </div>
           ) : null}
+
+          <div className="mb-3">
+            <label className={labelClass} htmlFor="modal-sol-sharepoint">
+              Link de SharePoint
+            </label>
+            <input
+              id="modal-sol-sharepoint"
+              type="url"
+              className={inputClass}
+              value={values.sharepoint_document_url ?? ''}
+              placeholder="https://verytel.sharepoint.com/sites/preventa/Shared Documents/…"
+              onChange={(e) => patch('sharepoint_document_url', e.target.value)}
+            />
+            <p className="mt-1 text-xs text-muted">
+              URL HTTPS de SharePoint Documents. No uses un registro de Lista.
+            </p>
+          </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
             {SOLICITUD_PREVENTA_FIELDS.map((field) => {

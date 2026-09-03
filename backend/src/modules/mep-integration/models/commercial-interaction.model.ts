@@ -52,6 +52,17 @@ export class CommercialInteraction extends Model {
   @Column({ type: DataType.STRING(512), allowNull: true })
   declare subject: string | null;
 
+  /**
+   * Documento SharePoint que el comercial adjunta al crear la solicitud.
+   * Solo proyección CRM/UI; no cruza el contrato `/v1` de MEP.
+   */
+  @Column({
+    type: DataType.STRING(2048),
+    field: 'sharepoint_document_url',
+    allowNull: true,
+  })
+  declare sharepointDocumentUrl: string | null;
+
   @Column({
     type: DataType.TEXT('medium'),
     field: 'source_content',

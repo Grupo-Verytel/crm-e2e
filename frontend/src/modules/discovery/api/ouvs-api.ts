@@ -129,6 +129,30 @@ export async function crearOuvDirecta(
   return apiRequest('/discovery/ouvs', { method: 'POST', body: payload });
 }
 
+export type UpdateOuvPayload = {
+  titulo?: string;
+  empresa_nombre?: string;
+  segmento?: string;
+  vertical?: string;
+  descripcion?: string;
+  /** null desliga la account del OUV. */
+  account_id?: string | null;
+  segment_id?: string | null;
+  subsegment_id?: string | null;
+  /** Reasignación de dueño; el backend la restringe a Admin. */
+  comercial_id?: string;
+};
+
+export async function updateOuv(
+  id: string,
+  payload: UpdateOuvPayload,
+): Promise<Ouv> {
+  return apiRequest(`/discovery/ouvs/${id}`, {
+    method: 'PATCH',
+    body: payload,
+  });
+}
+
 export async function avanzarOuv(id: string): Promise<Ouv> {
   return apiRequest(`/discovery/ouvs/${id}/avanzar`, {
     method: 'POST',

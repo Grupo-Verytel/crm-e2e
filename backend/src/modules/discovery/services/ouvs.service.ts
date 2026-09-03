@@ -7,9 +7,11 @@ import {
 import { InjectConnection, InjectModel } from '@nestjs/sequelize';
 import { Op, QueryTypes, Sequelize, type Transaction } from 'sequelize';
 import { AccountsService } from '../../accounts/services/accounts.service';
+import { UsersService } from '../../auth/services/users.service';
 import { DemandGenerationService } from '../../demand-generation/services/demand-generation.service';
 import { EntityType } from '../../workflow-engine/enums/entity-type.enum';
 import { WorkflowEngineService } from '../../workflow-engine/workflow-engine.service';
+import type { ActualizarOuvDto } from '../dtos/actualizar-ouv.dto';
 import type { ActualizarPresupuestoDto } from '../dtos/actualizar-presupuesto.dto';
 import type {
   DescartarOuvDto,
@@ -20,6 +22,7 @@ import type { CrearOuvDirectaDto } from '../dtos/crear-ouv-directa.dto';
 import type { CrearOuvDto } from '../dtos/crear-ouv.dto';
 import type { ListarOuvsQueryDto } from '../dtos/listar-ouvs-query.dto';
 import type { OuvResponseDto } from '../dtos/ouv-response.dto';
+import { canMutateOuvEnCurso } from '../lib/ouv-access';
 import { nextZona, prevZona } from '../lib/ouv-zona-order';
 import {
   OuvOrigenVia,
@@ -59,6 +62,7 @@ export class OuvsService {
     private readonly motivoDescarteModel: typeof MotivoDescarte,
     private readonly demandGeneration: DemandGenerationService,
     private readonly accountsService: AccountsService,
+    private readonly usersService: UsersService,
     private readonly contactosService: OuvContactosService,
     private readonly influenciasService: OuvInfluenciasService,
     private readonly checklistService: OuvChecklistService,
@@ -221,9 +225,18 @@ export class OuvsService {
     });
   }
 
-  async avanzarZona(ouvId: string, actorUserId: string): Promise<Ouv> {
+  async avanzarZona(
+    ouvId: string,
+    actorUserId: string,
+    roleName: string,
+  ): Promise<Ouv> {
     return this.sequelize.transaction(async (transaction) => {
-      const ouv = await this.lockOwnedEnCurso(ouvId, actorUserId, transaction);
+      const ouv = await this.lockOwnedEnCurso(
+        ouvId,
+        actorUserId,
+        roleName,
+        transaction,
+      );
       const destino = nextZona(ouv.zonaActual);
       if (!destino) {
         throw new BadRequestException(
@@ -276,6 +289,7 @@ export class OuvsService {
     ouvId: string,
     motivo: string,
     actorUserId: string,
+    roleName: string,
   ): Promise<Ouv> {
     const motivoTrim = motivo?.trim();
     if (!motivoTrim) {
@@ -283,7 +297,12 @@ export class OuvsService {
     }
 
     return this.sequelize.transaction(async (transaction) => {
-      const ouv = await this.lockOwnedEnCurso(ouvId, actorUserId, transaction);
+      const ouv = await this.lockOwnedEnCurso(
+        ouvId,
+        actorUserId,
+        roleName,
+        transaction,
+      );
       const destino = prevZona(ouv.zonaActual);
       if (!destino) {
         throw new BadRequestException(
@@ -323,9 +342,15 @@ export class OuvsService {
     ouvId: string,
     dto: GanarOuvDto,
     actorUserId: string,
+    roleName: string,
   ): Promise<Ouv> {
     return this.sequelize.transaction(async (transaction) => {
-      const ouv = await this.lockOwnedEnCurso(ouvId, actorUserId, transaction);
+      const ouv = await this.lockOwnedEnCurso(
+        ouvId,
+        actorUserId,
+        roleName,
+        transaction,
+      );
 
       if (ouv.zonaActual !== OuvZona.MayorProbabilidad) {
         throw new BadRequestException(
@@ -410,9 +435,15 @@ export class OuvsService {
     ouvId: string,
     dto: PerderOuvDto,
     actorUserId: string,
+    roleName: string,
   ): Promise<Ouv> {
     return this.sequelize.transaction(async (transaction) => {
-      const ouv = await this.lockOwnedEnCurso(ouvId, actorUserId, transaction);
+      const ouv = await this.lockOwnedEnCurso(
+        ouvId,
+        actorUserId,
+        roleName,
+        transaction,
+      );
 
       const motivo = await this.motivoPerdidaModel.findByPk(dto.motivo_id, {
         transaction,
@@ -474,9 +505,15 @@ export class OuvsService {
     ouvId: string,
     dto: DescartarOuvDto,
     actorUserId: string,
+    roleName: string,
   ): Promise<Ouv> {
     return this.sequelize.transaction(async (transaction) => {
-      const ouv = await this.lockOwnedEnCurso(ouvId, actorUserId, transaction);
+      const ouv = await this.lockOwnedEnCurso(
+        ouvId,
+        actorUserId,
+        roleName,
+        transaction,
+      );
 
       const motivo = await this.motivoDescarteModel.findByPk(dto.motivo_id, {
         transaction,
@@ -525,13 +562,136 @@ export class OuvsService {
     });
   }
 
+  /**
+   * PATCH /discovery/ouvs/:id — metadatos y relaciones de cabecera.
+   *
+   * Cubre título, empresa, segmento/vertical, descripción, account_id,
+   * segment_id/subsegment_id y comercial_id. Los cambios de zona, resultado
+   * y presupuesto NO viajan por aquí — cada uno tiene su propio endpoint
+   * con guardas de workflow y auditoría distintas.
+   *
+   * La reasignación de `comercial_id` la restringimos a Admin: es un cambio
+   * de dueño con impacto en visibilidad y RBAC.
+   */
+  async actualizarMetadatos(
+    ouvId: string,
+    dto: ActualizarOuvDto,
+    actorUserId: string,
+    roleName: string,
+  ): Promise<Ouv> {
+    return this.sequelize.transaction(async (transaction) => {
+      const ouv = await this.lockOwnedEnCurso(
+        ouvId,
+        actorUserId,
+        roleName,
+        transaction,
+      );
+
+      const patch: Partial<Ouv> = {};
+
+      if (dto.titulo !== undefined) {
+        const titulo = dto.titulo.trim();
+        if (!titulo) {
+          throw new BadRequestException('titulo cannot be empty');
+        }
+        patch.titulo = titulo;
+      }
+      if (dto.empresa_nombre !== undefined) {
+        const empresa = dto.empresa_nombre.trim();
+        if (!empresa) {
+          throw new BadRequestException('empresa_nombre cannot be empty');
+        }
+        patch.empresaNombre = empresa;
+      }
+      if (dto.segmento !== undefined) patch.segmento = dto.segmento;
+      if (dto.vertical !== undefined) patch.vertical = dto.vertical;
+      if (dto.descripcion !== undefined) {
+        patch.descripcion = dto.descripcion.trim() || null;
+      }
+
+      // Vincular / desvincular la account. Si vincula, alinea empresa_nombre
+      // al snapshot de accounts.name — a menos que el DTO ya haya mandado
+      // empresa_nombre explícito en el mismo PATCH.
+      if (dto.account_id !== undefined) {
+        if (dto.account_id === null) {
+          patch.accountId = null;
+        } else {
+          const account = await this.accountsService.getAccount(dto.account_id);
+          patch.accountId = account.account_id;
+          if (dto.empresa_nombre === undefined && account.name?.trim()) {
+            patch.empresaNombre = account.name.trim();
+          }
+        }
+      }
+
+      // Segmento estructurado. Validamos el par contra los valores actuales:
+      // si solo mandan uno, el otro se resuelve desde la fila (o queda null).
+      if (dto.segment_id !== undefined || dto.subsegment_id !== undefined) {
+        const nextSegmentId =
+          dto.segment_id !== undefined ? dto.segment_id : ouv.segmentId;
+        const nextSubsegmentId =
+          dto.subsegment_id !== undefined
+            ? dto.subsegment_id
+            : ouv.subsegmentId;
+
+        if (nextSegmentId) {
+          await this.demandGeneration.assertSegmentSubsegment(
+            nextSegmentId,
+            nextSubsegmentId ?? undefined,
+          );
+        } else if (nextSubsegmentId) {
+          throw new BadRequestException(
+            'subsegment_id requires a non-null segment_id',
+          );
+        }
+
+        if (dto.segment_id !== undefined) patch.segmentId = dto.segment_id;
+        if (dto.subsegment_id !== undefined) {
+          patch.subsegmentId = dto.subsegment_id;
+        }
+      }
+
+      // Reasignar comercial dueño: solo Admin.
+      if (dto.comercial_id !== undefined) {
+        if (roleName !== 'Admin') {
+          throw new ForbiddenException(
+            'Only Admin can reassign the OUV commercial owner',
+          );
+        }
+        const eligible = await this.usersService.isActiveWithRole(
+          dto.comercial_id,
+          'EjecutivoComercial',
+        );
+        if (!eligible) {
+          throw new BadRequestException(
+            'comercial_id must reference an active Ejecutivo Comercial',
+          );
+        }
+        patch.comercialId = dto.comercial_id;
+      }
+
+      if (Object.keys(patch).length === 0) {
+        throw new BadRequestException('No fields to update');
+      }
+
+      await ouv.update(patch, { transaction });
+      return ouv;
+    });
+  }
+
   async actualizarPresupuesto(
     ouvId: string,
     dto: ActualizarPresupuestoDto,
     actorUserId: string,
+    roleName: string,
   ): Promise<Ouv> {
     return this.sequelize.transaction(async (transaction) => {
-      const ouv = await this.lockOwnedEnCurso(ouvId, actorUserId, transaction);
+      const ouv = await this.lockOwnedEnCurso(
+        ouvId,
+        actorUserId,
+        roleName,
+        transaction,
+      );
 
       await ouv.update(
         {
@@ -684,6 +844,7 @@ export class OuvsService {
   private async lockOwnedEnCurso(
     ouvId: string,
     actorUserId: string,
+    roleName: string,
     transaction: Transaction,
   ): Promise<Ouv> {
     const ouv = await this.ouvModel.findByPk(ouvId, {
@@ -693,9 +854,9 @@ export class OuvsService {
     if (!ouv) {
       throw new NotFoundException(`OUV ${ouvId} not found`);
     }
-    if (ouv.comercialId !== actorUserId) {
+    if (!canMutateOuvEnCurso(ouv.comercialId, actorUserId, roleName)) {
       throw new ForbiddenException(
-        'Only the owning Ejecutivo Comercial can perform this action',
+        'Only the owning Ejecutivo Comercial or Admin can perform this action',
       );
     }
     if (ouv.resultado !== OuvResultado.EnCurso) {

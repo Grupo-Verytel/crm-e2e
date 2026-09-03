@@ -71,6 +71,8 @@ export type SolicitudPreventa = {
   }[];
   /** Nota original del comercial; se muestra siempre (T-302). */
   source_content: string;
+  /** Documento SharePoint adjunto por el comercial. Solo UI CRM. */
+  sharepoint_document_url: string | null;
   source_created_at: string | null;
   source_version: string;
   etag: string;
@@ -114,6 +116,7 @@ export type CrearSolicitudPreventaPayload = {
   service_combo: ServiceCombo;
   subject?: string;
   source_content: string;
+  sharepoint_document_url?: string;
 };
 
 export function fetchSolicitudesPreventa(

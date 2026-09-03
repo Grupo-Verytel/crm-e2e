@@ -200,7 +200,7 @@ export function ContactoFormModal({
                           type="button"
                           className={`w-full px-3 py-2 text-left text-sm hover:bg-bg ${
                             selectedPerson?.person_id === person.person_id
-                              ? 'bg-brand/10'
+                              ? 'bg-accent/10'
                               : ''
                           }`}
                           onClick={() => {

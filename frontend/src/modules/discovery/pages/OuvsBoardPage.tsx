@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { Filter, LayoutGrid, List } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Pagination } from '../../../components/Pagination';
 import { AppLayout } from '../../../layout/AppLayout';
@@ -15,6 +16,8 @@ import { GapBadge, ResultadoBadge, ZonaBadge } from '../components/OuvBadges';
 import {
   cardClass,
   ghostButtonClass,
+  iconToggleActiveClass,
+  iconToggleClass,
   inputClass,
   labelClass,
   primaryButtonClass,
@@ -55,7 +58,8 @@ export function OuvsBoardPage() {
   const canListAll =
     user?.role_name === 'SoporteComercial' || user?.role_name === 'Admin';
 
-  const [view, setView] = useState<ViewMode>('lista');
+  const [view, setView] = useState<ViewMode>('kanban');
+  const [showFilters, setShowFilters] = useState(true);
   const [draft, setDraft] = useState<DraftFilters>(EMPTY_FILTERS);
   const [applied, setApplied] = useState<DraftFilters>(EMPTY_FILTERS);
   const [page, setPage] = useState(1);
@@ -181,23 +185,7 @@ export function OuvsBoardPage() {
         <h1 className="text-lg font-bold text-ink">
           {isSoporte ? 'Bandeja OUV (Soporte)' : 'Bandeja OUV'}
         </h1>
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            className={view === 'lista' ? primaryButtonClass : ghostButtonClass}
-            onClick={() => setView('lista')}
-          >
-            Lista
-          </button>
-          <button
-            type="button"
-            className={
-              view === 'kanban' ? primaryButtonClass : ghostButtonClass
-            }
-            onClick={() => setView('kanban')}
-          >
-            Kanban
-          </button>
+        <div className="flex flex-wrap items-center gap-2">
           {isEjecutivo ? (
             <button
               type="button"
@@ -207,104 +195,146 @@ export function OuvsBoardPage() {
               Crear OUV directa
             </button>
           ) : null}
+          <div
+            className="flex items-center gap-2"
+            role="group"
+            aria-label="Vista y filtros de la bandeja"
+          >
+            <button
+              type="button"
+              className={
+                view === 'kanban' ? iconToggleActiveClass : iconToggleClass
+              }
+              onClick={() => setView('kanban')}
+              aria-pressed={view === 'kanban'}
+              aria-label="Vista kanban"
+              title="Vista kanban"
+            >
+              <LayoutGrid size={16} strokeWidth={1.75} />
+            </button>
+            <button
+              type="button"
+              className={
+                view === 'lista' ? iconToggleActiveClass : iconToggleClass
+              }
+              onClick={() => setView('lista')}
+              aria-pressed={view === 'lista'}
+              aria-label="Vista lista"
+              title="Vista lista"
+            >
+              <List size={16} strokeWidth={1.75} />
+            </button>
+            <button
+              type="button"
+              className={iconToggleClass}
+              onClick={() => setShowFilters((open) => !open)}
+              aria-pressed={showFilters}
+              aria-label={showFilters ? 'Ocultar filtros' : 'Mostrar filtros'}
+              title={showFilters ? 'Ocultar filtros' : 'Mostrar filtros'}
+            >
+              <Filter size={16} strokeWidth={1.75} />
+            </button>
+          </div>
         </div>
       </div>
 
-      <div className={`${cardClass} mb-4 p-4`}>
-        <div className="grid gap-3 md:grid-cols-5">
-          <div>
-            <label className={labelClass} htmlFor="f-q">
-              Buscar
-            </label>
-            <input
-              id="f-q"
-              className={inputClass}
-              value={draft.q}
-              onChange={(e) => setDraft({ ...draft, q: e.target.value })}
-              placeholder="Título, empresa, OUV-"
-            />
+      {showFilters ? (
+        <div className={`${cardClass} mb-4 p-4`}>
+          <div className="grid gap-3 md:grid-cols-5">
+            <div>
+              <label className={labelClass} htmlFor="f-q">
+                Buscar
+              </label>
+              <input
+                id="f-q"
+                className={inputClass}
+                value={draft.q}
+                onChange={(e) => setDraft({ ...draft, q: e.target.value })}
+                placeholder="Título, empresa, OUV-"
+              />
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="f-zona">
+                Zona
+              </label>
+              <select
+                id="f-zona"
+                className={inputClass}
+                value={draft.zona}
+                onChange={(e) => setDraft({ ...draft, zona: e.target.value })}
+              >
+                <option value="">Todas</option>
+                {OUV_ZONAS.map((z) => (
+                  <option key={z} value={z}>
+                    {OUV_ZONA_LABEL[z]}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="f-gap">
+                Gap
+              </label>
+              <select
+                id="f-gap"
+                className={inputClass}
+                value={draft.tiene_gap}
+                onChange={(e) =>
+                  setDraft({ ...draft, tiene_gap: e.target.value })
+                }
+              >
+                <option value="">Todos</option>
+                <option value="true">Con gap</option>
+                <option value="false">Sin gap</option>
+              </select>
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="f-from">
+                Desde
+              </label>
+              <input
+                id="f-from"
+                type="date"
+                className={inputClass}
+                value={draft.created_from}
+                onChange={(e) =>
+                  setDraft({ ...draft, created_from: e.target.value })
+                }
+              />
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="f-to">
+                Hasta
+              </label>
+              <input
+                id="f-to"
+                type="date"
+                className={inputClass}
+                value={draft.created_to}
+                onChange={(e) =>
+                  setDraft({ ...draft, created_to: e.target.value })
+                }
+              />
+            </div>
           </div>
-          <div>
-            <label className={labelClass} htmlFor="f-zona">
-              Zona
-            </label>
-            <select
-              id="f-zona"
-              className={inputClass}
-              value={draft.zona}
-              onChange={(e) => setDraft({ ...draft, zona: e.target.value })}
+          <div className="mt-3 flex gap-2">
+            <button type="button" className={primaryButtonClass} onClick={handleApply}>
+              Aplicar filtros
+            </button>
+            <button
+              type="button"
+              className={ghostButtonClass}
+              onClick={() => {
+                setDraft(EMPTY_FILTERS);
+                setApplied(EMPTY_FILTERS);
+                setPage(1);
+              }}
             >
-              <option value="">Todas</option>
-              {OUV_ZONAS.map((z) => (
-                <option key={z} value={z}>
-                  {OUV_ZONA_LABEL[z]}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className={labelClass} htmlFor="f-gap">
-              Gap
-            </label>
-            <select
-              id="f-gap"
-              className={inputClass}
-              value={draft.tiene_gap}
-              onChange={(e) =>
-                setDraft({ ...draft, tiene_gap: e.target.value })
-              }
-            >
-              <option value="">Todos</option>
-              <option value="true">Con gap</option>
-              <option value="false">Sin gap</option>
-            </select>
-          </div>
-          <div>
-            <label className={labelClass} htmlFor="f-from">
-              Desde
-            </label>
-            <input
-              id="f-from"
-              type="date"
-              className={inputClass}
-              value={draft.created_from}
-              onChange={(e) =>
-                setDraft({ ...draft, created_from: e.target.value })
-              }
-            />
-          </div>
-          <div>
-            <label className={labelClass} htmlFor="f-to">
-              Hasta
-            </label>
-            <input
-              id="f-to"
-              type="date"
-              className={inputClass}
-              value={draft.created_to}
-              onChange={(e) =>
-                setDraft({ ...draft, created_to: e.target.value })
-              }
-            />
+              Limpiar
+            </button>
           </div>
         </div>
-        <div className="mt-3 flex gap-2">
-          <button type="button" className={primaryButtonClass} onClick={handleApply}>
-            Aplicar filtros
-          </button>
-          <button
-            type="button"
-            className={ghostButtonClass}
-            onClick={() => {
-              setDraft(EMPTY_FILTERS);
-              setApplied(EMPTY_FILTERS);
-              setPage(1);
-            }}
-          >
-            Limpiar
-          </button>
-        </div>
-      </div>
+      ) : null}
 
       {error ? <p className="mb-3 text-sm text-danger">{error}</p> : null}
 
@@ -333,7 +363,7 @@ export function OuvsBoardPage() {
                       <td className="px-4 py-3">
                         <Link
                           to={`/opportunities/${ouv.ouv_id}`}
-                          className="font-bold text-brand hover:underline"
+                          className="font-bold text-accent hover:underline"
                         >
                           {ouv.consecutivo}
                         </Link>
@@ -388,9 +418,9 @@ export function OuvsBoardPage() {
                     <li key={ouv.ouv_id}>
                       <Link
                         to={`/opportunities/${ouv.ouv_id}`}
-                        className="block rounded border border-border bg-bg p-2 hover:border-brand"
+                        className="block rounded border border-border bg-bg p-2 hover:border-accent"
                       >
-                        <p className="text-xs font-bold text-brand">
+                        <p className="text-xs font-bold text-accent">
                           {ouv.consecutivo}
                         </p>
                         <p className="text-sm text-ink">{ouv.titulo}</p>

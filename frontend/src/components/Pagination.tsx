@@ -22,7 +22,7 @@ export function Pagination({ page, limit, total, onPageChange }: PaginationProps
           type="button"
           disabled={page <= 1}
           onClick={() => onPageChange(page - 1)}
-          className="rounded px-3 py-1 text-ink hover:bg-bg disabled:cursor-not-allowed disabled:opacity-40"
+          className="btn-glow-outline rounded px-3 py-1 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-40"
         >
           Anterior
         </button>
@@ -30,7 +30,7 @@ export function Pagination({ page, limit, total, onPageChange }: PaginationProps
           type="button"
           disabled={page >= totalPages}
           onClick={() => onPageChange(page + 1)}
-          className="rounded px-3 py-1 text-ink hover:bg-bg disabled:cursor-not-allowed disabled:opacity-40"
+          className="btn-glow-outline rounded px-3 py-1 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-40"
         >
           Siguiente
         </button>

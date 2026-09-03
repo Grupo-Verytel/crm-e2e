@@ -1,8 +1,13 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { Transaction, UniqueConstraintError } from 'sequelize';
 import { Sequelize } from 'sequelize-typescript';
 import { Ouv } from '../../discovery/models/ouv.model';
+import { isSharePointDocumentUrl } from '../domain/deliverable-url';
 import { resourceEtag } from '../domain/etag';
 import {
   CommercialInteraction,
@@ -208,6 +213,20 @@ export class PresalesRequestsService {
     await this.opportunityModel.create(values, { transaction });
   }
 
+  private resolveSharePointUrl(raw: string | undefined): string | null {
+    if (raw === undefined || raw === '') {
+      return null;
+    }
+    if (!isSharePointDocumentUrl(raw)) {
+      throw new BadRequestException({
+        codigo_error: 'SHAREPOINT_DOCUMENT_URL_INVALIDA',
+        detalle:
+          'El link debe ser una URL HTTPS de SharePoint Documents, no un registro de Lista.',
+      });
+    }
+    return raw;
+  }
+
   /** `int_<consecutivo-de-ouv>_<n>` — legible y trazable en auditoría. */
   private async nextInteractionRef(
     opportunityRef: string,
@@ -238,6 +257,9 @@ export class PresalesRequestsService {
         crmOpportunityRef: ouv.consecutivo,
         serviceHorizon: horizon,
         subject: payload.subject ?? null,
+        sharepointDocumentUrl: this.resolveSharePointUrl(
+          payload.sharepoint_document_url,
+        ),
         // P-07: se persiste tal cual llegó, sin trim ni normalización.
         sourceContent: payload.source_content,
         sourceCreatedAt: now,

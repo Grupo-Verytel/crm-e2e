@@ -3,8 +3,10 @@ import { useAuth } from '../../auth/hooks/useAuth';
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
   [
-    'rounded px-3 py-1.5 text-sm',
-    isActive ? 'bg-brand text-white font-bold' : 'text-ink hover:bg-bg',
+    '-mb-px border-b-2 px-4 py-2 text-sm transition-colors',
+    isActive
+      ? 'border-accent font-bold text-accent'
+      : 'border-transparent text-muted hover:text-accent',
   ].join(' ');
 
 export function DiscoveryNav() {
@@ -13,7 +15,10 @@ export function DiscoveryNav() {
     user?.role_name === 'SoporteComercial' || user?.role_name === 'Admin';
 
   return (
-    <nav className="mb-4 flex flex-wrap gap-2" aria-label="Oportunidades">
+    <nav
+      className="mb-4 flex flex-wrap gap-1 border-b border-border"
+      aria-label="Oportunidades"
+    >
       <NavLink to="/opportunities" end className={linkClass}>
         Bandeja OUV
       </NavLink>

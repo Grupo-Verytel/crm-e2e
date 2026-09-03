@@ -60,8 +60,21 @@ export const OUV_RESULTADOS = [
 
 export type OuvResultado = (typeof OUV_RESULTADOS)[number];
 
+export const OUV_RESULTADO_LABEL: Record<OuvResultado, string> = {
+  EnCurso: 'En curso',
+  Ganada: 'Ganada',
+  Perdida: 'Perdida',
+  Descartada: 'Descartada',
+};
+
 export const INFLUENCIA_TIPOS = ['Economica', 'Tecnica', 'Fabrica'] as const;
 export type InfluenciaTipo = (typeof INFLUENCIA_TIPOS)[number];
+
+export const INFLUENCIA_TIPO_LABEL: Record<InfluenciaTipo, string> = {
+  Economica: 'Económica',
+  Tecnica: 'Técnica',
+  Fabrica: 'Fábrica',
+};
 
 export const INFLUENCIA_ESTADOS = [
   'SinEvaluar',
@@ -69,6 +82,39 @@ export const INFLUENCIA_ESTADOS = [
   'Amarillo',
   'Rojo',
 ] as const;
+
+export type InfluenciaEstado = (typeof INFLUENCIA_ESTADOS)[number];
+
+export const INFLUENCIA_ESTADO_LABEL: Record<InfluenciaEstado, string> = {
+  SinEvaluar: 'Sin Evaluar',
+  Verde: 'Verde',
+  Amarillo: 'Amarillo',
+  Rojo: 'Rojo',
+};
+
+/** Labels para el ribbon del embudo (mayúsculas, como en el blueprint). */
+export const OUV_ZONA_RIBBON_LABEL: Record<OuvZona, string> = {
+  UNIVERSO: 'UNIVERSO',
+  ENCIMA_FUNNEL: 'ENCIMA DEL FUNNEL',
+  EN_FUNNEL: 'FUNNEL',
+  MAYOR_PROBABILIDAD: 'MAYOR PROBABILIDAD',
+};
+
+/** Punto de estado en el select de la tarjeta de influencia. */
+export const INFLUENCIA_ESTADO_DOT: Record<InfluenciaEstado, string> = {
+  SinEvaluar: 'bg-muted',
+  Verde: 'bg-semaphore-verde',
+  Amarillo: 'bg-warning',
+  Rojo: 'bg-danger',
+};
+
+/** Fondo/borde completo de la tarjeta cuando el contacto ya está asignado. */
+export const INFLUENCIA_ESTADO_CARD: Record<InfluenciaEstado, string> = {
+  SinEvaluar: 'border-border bg-bg/90',
+  Verde: 'border-semaphore-verde/70 bg-semaphore-verde/20',
+  Amarillo: 'border-warning/70 bg-warning/25',
+  Rojo: 'border-danger/70 bg-danger/15',
+};
 
 export const VERTICALES = [
   'Seguridad Ciudadana',

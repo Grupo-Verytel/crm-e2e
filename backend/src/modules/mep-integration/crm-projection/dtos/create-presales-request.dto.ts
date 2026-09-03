@@ -32,6 +32,15 @@ export class CreatePresalesRequestDto {
   subject?: string;
 
   /**
+   * URL HTTPS de SharePoint Documents. Vacío se trata como ausente.
+   * La validez de host/biblioteca se valida en el service (INV-23).
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(2048)
+  sharepoint_document_url?: string;
+
+  /**
    * Nota original del usuario comercial. El CRM la preserva sin alteración
    * (P-07 / INV-07): no se hace trim, ni normalización, ni sanitización
    * destructiva en ningún punto del camino.

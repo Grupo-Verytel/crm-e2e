@@ -141,7 +141,7 @@ export function CrearOuvDirectaModal({ onClose, onCreated }: Props) {
                 <span className="font-bold text-ink">{selectedAccount.name}</span>{' '}
                 <button
                   type="button"
-                  className="text-brand underline"
+                  className="text-accent underline"
                   onClick={() => setSelectedAccount(null)}
                 >
                   quitar

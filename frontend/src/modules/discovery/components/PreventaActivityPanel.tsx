@@ -12,6 +12,7 @@ import {
 } from '../lib/opportunity-context-fields';
 import { FloatingToast } from './FloatingToast';
 import { ModalShell } from './ModalShell';
+import { SharePointDocumentLink } from './SharePointDocumentLink';
 import { SolicitudPreventaModal } from './SolicitudPreventaModal';
 import { badgeClass, cardClass, ghostButtonClass, labelClass } from './ui';
 
@@ -28,7 +29,7 @@ export type MepSolicitudStatus =
   | 'Pendiente';
 
 const MEP_STATUS_CLASS: Record<MepSolicitudStatus, string> = {
-  Aceptado: 'bg-brand text-white',
+  Aceptado: 'bg-accent text-white',
   Aprobado: 'bg-success text-white',
   Rechazado: 'bg-danger text-white',
   Pendiente: 'bg-border text-muted',
@@ -246,6 +247,12 @@ function SolicitudDetailModal({
           </span>
         ) : null}
       </div>
+
+      {solicitud.sharepoint_document_url ? (
+        <div className="mb-4">
+          <SharePointDocumentLink url={solicitud.sharepoint_document_url} />
+        </div>
+      ) : null}
 
       <div className="grid gap-3 sm:grid-cols-2">
         {SOLICITUD_PREVENTA_FIELDS.map((field) => (

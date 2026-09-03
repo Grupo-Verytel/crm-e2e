@@ -163,6 +163,7 @@ describe('proyección de solicitud de preventa — §14 Fase 3', () => {
     );
 
     expect(view.source_content).toBe(SOURCE_CONTENT);
+    expect(view.sharepoint_document_url).toBeNull();
   });
 
   it('P-08: cada entrada narrativa trae solo el texto de su versión', () => {

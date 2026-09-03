@@ -12,7 +12,7 @@ export function FloatingToast({ message, tone = 'success', onDismiss }: Props) {
     <div
       role="status"
       className={[
-        'fixed bottom-4 right-4 z-[60] w-[min(24rem,calc(100vw-2rem))] rounded border px-4 py-3 shadow-card',
+        'toast-fade-in fixed bottom-4 right-4 z-[60] w-[min(24rem,calc(100vw-2rem))] rounded border px-4 py-3 shadow-card',
         isSuccess
           ? 'border-success/40 bg-success text-white'
           : 'border-danger/40 bg-danger text-white',
