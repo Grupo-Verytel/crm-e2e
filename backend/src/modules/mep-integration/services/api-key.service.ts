@@ -20,8 +20,10 @@ interface CacheEntry {
  * - En BD solo vive `sha256(pepper || clave)`; el valor claro existe una sola
  *   vez, en `issue()`, y jamás se registra en logs ni se persiste.
  * - Comparación en **tiempo constante** (`timingSafeEqual`).
- * - Formato `mep_{env}_{random_32}`; `key_prefix` = los primeros 12 caracteres,
- *   único identificador admisible en logs y auditoría (INV-31).
+   * - Formato `mep_{random_32}`; `key_prefix` = los primeros 12 caracteres
+   *   (`mep_` + 8 de entropía). El ambiente vive en la columna `environment`,
+   *   no en el prefijo: si fuera `mep_sandbox_…` todas las claves sandbox
+   *   colisionarían en `uq_prefix` y la rotación sería imposible.
  * - Aislamiento por ambiente: una clave de sandbox no autentica en producción.
  * - Rotación: dos claves activas simultáneas por identidad; la vieja deja de
  *   funcionar al cerrarse su ventana (`expires_at`) o al revocarse.
@@ -107,7 +109,7 @@ export class ApiKeyService {
     rateTier?: string;
   }): Promise<{ plainKey: string; keyPrefix: string; id: string }> {
     const random = randomBytes(24).toString('base64url').slice(0, 32);
-    const plainKey = `mep_${params.environment}_${random}`;
+    const plainKey = `mep_${random}`;
     const keyPrefix = plainKey.slice(0, 12);
 
     const record = await this.apiKeyModel.create({

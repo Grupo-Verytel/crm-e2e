@@ -7,7 +7,7 @@ import {
   PrimaryKey,
   Table,
 } from 'sequelize-typescript';
-import { ServiceHorizon } from '../domain/enums';
+import { ProcessingStatus, ServiceHorizon } from '../domain/enums';
 import { InteractionRequestedService } from './interaction-requested-service.model';
 
 /**
@@ -94,6 +94,17 @@ export class CommercialInteraction extends Model {
     allowNull: false,
   })
   declare eligibleForMep: boolean;
+
+  /**
+   * Último `processing_status` del acuse técnico. Solo caché CRM; el GET
+   * `/v1` de intake no lo expone.
+   */
+  @Column({
+    type: DataType.ENUM(...Object.values(ProcessingStatus)),
+    field: 'polling_status',
+    allowNull: true,
+  })
+  declare pollingStatus: ProcessingStatus | null;
 
   @HasMany(() => InteractionRequestedService)
   declare requestedServices: InteractionRequestedService[];
