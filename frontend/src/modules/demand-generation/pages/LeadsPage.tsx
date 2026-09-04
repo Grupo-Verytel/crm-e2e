@@ -218,7 +218,7 @@ export function LeadsPage() {
   }
 
   return (
-    <AppLayout title="Generación de demanda">
+    <AppLayout title="Leads">
       <DemandNav
         actions={
           showCreateButton && user ? (

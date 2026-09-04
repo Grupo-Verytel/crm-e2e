@@ -68,7 +68,7 @@ export function CampaignsListPage() {
   }
 
   return (
-    <AppLayout title="Generación de demanda">
+    <AppLayout title="Leads">
       <DemandNav />
 
       <div className="mb-4 flex items-center justify-between">
