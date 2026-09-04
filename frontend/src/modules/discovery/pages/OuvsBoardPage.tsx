@@ -56,7 +56,7 @@ export function OuvsBoardPage() {
   const canListAll =
     user?.role_name === 'SoporteComercial' || user?.role_name === 'Admin';
 
-  const [view, setView] = useState<ViewMode>('lista');
+  const [view, setView] = useState<ViewMode>('kanban');
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [draft, setDraft] = useState<DraftFilters>(EMPTY_FILTERS);
   const [applied, setApplied] = useState<DraftFilters>(EMPTY_FILTERS);
@@ -192,6 +192,16 @@ export function OuvsBoardPage() {
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
+            className={toolbarIconClass(view === 'kanban')}
+            onClick={() => setView('kanban')}
+            aria-label="Vista Tablero"
+            aria-pressed={view === 'kanban'}
+            title="Tablero"
+          >
+            <LayoutGrid size={18} strokeWidth={1.75} />
+          </button>
+          <button
+            type="button"
             className={toolbarIconClass(view === 'lista')}
             onClick={() => setView('lista')}
             aria-label="Vista Lista"
@@ -199,16 +209,6 @@ export function OuvsBoardPage() {
             title="Lista"
           >
             <List size={18} strokeWidth={1.75} />
-          </button>
-          <button
-            type="button"
-            className={toolbarIconClass(view === 'kanban')}
-            onClick={() => setView('kanban')}
-            aria-label="Vista Kanban"
-            aria-pressed={view === 'kanban'}
-            title="Kanban"
-          >
-            <LayoutGrid size={18} strokeWidth={1.75} />
           </button>
           <button
             type="button"
