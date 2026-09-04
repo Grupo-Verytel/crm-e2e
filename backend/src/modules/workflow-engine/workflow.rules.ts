@@ -267,6 +267,24 @@ export const workflowRules: WorkflowRule[] = [
     mensaje: (ctx) =>
       `La OUV ${ctx.entityLabel} está lista para Paso a Implementación (Módulo 7).`,
   },
+
+  // ─── Implementación — integración PMO (Control Project) ────────────
+
+  {
+    // Ingesta del webhook del PMO: sin guards, el CRM no valida la transición.
+    eventType: 'ouv.estado_proyecto_cambiado',
+    guards: [],
+    destinatarios: [
+      {
+        tipo: 'usuario',
+        resolver: (ctx) => String(ctx.payload.comercial_id ?? ''),
+      },
+    ],
+    dedupDiscriminator: (ctx) => String(ctx.payload.external_event_id ?? ''),
+    titulo: () => 'Cambio de estado del proyecto',
+    mensaje: (ctx) =>
+      `El proyecto de ${ctx.entityLabel} pasó a estado ${ctx.estadoNuevo}.`,
+  },
 ];
 
 /** Lookup helper used by WorkflowEngineService. */

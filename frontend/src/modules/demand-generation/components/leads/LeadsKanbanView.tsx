@@ -283,7 +283,7 @@ export function LeadsKanbanView({ filters }: { filters: LeadFilterValues }) {
                 column.readOnly
                   ? 'border border-dashed border-border bg-bg/60'
                   : 'bg-bg',
-                isDropTarget ? 'outline outline-2 outline-brand' : '',
+                isDropTarget ? 'outline outline-2 outline-accent' : '',
                 blocked ? 'cursor-not-allowed' : '',
                 !applies ? 'opacity-40' : '',
               ].join(' ')}

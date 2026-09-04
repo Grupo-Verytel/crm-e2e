@@ -161,7 +161,7 @@ export function LeadsTableView({
           <button
             type="button"
             onClick={() => setSelected(new Set())}
-            className="text-sm text-muted hover:text-ink"
+            className="btn-glow-outline rounded px-3 py-1 text-sm font-bold"
           >
             Limpiar selección
           </button>

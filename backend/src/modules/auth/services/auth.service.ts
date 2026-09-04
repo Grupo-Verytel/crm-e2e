@@ -1,6 +1,7 @@
 import {
   ForbiddenException,
   Injectable,
+  ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
@@ -18,6 +19,7 @@ import {
   PermissionRuleDto,
 } from '../dtos/auth-response.dto';
 import { LoginDto } from '../dtos/login.dto';
+import { isDatabaseUnavailableError } from '../lib/is-database-unavailable-error';
 import { Role, User } from '../models';
 import { PasswordService } from './password.service';
 import { TokenService } from './token.service';
@@ -110,7 +112,19 @@ export class AuthService {
         user,
         user.role,
       );
-    } catch {
+    } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
+
+      // Same casuística as JwtAuthGuard: DB down ≠ invalid session.
+      if (isDatabaseUnavailableError(error)) {
+        throw new ServiceUnavailableException({
+          code: AUTH_ERROR_CODES.SERVICE_UNAVAILABLE,
+          message: 'Database temporarily unavailable',
+        });
+      }
+
       throw new UnauthorizedException({
         code: AUTH_ERROR_CODES.UNAUTHORIZED,
         message: 'Invalid or expired refresh token',

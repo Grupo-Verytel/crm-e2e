@@ -1,8 +1,8 @@
 import {
   CanActivate,
   ExecutionContext,
-  ForbiddenException,
   Injectable,
+  ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
@@ -14,6 +14,7 @@ import { CaslPermissionRule } from '../casl/casl-permission.interface';
 import { AUTH_ERROR_CODES } from '../constants/auth.constants';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 import { AuthenticatedUser } from '../interfaces/authenticated-user.interface';
+import { isDatabaseUnavailableError } from '../lib/is-database-unavailable-error';
 import { Role, User } from '../models';
 
 interface JwtPayload {
@@ -80,6 +81,14 @@ export class JwtAuthGuard implements CanActivate {
     } catch (error) {
       if (error instanceof UnauthorizedException) {
         throw error;
+      }
+
+      // DB outage must not become 401 — the SPA treats 401 as session expiry.
+      if (isDatabaseUnavailableError(error)) {
+        throw new ServiceUnavailableException({
+          code: AUTH_ERROR_CODES.SERVICE_UNAVAILABLE,
+          message: 'Database temporarily unavailable',
+        });
       }
 
       throw new UnauthorizedException({

@@ -43,4 +43,10 @@ export type WorkflowRule = {
   destinatarios: DestinatarioSpec[];
   titulo: (ctx: WorkflowGuardContext) => string;
   mensaje: (ctx: WorkflowGuardContext) => string;
+  /**
+   * Discriminator appended to the dedup key. Required for events that can fire
+   * more than once per entity (recurring transitions); without it the default
+   * `eventType:entityId:recipient` key would swallow every repeat.
+   */
+  dedupDiscriminator?: (ctx: WorkflowGuardContext) => string;
 };

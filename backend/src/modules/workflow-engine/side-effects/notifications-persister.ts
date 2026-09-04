@@ -41,7 +41,13 @@ export class NotificationsPersister {
         continue;
       }
 
-      const dedupKey = `${rule.eventType}:${ctx.entityId}:${recipientUserId}`;
+      const discriminator = rule.dedupDiscriminator?.(ctx);
+      const dedupKey = [
+        rule.eventType,
+        ctx.entityId,
+        ...(discriminator ? [discriminator] : []),
+        recipientUserId,
+      ].join(':');
       const row = await this.insertOne(
         {
           recipientUserId,
