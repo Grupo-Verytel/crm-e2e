@@ -107,18 +107,10 @@ export function CrearProyectoPmoModal({
         onSubmit={onSubmit}
         className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded bg-surface p-6 shadow-card"
       >
-        <div className="mb-4 flex items-center justify-between">
+        <div className="mb-4">
           <h2 className="text-base font-bold text-ink">
             Crear proyecto en el PMO
           </h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-sm text-muted hover:text-ink"
-            aria-label="Cerrar"
-          >
-            Cerrar
-          </button>
         </div>
 
         <div className="space-y-3">

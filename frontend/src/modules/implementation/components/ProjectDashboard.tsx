@@ -118,7 +118,7 @@ export function ProjectDashboard({ record, onUpdate }: Props) {
               className={`${primaryButtonClass} mt-4`}
               onClick={() => setShowAmpliar(false)}
             >
-              Cerrar
+              Cancelar
             </button>
           </div>
         </div>

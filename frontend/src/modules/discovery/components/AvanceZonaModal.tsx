@@ -46,7 +46,7 @@ export function AvanceZonaModal({ ouv, onClose, onAdvanced }: Props) {
         </p>
         <div className="mt-4 flex justify-end">
           <button type="button" className={ghostButtonClass} onClick={onClose}>
-            Cerrar
+            Cancelar
           </button>
         </div>
       </ModalShell>

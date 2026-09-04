@@ -71,6 +71,9 @@ function SharePointDocumentModal({
       </div>
 
       <div className="flex flex-wrap justify-end gap-2">
+        <button type="button" className={ghostButtonClass} onClick={onClose}>
+          Cancelar
+        </button>
         <button type="button" className={ghostButtonClass} onClick={() => void copyLink()}>
           <span className="inline-flex items-center gap-1.5">
             <Copy size={14} strokeWidth={2} aria-hidden />

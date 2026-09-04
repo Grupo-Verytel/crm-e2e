@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Copy, ExternalLink, FileText, X } from 'lucide-react';
+import { Copy, ExternalLink, FileText } from 'lucide-react';
 import {
   ghostButtonClass,
   primaryButtonClass,
@@ -36,24 +36,14 @@ export function SharePointPreviewModal({ open, title, url, onClose }: Props) {
         aria-modal="true"
         aria-labelledby="sp-preview-title"
       >
-        <header className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">
-          <div className="min-w-0">
-            <p className="text-xs text-muted">Documento SharePoint</p>
-            <h2
-              id="sp-preview-title"
-              className="truncate text-base font-bold text-ink"
-            >
-              {title}
-            </h2>
-          </div>
-          <button
-            type="button"
-            className={ghostButtonClass}
-            onClick={onClose}
-            aria-label="Cerrar vista previa"
+        <header className="border-b border-border px-4 py-3">
+          <p className="text-xs text-muted">Documento SharePoint</p>
+          <h2
+            id="sp-preview-title"
+            className="truncate text-base font-bold text-ink"
           >
-            <X size={16} />
-          </button>
+            {title}
+          </h2>
         </header>
 
         <div className="flex flex-1 flex-col items-center justify-center gap-4 bg-bg p-8">
@@ -70,6 +60,9 @@ export function SharePointPreviewModal({ open, title, url, onClose }: Props) {
         </div>
 
         <footer className="flex flex-wrap items-center justify-end gap-2 border-t border-border px-4 py-3">
+          <button type="button" className={ghostButtonClass} onClick={onClose}>
+            Cancelar
+          </button>
           <button type="button" className={ghostButtonClass} onClick={() => void copyLink()}>
             <span className="inline-flex items-center gap-2">
               <Copy size={15} aria-hidden />

@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 
 export function ModalShell({
   title,
@@ -11,6 +11,14 @@ export function ModalShell({
   children: ReactNode;
   size?: 'default' | 'wide';
 }) {
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if (event.key === 'Escape') onClose();
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-ink/30 p-4"
@@ -24,16 +32,8 @@ export function ModalShell({
           size === 'wide' ? 'max-w-3xl' : 'max-w-lg',
         ].join(' ')}
       >
-        <div className="mb-4 flex items-center justify-between">
+        <div className="mb-4">
           <h2 className="text-base font-bold text-ink">{title}</h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="btn-glow-outline rounded px-2 py-1 text-sm font-bold"
-            aria-label="Cerrar"
-          >
-            Cerrar
-          </button>
         </div>
         {children}
       </div>

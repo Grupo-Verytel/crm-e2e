@@ -11,7 +11,7 @@ export function ModalShell({
   onClose: () => void;
   children: ReactNode;
   size?: 'default' | 'wide' | 'compact';
-  /** Extra to the left of close (e.g. a status badge on Preventa detail). */
+  /** Extra header content (e.g. a status badge on Preventa detail). */
   headerAside?: ReactNode;
 }) {
   useEffect(() => {
@@ -46,17 +46,9 @@ export function ModalShell({
       >
         <div className="mb-4 flex items-center justify-between gap-3">
           <h2 className="text-base font-bold text-ink">{title}</h2>
-          <div className="flex shrink-0 items-center gap-2">
-            {headerAside}
-            <button
-              type="button"
-              onClick={onClose}
-              className="btn-glow-outline rounded px-2 py-1 text-sm font-bold"
-              aria-label="Cerrar"
-            >
-              Cerrar
-            </button>
-          </div>
+          {headerAside ? (
+            <div className="flex shrink-0 items-center gap-2">{headerAside}</div>
+          ) : null}
         </div>
         {children}
       </div>

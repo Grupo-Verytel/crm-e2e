@@ -339,6 +339,12 @@ function SolicitudDetailModal({
           </p>
         </details>
       ) : null}
+
+      <div className="mt-6 flex justify-end">
+        <button type="button" className={ghostButtonClass} onClick={onClose}>
+          Cancelar
+        </button>
+      </div>
     </ModalShell>
   );
 }
