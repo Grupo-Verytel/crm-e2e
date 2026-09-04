@@ -1,45 +1,30 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Filter, LayoutGrid, List, Plus } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Filter, LayoutGrid, List } from 'lucide-react';
 import { Pagination } from '../../../components/Pagination';
 import { AppLayout } from '../../../layout/AppLayout';
 import { formatDateTime } from '../../../lib/format';
-import {
-  IN_APP_NOTIFICATION_EVENT,
-  type InAppNotificationEventDetail,
-} from '../../../lib/notification-events';
 import { useAuth } from '../../auth/hooks/useAuth';
 import { fetchOuvs, type Ouv } from '../api/ouvs-api';
-import { CrearOuvDirectaModal } from '../components/CrearOuvDirectaModal';
 import { DiscoveryNav } from '../components/DiscoveryNav';
-import { GapBadge, ResultadoBadge, ZonaBadge } from '../components/OuvBadges';
+import { GapBadge, ZonaBadge } from '../components/OuvBadges';
 import { OuvFiltersPanel } from '../components/OuvFiltersPanel';
-import {
-  cardClass,
-} from '../components/ui';
+import { cardClass } from '../components/ui';
 import {
   countActiveOuvFilters,
   EMPTY_OUV_FILTERS,
   type DraftFilters,
 } from '../lib/ouv-filters';
-import {
-  isOuvNotificationEvent,
-  OUV_ZONA_LABEL,
-  OUV_ZONAS,
-  type OuvZona,
-} from '../lib/ouv-vocab';
+import { OUV_ZONA_LABEL, OUV_ZONAS, type OuvZona } from '../lib/ouv-vocab';
 
 const PAGE_SIZE = 20;
 const KANBAN_LIMIT = 30;
 
 type ViewMode = 'lista' | 'kanban';
 
-export function OuvsBoardPage() {
+/** Bandeja de OUVs perdidas — mismo embudo, marco rojo. */
+export function OportunidadesPerdidasPage() {
   const { user } = useAuth();
-  const navigate = useNavigate();
-  const isEjecutivo =
-    user?.role_name === 'EjecutivoComercial' || user?.role_name === 'Admin';
-  const isSoporte = user?.role_name === 'SoporteComercial';
   const canListAll =
     user?.role_name === 'SoporteComercial' || user?.role_name === 'Admin';
 
@@ -58,7 +43,6 @@ export function OuvsBoardPage() {
   });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showCreate, setShowCreate] = useState(false);
 
   const activeFilterCount = countActiveOuvFilters(applied);
 
@@ -66,7 +50,7 @@ export function OuvsBoardPage() {
     return {
       q: applied.q || undefined,
       zona: (applied.zona as OuvZona) || undefined,
-      resultado: 'EnCurso' as const,
+      resultado: 'Perdida' as const,
       tiene_gap:
         applied.tiene_gap === ''
           ? undefined
@@ -90,7 +74,7 @@ export function OuvsBoardPage() {
         setItems(data.items);
         setTotal(data.total);
       } catch {
-        setError('No se pudo cargar la bandeja de OUVs.');
+        setError('No se pudo cargar oportunidades perdidas.');
       } finally {
         if (!opts?.silent) setIsLoading(false);
       }
@@ -125,7 +109,7 @@ export function OuvsBoardPage() {
         });
         setKanban(next);
       } catch {
-        setError('No se pudo cargar el kanban de OUVs.');
+        setError('No se pudo cargar el kanban de oportunidades perdidas.');
       } finally {
         if (!opts?.silent) setIsLoading(false);
       }
@@ -134,25 +118,8 @@ export function OuvsBoardPage() {
   );
 
   useEffect(() => {
-    if (view === 'lista') {
-      void loadLista();
-    } else {
-      void loadKanban();
-    }
-  }, [view, loadLista, loadKanban]);
-
-  useEffect(() => {
-    function onNotification(event: Event) {
-      const detail = (event as CustomEvent<InAppNotificationEventDetail>)
-        .detail;
-      if (isOuvNotificationEvent(detail?.event_type)) {
-        if (view === 'lista') void loadLista({ silent: true });
-        else void loadKanban({ silent: true });
-      }
-    }
-    window.addEventListener(IN_APP_NOTIFICATION_EVENT, onNotification);
-    return () =>
-      window.removeEventListener(IN_APP_NOTIFICATION_EVENT, onNotification);
+    if (view === 'lista') void loadLista();
+    else void loadKanban();
   }, [view, loadLista, loadKanban]);
 
   function handleApply() {
@@ -163,26 +130,24 @@ export function OuvsBoardPage() {
   const viewToggleClass = (active: boolean) =>
     [
       'grid h-9 w-9 place-items-center rounded',
-      active
-        ? 'btn-glow text-white'
-        : 'btn-glow-outline',
+      active ? 'btn-glow text-white' : 'btn-glow-outline',
     ].join(' ');
 
+  const lostCardClass =
+    'block rounded border-2 border-danger bg-bg p-2 hover:border-danger/80';
+
   return (
-    <AppLayout title="Oportunidades (OUV)">
+    <AppLayout title="Oportunidades perdidas">
       <DiscoveryNav />
-      {isSoporte ? (
-        <p className="mb-3 rounded border border-border bg-bg px-3 py-2 text-sm text-ink">
-          Bandeja Soporte: ves todas las OUVs (solo lectura de avance/cierre).
-          Administra motivos y plantillas de checklist desde el menú.
-        </p>
-      ) : null}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-lg font-bold text-ink">
-          {isSoporte ? 'Bandeja OUV (Soporte)' : 'Bandeja OUV'}
-        </h1>
+        <div>
+          <h1 className="text-lg font-bold text-ink">Oportunidades perdidas</h1>
+          <p className="text-xs text-muted">
+            OUVs en resultado Perdida, ubicadas en la zona del embudo donde se
+            cerraron. El marco rojo indica pérdida.
+          </p>
+        </div>
         <div className="flex flex-wrap items-center gap-2">
-          {/* Kanban first — primary view */}
           <button
             type="button"
             className={viewToggleClass(view === 'kanban')}
@@ -205,14 +170,10 @@ export function OuvsBoardPage() {
           </button>
           <button
             type="button"
-            className={[
-              viewToggleClass(filtersOpen),
-              'relative',
-            ].join(' ')}
+            className={[viewToggleClass(filtersOpen), 'relative'].join(' ')}
             onClick={() => setFiltersOpen((open) => !open)}
             aria-label="Mostrar filtros"
             aria-expanded={filtersOpen}
-            aria-controls="ouv-filters-panel"
             title="Filtros"
           >
             <Filter size={18} strokeWidth={2} />
@@ -222,21 +183,10 @@ export function OuvsBoardPage() {
               </span>
             ) : null}
           </button>
-          {isEjecutivo ? (
-            <button
-              type="button"
-              className={viewToggleClass(false)}
-              onClick={() => setShowCreate(true)}
-              aria-label="Crear OUV"
-              title="Crear OUV"
-            >
-              <Plus size={18} strokeWidth={2} />
-            </button>
-          ) : null}
         </div>
       </div>
 
-      <div id="ouv-filters-panel">
+      <div id="ouv-perdidas-filters">
         <OuvFiltersPanel
           open={filtersOpen}
           draft={draft}
@@ -258,7 +208,9 @@ export function OuvsBoardPage() {
             {isLoading ? (
               <p className="p-6 text-sm text-muted">Cargando…</p>
             ) : items.length === 0 ? (
-              <p className="p-6 text-sm text-muted">No hay OUVs.</p>
+              <p className="p-6 text-sm text-muted">
+                No hay oportunidades perdidas.
+              </p>
             ) : (
               <table className="w-full text-left text-sm">
                 <thead className="border-b border-border text-xs text-muted">
@@ -267,13 +219,16 @@ export function OuvsBoardPage() {
                     <th className="px-4 py-3 font-bold">Título</th>
                     <th className="px-4 py-3 font-bold">Empresa</th>
                     <th className="px-4 py-3 font-bold">Zona</th>
-                    <th className="px-4 py-3 font-bold">Resultado</th>
-                    <th className="px-4 py-3 font-bold">Creada</th>
+                    <th className="px-4 py-3 font-bold">Motivo</th>
+                    <th className="px-4 py-3 font-bold">Cierre</th>
                   </tr>
                 </thead>
                 <tbody>
                   {items.map((ouv) => (
-                    <tr key={ouv.ouv_id} className="border-b border-border">
+                    <tr
+                      key={ouv.ouv_id}
+                      className="border-b border-border border-l-4 border-l-danger"
+                    >
                       <td className="px-4 py-3">
                         <Link
                           to={`/opportunities/${ouv.ouv_id}`}
@@ -294,11 +249,13 @@ export function OuvsBoardPage() {
                       <td className="px-4 py-3">
                         <ZonaBadge zona={ouv.zona_actual} />
                       </td>
-                      <td className="px-4 py-3">
-                        <ResultadoBadge resultado={ouv.resultado} />
+                      <td className="px-4 py-3 text-muted">
+                        {ouv.motivo_snapshot ?? '—'}
                       </td>
                       <td className="px-4 py-3 text-muted">
-                        {formatDateTime(ouv.created_at)}
+                        {ouv.fecha_cierre
+                          ? formatDateTime(ouv.fecha_cierre)
+                          : '—'}
                       </td>
                     </tr>
                   ))}
@@ -332,7 +289,7 @@ export function OuvsBoardPage() {
                     <li key={ouv.ouv_id}>
                       <Link
                         to={`/opportunities/${ouv.ouv_id}`}
-                        className="block rounded border border-border bg-bg p-2 hover:border-accent"
+                        className={lostCardClass}
                       >
                         <p className="text-xs font-bold text-accent">
                           {ouv.consecutivo}
@@ -341,10 +298,10 @@ export function OuvsBoardPage() {
                         <p className="text-xs text-muted">
                           {ouv.empresa_nombre}
                         </p>
-                        {ouv.tiene_gap ? (
-                          <span className="mt-1 inline-block">
-                            <GapBadge />
-                          </span>
+                        {ouv.motivo_snapshot ? (
+                          <p className="mt-1 text-xs text-danger">
+                            {ouv.motivo_snapshot}
+                          </p>
                         ) : null}
                       </Link>
                     </li>
@@ -355,18 +312,8 @@ export function OuvsBoardPage() {
           ))}
         </div>
       )}
-
-      {showCreate ? (
-        <CrearOuvDirectaModal
-          onClose={() => setShowCreate(false)}
-          onCreated={(id) => {
-            setShowCreate(false);
-            navigate(`/opportunities/${id}`);
-          }}
-        />
-      ) : null}
     </AppLayout>
   );
 }
 
-export default OuvsBoardPage;
+export default OportunidadesPerdidasPage;

@@ -10,7 +10,7 @@ export function ModalShell({
   title: string;
   onClose: () => void;
   children: ReactNode;
-  size?: 'default' | 'wide' | 'compact';
+  size?: 'default' | 'wide' | 'compact' | 'slim';
   /** Replaces the default "Cerrar" control (e.g. status badge). */
   headerAside?: ReactNode;
 }) {
@@ -27,9 +27,11 @@ export function ModalShell({
           'max-h-[90vh] w-full overflow-y-auto rounded bg-surface p-6 shadow-card transition-[max-width] duration-200',
           size === 'wide'
             ? 'max-w-3xl'
-            : size === 'compact'
-              ? 'max-w-[33.6rem]' /* ~30% narrower than wide (3xl) */
-              : 'max-w-lg',
+            : size === 'slim'
+              ? 'max-w-[28.8rem]' /* 40% narrower than wide (3xl) */
+              : size === 'compact'
+                ? 'max-w-[33.6rem]'
+                : 'max-w-lg',
         ].join(' ')}
         onClick={(e) => e.stopPropagation()}
       >

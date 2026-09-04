@@ -34,3 +34,22 @@ export function savePersonInfluenciaTipo(
   }
   localStorage.setItem(key, tipo);
 }
+
+/**
+ * Demo seed: assign Económica / Técnica / Fábrica to contacts missing a type
+ * so OUV contact → influencia routing can be tested.
+ */
+export function ensureDemoPersonInfluencias(
+  people: ReadonlyArray<{ person_id: string }>,
+): number {
+  let assigned = 0;
+  people.forEach((person, index) => {
+    if (loadPersonInfluenciaTipo(person.person_id)) return;
+    savePersonInfluenciaTipo(
+      person.person_id,
+      PERSON_INFLUENCIA_TIPOS[index % PERSON_INFLUENCIA_TIPOS.length],
+    );
+    assigned += 1;
+  });
+  return assigned;
+}

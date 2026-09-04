@@ -1,3 +1,4 @@
+import { DatePickerField } from '../../../components/DatePickerField';
 import type { DatosBaseProyecto, EmpresaEjecutora, TipoVenta } from '../../shared/project/types';
 import { TIPO_VENTA_LABEL } from '../../shared/project/types';
 import {
@@ -77,22 +78,20 @@ export function FormularioDatosProyecto({
           </div>
           <div>
             <label className={labelClass} htmlFor="fecha-inicio">Fecha inicio *</label>
-            <input
+            <DatePickerField
               id="fecha-inicio"
-              type="date"
-              className={inputClass}
               value={datos.fechaInicio}
-              onChange={(e) => patch({ fechaInicio: e.target.value })}
+              onChange={(next) => patch({ fechaInicio: next })}
+              aria-label="Fecha inicio"
             />
           </div>
           <div>
             <label className={labelClass} htmlFor="fecha-fin">Fecha fin *</label>
-            <input
+            <DatePickerField
               id="fecha-fin"
-              type="date"
-              className={inputClass}
               value={datos.fechaFin}
-              onChange={(e) => patch({ fechaFin: e.target.value })}
+              onChange={(next) => patch({ fechaFin: next })}
+              aria-label="Fecha fin"
             />
           </div>
           <div>

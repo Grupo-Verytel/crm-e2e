@@ -1,6 +1,9 @@
 import { formatDateTime } from '../../../lib/format';
 import type { Ouv } from '../api/ouvs-api';
-import type { OuvDetailExtensions } from './ouv-detail-extensions';
+import {
+  resolveOuvOrigenLabel,
+  type OuvDetailExtensions,
+} from './ouv-detail-extensions';
 
 export const SEGMENTO_LABEL: Record<string, string> = {
   Gobierno: 'Gobierno',
@@ -27,7 +30,8 @@ export function buildOuvMetaFields(
   extensions: OuvDetailExtensions = {},
 ): OuvMetaField[] {
   const segmento =
-    SEGMENTO_LABEL[ouv.segmento] ?? ouv.segmento.replace(/([A-Z])/g, ' $1').trim();
+    SEGMENTO_LABEL[ouv.segmento] ??
+    ouv.segmento.replace(/([A-Z])/g, ' $1').trim();
 
   const prob = extensions.probabilidad_cierre?.trim();
   const probDisplay = prob ? (prob.endsWith('%') ? prob : `${prob}%`) : '—';
@@ -39,6 +43,10 @@ export function buildOuvMetaFields(
       value: `${ouv.consecutivo} · ${ouv.titulo}`,
     },
     { label: 'SQL ID', value: ouv.sql_id_origen ?? '—' },
+    {
+      label: 'Origen OUV',
+      value: resolveOuvOrigenLabel(ouv.origen_via, extensions),
+    },
     { label: 'Organización', value: ouv.empresa_nombre },
     { label: 'Segmento', value: segmento },
     { label: 'Vertical', value: ouv.vertical || '—' },

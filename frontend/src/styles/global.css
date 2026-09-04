@@ -4,6 +4,20 @@
 
 @config '../../tailwind.config.js';
 
+/* Accent is theme-split: vivid Frisson orange in light only; dark keeps deeper Oriole. */
+html[data-theme='light'],
+:root:not([data-theme='dark']) {
+  --accent: #f88702;
+  --accent-700: color-mix(in srgb, #f88702 80%, black 20%);
+  --accent-icon-hover: color-mix(in srgb, #f88702 90%, black 10%);
+}
+
+html[data-theme='dark'] {
+  --accent: #c25e00;
+  --accent-700: color-mix(in srgb, #c25e00 80%, black 20%);
+  --accent-icon-hover: color-mix(in srgb, #c25e00 90%, black 10%);
+}
+
 html,
 body,
 #root {

@@ -1,13 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
 import { formatDateTime } from '../../../lib/format';
 import type { Ouv } from '../api/ouvs-api';
-import type { OuvDetailExtensions } from '../lib/ouv-detail-extensions';
+import {
+  OUV_ORIGEN_OPTIONS,
+  resolveOuvOrigenLabel,
+  type OuvDetailExtensions,
+} from '../lib/ouv-detail-extensions';
 import {
   buildOuvMetaFields,
   RESULTADO_LABEL,
   SEGMENTO_LABEL,
 } from '../lib/ouv-detail-meta';
 import { SEGMENTOS, VERTICALES } from '../lib/ouv-vocab';
+import { ColombiaCitySearchField } from './ColombiaCitySearchField';
 import { GapBadge, ResultadoBadge } from './OuvBadges';
 import { OuvConfigMenu } from './OuvConfigMenu';
 import { cardClass, inputClass, labelClass } from './ui';
@@ -29,7 +34,7 @@ type Props = {
   onToggleEditMode: () => void;
   onAvanzar: () => void;
   onRetroceder: () => void;
-  onCerrar: () => void;
+  onCerrar: (resultado?: 'Ganada' | 'Perdida' | 'Descartada') => void;
   onPersist: (draft: OuvHeaderDraft) => Promise<void>;
 };
 
@@ -190,7 +195,7 @@ export function OuvDetailHeaderCard({
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <ResultadoBadge resultado={ouv.resultado} />
             <span className="rounded bg-bg px-2 py-0.5 text-xs font-bold text-ink">
-              {ouv.origen_via === 'directa' ? 'Directa' : 'Desde SQL'}
+              {resolveOuvOrigenLabel(ouv.origen_via, draft.extensions)}
             </span>
             {ouv.tiene_gap ? <GapBadge /> : null}
             {editMode ? (
@@ -254,6 +259,32 @@ export function OuvDetailHeaderCard({
               <dd className="mt-0.5 font-medium text-ink">
                 {ouv.sql_id_origen ?? '—'}
               </dd>
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="ouv-origen">
+                Origen OUV
+              </label>
+              <select
+                id="ouv-origen"
+                className={inputClass}
+                value={resolveOuvOrigenLabel(
+                  ouv.origen_via,
+                  draft.extensions,
+                )}
+                onChange={(e) =>
+                  patchExtension({
+                    origen_ouv: e.target.value as
+                      | 'Desde SQL'
+                      | 'Desde OUV',
+                  })
+                }
+              >
+                {OUV_ORIGEN_OPTIONS.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt}
+                  </option>
+                ))}
+              </select>
             </div>
             <div>
               <label className={labelClass} htmlFor="ouv-org">
@@ -359,28 +390,34 @@ export function OuvDetailHeaderCard({
               <label className={labelClass} htmlFor="ouv-ciudad">
                 Ciudad
               </label>
-              <input
+              <ColombiaCitySearchField
                 id="ouv-ciudad"
-                className={inputClass}
                 value={draft.extensions.ciudad ?? ''}
-                onChange={(e) =>
-                  patchExtension({ ciudad: e.target.value || undefined })
+                departamento={draft.extensions.region}
+                onSelect={(row) =>
+                  patchExtension({
+                    ciudad: row.municipio,
+                    region: row.departamento,
+                  })
                 }
-                maxLength={120}
+                onClear={() =>
+                  patchExtension({
+                    ciudad: undefined,
+                    region: undefined,
+                  })
+                }
               />
             </div>
             <div>
               <label className={labelClass} htmlFor="ouv-region">
-                Región
+                Región (departamento)
               </label>
               <input
                 id="ouv-region"
-                className={inputClass}
+                className={`${inputClass} cursor-default opacity-90`}
                 value={draft.extensions.region ?? ''}
-                onChange={(e) =>
-                  patchExtension({ region: e.target.value || undefined })
-                }
-                maxLength={120}
+                readOnly
+                placeholder="Se completa al elegir la ciudad"
               />
             </div>
             <div>
@@ -388,10 +425,29 @@ export function OuvDetailHeaderCard({
               <dd className="mt-0.5 font-medium text-ink">Comercial</dd>
             </div>
             <div>
-              <dt className="text-xs font-bold text-muted">Estado OUV</dt>
-              <dd className="mt-0.5 font-medium text-ink">
-                {RESULTADO_LABEL[ouv.resultado] ?? ouv.resultado}
-              </dd>
+              <label className={labelClass} htmlFor="ouv-estado">
+                Estado OUV
+              </label>
+              <select
+                id="ouv-estado"
+                className={inputClass}
+                value={ouv.resultado}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  if (
+                    next === 'Ganada' ||
+                    next === 'Perdida' ||
+                    next === 'Descartada'
+                  ) {
+                    onCerrar(next);
+                  }
+                }}
+              >
+                <option value="EnCurso">En curso</option>
+                <option value="Ganada">Ganada</option>
+                <option value="Perdida">Perdida</option>
+                <option value="Descartada">Descartada</option>
+              </select>
             </div>
             <div>
               <dt className="text-xs font-bold text-muted">Fecha creación</dt>

@@ -1,5 +1,11 @@
 import { useEffect, useState } from 'react';
 import type { Ouv } from '../api/ouvs-api';
+import {
+  loadOuvInteracciones,
+  saveOuvInteracciones,
+  type InteraccionEntry,
+  type InteraccionRecord,
+} from '../lib/ouv-interacciones';
 import { ModalShell } from './ModalShell';
 import { FloatingToast } from './FloatingToast';
 import {
@@ -14,37 +20,9 @@ type Props = {
   ouv: Ouv;
 };
 
-type InteraccionEntry = {
-  id: string;
-  titulo: string;
-  observaciones: string;
-  fechaRegistrada: string;
-  registradoPor: string;
-};
-
-type InteraccionRecord = InteraccionEntry & {
-  hilos: InteraccionEntry[];
-};
-
 type ModalMode =
   | { kind: 'nueva' }
   | { kind: 'hilo'; parentId: string; parentTitulo: string };
-
-const STORAGE_PREFIX = 'crm-ouv-interacciones-v2-';
-
-function loadInteracciones(ouvId: string): InteraccionRecord[] {
-  try {
-    const raw = localStorage.getItem(`${STORAGE_PREFIX}${ouvId}`);
-    if (!raw) return [];
-    return JSON.parse(raw) as InteraccionRecord[];
-  } catch {
-    return [];
-  }
-}
-
-function saveInteracciones(ouvId: string, items: InteraccionRecord[]): void {
-  localStorage.setItem(`${STORAGE_PREFIX}${ouvId}`, JSON.stringify(items));
-}
 
 function InteraccionFormModal({
   mode,
@@ -138,6 +116,22 @@ function InteraccionFormModal({
   );
 }
 
+function Etiquetas({ tags }: { tags?: string[] }) {
+  if (!tags?.length) return null;
+  return (
+    <div className="mt-2 flex flex-wrap gap-1.5">
+      {tags.map((tag) => (
+        <span
+          key={tag}
+          className="rounded border border-accent/40 bg-accent/10 px-2 py-0.5 text-[11px] font-bold text-accent"
+        >
+          {tag}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 /** Registro de interacciones / actividades realizadas con el proyecto. */
 export function InteraccionesPreventaPanel({ ouv }: Props) {
   const [items, setItems] = useState<InteraccionRecord[]>([]);
@@ -145,14 +139,14 @@ export function InteraccionesPreventaPanel({ ouv }: Props) {
   const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
-    setItems(loadInteracciones(ouv.ouv_id));
+    setItems(loadOuvInteracciones(ouv.ouv_id));
     setModal(null);
     setToast(null);
   }, [ouv.ouv_id]);
 
   function persist(list: InteraccionRecord[]) {
     setItems(list);
-    saveInteracciones(ouv.ouv_id, list);
+    saveOuvInteracciones(ouv.ouv_id, list);
   }
 
   function showToast(message: string) {
@@ -247,6 +241,7 @@ export function InteraccionesPreventaPanel({ ouv }: Props) {
                     {' · '}
                     {item.registradoPor}
                   </p>
+                  <Etiquetas tags={item.etiquetas} />
                   {item.observaciones ? (
                     <p className="mt-2 whitespace-pre-wrap text-sm text-ink">
                       {item.observaciones}
@@ -270,41 +265,39 @@ export function InteraccionesPreventaPanel({ ouv }: Props) {
                 </div>
                 <button
                   type="button"
-                  className={ghostButtonClass}
+                  className="text-xs text-muted hover:text-danger"
                   onClick={() => handleDelete(item.id)}
                 >
                   Eliminar
                 </button>
               </div>
-
               {item.hilos.length > 0 ? (
-                <ul className="mt-3 space-y-2 border-l-2 border-border pl-3">
+                <ul className="mt-3 space-y-2 border-t border-border pt-3">
                   {item.hilos.map((hilo) => (
                     <li
                       key={hilo.id}
-                      className="rounded border border-border bg-surface p-2.5"
+                      className="rounded border border-border/70 bg-surface px-3 py-2"
                     >
-                      <div className="flex flex-wrap items-start justify-between gap-2">
-                        <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
                           <p className="text-sm font-bold text-ink">
                             {hilo.titulo}
                           </p>
-                          <p className="mt-0.5 text-xs text-muted">
+                          <p className="text-xs text-muted">
                             {new Date(hilo.fechaRegistrada).toLocaleString(
                               'es-CO',
                             )}
-                            {' · '}
-                            {hilo.registradoPor}
                           </p>
+                          <Etiquetas tags={hilo.etiquetas} />
                           {hilo.observaciones ? (
-                            <p className="mt-1.5 whitespace-pre-wrap text-sm text-ink">
+                            <p className="mt-1 whitespace-pre-wrap text-sm text-ink">
                               {hilo.observaciones}
                             </p>
                           ) : null}
                         </div>
                         <button
                           type="button"
-                          className="text-xs font-bold text-muted hover:text-danger"
+                          className="text-xs text-muted hover:text-danger"
                           onClick={() => handleDeleteHilo(item.id, hilo.id)}
                         >
                           Eliminar

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { AppLayout } from '../../../layout/AppLayout';
 import { formatDateTime } from '../../../lib/format';
 import {
@@ -80,6 +80,7 @@ function mergeInfluenciasPreferringNewerLocal(
 export function OuvDetailPage() {
   const { id = '' } = useParams();
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   const [ouv, setOuv] = useState<Ouv | null>(null);
   const [contactos, setContactos] = useState<OuvContacto[]>([]);
@@ -112,6 +113,9 @@ export function OuvDetailPage() {
   const [showAvance, setShowAvance] = useState(false);
   const [showRetroceso, setShowRetroceso] = useState(false);
   const [showCierre, setShowCierre] = useState(false);
+  const [cierreInitial, setCierreInitial] = useState<
+    'Ganada' | 'Perdida' | 'Descartada'
+  >('Ganada');
   const [ouvEditMode, setOuvEditMode] = useState(false);
   const [detailTab, setDetailTab] = useState<OuvDetailTab>('detalle');
   const [ouvExtensions, setOuvExtensions] = useState<OuvDetailExtensions>({});
@@ -480,7 +484,10 @@ export function OuvDetailPage() {
             onToggleEditMode={() => setOuvEditMode((v) => !v)}
             onAvanzar={() => setShowAvance(true)}
             onRetroceder={() => setShowRetroceso(true)}
-            onCerrar={() => setShowCierre(true)}
+            onCerrar={(resultado) => {
+              setCierreInitial(resultado ?? 'Ganada');
+              setShowCierre(true);
+            }}
             onPersist={persistOuvHeader}
           />
         </>
@@ -856,9 +863,20 @@ export function OuvDetailPage() {
       ) : null}
       {showCierre ? (
         <CierreOuvModal
+          key={cierreInitial}
           ouv={ouv}
+          initialResultado={cierreInitial}
           onClose={() => setShowCierre(false)}
-          onClosed={() => void load({ silent: true })}
+          onClosed={(resultado) => {
+            void load({ silent: true });
+            if (resultado === 'Perdida') {
+              navigate('/opportunities/perdidas');
+            } else if (resultado === 'Descartada') {
+              navigate('/opportunities/descartadas');
+            } else if (resultado === 'Ganada') {
+              navigate(`/offers/${ouv.ouv_id}`);
+            }
+          }}
         />
       ) : null}
     </AppLayout>

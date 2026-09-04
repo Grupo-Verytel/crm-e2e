@@ -10,6 +10,7 @@ import { ApiError } from '../../auth/types';
 import type { ContactoPayload, OuvContacto } from '../api/ouvs-api';
 import {
   PERSON_INFLUENCIA_TIPOS,
+  ensureDemoPersonInfluencias,
   loadPersonInfluenciaTipo,
   savePersonInfluenciaTipo,
   type PersonInfluenciaTipo,
@@ -88,6 +89,7 @@ export function ContactoFormModal({
         account_id: lockAccountId || selectedAccount?.account_id || undefined,
         limit: 10,
       });
+      ensureDemoPersonInfluencias(data.items);
       setPersonHits(data.items);
     } catch (err) {
       setError(

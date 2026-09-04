@@ -2,7 +2,10 @@ import { useCallback, useEffect, useState } from 'react';
 import { Users, X } from 'lucide-react';
 import { fetchPeople } from '../api/accounts-api';
 import type { Account, Person } from '../types';
-import { loadPersonInfluenciaTipo } from '../lib/person-influencia-extensions';
+import {
+  ensureDemoPersonInfluencias,
+  loadPersonInfluenciaTipo,
+} from '../lib/person-influencia-extensions';
 import { cardClass, ghostButtonClass } from './ui';
 
 type Props = {
@@ -24,6 +27,7 @@ export function AccountPeopleModal({ account, onClose }: Props) {
         page: 1,
         limit: 100,
       });
+      ensureDemoPersonInfluencias(data.items);
       setItems(data.items);
     } catch {
       setError('No se pudo cargar los contactos de esta empresa.');

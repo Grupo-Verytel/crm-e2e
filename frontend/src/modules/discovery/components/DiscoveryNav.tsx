@@ -1,5 +1,4 @@
 import { NavLink } from 'react-router-dom';
-import { useAuth } from '../../auth/hooks/useAuth';
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
   [
@@ -10,10 +9,6 @@ const linkClass = ({ isActive }: { isActive: boolean }) =>
   ].join(' ');
 
 export function DiscoveryNav() {
-  const { user } = useAuth();
-  const isSoporte =
-    user?.role_name === 'SoporteComercial' || user?.role_name === 'Admin';
-
   return (
     <nav
       className="mb-4 flex flex-wrap gap-1 border-b border-border"
@@ -22,28 +17,12 @@ export function DiscoveryNav() {
       <NavLink to="/opportunities" end className={linkClass}>
         Bandeja OUV
       </NavLink>
-      {isSoporte ? (
-        <>
-          <NavLink
-            to="/opportunities/admin/motivos-perdida"
-            className={linkClass}
-          >
-            Motivos pérdida
-          </NavLink>
-          <NavLink
-            to="/opportunities/admin/motivos-descarte"
-            className={linkClass}
-          >
-            Motivos descarte
-          </NavLink>
-          <NavLink
-            to="/opportunities/admin/zona-checklist-templates"
-            className={linkClass}
-          >
-            Checklist zonas
-          </NavLink>
-        </>
-      ) : null}
+      <NavLink to="/opportunities/perdidas" className={linkClass}>
+        Oportunidades perdidas
+      </NavLink>
+      <NavLink to="/opportunities/descartadas" className={linkClass}>
+        Oportunidades descartadas
+      </NavLink>
     </nav>
   );
 }

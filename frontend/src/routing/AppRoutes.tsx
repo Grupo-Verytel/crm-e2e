@@ -42,6 +42,12 @@ const SqlDetailPage = lazy(
 const OuvsBoardPage = lazy(
   () => import('../modules/discovery/pages/OuvsBoardPageLazy'),
 );
+const OportunidadesPerdidasPage = lazy(
+  () => import('../modules/discovery/pages/OportunidadesPerdidasPageLazy'),
+);
+const OportunidadesDescartadasPage = lazy(
+  () => import('../modules/discovery/pages/OportunidadesDescartadasPageLazy'),
+);
 const OuvDetailPage = lazy(
   () => import('../modules/discovery/pages/OuvDetailPageLazy'),
 );
@@ -115,6 +121,22 @@ export function AppRoutes() {
       element: (
         <ProtectedRoute>
           <OuvsBoardPage />
+        </ProtectedRoute>
+      ),
+    },
+    {
+      path: '/opportunities/perdidas',
+      element: (
+        <ProtectedRoute>
+          <OportunidadesPerdidasPage />
+        </ProtectedRoute>
+      ),
+    },
+    {
+      path: '/opportunities/descartadas',
+      element: (
+        <ProtectedRoute>
+          <OportunidadesDescartadasPage />
         </ProtectedRoute>
       ),
     },

@@ -5,7 +5,10 @@ import { Pagination } from '../../../components/Pagination';
 import { fetchPeople } from '../api/accounts-api';
 import { PersonFormModal } from '../components/PersonFormModal';
 import type { Person } from '../types';
-import { loadPersonInfluenciaTipo } from '../lib/person-influencia-extensions';
+import {
+  ensureDemoPersonInfluencias,
+  loadPersonInfluenciaTipo,
+} from '../lib/person-influencia-extensions';
 import {
   cardClass,
   inputClass,
@@ -34,6 +37,7 @@ export function PeopleListPage() {
         page,
         limit: LIMIT,
       });
+      ensureDemoPersonInfluencias(data.items);
       setItems(data.items);
       setTotal(data.total);
     } catch {
