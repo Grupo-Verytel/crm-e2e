@@ -30,13 +30,12 @@ import { AvanceZonaModal } from '../components/AvanceZonaModal';
 import { CierreOuvModal } from '../components/CierreOuvModal';
 import { ContactoFormModal } from '../components/ContactoFormModal';
 import { ContactosSidePanel } from '../components/ContactosSidePanel';
+import { DiscoveryNav } from '../components/DiscoveryNav';
+import { OuvConfigMenu } from '../components/OuvConfigMenu';
 import { GapBadge, ResultadoBadge, ZonaBadge } from '../components/OuvBadges';
-import {
-  OuvDetailNav,
-  type OuvDetailTab,
-} from '../components/OuvDetailNav';
-import { PreventaActivityPanel } from '../components/PreventaActivityPanel';
 import { InteraccionesPreventaPanel } from '../components/InteraccionesPreventaPanel';
+import { OuvFunnelRibbon } from '../components/OuvFunnelRibbon';
+import { PreventaActivityPanel } from '../components/PreventaActivityPanel';
 import { RetrocesoZonaModal } from '../components/RetrocesoZonaModal';
 import {
   badgeClass,
@@ -45,11 +44,16 @@ import {
   inputClass,
   labelClass,
   primaryButtonClass,
+  tabActiveClass,
+  tabClass,
 } from '../components/ui';
 import {
+  INFLUENCIA_ESTADO_CARD,
+  INFLUENCIA_ESTADO_DOT,
   INFLUENCIA_ESTADOS,
   INFLUENCIA_TIPOS,
   isOuvNotificationEvent,
+  type InfluenciaEstado,
   type InfluenciaTipo,
 } from '../lib/ouv-vocab';
 
@@ -59,6 +63,50 @@ function contactInitials(nombre: string): string {
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
   return `${parts[0][0] ?? ''}${parts[1][0] ?? ''}`.toUpperCase();
 }
+
+function dash(value: string | null | undefined): string {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : '—';
+}
+
+const SEGMENTO_LABEL: Record<string, string> = {
+  Gobierno: 'Gobierno',
+  'D&S': 'D&S',
+  ProyectosEspeciales: 'Proyectos especiales',
+  B2B: 'B2B',
+};
+
+const RESULTADO_LABEL: Record<string, string> = {
+  EnCurso: 'En curso',
+  Ganada: 'Ganada',
+  Perdida: 'Perdida',
+  Descartada: 'Descartada',
+};
+
+function ouvHeaderMetaFields(ouv: Ouv): { label: string; value: string }[] {
+  return [
+    { label: 'Organización', value: dash(ouv.empresa_nombre) },
+    {
+      label: 'Segmento',
+      value: dash(SEGMENTO_LABEL[ouv.segmento] ?? ouv.segmento),
+    },
+    { label: 'Vertical', value: dash(ouv.vertical) },
+    { label: 'Proyecto', value: '—' },
+    { label: 'Plazo ejecución', value: '—' },
+    { label: 'Probabilidad de cierre', value: '—' },
+    { label: 'Ciudad', value: '—' },
+    { label: 'Región', value: '—' },
+    { label: 'Etapa', value: 'Comercial' },
+    {
+      label: 'Estado OUV',
+      value: dash(RESULTADO_LABEL[ouv.resultado] ?? ouv.resultado),
+    },
+    { label: 'Fecha creación', value: formatDateTime(ouv.created_at) },
+    { label: 'Fecha actualización', value: formatDateTime(ouv.updated_at) },
+  ];
+}
+
+type DetailTab = 'detalle' | 'preventa' | 'interacciones';
 
 /**
  * After a successful save for `justSavedTipo`, prefer that row from the server
@@ -112,7 +160,7 @@ export function OuvDetailPage() {
   const [showAvance, setShowAvance] = useState(false);
   const [showRetroceso, setShowRetroceso] = useState(false);
   const [showCierre, setShowCierre] = useState(false);
-  const [detailTab, setDetailTab] = useState<OuvDetailTab>('detalle');
+  const [tab, setTab] = useState<DetailTab>('detalle');
 
   const [presupuestoConfirmado, setPresupuestoConfirmado] = useState(false);
   const [presupuestoMonto, setPresupuestoMonto] = useState('');
@@ -399,33 +447,50 @@ export function OuvDetailPage() {
 
   const editable =
     ouv.resultado === 'EnCurso' && user?.user_id === ouv.comercial_id;
+  const isSoporte =
+    user?.role_name === 'SoporteComercial' || user?.role_name === 'Admin';
 
   return (
     <AppLayout title={ouv.consecutivo}>
-      <div className="mb-3">
+      <DiscoveryNav />
+      <div className="mb-4">
         <Link to="/opportunities" className="text-sm text-accent hover:underline">
           ← Bandeja OUV
         </Link>
       </div>
-      <OuvDetailNav active={detailTab} onChange={setDetailTab} />
 
-      {detailTab === 'detalle' ? (
-        <header className={`${cardClass} mb-4 p-4`}>
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-xs font-bold text-muted">{ouv.consecutivo}</p>
-              <h1 className="text-xl font-bold text-ink">{ouv.titulo}</h1>
-              <p className="text-sm text-ink">{ouv.empresa_nombre}</p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                <ZonaBadge zona={ouv.zona_actual} />
-                <ResultadoBadge resultado={ouv.resultado} />
-                <span className="rounded bg-bg px-2 py-0.5 text-xs font-bold text-ink">
-                  {ouv.origen_via === 'directa' ? 'Directa' : 'Desde SQL'}
-                </span>
-                {ouv.tiene_gap ? <GapBadge /> : null}
-              </div>
+      {isSoporte && !editable ? (
+        <p className="mb-3 rounded border border-border bg-bg px-3 py-2 text-sm text-muted">
+          Vista Soporte: lectura de OUV. La edición de zona/cierre es del
+          comercial dueño. Catálogos en el menú superior.
+        </p>
+      ) : null}
+
+      <OuvFunnelRibbon ouv={ouv} />
+
+      <header className={`${cardClass} mb-4 p-4`}>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs font-bold text-muted">{ouv.consecutivo}</p>
+            <h1 className="text-xl font-bold text-ink">{ouv.titulo}</h1>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <ZonaBadge zona={ouv.zona_actual} />
+              <ResultadoBadge resultado={ouv.resultado} />
+              <span className="rounded bg-bg px-2 py-0.5 text-xs font-bold text-ink">
+                {ouv.origen_via === 'directa' ? 'Directa' : 'Desde SQL'}
+              </span>
+              {ouv.tiene_gap ? <GapBadge /> : null}
             </div>
-            <div className="flex flex-wrap gap-2">
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {editable ? (
+              <OuvConfigMenu
+                onContactos={() => setShowContactosPanel(true)}
+                onAvanzar={() => setShowAvance(true)}
+                onRetroceder={() => setShowRetroceso(true)}
+                onCerrar={() => setShowCierre(true)}
+              />
+            ) : (
               <button
                 type="button"
                 className={ghostButtonClass}
@@ -439,104 +504,105 @@ export function OuvDetailPage() {
                   </span>
                 </span>
               </button>
-              {editable ? (
-                <>
-                  <button
-                    type="button"
-                    className={primaryButtonClass}
-                    onClick={() => setShowAvance(true)}
-                  >
-                    Avanzar zona
-                  </button>
-                  <button
-                    type="button"
-                    className={ghostButtonClass}
-                    onClick={() => setShowRetroceso(true)}
-                  >
-                    Retroceder
-                  </button>
-                  <button
-                    type="button"
-                    className={ghostButtonClass}
-                    onClick={() => setShowCierre(true)}
-                  >
-                    Cerrar OUV
-                  </button>
-                </>
-              ) : null}
-            </div>
-          </div>
-          {ouv.descripcion ? (
-            <p className="mt-3 text-sm text-muted">{ouv.descripcion}</p>
-          ) : null}
-
-          <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3">
-            <span className="text-xs font-bold text-muted">Equipo cliente</span>
-            {contactos.length === 0 ? (
-              <button
-                type="button"
-                className="text-xs font-bold text-accent hover:underline"
-                onClick={() => {
-                  setShowContactosPanel(true);
-                  if (editable) setContactoModal('new');
-                }}
-              >
-                {editable ? '+ Agregar contacto' : 'Sin contactos'}
-              </button>
-            ) : (
-              <>
-                {contactos.slice(0, 5).map((c) => {
-                  const roles =
-                    contactoInfluenciaMap.get(c.contacto_ouv_id) ?? [];
-                  return (
-                    <button
-                      key={c.contacto_ouv_id}
-                      type="button"
-                      title={[c.name, c.job_title, roles.join(', ')]
-                        .filter(Boolean)
-                        .join(' · ')}
-                      className="inline-flex max-w-[10rem] items-center gap-1.5 rounded-full border border-border bg-bg py-0.5 pl-0.5 pr-2 text-left hover:border-accent"
-                      onClick={() => setShowContactosPanel(true)}
-                    >
-                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent/10 text-[10px] font-bold text-accent">
-                        {contactInitials(c.name)}
-                      </span>
-                      <span className="truncate text-xs font-bold text-ink">
-                        {c.name}
-                      </span>
-                    </button>
-                  );
-                })}
-                {contactos.length > 5 ? (
-                  <button
-                    type="button"
-                    className="text-xs font-bold text-accent hover:underline"
-                    onClick={() => setShowContactosPanel(true)}
-                  >
-                    +{contactos.length - 5} más
-                  </button>
-                ) : null}
-              </>
             )}
           </div>
-        </header>
-      ) : null}
-
-      {detailTab === 'preventa' ? (
-        <PreventaActivityPanel
-          ouv={ouv}
-          commercialOwnerName={user?.full_name}
-        />
-      ) : detailTab === 'interacciones' ? (
-        <InteraccionesPreventaPanel ouv={ouv} />
-      ) : (
-        <>
-      {ouv.tiene_gap ? (
-        <div className="mb-4 rounded border border-warning bg-warning/15 p-3 text-sm text-ink">
-          Esta OUV tiene gap de criterios:{' '}
-          {(ouv.criterios_faltantes ?? []).join(', ') || 'revisar zona actual'}.
         </div>
-      ) : null}
+        {ouv.descripcion ? (
+          <p className="mt-3 text-sm text-muted">{ouv.descripcion}</p>
+        ) : null}
+
+        {/* Compact contact preview — click opens the side panel */}
+        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3">
+          <span className="text-xs font-bold text-muted">Equipo cliente</span>
+          {contactos.length === 0 ? (
+            <button
+              type="button"
+              className="text-xs font-bold text-accent hover:underline"
+              onClick={() => {
+                setShowContactosPanel(true);
+                if (editable) setContactoModal('new');
+              }}
+            >
+              {editable ? '+ Agregar contacto' : 'Sin contactos'}
+            </button>
+          ) : (
+            <>
+              {contactos.slice(0, 5).map((c) => {
+                const roles =
+                  contactoInfluenciaMap.get(c.contacto_ouv_id) ?? [];
+                return (
+                  <button
+                    key={c.contacto_ouv_id}
+                    type="button"
+                    title={[c.name, c.job_title, roles.join(', ')]
+                      .filter(Boolean)
+                      .join(' · ')}
+                    className="inline-flex max-w-[10rem] items-center gap-1.5 rounded-full border border-border bg-bg py-0.5 pl-0.5 pr-2 text-left hover:border-accent"
+                    onClick={() => setShowContactosPanel(true)}
+                  >
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent/10 text-[10px] font-bold text-accent">
+                      {contactInitials(c.name)}
+                    </span>
+                    <span className="truncate text-xs font-bold text-ink">
+                      {c.name}
+                    </span>
+                  </button>
+                );
+              })}
+              {contactos.length > 5 ? (
+                <button
+                  type="button"
+                  className="text-xs font-bold text-accent hover:underline"
+                  onClick={() => setShowContactosPanel(true)}
+                >
+                  +{contactos.length - 5} más
+                </button>
+              ) : null}
+            </>
+          )}
+        </div>
+
+        <dl className="mt-3 grid gap-x-4 gap-y-3 border-t border-border pt-3 text-sm sm:grid-cols-3">
+          {ouvHeaderMetaFields(ouv).map((field) => (
+            <div key={field.label}>
+              <dt className="text-xs font-bold uppercase tracking-wide text-muted">
+                {field.label}
+              </dt>
+              <dd className="mt-0.5 break-words text-ink">{field.value}</dd>
+            </div>
+          ))}
+        </dl>
+      </header>
+
+      <nav
+        className="mb-4 flex flex-wrap gap-1 border-b border-border"
+        aria-label="Secciones de la OUV"
+      >
+        <button
+          type="button"
+          className={tab === 'detalle' ? tabActiveClass : tabClass}
+          aria-current={tab === 'detalle' ? 'page' : undefined}
+          onClick={() => setTab('detalle')}
+        >
+          Detalle OUV
+        </button>
+        <button
+          type="button"
+          className={tab === 'preventa' ? tabActiveClass : tabClass}
+          aria-current={tab === 'preventa' ? 'page' : undefined}
+          onClick={() => setTab('preventa')}
+        >
+          Solicitudes Preventa
+        </button>
+        <button
+          type="button"
+          className={tab === 'interacciones' ? tabActiveClass : tabClass}
+          aria-current={tab === 'interacciones' ? 'page' : undefined}
+          onClick={() => setTab('interacciones')}
+        >
+          Interacciones
+        </button>
+      </nav>
 
       {actionError ? (
         <p className="mb-3 text-sm text-danger" role="alert">
@@ -549,6 +615,15 @@ export function OuvDetailPage() {
         </p>
       ) : null}
 
+      {tab === 'detalle' ? (
+      <>
+      {ouv.tiene_gap ? (
+        <div className="mb-4 rounded border border-warning bg-warning/15 p-3 text-sm text-ink">
+          Esta OUV tiene gap de criterios:{' '}
+          {(ouv.criterios_faltantes ?? []).join(', ') || 'revisar zona actual'}.
+        </div>
+      ) : null}
+
       {/* Influencias — primary workspace */}
       <section className={`${cardClass} mb-4 p-4`}>
         <h2 className="mb-1 text-sm font-bold text-ink">Influencias</h2>
@@ -559,18 +634,23 @@ export function OuvDetailPage() {
         <div className="grid gap-3 md:grid-cols-3">
           {INFLUENCIA_TIPOS.map((tipo) => {
             const inf = influencias.find((x) => x.tipo === tipo);
+            const estado =
+              (inf?.estado as InfluenciaEstado | undefined) ?? 'SinEvaluar';
+            const cardTone =
+              INFLUENCIA_ESTADO_CARD[estado] ?? INFLUENCIA_ESTADO_CARD.SinEvaluar;
             const isSaving = Boolean(savingTipos[tipo]);
             const justSaved = influenciaFlash === tipo;
             return (
               <div
                 key={tipo}
                 className={[
-                  'rounded border bg-bg p-3 transition-[border-color,box-shadow] duration-300',
+                  'rounded border p-3 transition-[border-color,box-shadow] duration-300',
+                  cardTone,
                   justSaved
                     ? 'border-positive shadow-[0_0_0_1px_var(--positive)]'
                     : isSaving
                       ? 'border-accent'
-                      : 'border-border',
+                      : '',
                 ].join(' ')}
                 aria-live="polite"
               >
@@ -588,22 +668,28 @@ export function OuvDetailPage() {
                   ) : null}
                 </div>
                 <label className={labelClass}>Estado</label>
-                <select
-                  className={inputClass}
-                  disabled={!editable}
-                  value={inf?.estado ?? 'SinEvaluar'}
-                  onChange={(e) =>
-                    handleInfluenciaFieldChange(tipo, {
-                      estado: e.target.value,
-                    })
-                  }
-                >
-                  {INFLUENCIA_ESTADOS.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
+                <div className="relative">
+                  <span
+                    className={`pointer-events-none absolute left-3 top-1/2 h-2 w-2 -translate-y-1/2 rounded-full ${INFLUENCIA_ESTADO_DOT[estado] ?? INFLUENCIA_ESTADO_DOT.SinEvaluar}`}
+                    aria-hidden
+                  />
+                  <select
+                    className={`${inputClass} pl-7 disabled:opacity-60`}
+                    disabled={!editable}
+                    value={estado}
+                    onChange={(e) =>
+                      handleInfluenciaFieldChange(tipo, {
+                        estado: e.target.value,
+                      })
+                    }
+                  >
+                    {INFLUENCIA_ESTADOS.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 <label className={`${labelClass} mt-2`}>Contacto</label>
                 <select
                   className={inputClass}
@@ -822,8 +908,13 @@ export function OuvDetailPage() {
           </dl>
         </section>
       ) : null}
-        </>
-      )}
+      </>
+      ) : null}
+
+      {tab === 'preventa' ? <PreventaActivityPanel ouv={ouv} /> : null}
+      {tab === 'interacciones' ? (
+        <InteraccionesPreventaPanel ouv={ouv} />
+      ) : null}
 
       {contactoModal ? (
         <ContactoFormModal

@@ -1,0 +1,10 @@
+{
+  "receipt_id": "mep:receipt:int_20006:v1",
+  "receipt_version": 1,
+  "processing_status": "REJECTED",
+  "correlation_id": "corr_01JCRM20006",
+  "observed_at": "2026-08-21T14:40:00Z",
+  "adapter_version": "0.2.0",
+  "reason_code": null,
+  "semantic_fingerprint": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+}

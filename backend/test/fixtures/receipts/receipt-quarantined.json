@@ -1,0 +1,10 @@
+{
+  "receipt_id": "mep:receipt:int_20005:v1",
+  "receipt_version": 1,
+  "processing_status": "QUARANTINED",
+  "correlation_id": "corr_01JCRM20005",
+  "observed_at": "2026-08-21T14:39:00Z",
+  "adapter_version": "0.2.0",
+  "reason_code": "SCHEMA_MISMATCH",
+  "semantic_fingerprint": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+}

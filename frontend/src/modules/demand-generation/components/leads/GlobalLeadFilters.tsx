@@ -177,7 +177,7 @@ function ChannelChip({
       onClick={onClick}
       aria-pressed={active}
       className={[
-        'rounded-full border px-3 py-1 text-xs font-bold transition-colors',
+        'rounded-full px-3 py-1 text-xs font-bold',
         active ? 'btn-glow' : 'btn-glow-outline',
       ].join(' ')}
     >

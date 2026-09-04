@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { SequelizeModule } from '@nestjs/sequelize';
 import { AccountsModule } from '../accounts/accounts.module';
+import { AuthModule } from '../auth/auth.module';
 import { DemandGenerationModule } from '../demand-generation/demand-generation.module';
 import { WorkflowEngineModule } from '../workflow-engine/workflow-engine.module';
 import { MotivosDescarteController } from './controllers/motivos-descarte.controller';
@@ -34,6 +35,7 @@ import { OuvsService } from './services/ouvs.service';
       ZonaChecklistTemplate,
     ]),
     AccountsModule,
+    AuthModule,
     DemandGenerationModule,
     WorkflowEngineModule,
   ],

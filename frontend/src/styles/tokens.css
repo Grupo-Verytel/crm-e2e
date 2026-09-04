@@ -27,6 +27,8 @@
   /* Status (kept inside the brand family + neutral semantics) */
   --positive: #2DCCD3;
   --success: #2F9E44;           /* process/success toasts (true green) */
+  /** Influencia Verde — aquamarine shifted toward green (not pure success green). */
+  --semaphore-verde: color-mix(in srgb, var(--brand-turquoise) 32%, var(--success) 68%);
   --warning: #E0A100;
   --danger: #C2362F;
 

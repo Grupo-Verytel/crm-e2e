@@ -19,6 +19,8 @@ import { AccountsService } from '../../accounts/services/accounts.service';
 import { User } from '../../auth/models/user.model';
 import { UsersService } from '../../auth/services/users.service';
 import { EntityType } from '../../workflow-engine/enums/entity-type.enum';
+import { StatusHistoryTrigger } from '../../workflow-engine/lib/status-history-trigger';
+import { StatusHistoryService } from '../../workflow-engine/services/status-history.service';
 import { WorkflowEngineService } from '../../workflow-engine/workflow-engine.service';
 import {
   DEMAND_GENERATION_ERROR_CODES,
@@ -94,6 +96,7 @@ export class LeadsService {
     private readonly usersService: UsersService,
     private readonly accountsService: AccountsService,
     private readonly workflowEngine: WorkflowEngineService,
+    private readonly statusHistory: StatusHistoryService,
     @Inject(NOTIFICATION_PORT)
     private readonly notifications: NotificationPort,
   ) {}
@@ -352,6 +355,15 @@ export class LeadsService {
       responsableId: dto.responsable_id,
       motivoDescarte: null,
     });
+    await this.statusHistory.record({
+      entityType: EntityType.LEAD,
+      entityId: lead.leadId,
+      rootLeadId: lead.leadId,
+      fromEstado: LeadEstado.Descartado,
+      toEstado: LeadEstado.MOFU,
+      trigger: StatusHistoryTrigger.Recycle,
+      changedBy: dto.responsable_id,
+    });
 
     return this.toResponseDto(lead);
   }
@@ -443,6 +455,16 @@ export class LeadsService {
         },
         { transaction },
       );
+      await this.statusHistory.record({
+        entityType: EntityType.LEAD,
+        entityId: lead.leadId,
+        rootLeadId: lead.leadId,
+        fromEstado: LeadEstado.MOFU,
+        toEstado: LeadEstado.MqlPending,
+        trigger: StatusHistoryTrigger.Advance,
+        changedBy: userId,
+        transaction,
+      });
     });
 
     const label = await this.getLeadDisplayLabel(lead);
@@ -547,6 +569,13 @@ export class LeadsService {
           personId,
         },
         { transaction },
+      );
+
+      await this.recordLeadCreated(
+        lead.leadId,
+        lead.estado,
+        createdBy,
+        transaction,
       );
 
       return lead;
@@ -751,6 +780,13 @@ export class LeadsService {
         ),
       );
 
+      await this.recordLeadCreated(
+        lead.leadId,
+        lead.estado,
+        createdBy,
+        transaction,
+      );
+
       return lead.leadId;
     });
 
@@ -826,6 +862,13 @@ export class LeadsService {
           estado: MqlEstado.Activo,
         },
         { transaction },
+      );
+
+      await this.recordLeadCreated(
+        lead.leadId,
+        LeadEstado.MqlPending,
+        createdBy,
+        transaction,
       );
 
       return lead.leadId;
@@ -938,6 +981,13 @@ export class LeadsService {
           ? peopleMap.get(primaryPersonId)?.account_name
           : null) ?? 'Lead';
 
+      await this.recordLeadCreated(
+        lead.leadId,
+        LeadEstado.SQL,
+        createdBy,
+        transaction,
+      );
+
       await this.workflowEngine.transition(
         EntityType.SQL,
         sql.sqlId,
@@ -1038,6 +1088,24 @@ export class LeadsService {
         });
       }
     }
+  }
+
+  private async recordLeadCreated(
+    leadId: string,
+    toEstado: string,
+    changedBy: string,
+    transaction: Transaction,
+  ): Promise<void> {
+    await this.statusHistory.record({
+      entityType: EntityType.LEAD,
+      entityId: leadId,
+      rootLeadId: leadId,
+      fromEstado: null,
+      toEstado,
+      trigger: StatusHistoryTrigger.Create,
+      changedBy,
+      transaction,
+    });
   }
 
   private assertDirectRouteCanal(

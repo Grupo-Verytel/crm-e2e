@@ -3,3 +3,6 @@ dist/
 .env
 *.log
 .DS_Store
+
+# Archivo de entorno real del backend (credenciales); NO es plantilla.
+/backend/env

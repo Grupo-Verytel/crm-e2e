@@ -1,0 +1,10 @@
+{
+  "receipt_id": "mep:receipt:int_20004:v2",
+  "receipt_version": 2,
+  "processing_status": "DUPLICATE",
+  "correlation_id": "corr_01JCRM20004",
+  "observed_at": "2026-08-21T14:38:05Z",
+  "adapter_version": "0.2.0",
+  "reason_code": null,
+  "semantic_fingerprint": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+}

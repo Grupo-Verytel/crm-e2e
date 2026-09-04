@@ -1,14 +1,16 @@
 import { Clock3, Layers, type LucideIcon } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { ApiError } from '../../auth/types';
 import type { Ouv } from '../api/ouvs-api';
+import {
+  crearSolicitudPreventa,
+  type SolicitudPreventa,
+} from '../api/solicitudes-preventa-api';
 import {
   ACTIVITY_PRIORITY_OPTIONS,
   SERVICE_COMBOS,
   SOLICITUD_PREVENTA_FIELDS,
-  buildServiceCards,
-  mockInteractionRef,
   type ActivityPriority,
-  type ServiceCard,
   type ServiceComboId,
 } from '../lib/opportunity-context-fields';
 import { ModalShell } from './ModalShell';
@@ -19,35 +21,6 @@ import {
   primaryButtonClass,
 } from './ui';
 
-export type SolicitudPreventaRecord = {
-  id: string;
-  priority: ActivityPriority;
-  tipoId: ServiceComboId;
-  tipoNombre: string;
-  subject: string;
-  status: 'ENVIADA' | 'FALLIDA';
-  /** Estado retornado por MEP (diferenciador visual en detalle). */
-  mepStatus: MepSolicitudStatus;
-  interactionRef: string;
-  sourceVersion: string;
-  etag: string;
-  services: ServiceCard[];
-  /** Ambos servicios en un mismo contenedor (Técnico y financiero). */
-  sameContainer: boolean;
-  values: Record<string, string>;
-  requestedServices: { service: string; dependency: string }[];
-  createdAt: string;
-};
-
-export type MepSolicitudStatus = 'Aceptado' | 'Aprobado' | 'Rechazado' | 'Pendiente';
-
-const MEP_MOCK_STATUSES: MepSolicitudStatus[] = [
-  'Aceptado',
-  'Aprobado',
-  'Rechazado',
-  'Pendiente',
-];
-
 type Props = {
   ouv: Ouv;
   commercialOwnerName?: string;
@@ -55,7 +28,7 @@ type Props = {
   onResult: (result: {
     ok: boolean;
     message: string;
-    record?: SolicitudPreventaRecord;
+    record?: SolicitudPreventa;
   }) => void;
 };
 
@@ -67,46 +40,51 @@ const PRIORITY_ICONS: Record<ActivityPriority, LucideIcon> = {
   SOMBRA: Layers,
 };
 
-function buildValues(
-  ouv: Ouv,
-  priority: ActivityPriority | null,
-): FormValues {
+/**
+ * Valores del formulario.
+ *
+ * `crm_interaction_ref`, `source_version` y `etag` son autoridad del CRM (§4,
+ * P-01): se muestran vacíos y de solo lectura hasta que el backend los asigna
+ * al crear la solicitud. El diseño los derivaba en el browser con
+ * `mockInteractionRef()`, lo que rompería la identidad de correlación del
+ * contrato.
+ */
+function buildValues(ouv: Ouv, priority: ActivityPriority | null): FormValues {
   const meta = ACTIVITY_PRIORITY_OPTIONS.find((o) => o.id === priority);
-  const interactionRef = mockInteractionRef(`${ouv.ouv_id}:${Date.now()}`);
-  const version = '1';
   return {
-    crm_interaction_ref: interactionRef,
-    crm_opportunity_ref: ouv.ouv_id,
+    crm_interaction_ref: '',
+    crm_opportunity_ref: ouv.consecutivo,
     activity_type: meta?.activityType ?? '',
     service_horizon: meta?.horizon ?? '',
     subject: '',
     source_content: '',
+    sharepoint_document_url: '',
     source_created_at: new Date().toISOString().slice(0, 16),
-    source_version: version,
-    // MEP envía la fecha de respuesta cuando esté en roadmap; CRM no la edita.
+    source_version: '',
     etag: '',
   };
 }
 
 /** Modal por fases: prioridad → tipo → campos → envío. */
-export function SolicitudPreventaModal({
-  ouv,
-  onClose,
-  onResult,
-}: Props) {
+export function SolicitudPreventaModal({ ouv, onClose, onResult }: Props) {
   const [step, setStep] = useState<Step>(1);
   const [priority, setPriority] = useState<ActivityPriority | null>(null);
   const [comboId, setComboId] = useState<ServiceComboId | ''>('');
   const [values, setValues] = useState<FormValues>(() => buildValues(ouv, null));
   const [sending, setSending] = useState(false);
 
-  useEffect(() => {
+  // Reset al cambiar de OUV. Se hace en render, no en un efecto: React
+  // recomienda este patrón para derivar estado de un prop y evita el
+  // re-render en cascada que provoca `setState` dentro de `useEffect`.
+  const [ouvCargada, setOuvCargada] = useState(ouv.ouv_id);
+  if (ouvCargada !== ouv.ouv_id) {
+    setOuvCargada(ouv.ouv_id);
     setStep(1);
     setPriority(null);
     setComboId('');
     setValues(buildValues(ouv, null));
     setSending(false);
-  }, [ouv.ouv_id]);
+  }
 
   const combo = SERVICE_COMBOS.find((c) => c.id === comboId) ?? null;
 
@@ -127,40 +105,28 @@ export function SolicitudPreventaModal({
   async function handleSend() {
     if (!priority || !combo) return;
     setSending(true);
-    await new Promise((r) => setTimeout(r, 900));
-    const ok = Math.random() > 0.15;
-    if (ok) {
-      const services = buildServiceCards(combo.id);
-      const record: SolicitudPreventaRecord = {
-        id: `sol-${Date.now()}`,
+
+    try {
+      const record = await crearSolicitudPreventa(ouv.ouv_id, {
         priority,
-        tipoId: combo.id,
-        tipoNombre: combo.name,
-        subject: values.subject || '(Sin asunto)',
-        status: 'ENVIADA',
-        mepStatus:
-          MEP_MOCK_STATUSES[
-            Math.floor(Math.random() * MEP_MOCK_STATUSES.length)
-          ]!,
-        interactionRef: values.crm_interaction_ref,
-        sourceVersion: values.source_version,
-        etag: values.etag,
-        services,
-        sameContainer: combo.id === 'technical_and_financial',
-        values: { ...values },
-        requestedServices: combo.services.map((s) => ({ ...s })),
-        createdAt: new Date().toISOString(),
-      };
+        service_combo: combo.id,
+        subject: values.subject || undefined,
+        // Sin trim: el contenido original se preserva sin alteración (P-07).
+        source_content: values.source_content,
+        sharepoint_document_url: values.sharepoint_document_url || undefined,
+      });
       onResult({
         ok: true,
         message: 'Envío exitoso a Preventa. La solicitud fue recibida por MEP.',
         record,
       });
-    } else {
+    } catch (err) {
       onResult({
         ok: false,
         message:
-          'Envío fallido. Preventa no pudo recibir la solicitud. Intenta de nuevo.',
+          err instanceof ApiError
+            ? err.message
+            : 'Envío fallido. Preventa no pudo recibir la solicitud. Intenta de nuevo.',
       });
       setSending(false);
     }
@@ -255,7 +221,6 @@ export function SolicitudPreventaModal({
             className={`${inputClass} max-w-md`}
             value={comboId}
             onChange={(e) => setComboId(e.target.value as ServiceComboId | '')}
-            autoFocus
           >
             <option value="">Seleccionar…</option>
             {SERVICE_COMBOS.map((c) => (
@@ -315,6 +280,23 @@ export function SolicitudPreventaModal({
             </div>
           ) : null}
 
+          <div className="mb-3">
+            <label className={labelClass} htmlFor="modal-sol-sharepoint">
+              Link de SharePoint
+            </label>
+            <input
+              id="modal-sol-sharepoint"
+              type="url"
+              className={inputClass}
+              value={values.sharepoint_document_url ?? ''}
+              placeholder="https://verytel.sharepoint.com/sites/preventa/Shared Documents/…"
+              onChange={(e) => patch('sharepoint_document_url', e.target.value)}
+            />
+            <p className="mt-1 text-xs text-muted">
+              URL HTTPS de SharePoint Documents. No uses un registro de Lista.
+            </p>
+          </div>
+
           <div className="grid gap-3 sm:grid-cols-2">
             {SOLICITUD_PREVENTA_FIELDS.map((field) => {
               const locked = Boolean(field.locked);
@@ -324,10 +306,15 @@ export function SolicitudPreventaModal({
                   key={field.key}
                   className={field.spanFull ? 'sm:col-span-2' : undefined}
                 >
-                  <label className={labelClass} htmlFor={`modal-sol-${field.key}`}>
+                  <label
+                    className={labelClass}
+                    htmlFor={`modal-sol-${field.key}`}
+                  >
                     {field.label}
-                    {locked && field.key !== 'etag' ? (
-                      <span className="ml-1 font-normal text-muted">(fijo)</span>
+                    {locked ? (
+                      <span className="ml-1 font-normal text-muted">
+                        {values[field.key] ? '(fijo)' : '(lo asigna el CRM)'}
+                      </span>
                     ) : null}
                   </label>
                   {isTextarea ? (

@@ -78,7 +78,6 @@ export function LoginPage() {
 
   return (
     <main className="min-h-screen bg-login-right [color-scheme:dark] lg:grid lg:grid-cols-[minmax(0,1.08fr)_minmax(28rem,0.92fr)]">
-      {/* Left — grey branding panel */}
       <section
         className="relative hidden min-h-screen overflow-hidden bg-login-left px-12 py-10 text-white lg:flex lg:flex-col xl:px-20 xl:py-14"
         aria-label="Beneficios de Frisson CRM"
@@ -142,7 +141,6 @@ export function LoginPage() {
         </div>
       </section>
 
-      {/* Right — near-black form panel */}
       <section className="flex min-h-screen items-center justify-center bg-login-right px-5 py-10 sm:px-10 lg:px-16">
         <div className="w-full max-w-md">
           <div className="mb-8">

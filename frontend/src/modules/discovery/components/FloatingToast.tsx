@@ -4,12 +4,8 @@ type Props = {
   onDismiss?: () => void;
 };
 
-/** Floating process toast — does not push page layout. */
-export function FloatingToast({
-  message,
-  tone = 'success',
-  onDismiss,
-}: Props) {
+/** Toast flotante de proceso; no empuja el layout de la página. */
+export function FloatingToast({ message, tone = 'success', onDismiss }: Props) {
   const isSuccess = tone === 'success';
 
   return (

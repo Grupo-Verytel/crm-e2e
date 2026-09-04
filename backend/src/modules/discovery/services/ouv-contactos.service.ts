@@ -16,6 +16,7 @@ import type {
   CrearOuvContactoDto,
 } from '../dtos/ouv-contacto.dto';
 import type { OuvContactoResponseDto } from '../dtos/ouv-response.dto';
+import { canMutateOuvEnCurso } from '../lib/ouv-access';
 import { OuvResultado } from '../models/enums/ouv.enums';
 import { OuvContacto } from '../models/ouv-contacto.model';
 import { OuvInfluencia } from '../models/ouv-influencia.model';
@@ -104,9 +105,15 @@ export class OuvContactosService {
     ouvId: string,
     dto: CrearOuvContactoDto,
     actorUserId: string,
+    roleName: string,
   ): Promise<OuvContactoResponseDto> {
     return this.ouvModel.sequelize!.transaction(async (transaction) => {
-      const ouv = await this.lockOwnedOuv(ouvId, actorUserId, transaction);
+      const ouv = await this.lockOwnedOuv(
+        ouvId,
+        actorUserId,
+        roleName,
+        transaction,
+      );
       const personId = await this.resolvePersonId(dto);
 
       const people = await this.accountsService.getPeopleWithAccounts([
@@ -157,6 +164,7 @@ export class OuvContactosService {
     contactoOuvId: string,
     dto: ActualizarOuvContactoDto,
     actorUserId: string,
+    roleName: string,
   ): Promise<OuvContactoResponseDto> {
     return this.ouvModel.sequelize!.transaction(async (transaction) => {
       const contacto = await this.contactoModel.findByPk(contactoOuvId, {
@@ -167,7 +175,12 @@ export class OuvContactosService {
         throw new NotFoundException(`Contacto OUV ${contactoOuvId} not found`);
       }
 
-      await this.lockOwnedOuv(contacto.ouvId, actorUserId, transaction);
+      await this.lockOwnedOuv(
+        contacto.ouvId,
+        actorUserId,
+        roleName,
+        transaction,
+      );
 
       await contacto.update(
         {
@@ -186,6 +199,7 @@ export class OuvContactosService {
   async eliminar(
     contactoOuvId: string,
     actorUserId: string,
+    roleName: string,
   ): Promise<void> {
     return this.ouvModel.sequelize!.transaction(async (transaction) => {
       const contacto = await this.contactoModel.findByPk(contactoOuvId, {
@@ -199,6 +213,7 @@ export class OuvContactosService {
       const ouv = await this.lockOwnedOuv(
         contacto.ouvId,
         actorUserId,
+        roleName,
         transaction,
       );
 
@@ -353,6 +368,7 @@ export class OuvContactosService {
   private async lockOwnedOuv(
     ouvId: string,
     actorUserId: string,
+    roleName: string,
     transaction: Transaction,
   ): Promise<Ouv> {
     const ouv = await this.ouvModel.findByPk(ouvId, {
@@ -362,9 +378,9 @@ export class OuvContactosService {
     if (!ouv) {
       throw new NotFoundException(`OUV ${ouvId} not found`);
     }
-    if (ouv.comercialId !== actorUserId) {
+    if (!canMutateOuvEnCurso(ouv.comercialId, actorUserId, roleName)) {
       throw new ForbiddenException(
-        'Only the owning EjecutivoComercial can manage OUV contacts',
+        'Only the owning EjecutivoComercial or Admin can manage OUV contacts',
       );
     }
     if (ouv.resultado !== OuvResultado.EnCurso) {

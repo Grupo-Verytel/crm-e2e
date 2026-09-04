@@ -14,6 +14,14 @@ export const OUV_ZONA_LABEL: Record<OuvZona, string> = {
   MAYOR_PROBABILIDAD: 'Mayor Probabilidad',
 };
 
+/** Labels for the funnel traceability ribbon (uppercase, per blueprint). */
+export const OUV_ZONA_RIBBON_LABEL: Record<OuvZona, string> = {
+  UNIVERSO: 'UNIVERSO',
+  ENCIMA_FUNNEL: 'ENCIMA DEL FUNNEL',
+  EN_FUNNEL: 'FUNNEL',
+  MAYOR_PROBABILIDAD: 'MAYOR PROBABILIDAD',
+};
+
 export function nextOuvZona(zona: OuvZona): OuvZona | null {
   const idx = OUV_ZONAS.indexOf(zona);
   if (idx < 0 || idx >= OUV_ZONAS.length - 1) return null;
@@ -60,8 +68,21 @@ export const OUV_RESULTADOS = [
 
 export type OuvResultado = (typeof OUV_RESULTADOS)[number];
 
+export const OUV_RESULTADO_LABEL: Record<OuvResultado, string> = {
+  EnCurso: 'En curso',
+  Ganada: 'Ganada',
+  Perdida: 'Perdida',
+  Descartada: 'Descartada',
+};
+
 export const INFLUENCIA_TIPOS = ['Economica', 'Tecnica', 'Fabrica'] as const;
 export type InfluenciaTipo = (typeof INFLUENCIA_TIPOS)[number];
+
+export const INFLUENCIA_TIPO_LABEL: Record<InfluenciaTipo, string> = {
+  Economica: 'Económica',
+  Tecnica: 'Técnica',
+  Fabrica: 'Fábrica',
+};
 
 export const INFLUENCIA_ESTADOS = [
   'SinEvaluar',
@@ -69,6 +90,39 @@ export const INFLUENCIA_ESTADOS = [
   'Amarillo',
   'Rojo',
 ] as const;
+
+export type InfluenciaEstado = (typeof INFLUENCIA_ESTADOS)[number];
+
+export const INFLUENCIA_ESTADO_LABEL: Record<InfluenciaEstado, string> = {
+  SinEvaluar: 'Sin Evaluar',
+  Verde: 'Verde',
+  Amarillo: 'Amarillo',
+  Rojo: 'Rojo',
+};
+
+/** Card / select tones for influencia estado (semaphore). */
+export const INFLUENCIA_ESTADO_TONE: Record<InfluenciaEstado, string> = {
+  SinEvaluar: 'border-border bg-bg text-muted',
+  Verde: 'border-semaphore-verde/50 bg-semaphore-verde/10 text-ink',
+  Amarillo: 'border-warning/50 bg-warning/15 text-ink',
+  Rojo: 'border-danger/50 bg-danger/10 text-danger',
+};
+
+
+export const INFLUENCIA_ESTADO_DOT: Record<InfluenciaEstado, string> = {
+  SinEvaluar: 'bg-muted',
+  Verde: 'bg-semaphore-verde',
+  Amarillo: 'bg-warning',
+  Rojo: 'bg-danger',
+};
+
+/** Full-card background when a contact is assigned. */
+export const INFLUENCIA_ESTADO_CARD: Record<InfluenciaEstado, string> = {
+  SinEvaluar: 'border-border bg-bg/90',
+  Verde: 'border-semaphore-verde/70 bg-semaphore-verde/20',
+  Amarillo: 'border-warning/70 bg-warning/25',
+  Rojo: 'border-danger/70 bg-danger/15',
+};
 
 export const VERTICALES = [
   'Seguridad Ciudadana',

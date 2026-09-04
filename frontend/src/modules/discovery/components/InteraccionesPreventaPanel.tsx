@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { Ouv } from '../api/ouvs-api';
-import { ModalShell } from './ModalShell';
 import { FloatingToast } from './FloatingToast';
+import { ModalShell } from './ModalShell';
 import {
   cardClass,
   ghostButtonClass,
@@ -9,6 +9,16 @@ import {
   labelClass,
   primaryButtonClass,
 } from './ui';
+
+/**
+ * Registro de interacciones / actividades de la OUV — traído de `Design_JD`.
+ *
+ * PENDIENTE DE BACKEND: sigue sobre `localStorage`, como en el diseño, porque
+ * no existe API para esto. No es la narrativa de MEP (esa la publica MEP y se
+ * ve en «Solicitudes Preventa»): es la bitácora propia del comercial, con
+ * hilos de respuesta, y hoy el CRM solo tiene `interactions` atadas a `leadId`,
+ * no a OUV. Conectarla exige modelo, migración y endpoints nuevos.
+ */
 
 type Props = {
   ouv: Ouv;
@@ -82,7 +92,6 @@ function InteraccionFormModal({
             value={titulo}
             onChange={(e) => setTitulo(e.target.value)}
             placeholder="Ej. Seguimiento técnico sede Norte"
-            autoFocus
           />
         </div>
 
@@ -140,15 +149,22 @@ function InteraccionFormModal({
 
 /** Registro de interacciones / actividades realizadas con el proyecto. */
 export function InteraccionesPreventaPanel({ ouv }: Props) {
-  const [items, setItems] = useState<InteraccionRecord[]>([]);
+  const [items, setItems] = useState<InteraccionRecord[]>(() =>
+    loadInteracciones(ouv.ouv_id),
+  );
   const [modal, setModal] = useState<ModalMode | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [ouvCargada, setOuvCargada] = useState(ouv.ouv_id);
 
-  useEffect(() => {
+  // Al cambiar de OUV se relee el almacenamiento local de esa OUV.
+  if (ouvCargada !== ouv.ouv_id) {
+    setOuvCargada(ouv.ouv_id);
     setItems(loadInteracciones(ouv.ouv_id));
     setModal(null);
     setToast(null);
-  }, [ouv.ouv_id]);
+  }
+
+  useEffect(() => () => setToast(null), []);
 
   function persist(list: InteraccionRecord[]) {
     setItems(list);
@@ -235,10 +251,7 @@ export function InteraccionesPreventaPanel({ ouv }: Props) {
       ) : (
         <ul className="space-y-3">
           {items.map((item) => (
-            <li
-              key={item.id}
-              className="rounded border border-border bg-bg p-3"
-            >
+            <li key={item.id} className="rounded border border-border bg-bg p-3">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-bold text-ink">{item.titulo}</p>

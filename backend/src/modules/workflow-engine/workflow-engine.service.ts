@@ -11,6 +11,7 @@ import {
   type NotificationPushPort,
 } from './side-effects/notification-push.port';
 import { NotificationsPersister } from './side-effects/notifications-persister';
+import { StatusHistoryService } from './services/status-history.service';
 import type {
   WorkflowGuardContext,
   WorkflowRule,
@@ -49,6 +50,7 @@ export class WorkflowEngineService {
     private readonly usersService: UsersService,
     private readonly auditService: AuditService,
     private readonly notificationsPersister: NotificationsPersister,
+    private readonly statusHistoryService: StatusHistoryService,
     @Optional()
     @Inject(NOTIFICATION_PUSH_PORT)
     private readonly pushPort?: NotificationPushPort,
@@ -115,6 +117,17 @@ export class WorkflowEngineService {
         actor_user_id: context.actorUserId,
         ...(context.payload ?? {}),
       },
+    });
+
+    await this.statusHistoryService.recordWorkflowTransition({
+      entityType,
+      entityId,
+      eventType,
+      estadoAnterior: context.estadoAnterior,
+      estadoNuevo: context.estadoNuevo,
+      actorUserId: context.actorUserId,
+      payload: context.payload,
+      transaction,
     });
 
     if (persisted.length > 0 && this.pushPort) {

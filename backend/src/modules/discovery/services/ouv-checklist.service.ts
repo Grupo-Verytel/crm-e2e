@@ -8,6 +8,7 @@ import { InjectModel } from '@nestjs/sequelize';
 import type { Transaction } from 'sequelize';
 import { EntityType } from '../../workflow-engine/enums/entity-type.enum';
 import { WorkflowEngineService } from '../../workflow-engine/workflow-engine.service';
+import { canMutateOuvEnCurso } from '../lib/ouv-access';
 import { OuvResultado, OuvZona } from '../models/enums/ouv.enums';
 import { OuvChecklistItem } from '../models/ouv-checklist-item.model';
 import { Ouv } from '../models/ouv.model';
@@ -85,6 +86,7 @@ export class OuvChecklistService {
     itemId: string,
     marcado: boolean,
     actorUserId: string,
+    roleName: string,
   ): Promise<OuvChecklistItem> {
     return this.ouvModel.sequelize!.transaction(async (transaction) => {
       const item = await this.itemModel.findByPk(itemId, {
@@ -102,9 +104,9 @@ export class OuvChecklistService {
       if (!ouv) {
         throw new NotFoundException(`OUV ${item.ouvId} not found`);
       }
-      if (ouv.comercialId !== actorUserId) {
+      if (!canMutateOuvEnCurso(ouv.comercialId, actorUserId, roleName)) {
         throw new ForbiddenException(
-          'Only the owning Ejecutivo Comercial can update checklist',
+          'Only the owning Ejecutivo Comercial or Admin can update checklist',
         );
       }
       if (ouv.resultado !== OuvResultado.EnCurso) {

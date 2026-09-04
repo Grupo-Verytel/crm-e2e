@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { Op, WhereOptions } from 'sequelize';
+import { AuditAction } from '../models/audit-action.enum';
 import { AuditLog } from '../models';
 import { AuditLogQueryDto } from '../dtos/audit-log-query.dto';
 import {
@@ -38,6 +39,23 @@ export class AuditService {
       page,
       limit,
     };
+  }
+
+  async findFieldHistory(
+    tabla: string,
+    registroId: string,
+    campoModificado: string,
+  ): Promise<AuditLogResponseDto[]> {
+    const rows = await this.auditLogModel.findAll({
+      where: {
+        tabla,
+        registroId,
+        campoModificado,
+        accion: AuditAction.UPDATE,
+      },
+      order: [['timestamp', 'ASC']],
+    });
+    return rows.map((row) => this.toResponseDto(row));
   }
 
   async recordSecurityEvent(dto: RecordSecurityEventDto): Promise<void> {

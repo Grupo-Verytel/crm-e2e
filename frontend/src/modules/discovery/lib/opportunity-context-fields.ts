@@ -1,6 +1,9 @@
 /**
- * Campos de envío de interacción CRM → Preventa (payload de request).
- * Labels en español.
+ * Campos y catálogos del envío de interacción CRM → Preventa.
+ *
+ * Traído de la rama `Design_JD` conservando su estructura. Dos ajustes
+ * obligados por el contrato (SPEC-CRM-MEPLEAN-001), documentados en su lugar:
+ * el horizonte de `SOMBRA` y la generación de `crm_interaction_ref`.
  */
 
 export type RequestField = {
@@ -12,20 +15,17 @@ export type RequestField = {
   spanFull?: boolean;
 };
 
-/** Campos editables/visibles del formulario (requested_services se deriva del tipo). */
+/** Campos visibles del formulario; `requested_services` se deriva del tipo. */
 export const SOLICITUD_PREVENTA_FIELDS: RequestField[] = [
-  { key: 'crm_interaction_ref', label: 'Referencia de interacción CRM' },
-  { key: 'crm_opportunity_ref', label: 'Referencia de oportunidad CRM' },
   {
-    key: 'activity_type',
-    label: 'Tipo de actividad',
+    key: 'crm_interaction_ref',
+    label: 'Referencia de interacción CRM',
+    // Autoridad del CRM (§4): la asigna el backend al crear la solicitud.
     locked: true,
   },
-  {
-    key: 'service_horizon',
-    label: 'Horizonte de servicio',
-    locked: true,
-  },
+  { key: 'crm_opportunity_ref', label: 'Referencia de oportunidad CRM', locked: true },
+  { key: 'activity_type', label: 'Tipo de actividad', locked: true },
+  { key: 'service_horizon', label: 'Horizonte de servicio', locked: true },
   { key: 'subject', label: 'Asunto', spanFull: true },
   {
     key: 'source_content',
@@ -37,14 +37,10 @@ export const SOLICITUD_PREVENTA_FIELDS: RequestField[] = [
     key: 'source_created_at',
     label: 'Origen creado en',
     inputType: 'datetime-local',
-  },
-  { key: 'source_version', label: 'Versión de origen' },
-  {
-    key: 'etag',
-    label: 'Fecha de respuesta',
     locked: true,
-    lockedValue: '',
   },
+  { key: 'source_version', label: 'Versión de origen', locked: true },
+  { key: 'etag', label: 'Versión del recurso (ETag)', locked: true, lockedValue: '' },
 ];
 
 export type ActivityPriority = 'ASAP' | 'SOMBRA';
@@ -64,7 +60,10 @@ export const ACTIVITY_PRIORITY_OPTIONS: {
   {
     id: 'SOMBRA',
     name: 'Sombra',
-    horizon: 'SHADOW',
+    // El diseño traía `SHADOW`, que no existe en `ServiceHorizon` (§3.1:
+    // IMMEDIATE | DEFERRED | UNSPECIFIED) y el contrato rechaza con 422.
+    // `DEFERRED` es el horizonte diferido del spec.
+    horizon: 'DEFERRED',
     activityType: 'interaccion_sombra',
   },
 ];
@@ -91,6 +90,7 @@ export const SERVICE_LABELS: Record<string, string> = {
   FINANCIAL_DESIGN: 'Financiera',
 };
 
+/** Los 4 casos de forma válida de `requested_services[]` (§7.6, C-1..C-4). */
 export const SERVICE_COMBOS: ServiceCombo[] = [
   {
     id: 'technical',
@@ -132,7 +132,8 @@ export type ServiceCard = {
 
 /**
  * Técnico y financiero → ambas activas, mismo contenedor.
- * Técnico y luego financiero → técnica activa, financiera bloqueada hasta viabilidad Preventa.
+ * Técnico y luego financiero → técnica activa, financiera bloqueada hasta
+ * viabilidad Preventa.
  */
 export function buildServiceCards(comboId: ServiceComboId): ServiceCard[] {
   const combo = SERVICE_COMBOS.find((c) => c.id === comboId);
@@ -153,12 +154,4 @@ export function buildServiceCards(comboId: ServiceComboId): ServiceCard[] {
       state,
     };
   });
-}
-
-export function mockInteractionRef(seed: string): string {
-  let h = 0;
-  for (let i = 0; i < seed.length; i++) {
-    h = (h * 31 + seed.charCodeAt(i)) >>> 0;
-  }
-  return `int_${(h % 90000) + 10000}`;
 }
