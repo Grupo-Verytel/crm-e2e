@@ -8,7 +8,7 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   OuvResultado,
   OuvZona,
@@ -34,6 +34,21 @@ export class ListarOuvsQueryDto {
   @IsOptional()
   @IsEnum(OuvResultado)
   resultado?: OuvResultado;
+
+  /**
+   * Comma-separated resultados (e.g. EnCurso,Ganada) for active tray.
+   * Takes precedence over `resultado` when both are sent.
+   */
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (typeof value !== 'string' || !value.trim()) return undefined;
+    return value
+      .split(',')
+      .map((part: string) => part.trim())
+      .filter(Boolean);
+  })
+  @IsEnum(OuvResultado, { each: true })
+  resultados?: OuvResultado[];
 
   @IsOptional()
   @Type(() => Boolean)

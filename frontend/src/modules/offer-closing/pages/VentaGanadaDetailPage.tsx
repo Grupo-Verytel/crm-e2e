@@ -206,12 +206,25 @@ export function VentaGanadaDetailPage() {
       />
 
       <nav
-        className="mb-4 flex flex-wrap gap-1 border-b border-border"
+        className="mb-4 flex flex-wrap items-center gap-1 border-b border-border"
         aria-label="Detalle venta ganada"
       >
         {tabBtn('validaciones', 'Viabilidad')}
         {tabBtn('kickoff', 'Kickoff')}
         {tabBtn('datos', 'Datos proyecto')}
+        {tab === 'datos' ? (
+          <div className="ml-auto flex items-center pb-1">
+            <button
+              type="button"
+              className={primaryButtonClass}
+              disabled={!pmo.ok}
+              title={pmo.reason ?? 'Crear proyecto en Control de Proyectos'}
+              onClick={() => setShowResumen(true)}
+            >
+              Crear Proyecto
+            </button>
+          </div>
+        ) : null}
       </nav>
 
       {record.alertas.map((a) => (
@@ -302,31 +315,11 @@ export function VentaGanadaDetailPage() {
       ) : null}
 
       {tab === 'datos' ? (
-        <>
-          <FormularioDatosProyecto
-            datos={record.datosBase}
-            modo="crear"
-            onChange={(datosBase) => save({ ...record, datosBase })}
-            onNotifyDirector={(nombre) => {
-              setToast(`Notificación enviada a ${nombre} (mock)`);
-              window.setTimeout(() => setToast(null), 3000);
-            }}
-          />
-          <section className={`${cardClass} mt-4 p-4`}>
-            <button
-              type="button"
-              className={primaryButtonClass}
-              disabled={!pmo.ok}
-              title={pmo.reason ?? 'Crear proyecto en Control de Proyectos'}
-              onClick={() => setShowResumen(true)}
-            >
-              Crear Proyecto
-            </button>
-            {!pmo.ok && pmo.reason ? (
-              <p className="mt-2 text-xs text-muted">{pmo.reason}</p>
-            ) : null}
-          </section>
-        </>
+        <FormularioDatosProyecto
+          datos={record.datosBase}
+          modo="crear"
+          onChange={(datosBase) => save({ ...record, datosBase })}
+        />
       ) : null}
 
       <ResumenEnvioPmoModal

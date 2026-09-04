@@ -11,7 +11,7 @@ const ZONA_TONE: Record<OuvZona, string> = {
 
 const RESULTADO_TONE: Record<OuvResultado, string> = {
   EnCurso: 'bg-bg text-ink',
-  Ganada: 'bg-turquoise/25 text-ink',
+  Ganada: 'bg-semaphore-verde/25 text-ink',
   Perdida: 'bg-danger/15 text-danger',
   Descartada: 'bg-warning/20 text-ink',
 };

@@ -874,7 +874,7 @@ export function OuvDetailPage() {
             } else if (resultado === 'Descartada') {
               navigate('/opportunities/descartadas');
             } else if (resultado === 'Ganada') {
-              navigate(`/offers/${ouv.ouv_id}`);
+              navigate('/opportunities');
             }
           }}
         />

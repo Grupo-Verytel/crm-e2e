@@ -66,7 +66,6 @@ export function OuvsBoardPage() {
     return {
       q: applied.q || undefined,
       zona: (applied.zona as OuvZona) || undefined,
-      resultado: 'EnCurso' as const,
       tiene_gap:
         applied.tiene_gap === ''
           ? undefined
@@ -82,13 +81,22 @@ export function OuvsBoardPage() {
       if (!opts?.silent) setIsLoading(true);
       setError(null);
       try {
-        const data = await fetchOuvs({
-          ...queryBase(),
-          page,
-          limit: PAGE_SIZE,
-        });
-        setItems(data.items);
-        setTotal(data.total);
+        const base = queryBase();
+        const [enCurso, ganadas] = await Promise.all([
+          fetchOuvs({ ...base, resultado: 'EnCurso', page, limit: PAGE_SIZE }),
+          fetchOuvs({
+            ...base,
+            resultado: 'Ganada',
+            page: 1,
+            limit: PAGE_SIZE,
+          }),
+        ]);
+        const merged = [...enCurso.items, ...ganadas.items].sort(
+          (a, b) =>
+            new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
+        );
+        setItems(merged.slice(0, PAGE_SIZE));
+        setTotal(enCurso.total + ganadas.total);
       } catch {
         setError('No se pudo cargar la bandeja de OUVs.');
       } finally {
@@ -105,14 +113,22 @@ export function OuvsBoardPage() {
       try {
         const base = queryBase();
         const results = await Promise.all(
-          OUV_ZONAS.map((zona) =>
+          OUV_ZONAS.flatMap((zona) => [
             fetchOuvs({
               ...base,
               zona: base.zona || zona,
+              resultado: 'EnCurso',
               page: 1,
               limit: KANBAN_LIMIT,
             }),
-          ),
+            fetchOuvs({
+              ...base,
+              zona: base.zona || zona,
+              resultado: 'Ganada',
+              page: 1,
+              limit: KANBAN_LIMIT,
+            }),
+          ]),
         );
         const next: Record<OuvZona, Ouv[]> = {
           UNIVERSO: [],
@@ -121,7 +137,13 @@ export function OuvsBoardPage() {
           MAYOR_PROBABILIDAD: [],
         };
         OUV_ZONAS.forEach((zona, i) => {
-          next[zona] = base.zona && base.zona !== zona ? [] : results[i].items;
+          if (base.zona && base.zona !== zona) {
+            next[zona] = [];
+            return;
+          }
+          const enCurso = results[i * 2].items;
+          const ganadas = results[i * 2 + 1].items;
+          next[zona] = [...enCurso, ...ganadas];
         });
         setKanban(next);
       } catch {
@@ -273,7 +295,15 @@ export function OuvsBoardPage() {
                 </thead>
                 <tbody>
                   {items.map((ouv) => (
-                    <tr key={ouv.ouv_id} className="border-b border-border">
+                    <tr
+                      key={ouv.ouv_id}
+                      className={[
+                        'border-b border-border',
+                        ouv.resultado === 'Ganada'
+                          ? 'border-l-4 border-l-semaphore-verde bg-semaphore-verde/10'
+                          : '',
+                      ].join(' ')}
+                    >
                       <td className="px-4 py-3">
                         <Link
                           to={`/opportunities/${ouv.ouv_id}`}
@@ -332,7 +362,12 @@ export function OuvsBoardPage() {
                     <li key={ouv.ouv_id}>
                       <Link
                         to={`/opportunities/${ouv.ouv_id}`}
-                        className="block rounded border border-border bg-bg p-2 hover:border-accent"
+                        className={[
+                          'block rounded border bg-bg p-2',
+                          ouv.resultado === 'Ganada'
+                            ? 'border-2 border-semaphore-verde hover:border-semaphore-verde/80'
+                            : 'border-border hover:border-accent',
+                        ].join(' ')}
                       >
                         <p className="text-xs font-bold text-accent">
                           {ouv.consecutivo}

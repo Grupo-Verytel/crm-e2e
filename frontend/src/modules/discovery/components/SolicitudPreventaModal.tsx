@@ -130,7 +130,10 @@ export function SolicitudPreventaModal({
     await new Promise((r) => setTimeout(r, 900));
     const ok = Math.random() > 0.15;
     if (ok) {
-      const services = buildServiceCards(combo.id);
+      const services = buildServiceCards(combo.id, {
+        consecutivo: ouv.consecutivo,
+        includeSharePoint: true,
+      });
       const record: SolicitudPreventaRecord = {
         id: `sol-${Date.now()}`,
         priority,

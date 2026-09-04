@@ -53,6 +53,8 @@ export type OuvsQuery = {
   limit?: number;
   zona?: OuvZona;
   resultado?: OuvResultado;
+  /** Comma-separated or array — EnCurso,Ganada for active tray. */
+  resultados?: string | OuvResultado[];
   tiene_gap?: boolean;
   q?: string;
   created_from?: string;
@@ -116,7 +118,16 @@ export type ContactoPayload = {
 };
 
 export async function fetchOuvs(query: OuvsQuery): Promise<PaginatedOuvs> {
-  return apiRequest(`/discovery/ouvs${buildQueryString(query)}`);
+  const { resultados, ...rest } = query;
+  const resultadosParam = Array.isArray(resultados)
+    ? resultados.join(',')
+    : resultados;
+  return apiRequest(
+    `/discovery/ouvs${buildQueryString({
+      ...rest,
+      resultados: resultadosParam,
+    })}`,
+  );
 }
 
 export type ActualizarOuvPayload = {

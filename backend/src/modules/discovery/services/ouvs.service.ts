@@ -662,7 +662,9 @@ export class OuvsService {
     if (query.zona) {
       where.zonaActual = query.zona;
     }
-    if (query.resultado) {
+    if (query.resultados?.length) {
+      where.resultado = { [Op.in]: query.resultados };
+    } else if (query.resultado) {
       where.resultado = query.resultado;
     }
     if (query.tiene_gap !== undefined) {

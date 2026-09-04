@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react';
+import { ExternalLink } from 'lucide-react';
 import type { Ouv } from '../api/ouvs-api';
 import {
   SOLICITUD_PREVENTA_FIELDS,
+  resolveServiceSharePoint,
   type ServiceCard,
 } from '../lib/opportunity-context-fields';
+import { SharePointPreviewModal } from '../../shared/project/SharePointPreviewModal';
 import { ModalShell } from './ModalShell';
 import {
   SolicitudPreventaModal,
@@ -125,60 +128,105 @@ function ServiceCardView({
 function SolicitudDetailModal({
   item,
   service,
+  consecutivo,
   onClose,
 }: {
   item: SolicitudPreventaRecord;
   service: ServiceCard;
+  consecutivo: string;
   onClose: () => void;
 }) {
-  return (
-    <ModalShell
-      title={`Detalle — ${service.label}`}
-      onClose={onClose}
-      size="wide"
-      headerAside={<MepStatusBadge status={item.mepStatus ?? 'Pendiente'} />}
-    >
-      <div className="mb-4 flex flex-wrap gap-2">
-        <span
-          className={[
-            badgeClass,
-            service.state === 'active'
-              ? 'bg-accent text-white'
-              : 'bg-border text-muted',
-          ].join(' ')}
-        >
-          {service.label}
-        </span>
-        <span className={`${badgeClass} bg-border text-ink`}>
-          {item.tipoNombre}
-        </span>
-        <span className={`${badgeClass} bg-accent/15 text-accent`}>
-          {item.priority === 'ASAP' ? 'ASAP' : 'Sombra'}
-        </span>
-        {service.state === 'blocked' ? (
-          <span className={`${badgeClass} bg-border text-muted`}>
-            Bloqueada — espera viabilidad Preventa
-          </span>
-        ) : null}
-      </div>
+  const [preview, setPreview] = useState<{
+    title: string;
+    url: string;
+  } | null>(null);
+  const sharepoint = resolveServiceSharePoint(consecutivo, service);
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        {SOLICITUD_PREVENTA_FIELDS.map((field) => {
-          const raw = item.values[field.key] ?? '';
-          return (
-            <div
-              key={field.key}
-              className={field.spanFull ? 'sm:col-span-2' : undefined}
+  return (
+    <>
+      <ModalShell
+        title={`Detalle — ${service.label}`}
+        onClose={onClose}
+        size="wide"
+        headerAside={<MepStatusBadge status={item.mepStatus ?? 'Pendiente'} />}
+      >
+        <div className="mb-4 flex flex-wrap gap-2">
+          <span
+            className={[
+              badgeClass,
+              service.state === 'active'
+                ? 'bg-accent text-white'
+                : 'bg-border text-muted',
+            ].join(' ')}
+          >
+            {service.label}
+          </span>
+          <span className={`${badgeClass} bg-border text-ink`}>
+            {item.tipoNombre}
+          </span>
+          <span className={`${badgeClass} bg-accent/15 text-accent`}>
+            {item.priority === 'ASAP' ? 'ASAP' : 'Sombra'}
+          </span>
+          {service.state === 'blocked' ? (
+            <span className={`${badgeClass} bg-border text-muted`}>
+              Bloqueada — espera viabilidad Preventa
+            </span>
+          ) : null}
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          {SOLICITUD_PREVENTA_FIELDS.map((field) => {
+            const raw = item.values[field.key] ?? '';
+            return (
+              <div
+                key={field.key}
+                className={field.spanFull ? 'sm:col-span-2' : undefined}
+              >
+                <p className={labelClass}>{field.label}</p>
+                <p className="whitespace-pre-wrap text-sm text-ink">
+                  {formatFieldValue(field.key, raw)}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="mt-4 rounded border border-border bg-bg p-3">
+          <p className="mb-1 text-xs font-bold text-muted">
+            Documento SharePoint
+          </p>
+          <p className="mb-2 text-xs text-muted">
+            Link retornado por Preventa para esta solicitud.
+          </p>
+          {sharepoint ? (
+            <button
+              type="button"
+              className="inline-flex max-w-full items-center gap-2 text-left text-sm font-bold text-accent hover:underline"
+              onClick={() =>
+                setPreview({
+                  title: sharepoint.nombre,
+                  url: sharepoint.url,
+                })
+              }
             >
-              <p className={labelClass}>{field.label}</p>
-              <p className="whitespace-pre-wrap text-sm text-ink">
-                {formatFieldValue(field.key, raw)}
-              </p>
-            </div>
-          );
-        })}
-      </div>
-    </ModalShell>
+              <ExternalLink size={15} aria-hidden />
+              <span className="truncate">{sharepoint.nombre}</span>
+            </button>
+          ) : (
+            <p className="text-xs text-muted">
+              Sin documento vinculado (servicio pendiente o bloqueado).
+            </p>
+          )}
+        </div>
+      </ModalShell>
+
+      <SharePointPreviewModal
+        open={Boolean(preview)}
+        title={preview?.title ?? ''}
+        url={preview?.url ?? ''}
+        onClose={() => setPreview(null)}
+      />
+    </>
   );
 }
 
@@ -350,6 +398,7 @@ export function PreventaActivityPanel({ ouv, commercialOwnerName }: Props) {
         <SolicitudDetailModal
           item={detail.item}
           service={detail.service}
+          consecutivo={ouv.consecutivo}
           onClose={() => setDetail(null)}
         />
       ) : null}

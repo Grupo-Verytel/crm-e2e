@@ -128,13 +128,36 @@ export type ServiceCard = {
   label: string;
   dependency: string;
   state: ServiceCardState;
+  /** Documento retornado por Preventa (mock SharePoint). */
+  sharepointUrl?: string | null;
+  sharepointNombre?: string | null;
 };
+
+function mockPreventaSharePoint(
+  consecutivo: string,
+  service: string,
+): { url: string; nombre: string } {
+  const folder = encodeURIComponent(consecutivo || 'OUV');
+  if (service === 'FINANCIAL_DESIGN') {
+    return {
+      url: `https://verytel.sharepoint.com/sites/preventa/Shared%20Documents/${folder}/Modelo_Financiero.xlsx`,
+      nombre: 'Modelo financiero.xlsx',
+    };
+  }
+  return {
+    url: `https://verytel.sharepoint.com/sites/preventa/Shared%20Documents/${folder}/Diseno_Tecnico.pdf`,
+    nombre: 'Diseño técnico.pdf',
+  };
+}
 
 /**
  * Técnico y financiero → ambas activas, mismo contenedor.
  * Técnico y luego financiero → técnica activa, financiera bloqueada hasta viabilidad Preventa.
  */
-export function buildServiceCards(comboId: ServiceComboId): ServiceCard[] {
+export function buildServiceCards(
+  comboId: ServiceComboId,
+  options?: { consecutivo?: string; includeSharePoint?: boolean },
+): ServiceCard[] {
   const combo = SERVICE_COMBOS.find((c) => c.id === comboId);
   if (!combo) return [];
 
@@ -146,13 +169,34 @@ export function buildServiceCards(comboId: ServiceComboId): ServiceCard[] {
     ) {
       state = 'blocked';
     }
+    const sp =
+      options?.includeSharePoint && state === 'active'
+        ? mockPreventaSharePoint(options.consecutivo ?? 'OUV', svc.service)
+        : null;
     return {
       service: svc.service,
       label: SERVICE_LABELS[svc.service] ?? svc.service,
       dependency: svc.dependency,
       state,
+      sharepointUrl: sp?.url ?? null,
+      sharepointNombre: sp?.nombre ?? null,
     };
   });
+}
+
+/** Resolve SharePoint doc for a service card (legacy records without stored URL). */
+export function resolveServiceSharePoint(
+  consecutivo: string,
+  service: ServiceCard,
+): { url: string; nombre: string } | null {
+  if (service.sharepointUrl) {
+    return {
+      url: service.sharepointUrl,
+      nombre: service.sharepointNombre ?? 'Documento Preventa',
+    };
+  }
+  if (service.state === 'blocked') return null;
+  return mockPreventaSharePoint(consecutivo, service.service);
 }
 
 export function mockInteractionRef(seed: string): string {
