@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { LayoutGrid, List } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { AppLayout } from '../../../layout/AppLayout';
@@ -6,6 +6,7 @@ import { useAuth } from '../../auth/hooks/useAuth';
 import { fetchCampaigns } from '../api/campaigns-api';
 import { fetchLeads } from '../api/leads-api';
 import { DemandNav } from '../components/DemandNav';
+import { FloatingToast } from '../components/FloatingToast';
 import { LeadFormModal } from '../components/LeadFormModal';
 import { GlobalLeadFilters } from '../components/leads/GlobalLeadFilters';
 import {
@@ -84,6 +85,10 @@ export function LeadsPage() {
   const [total, setTotal] = useState(0);
   const [listLoading, setListLoading] = useState(true);
   const [listError, setListError] = useState<string | null>(null);
+  const [refreshNonce, setRefreshNonce] = useState(0);
+  const [toast, setToast] = useState<string | null>(null);
+  const toastTimerRef = useRef<number | null>(null);
+  const hasLoadedListRef = useRef(false);
 
   const pageTitle = useMemo(
     () => (isTraductor ? 'Mis referidos' : 'Leads'),
@@ -91,7 +96,9 @@ export function LeadsPage() {
   );
 
   const loadLeads = useCallback(async () => {
-    setListLoading(true);
+    if (!hasLoadedListRef.current) {
+      setListLoading(true);
+    }
     setListError(null);
     try {
       const data = await fetchLeads({
@@ -101,13 +108,14 @@ export function LeadsPage() {
       });
       setItems(data.items);
       setTotal(data.total);
+      hasLoadedListRef.current = true;
     } catch {
       setListError('No se pudieron cargar los leads.');
     } finally {
       setListLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- appliedKey captures filters
-  }, [appliedKey, page]);
+  }, [appliedKey, page, refreshNonce]);
 
   const refreshExceptionsCount = useCallback(async () => {
     if (isTraductor) {
@@ -179,8 +187,30 @@ export function LeadsPage() {
     setView(next);
   }
 
+  function showSuccessToast(message: string) {
+    if (toastTimerRef.current) {
+      window.clearTimeout(toastTimerRef.current);
+    }
+    setToast(message);
+    toastTimerRef.current = window.setTimeout(() => {
+      setToast(null);
+      toastTimerRef.current = null;
+    }, 4000);
+  }
+
+  useEffect(
+    () => () => {
+      if (toastTimerRef.current) {
+        window.clearTimeout(toastTimerRef.current);
+      }
+    },
+    [],
+  );
+
   function handleLeadCreated(lead: Lead) {
-    void loadLeads();
+    showSuccessToast('Lead creado exitosamente');
+    setPage(1);
+    setRefreshNonce((current) => current + 1);
     void refreshExceptionsCount();
     if (formMode === 'ejecutivo' && lead.estado === 'SQL') {
       navigate('/qualification/assigned');
@@ -283,7 +313,7 @@ export function LeadsPage() {
           onChanged={() => void refreshExceptionsCount()}
         />
       ) : !isTraductor && view === 'kanban' ? (
-        <LeadsKanbanView filters={applied} />
+        <LeadsKanbanView filters={applied} refreshKey={refreshNonce} />
       ) : (
         <LeadsTableView
           leads={items}
@@ -304,6 +334,19 @@ export function LeadsPage() {
           responsableId={user.user_id}
           onCreated={handleLeadCreated}
           onClose={() => setShowCreate(false)}
+        />
+      ) : null}
+
+      {toast ? (
+        <FloatingToast
+          message={toast}
+          onDismiss={() => {
+            if (toastTimerRef.current) {
+              window.clearTimeout(toastTimerRef.current);
+              toastTimerRef.current = null;
+            }
+            setToast(null);
+          }}
         />
       ) : null}
     </AppLayout>

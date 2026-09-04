@@ -71,7 +71,13 @@ function friendlyTransitionError(error: unknown): string {
   return 'No se pudo mover el lead. Inténtalo de nuevo.';
 }
 
-export function LeadsKanbanView({ filters }: { filters: LeadFilterValues }) {
+export function LeadsKanbanView({
+  filters,
+  refreshKey = 0,
+}: {
+  filters: LeadFilterValues;
+  refreshKey?: number;
+}) {
   const [columns, setColumns] = useState<Record<KanbanEstado, ColumnState>>(
     buildInitialColumns,
   );
@@ -138,8 +144,8 @@ export function LeadsKanbanView({ filters }: { filters: LeadFilterValues }) {
 
   useEffect(() => {
     reloadAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- reload on filter change
-  }, [filtersKey]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reload on filter or parent refresh
+  }, [filtersKey, refreshKey]);
 
   const checklistProgress = useChecklistProgress([
     ...columns.TOFU.items,
