@@ -1,4 +1,4 @@
-import { useEffect, type MouseEvent, type ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 
 export function ModalShell({
   title,
@@ -22,17 +22,12 @@ export function ModalShell({
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  function handleBackdrop(event: MouseEvent<HTMLDivElement>) {
-    if (event.target === event.currentTarget) onClose();
-  }
-
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-ink/30 p-4"
       role="dialog"
       aria-modal="true"
       aria-label={title}
-      onClick={handleBackdrop}
     >
       <div
         className={[
