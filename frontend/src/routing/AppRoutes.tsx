@@ -226,7 +226,7 @@ export function AppRoutes() {
       path: '/qualification/assigned',
       element: (
         <ProtectedRoute>
-          <RoleRoute role="EjecutivoComercial">
+          <RoleRoute roles={['EjecutivoComercial', 'DirectorMercadeo']}>
             <AssignedSqlsPage />
           </RoleRoute>
         </ProtectedRoute>

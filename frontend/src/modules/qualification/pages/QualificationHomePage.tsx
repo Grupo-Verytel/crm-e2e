@@ -3,7 +3,9 @@ import { LoadingScreen } from '../../../components/LoadingScreen';
 import { useAuth } from '../../auth/hooks/useAuth';
 import { RoutingInboxPage } from './RoutingInboxPage';
 
-/** Entry for /qualification — Soporte sees inbox; Ejecutivo is sent to assigned. */
+const INBOX_ROLES = ['SoporteComercial', 'Admin', 'DirectorMercadeo'];
+
+/** Entry for /qualification — Soporte/Director see inbox; Ejecutivo is sent to assigned. */
 export function QualificationHomePage() {
   const { user, isLoading } = useAuth();
 
@@ -15,10 +17,7 @@ export function QualificationHomePage() {
     return <Navigate to="/qualification/assigned" replace />;
   }
 
-  if (
-    user?.role_name === 'SoporteComercial' ||
-    user?.role_name === 'Admin'
-  ) {
+  if (user?.role_name && INBOX_ROLES.includes(user.role_name)) {
     return <RoutingInboxPage />;
   }
 

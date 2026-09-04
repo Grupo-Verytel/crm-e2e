@@ -7,6 +7,7 @@ import {
   IN_APP_NOTIFICATION_EVENT,
   type InAppNotificationEventDetail,
 } from '../../../lib/notification-events';
+import { useAuth } from '../../auth/hooks/useAuth';
 import { fetchAssignedSqls, type SqlDetail } from '../api/sqls-api';
 import { QualificationNav } from '../components/QualificationNav';
 import { cardClass } from '../components/ui';
@@ -14,6 +15,8 @@ import { cardClass } from '../components/ui';
 const PAGE_SIZE = 20;
 
 export function AssignedSqlsPage() {
+  const { user } = useAuth();
+  const isDirector = user?.role_name === 'DirectorMercadeo';
   const [items, setItems] = useState<SqlDetail[]>([]);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
@@ -59,7 +62,9 @@ export function AssignedSqlsPage() {
   return (
     <AppLayout title="Calificación">
       <QualificationNav />
-      <h1 className="mb-4 text-lg font-bold text-ink">Mis SQL asignados</h1>
+      <h1 className="mb-4 text-lg font-bold text-ink">
+        {isDirector ? 'SQL asignados' : 'Mis SQL asignados'}
+      </h1>
 
       {error ? <p className="mb-3 text-sm text-red-600">{error}</p> : null}
 
@@ -67,7 +72,11 @@ export function AssignedSqlsPage() {
         {isLoading ? (
           <p className="p-6 text-sm text-muted">Cargando…</p>
         ) : items.length === 0 ? (
-          <p className="p-6 text-sm text-muted">No tienes SQL asignados.</p>
+          <p className="p-6 text-sm text-muted">
+            {isDirector
+              ? 'No hay SQL asignados.'
+              : 'No tienes SQL asignados.'}
+          </p>
         ) : (
           <table className="w-full text-left text-sm">
             <thead className="border-b border-border text-xs text-muted">

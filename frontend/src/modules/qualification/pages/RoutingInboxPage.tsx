@@ -7,6 +7,7 @@ import {
   IN_APP_NOTIFICATION_EVENT,
   type InAppNotificationEventDetail,
 } from '../../../lib/notification-events';
+import { useAuth } from '../../auth/hooks/useAuth';
 import { fetchSqlInbox } from '../api/sqls-api';
 import { AssignSqlModal } from '../components/AssignSqlModal';
 import { QualificationNav } from '../components/QualificationNav';
@@ -16,6 +17,9 @@ import type { SqlDetail } from '../api/sqls-api';
 const PAGE_SIZE = 20;
 
 export function RoutingInboxPage() {
+  const { user } = useAuth();
+  const canAssign =
+    user?.role_name === 'SoporteComercial' || user?.role_name === 'Admin';
   const [items, setItems] = useState<SqlDetail[]>([]);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
@@ -94,7 +98,9 @@ export function RoutingInboxPage() {
                 <th className="px-4 py-3 font-bold">Empresa</th>
                 <th className="px-4 py-3 font-bold">Contacto</th>
                 <th className="px-4 py-3 font-bold">Creado</th>
-                <th className="px-4 py-3 font-bold">Acción</th>
+                {canAssign ? (
+                  <th className="px-4 py-3 font-bold">Acción</th>
+                ) : null}
               </tr>
             </thead>
             <tbody>
@@ -114,15 +120,17 @@ export function RoutingInboxPage() {
                   <td className="px-4 py-3 text-muted">
                     {formatDateTime(sql.fecha_creacion)}
                   </td>
-                  <td className="px-4 py-3">
-                    <button
-                      type="button"
-                      className={primaryButtonClass}
-                      onClick={() => setSelected(sql)}
-                    >
-                      Asignar
-                    </button>
-                  </td>
+                  {canAssign ? (
+                    <td className="px-4 py-3">
+                      <button
+                        type="button"
+                        className={primaryButtonClass}
+                        onClick={() => setSelected(sql)}
+                      >
+                        Asignar
+                      </button>
+                    </td>
+                  ) : null}
                 </tr>
               ))}
             </tbody>

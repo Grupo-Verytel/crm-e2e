@@ -11,24 +11,27 @@ const linkClass = ({ isActive }: { isActive: boolean }) =>
 
 export function QualificationNav() {
   const { user } = useAuth();
-  const isSoporte =
-    user?.role_name === 'SoporteComercial' || user?.role_name === 'Admin';
+  const isInboxViewer =
+    user?.role_name === 'SoporteComercial' ||
+    user?.role_name === 'Admin' ||
+    user?.role_name === 'DirectorMercadeo';
   const isEjecutivo =
     user?.role_name === 'EjecutivoComercial' || user?.role_name === 'Admin';
+  const isDirector = user?.role_name === 'DirectorMercadeo';
 
   return (
     <nav
       className="mb-4 flex flex-wrap gap-1 border-b border-border"
       aria-label="Calificación"
     >
-      {isSoporte ? (
+      {isInboxViewer ? (
         <NavLink to="/qualification" end className={linkClass}>
           Enrutamiento
         </NavLink>
       ) : null}
-      {isEjecutivo ? (
+      {isEjecutivo || isDirector ? (
         <NavLink to="/qualification/assigned" className={linkClass}>
-          Mis SQL
+          {isDirector ? 'SQL asignados' : 'Mis SQL'}
         </NavLink>
       ) : null}
     </nav>

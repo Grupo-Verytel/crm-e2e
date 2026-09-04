@@ -12,15 +12,14 @@ export type NavItem = {
   path: string;
   icon: ComponentType<{ size?: number; strokeWidth?: number }>;
   group: 'commercial' | 'platform';
-  // CASL subjects that gate this module. Qualification uses Opportunity
-  // (Soporte/Ejecutivo) for SQL routing; Lead remains for marketing adjacency.
+  // CASL subjects that gate this module.
   subjects: string[];
 };
 
 export const NAV_ITEMS: NavItem[] = [
   // Commercial — the 8 phases
   { key: 'demand-generation',     label: 'Leads',                 path: '/demand',        icon: Megaphone,     group: 'commercial', subjects: ['Lead', 'Campaign'] },
-  { key: 'qualification',         label: 'Calificación',          path: '/qualification', icon: Filter,        group: 'commercial', subjects: ['Opportunity', 'Lead'] },
+  { key: 'qualification',         label: 'Calificación',          path: '/qualification', icon: Filter,        group: 'commercial', subjects: ['Opportunity'] },
   { key: 'discovery',             label: 'Oportunidades (OUV)',   path: '/opportunities', icon: Compass,       group: 'commercial', subjects: ['Opportunity'] },
   { key: 'technical-feasibility', label: 'Preventa (PRE)',        path: '/presales',      icon: Cpu,           group: 'commercial', subjects: ['Presale'] },
   { key: 'pricing',               label: 'Pricing (PRI)',         path: '/pricing',       icon: Calculator,    group: 'commercial', subjects: ['Pricing'] },

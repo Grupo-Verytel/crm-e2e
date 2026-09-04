@@ -13,4 +13,5 @@ export const QUALIFICATION_ERROR_CODES = {
 export const QUALIFICATION_ROLES = {
   SOPORTE_COMERCIAL: 'SoporteComercial',
   EJECUTIVO_COMERCIAL: 'EjecutivoComercial',
+  DIRECTOR_MERCADEO: 'DirectorMercadeo',
 } as const;

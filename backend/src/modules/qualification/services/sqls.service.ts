@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/sequelize';
-import { Op, Sequelize } from 'sequelize';
+import { Op, Sequelize, type WhereOptions } from 'sequelize';
 import { UsersService } from '../../auth/services/users.service';
 import { DemandGenerationService } from '../../demand-generation/services/demand-generation.service';
 import { Lead } from '../../demand-generation/models/lead.model';
@@ -48,12 +48,12 @@ export class SqlsService {
     private readonly ouvsService: OuvsService,
   ) {}
 
-  /** EARS-02 — Soporte bandeja de enrutamiento. */
+  /** EARS-02 — Soporte bandeja de enrutamiento. DirectorMercadeo: lectura. */
   async listInbox(
     query: SqlsQueryDto,
     viewerRoleName?: string,
   ): Promise<PaginatedSqlsResponseDto> {
-    this.assertSoporteOrAdmin(viewerRoleName);
+    this.assertCanAccessInbox(viewerRoleName);
 
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
@@ -85,20 +85,25 @@ export class SqlsService {
     return { items, total: count, page, limit };
   }
 
-  /** Assigned SQLs for the current Ejecutivo Comercial. */
+  /** Assigned SQLs for the current Ejecutivo, or all assigned for DirectorMercadeo. */
   async listAssigned(
     comercialUserId: string,
     query: SqlsQueryDto,
+    viewerRoleName?: string,
   ): Promise<PaginatedSqlsResponseDto> {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
     const offset = (page - 1) * limit;
 
+    const where: WhereOptions<Sql> = {
+      estado: { [Op.ne]: SqlEstado.PendienteAsignacion },
+      ...(this.canViewAllAssignedSqls(viewerRoleName)
+        ? {}
+        : { comercialAsignadoId: comercialUserId }),
+    };
+
     const { rows, count } = await this.sqlModel.findAndCountAll({
-      where: {
-        comercialAsignadoId: comercialUserId,
-        estado: { [Op.ne]: SqlEstado.PendienteAsignacion },
-      },
+      where,
       include: [{ model: Mql, required: true }],
       order: [['fechaAsignacion', 'DESC']],
       limit,
@@ -467,8 +472,26 @@ export class SqlsService {
     }
     throw new ForbiddenException({
       code: QUALIFICATION_ERROR_CODES.FORBIDDEN,
-      message: 'Only SoporteComercial can access the routing inbox / assign',
+      message: 'Only SoporteComercial can assign SQLs',
     });
+  }
+
+  private assertCanAccessInbox(roleName?: string): void {
+    if (
+      roleName === QUALIFICATION_ROLES.SOPORTE_COMERCIAL ||
+      roleName === QUALIFICATION_ROLES.DIRECTOR_MERCADEO ||
+      roleName === 'Admin'
+    ) {
+      return;
+    }
+    throw new ForbiddenException({
+      code: QUALIFICATION_ERROR_CODES.FORBIDDEN,
+      message: 'Not allowed to access the routing inbox',
+    });
+  }
+
+  private canViewAllAssignedSqls(roleName?: string): boolean {
+    return roleName === QUALIFICATION_ROLES.DIRECTOR_MERCADEO;
   }
 
   private assertCanViewSql(
@@ -477,6 +500,9 @@ export class SqlsService {
     viewerRoleName?: string,
   ): void {
     if (viewerRoleName === QUALIFICATION_ROLES.SOPORTE_COMERCIAL) {
+      return;
+    }
+    if (viewerRoleName === QUALIFICATION_ROLES.DIRECTOR_MERCADEO) {
       return;
     }
     if (viewerRoleName === 'Admin') {
