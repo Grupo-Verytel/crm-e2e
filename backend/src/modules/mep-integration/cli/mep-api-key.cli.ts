@@ -1,3 +1,4 @@
+import type {} from '../../../types/express';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from '../../../app.module';
 import { MEP_LEAN_DEFAULT_SCOPES, MepScope } from '../constants/scopes';
@@ -117,7 +118,31 @@ function parseArgs(argv: string[]): ParsedArgs {
   return { ...flags, _: positional };
 }
 
-main().catch((error: Error) => {
-  process.stderr.write(`${error.message}\n`);
+function formatCliError(error: unknown): string {
+  if (!(error instanceof Error)) {
+    return String(error);
+  }
+
+  const sequelizeError = error as Error & {
+    errors?: Array<{ path?: string; message?: string; value?: unknown }>;
+    parent?: { message?: string; sqlMessage?: string; code?: string };
+    original?: { message?: string; sqlMessage?: string; code?: string };
+  };
+
+  const lines = [error.message];
+  for (const item of sequelizeError.errors ?? []) {
+    lines.push(`  - ${item.path ?? '?'}: ${item.message ?? ''}`);
+  }
+
+  const sql = sequelizeError.parent ?? sequelizeError.original;
+  if (sql?.sqlMessage || sql?.message) {
+    lines.push(`  sql: ${sql.sqlMessage ?? sql.message}`);
+  }
+
+  return `${lines.join('\n')}\n`;
+}
+
+main().catch((error: unknown) => {
+  process.stderr.write(formatCliError(error));
   process.exitCode = 1;
 });

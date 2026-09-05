@@ -105,6 +105,8 @@ export type SolicitudPreventa = {
   clasificacion_entregada: string | null;
   narrativa: SolicitudNarrativa[];
   pista_tecnica: SolicitudAcuse[];
+  /** Último processing_status del acuse MEP. `null` si aún no hay receipt. */
+  polling_status: ProcessingStatus | null;
 };
 
 /**
