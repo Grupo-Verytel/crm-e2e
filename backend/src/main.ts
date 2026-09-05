@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
@@ -18,15 +19,20 @@ async function bootstrap() {
 
   app.useWebSocketAdapter(new IoAdapter(app));
 
-  app.useStaticAssets(join(__dirname, '..', 'public'));
-  app.useStaticAssets(join(__dirname, '..', '..', 'openapi'), {
-    prefix: '/openapi',
-    setHeaders: (res, filePath) => {
+  const yamlHeaders = {
+    setHeaders: (res: { setHeader: (name: string, value: string) => void }, filePath: string) => {
       if (filePath.endsWith('.yaml') || filePath.endsWith('.yml')) {
         res.setHeader('Content-Type', 'application/yaml; charset=utf-8');
       }
     },
-  });
+  };
+
+  app.useStaticAssets(join(__dirname, '..', 'public'), yamlHeaders);
+
+  const repoOpenApiDir = join(__dirname, '..', '..', 'openapi');
+  if (existsSync(join(repoOpenApiDir, 'crm-mep.yaml'))) {
+    app.useStaticAssets(repoOpenApiDir, { prefix: '/openapi', ...yamlHeaders });
+  }
 
 
   // §10.3 — el contrato CRM ↔ MEP-LEAN admite cuerpos de hasta 256 KB. Su
