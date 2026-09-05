@@ -1,3 +1,4 @@
+import { join } from 'node:path';
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { RequestMethod } from '@nestjs/common';
@@ -16,6 +17,17 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
 
   app.useWebSocketAdapter(new IoAdapter(app));
+
+  app.useStaticAssets(join(__dirname, '..', 'public'));
+  app.useStaticAssets(join(__dirname, '..', '..', 'openapi'), {
+    prefix: '/openapi',
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith('.yaml') || filePath.endsWith('.yml')) {
+        res.setHeader('Content-Type', 'application/yaml; charset=utf-8');
+      }
+    },
+  });
+
 
   // §10.3 — el contrato CRM ↔ MEP-LEAN admite cuerpos de hasta 256 KB. Su
   // parser se monta solo sobre `/v1` y antes que el de Nest, que a partir de
