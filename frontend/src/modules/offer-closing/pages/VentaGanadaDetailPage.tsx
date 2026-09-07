@@ -2,9 +2,14 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ExternalLink } from 'lucide-react';
 import { AppLayout } from '../../../layout/AppLayout';
+import { fetchOuv, type Ouv } from '../../discovery/api/ouvs-api';
+import { OuvReadonlyHeaderCard } from '../../discovery/components/OuvReadonlyHeaderCard';
+import { loadOuvExtensions } from '../../discovery/lib/ouv-detail-extensions';
+import type { OuvDetailExtensions } from '../../discovery/lib/ouv-detail-extensions';
 import { AlertaBanner } from '../../shared/project/AlertaBadge';
 import {
   getVentaGanada,
+  puedeEnviarAPmo,
   puedeEnviarKickoff,
   upsertVentaGanada,
 } from '../../shared/project/mock-store';
@@ -16,9 +21,9 @@ import {
   VALIDACION_ESTADO_LABEL,
   VALIDACION_TIPOS,
 } from '../../shared/project/types';
+import { deleteKickoff, fetchKickoff, saveKickoff } from '../api/kickoff-api';
 import { FormularioDatosProyecto } from '../components/FormularioDatosProyecto';
 import { KickoffCard } from '../components/KickoffCard';
-import { OfferClosingNav } from '../components/OfferClosingNav';
 import { ResumenEnvioPmoModal } from '../components/ResumenEnvioPmoModal';
 import { SharePointPreviewModal } from '../components/SharePointPreviewModal';
 import {
@@ -26,16 +31,57 @@ import {
   cardClass,
   inputClass,
   labelClass,
+  primaryButtonClass,
   selectClass,
 } from '../components/ui';
 
 type Tab = 'validaciones' | 'kickoff' | 'datos';
+
+function ouvFromVentaRecord(record: VentaGanadaRecord): Ouv {
+  const now = new Date().toISOString();
+  return {
+    ouv_id: record.ouvId,
+    consecutivo: record.consecutivo,
+    sql_id_origen: null,
+    origen_via: 'directa',
+    comercial_id: '',
+    account_id: null,
+    titulo: record.titulo,
+    empresa_nombre: record.empresaNombre,
+    descripcion: null,
+    segmento: 'Gobierno',
+    segment_id: null,
+    subsegment_id: null,
+    vertical: '—',
+    zona_actual: 'MAYOR_PROBABILIDAD',
+    resultado: 'Ganada',
+    tiene_gap: false,
+    criterios_faltantes: null,
+    presupuesto_confirmado: false,
+    presupuesto_monto: null,
+    presupuesto_moneda: null,
+    presupuesto_fecha_captura: null,
+    presupuesto_fuente: null,
+    motivo_id: null,
+    motivo_snapshot: null,
+    motivo_detalle: null,
+    competidor_ganador: null,
+    monto_final: null,
+    moneda_final: null,
+    monto_estimado_perdido: null,
+    fecha_cierre: null,
+    created_at: now,
+    updated_at: now,
+  };
+}
 
 /** Detalle de venta ganada — vista de página (mismo patrón que detalle OUV). */
 export function VentaGanadaDetailPage() {
   const { ouvId = '' } = useParams();
   const navigate = useNavigate();
   const [record, setRecord] = useState<VentaGanadaRecord | null>(null);
+  const [ouv, setOuv] = useState<Ouv | null>(null);
+  const [ouvExtensions, setOuvExtensions] = useState<OuvDetailExtensions>({});
   const [tab, setTab] = useState<Tab>('validaciones');
   const [showResumen, setShowResumen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -48,10 +94,38 @@ export function VentaGanadaDetailPage() {
     setRecord(getVentaGanada(ouvId));
   }, [ouvId]);
 
+  // El kickoff es la única parte del registro que ya vive en el backend: se
+  // carga aparte para que todos los usuarios vean el mismo estado.
+  useEffect(() => {
+    if (!ouvId) return;
+    let cancelled = false;
+    fetchKickoff(ouvId)
+      .then((kickoff) => {
+        if (cancelled || !kickoff) return;
+        setRecord((prev) => (prev ? { ...prev, kickoff } : prev));
+      })
+      .catch(() => {
+        if (!cancelled) setToast('No se pudo cargar el kickoff.');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [ouvId]);
+
+  useEffect(() => {
+    if (!record) {
+      setOuv(null);
+      return;
+    }
+    setOuvExtensions(loadOuvExtensions(record.ouvId));
+    void fetchOuv(record.ouvId)
+      .then(setOuv)
+      .catch(() => setOuv(ouvFromVentaRecord(record)));
+  }, [record]);
+
   if (!record) {
     return (
       <AppLayout title="Oferta & Cierre">
-        <OfferClosingNav />
         <p className="text-sm text-muted">Registro no encontrado.</p>
         <Link to="/offers" className="mt-3 inline-block text-sm text-accent hover:underline">
           ← Bandeja soporte comercial
@@ -62,6 +136,29 @@ export function VentaGanadaDetailPage() {
 
   function save(next: VentaGanadaRecord) {
     setRecord(upsertVentaGanada(next));
+  }
+
+  /**
+   * El kickoff se guarda en el backend, no en el mock-store: sin agenda es un
+   * borrado (que además cancela el evento en Microsoft 365).
+   */
+  async function saveKickoffRecord(next: VentaGanadaRecord['kickoff']) {
+    if (!record) return;
+    setRecord({ ...record, kickoff: next });
+    try {
+      if (!next.agenda && !next.agendamientoConfirmado) {
+        await deleteKickoff(record.ouvId);
+        return;
+      }
+      const saved = await saveKickoff(record.ouvId, next);
+      setRecord((prev) => (prev ? { ...prev, kickoff: saved } : prev));
+    } catch (error) {
+      setToast(
+        error instanceof Error
+          ? `No se pudo guardar el kickoff: ${error.message}`
+          : 'No se pudo guardar el kickoff.',
+      );
+    }
   }
 
   function setValidacion(
@@ -106,13 +203,32 @@ export function VentaGanadaDetailPage() {
     save(next);
   }
 
-  const tabBtn = (t: Tab, label: string) => (
+  // Kickoff y Datos proyecto sólo se abren con la viabilidad técnica y
+  // financiera aprobada: son los pasos que alimentan el envío a PMO, y
+  // llenarlos antes de la aprobación produce datos que habría que rehacer.
+  const validacionesPendientes = VALIDACION_TIPOS.filter(
+    (tipo) => record.validaciones[tipo].estado !== 'Aprobado',
+  );
+  const kickoffHabilitado = puedeEnviarKickoff(record);
+  const motivoBloqueo = kickoffHabilitado
+    ? null
+    : `Aprueba la viabilidad ${validacionesPendientes.join(' y ')} para habilitar esta sección.`;
+
+  // Si la viabilidad se revierte mientras el usuario está en una pestaña
+  // bloqueada, se la devuelve a Viabilidad en vez de dejarla editando algo
+  // que ya no debería tocar.
+  const tabActivo: Tab =
+    !kickoffHabilitado && tab !== 'validaciones' ? 'validaciones' : tab;
+
+  const tabBtn = (t: Tab, label: string, bloqueado = false) => (
     <button
       type="button"
-      className={`-mb-px border-b-2 px-4 py-2 text-sm ${
-        tab === t
+      disabled={bloqueado}
+      title={bloqueado ? (motivoBloqueo ?? undefined) : undefined}
+      className={`-mb-px border-b-2 px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-40 ${
+        tabActivo === t
           ? 'border-accent font-bold text-accent'
-          : 'border-transparent text-muted hover:text-accent'
+          : 'border-transparent text-muted enabled:hover:text-accent'
       }`}
       onClick={() => setTab(t)}
     >
@@ -120,9 +236,11 @@ export function VentaGanadaDetailPage() {
     </button>
   );
 
+  const headerOuv = ouv ?? ouvFromVentaRecord(record);
+  const pmo = puedeEnviarAPmo(record);
+
   return (
     <AppLayout title={record.consecutivo}>
-      <OfferClosingNav />
       <div className="mb-3">
         <Link to="/offers" className="text-sm text-accent hover:underline">
           ← Bandeja soporte comercial
@@ -135,123 +253,137 @@ export function VentaGanadaDetailPage() {
         </p>
       ) : null}
 
-      <header className={`${cardClass} mb-4 p-4`}>
-        <p className="text-xs text-muted">OUV ganada</p>
-        <h1 className="text-xl font-bold text-accent">{record.consecutivo}</h1>
-        <p className="text-sm text-ink">{record.titulo}</p>
-        <p className="mt-1 text-xs text-muted">
-          {record.empresaNombre} · {record.vendedorNombre}
-        </p>
-        {record.envioPmo.estado === 'Enviado' ? (
-          <div className={`${badgeClass} mt-3 bg-positive/15 text-positive`}>
-            Enviado · {record.envioPmo.serConsecutivo} · CP{' '}
-            {record.envioPmo.consecutivoControlProyectos}
-          </div>
-        ) : null}
-      </header>
+      <OuvReadonlyHeaderCard
+        ouv={headerOuv}
+        extensions={ouvExtensions}
+        footer={
+          record.envioPmo.estado === 'Enviado' ? (
+            <div className={`${badgeClass} bg-positive/15 text-positive`}>
+              Enviado · {record.envioPmo.serConsecutivo} · CP{' '}
+              {record.envioPmo.consecutivoControlProyectos}
+            </div>
+          ) : null
+        }
+      />
 
       <nav
         className="mb-4 flex flex-wrap gap-1 border-b border-border"
         aria-label="Detalle venta ganada"
       >
-        {tabBtn('validaciones', 'Validaciones')}
-        {tabBtn('kickoff', 'Kickoff')}
-        {tabBtn('datos', 'Datos proyecto')}
+        {tabBtn('validaciones', 'Viabilidad')}
+        {tabBtn('kickoff', 'Kickoff', !kickoffHabilitado)}
+        {tabBtn('datos', 'Datos proyecto', !kickoffHabilitado)}
       </nav>
 
       {record.alertas.map((a) => (
         <AlertaBanner key={a.id} alerta={a} />
       ))}
 
-      {tab === 'validaciones' ? (
+      {tabActivo === 'validaciones' ? (
         <div className="space-y-4">
-          {VALIDACION_TIPOS.map((tipo) => {
-            const v = record.validaciones[tipo];
-            return (
-              <div key={tipo} className={`${cardClass} p-4`}>
-                <div className="mb-2 flex items-center justify-between">
-                  <span className="text-sm font-bold text-ink">{tipo}</span>
-                  <span className="text-xs text-muted">
-                    {VALIDACION_ESTADO_LABEL[v.estado]}
-                  </span>
-                </div>
-                <select
-                  className={selectClass}
-                  value={v.estado}
-                  onChange={(e) =>
-                    setValidacion(
-                      tipo,
-                      e.target.value as typeof v.estado,
-                      v.observacion,
-                    )
-                  }
-                >
-                  <option value="Pendiente">Pendiente</option>
-                  <option value="Aprobado">Aprobado</option>
-                  <option value="Rechazado">Rechazado</option>
-                </select>
-                <label className={`${labelClass} mt-2`}>Observación</label>
-                <textarea
-                  className={`${inputClass} min-h-16 py-2`}
-                  value={v.observacion}
-                  onChange={(e) =>
-                    setValidacion(tipo, v.estado, e.target.value)
-                  }
-                />
+          <div className="grid gap-4 lg:grid-cols-2">
+            {VALIDACION_TIPOS.map((tipo) => {
+              const v = record.validaciones[tipo];
+              return (
+                <div key={tipo} className={`${cardClass} flex h-full flex-col p-4`}>
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="text-sm font-bold text-ink">{tipo}</span>
+                    <span className="text-xs text-muted">
+                      {VALIDACION_ESTADO_LABEL[v.estado]}
+                    </span>
+                  </div>
+                  <select
+                    className={selectClass}
+                    value={v.estado}
+                    onChange={(e) =>
+                      setValidacion(
+                        tipo,
+                        e.target.value as typeof v.estado,
+                        v.observacion,
+                      )
+                    }
+                  >
+                    <option value="Pendiente">Pendiente</option>
+                    <option value="Aprobado">Aprobado</option>
+                    <option value="Rechazado">Rechazado</option>
+                  </select>
+                  <label className={`${labelClass} mt-2`}>Observación</label>
+                  <textarea
+                    className={`${inputClass} min-h-16 flex-1 py-2`}
+                    value={v.observacion}
+                    onChange={(e) =>
+                      setValidacion(tipo, v.estado, e.target.value)
+                    }
+                  />
 
-                <div className="mt-3 rounded border border-border bg-bg p-3">
-                  <p className="mb-1 text-xs font-bold text-muted">
-                    Documento SharePoint
-                  </p>
-                  {v.sharepointUrl ? (
-                    <button
-                      type="button"
-                      className="inline-flex max-w-full items-center gap-2 text-left text-sm font-bold text-accent hover:underline"
-                      onClick={() =>
-                        setPreview({
-                          title: v.sharepointNombre ?? 'Documento',
-                          url: v.sharepointUrl!,
-                        })
-                      }
-                    >
-                      <ExternalLink size={15} aria-hidden />
-                      <span className="truncate">
-                        {v.sharepointNombre ?? v.sharepointUrl}
-                      </span>
-                    </button>
-                  ) : (
-                    <p className="text-xs text-muted">Sin documento vinculado.</p>
-                  )}
+                  <div className="mt-3 rounded border border-border bg-bg p-3">
+                    <p className="mb-1 text-xs font-bold text-muted">
+                      Documento SharePoint
+                    </p>
+                    {v.sharepointUrl ? (
+                      <button
+                        type="button"
+                        className="inline-flex max-w-full items-center gap-2 text-left text-sm font-bold text-accent hover:underline"
+                        onClick={() =>
+                          setPreview({
+                            title: v.sharepointNombre ?? 'Documento',
+                            url: v.sharepointUrl!,
+                          })
+                        }
+                      >
+                        <ExternalLink size={15} aria-hidden />
+                        <span className="truncate">
+                          {v.sharepointNombre ?? v.sharepointUrl}
+                        </span>
+                      </button>
+                    ) : (
+                      <p className="text-xs text-muted">Sin documento vinculado.</p>
+                    )}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
           {puedeEnviarKickoff(record) ? (
             <p className="text-sm text-positive">
-              Validaciones técnica y financiera aprobadas — kickoff habilitado.
+              Viabilidad técnica y financiera aprobada — kickoff habilitado.
             </p>
           ) : null}
         </div>
       ) : null}
 
-      {tab === 'kickoff' ? (
+      {tabActivo === 'kickoff' ? (
         <KickoffCard
-          record={record}
-          onChange={(kickoff) => save({ ...record, kickoff })}
-          onOpenResumen={() => setShowResumen(true)}
+          ouvId={record.ouvId}
+          accountId={headerOuv.account_id}
+          empresaNombre={headerOuv.empresa_nombre || record.empresaNombre}
+          kickoff={record.kickoff}
+          onChange={(kickoff) => void saveKickoffRecord(kickoff)}
         />
       ) : null}
 
-      {tab === 'datos' ? (
-        <FormularioDatosProyecto
-          datos={record.datosBase}
-          modo="crear"
-          onChange={(datosBase) => save({ ...record, datosBase })}
-          onNotifyDirector={(nombre) => {
-            setToast(`Notificación enviada a ${nombre} (mock)`);
-            window.setTimeout(() => setToast(null), 3000);
-          }}
-        />
+      {tabActivo === 'datos' ? (
+        <>
+          <FormularioDatosProyecto
+            datos={record.datosBase}
+            modo="crear"
+            onChange={(datosBase) => save({ ...record, datosBase })}
+          />
+          <section className={`${cardClass} mt-4 p-4`}>
+            <button
+              type="button"
+              className={primaryButtonClass}
+              disabled={!pmo.ok}
+              title={pmo.reason ?? 'Crear proyecto en Control de Proyectos'}
+              onClick={() => setShowResumen(true)}
+            >
+              Crear Proyecto
+            </button>
+            {!pmo.ok && pmo.reason ? (
+              <p className="mt-2 text-xs text-muted">{pmo.reason}</p>
+            ) : null}
+          </section>
+        </>
       ) : null}
 
       <ResumenEnvioPmoModal

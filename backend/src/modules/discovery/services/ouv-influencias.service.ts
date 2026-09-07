@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -9,7 +8,6 @@ import type { Transaction } from 'sequelize';
 import { EntityType } from '../../workflow-engine/enums/entity-type.enum';
 import { WorkflowEngineService } from '../../workflow-engine/workflow-engine.service';
 import type { ActualizarInfluenciaDto } from '../dtos/actualizar-influencia.dto';
-import { canMutateOuvEnCurso } from '../lib/ouv-access';
 import {
   InfluenciaEstado,
   InfluenciaTipo,
@@ -19,6 +17,7 @@ import { OuvContacto } from '../models/ouv-contacto.model';
 import { OuvInfluencia } from '../models/ouv-influencia.model';
 import { Ouv } from '../models/ouv.model';
 import { CriteriosZonaEvaluator } from './criterios-zona.evaluator';
+import { assertCanMutateOuvEnCurso } from '../lib/ouv-access';
 
 @Injectable()
 export class OuvInfluenciasService {
@@ -71,7 +70,7 @@ export class OuvInfluenciasService {
     tipo: InfluenciaTipo,
     dto: ActualizarInfluenciaDto,
     actorUserId: string,
-    roleName: string,
+    actorRoleName: string,
   ): Promise<OuvInfluencia> {
     return this.ouvModel.sequelize!.transaction(async (transaction) => {
       const ouv = await this.ouvModel.findByPk(ouvId, {
@@ -81,11 +80,7 @@ export class OuvInfluenciasService {
       if (!ouv) {
         throw new NotFoundException(`OUV ${ouvId} not found`);
       }
-      if (!canMutateOuvEnCurso(ouv.comercialId, actorUserId, roleName)) {
-        throw new ForbiddenException(
-          'Only the owning Ejecutivo Comercial or Admin can update influencias',
-        );
-      }
+      assertCanMutateOuvEnCurso(ouv.comercialId, actorUserId);
       if (ouv.resultado !== OuvResultado.EnCurso) {
         throw new BadRequestException(
           `Cannot update influencias on a closed OUV (resultado=${ouv.resultado})`,

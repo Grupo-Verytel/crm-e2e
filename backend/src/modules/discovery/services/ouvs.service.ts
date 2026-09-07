@@ -23,18 +23,14 @@ import type { CrearOuvDirectaDto } from '../dtos/crear-ouv-directa.dto';
 import type { CrearOuvDto } from '../dtos/crear-ouv.dto';
 import type { ListarOuvsQueryDto } from '../dtos/listar-ouvs-query.dto';
 import type { OuvResponseDto } from '../dtos/ouv-response.dto';
-import { canMutateOuvEnCurso } from '../lib/ouv-access';
+import { assertCanMutateOuvEnCurso } from '../lib/ouv-access';
 import {
   computeOuvZonaDays,
   parseZonaValue,
   type OuvDiasPorZona,
 } from '../lib/ouv-zona-days';
 import { nextZona, prevZona } from '../lib/ouv-zona-order';
-import {
-  OuvOrigenVia,
-  OuvResultado,
-  OuvZona,
-} from '../models/enums/ouv.enums';
+import { OuvOrigenVia, OuvResultado, OuvZona } from '../models/enums/ouv.enums';
 import { MotivoDescarte } from '../models/motivo-descarte.model';
 import { MotivoPerdida } from '../models/motivo-perdida.model';
 import { Ouv } from '../models/ouv.model';
@@ -168,7 +164,7 @@ export class OuvsService {
     return this.sequelize.transaction(async (transaction) => {
       const consecutivo = await this.nextOuvConsecutivo(transaction);
 
-      let accountId: string | null = dto.account_id?.trim() || null;
+      const accountId: string | null = dto.account_id?.trim() || null;
       let empresaNombre = dto.empresa_nombre.trim();
       if (accountId) {
         const account = await this.accountsService.getAccount(accountId);
@@ -235,13 +231,13 @@ export class OuvsService {
   async avanzarZona(
     ouvId: string,
     actorUserId: string,
-    roleName: string,
+    actorRoleName: string,
   ): Promise<Ouv> {
     return this.sequelize.transaction(async (transaction) => {
       const ouv = await this.lockOwnedEnCurso(
         ouvId,
         actorUserId,
-        roleName,
+        actorRoleName,
         transaction,
       );
       const destino = nextZona(ouv.zonaActual);
@@ -296,7 +292,7 @@ export class OuvsService {
     ouvId: string,
     motivo: string,
     actorUserId: string,
-    roleName: string,
+    actorRoleName: string,
   ): Promise<Ouv> {
     const motivoTrim = motivo?.trim();
     if (!motivoTrim) {
@@ -307,7 +303,7 @@ export class OuvsService {
       const ouv = await this.lockOwnedEnCurso(
         ouvId,
         actorUserId,
-        roleName,
+        actorRoleName,
         transaction,
       );
       const destino = prevZona(ouv.zonaActual);
@@ -349,13 +345,13 @@ export class OuvsService {
     ouvId: string,
     dto: GanarOuvDto,
     actorUserId: string,
-    roleName: string,
+    actorRoleName: string,
   ): Promise<Ouv> {
     return this.sequelize.transaction(async (transaction) => {
       const ouv = await this.lockOwnedEnCurso(
         ouvId,
         actorUserId,
-        roleName,
+        actorRoleName,
         transaction,
       );
 
@@ -442,13 +438,13 @@ export class OuvsService {
     ouvId: string,
     dto: PerderOuvDto,
     actorUserId: string,
-    roleName: string,
+    actorRoleName: string,
   ): Promise<Ouv> {
     return this.sequelize.transaction(async (transaction) => {
       const ouv = await this.lockOwnedEnCurso(
         ouvId,
         actorUserId,
-        roleName,
+        actorRoleName,
         transaction,
       );
 
@@ -512,13 +508,13 @@ export class OuvsService {
     ouvId: string,
     dto: DescartarOuvDto,
     actorUserId: string,
-    roleName: string,
+    actorRoleName: string,
   ): Promise<Ouv> {
     return this.sequelize.transaction(async (transaction) => {
       const ouv = await this.lockOwnedEnCurso(
         ouvId,
         actorUserId,
-        roleName,
+        actorRoleName,
         transaction,
       );
 
@@ -584,13 +580,13 @@ export class OuvsService {
     ouvId: string,
     dto: ActualizarOuvDto,
     actorUserId: string,
-    roleName: string,
+    actorRoleName: string,
   ): Promise<Ouv> {
     return this.sequelize.transaction(async (transaction) => {
       const ouv = await this.lockOwnedEnCurso(
         ouvId,
         actorUserId,
-        roleName,
+        actorRoleName,
         transaction,
       );
 
@@ -660,7 +656,7 @@ export class OuvsService {
 
       // Reasignar comercial dueño: solo Admin.
       if (dto.comercial_id !== undefined) {
-        if (roleName !== 'Admin') {
+        if (actorRoleName !== 'Admin') {
           throw new ForbiddenException(
             'Only Admin can reassign the OUV commercial owner',
           );
@@ -690,13 +686,13 @@ export class OuvsService {
     ouvId: string,
     dto: ActualizarPresupuestoDto,
     actorUserId: string,
-    roleName: string,
+    actorRoleName: string,
   ): Promise<Ouv> {
     return this.sequelize.transaction(async (transaction) => {
       const ouv = await this.lockOwnedEnCurso(
         ouvId,
         actorUserId,
-        roleName,
+        actorRoleName,
         transaction,
       );
 
@@ -803,8 +799,7 @@ export class OuvsService {
     if (!ouv) {
       throw new NotFoundException(`OUV ${ouvId} not found`);
     }
-    const canReadAll =
-      roleName === 'SoporteComercial' || roleName === 'Admin';
+    const canReadAll = roleName === 'SoporteComercial' || roleName === 'Admin';
     if (!canReadAll && ouv.comercialId !== actorUserId) {
       throw new ForbiddenException('Not allowed to view this OUV');
     }
@@ -880,7 +875,7 @@ export class OuvsService {
   private async lockOwnedEnCurso(
     ouvId: string,
     actorUserId: string,
-    roleName: string,
+    actorRoleName: string,
     transaction: Transaction,
   ): Promise<Ouv> {
     const ouv = await this.ouvModel.findByPk(ouvId, {
@@ -890,11 +885,7 @@ export class OuvsService {
     if (!ouv) {
       throw new NotFoundException(`OUV ${ouvId} not found`);
     }
-    if (!canMutateOuvEnCurso(ouv.comercialId, actorUserId, roleName)) {
-      throw new ForbiddenException(
-        'Only the owning Ejecutivo Comercial or Admin can perform this action',
-      );
-    }
+    assertCanMutateOuvEnCurso(ouv.comercialId, actorUserId);
     if (ouv.resultado !== OuvResultado.EnCurso) {
       throw new BadRequestException(
         `OUV is already closed (resultado=${ouv.resultado})`,
@@ -914,10 +905,7 @@ export class OuvsService {
       );
     }
 
-    if (
-      destino === OuvZona.EnFunnel ||
-      destino === OuvZona.MayorProbabilidad
-    ) {
+    if (destino === OuvZona.EnFunnel || destino === OuvZona.MayorProbabilidad) {
       const verdes = await this.influenciasService.countVerde(
         ouv.ouvId,
         transaction,

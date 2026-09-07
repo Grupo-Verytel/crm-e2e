@@ -142,7 +142,12 @@ export class OuvsController {
     @Body() dto: GanarOuvDto,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<OuvResponseDto> {
-    const ouv = await this.ouvsService.ganar(id, dto, user.userId, user.roleName);
+    const ouv = await this.ouvsService.ganar(
+      id,
+      dto,
+      user.userId,
+      user.roleName,
+    );
     return this.ouvsService.toDetailResponse(ouv);
   }
 
@@ -256,7 +261,6 @@ export class OuvsController {
       itemId,
       dto.marcado,
       user.userId,
-      user.roleName,
     );
     return {
       item_id: r.itemId,
@@ -269,6 +273,22 @@ export class OuvsController {
       marcado_por: r.marcadoPor,
       created_at: r.createdAt,
     };
+  }
+
+  @Patch(':id')
+  @CheckAbility({ action: 'update', subject: 'Opportunity' })
+  async actualizarMetadatos(
+    @Param('id') id: string,
+    @Body() dto: ActualizarOuvDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<OuvResponseDto> {
+    const ouv = await this.ouvsService.actualizarMetadatos(
+      id,
+      dto,
+      user.userId,
+      user.roleName,
+    );
+    return this.ouvsService.toResponse(ouv);
   }
 
   @Patch(':id/presupuesto')

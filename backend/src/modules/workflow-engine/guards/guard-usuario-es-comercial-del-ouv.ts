@@ -1,12 +1,13 @@
 import type { GuardResult, WorkflowGuard } from '../types/workflow.types';
 
 /**
- * Actor must be the Ejecutivo Comercial that owns the OUV.
+ * Actor must be the Ejecutivo Comercial that owns the OUV,
+ * or an Admin (support / local ops).
  * Expects `payload.comercial_id` (ouvs.comercial_id).
  */
-export const guardUsuarioEsComercialDelOUV: WorkflowGuard = (
+export const guardUsuarioEsComercialDelOUV: WorkflowGuard = async (
   ctx,
-): GuardResult => {
+): Promise<GuardResult> => {
   const comercialId = ctx.payload.comercial_id;
   if (typeof comercialId !== 'string' || !comercialId) {
     return {
@@ -16,13 +17,23 @@ export const guardUsuarioEsComercialDelOUV: WorkflowGuard = (
     };
   }
 
-  if (ctx.actorUserId !== comercialId) {
-    return {
-      ok: false,
-      guard: 'guardUsuarioEsComercialDelOUV',
-      detalle: 'Solo el comercial dueño de la OUV puede realizar esta acción',
-    };
+  if (ctx.actorUserId === comercialId) {
+    return { ok: true };
   }
 
-  return { ok: true };
+  if (ctx.usersService) {
+    const isAdmin = await ctx.usersService.isActiveWithRole(
+      ctx.actorUserId,
+      'Admin',
+    );
+    if (isAdmin) {
+      return { ok: true };
+    }
+  }
+
+  return {
+    ok: false,
+    guard: 'guardUsuarioEsComercialDelOUV',
+    detalle: 'Solo el comercial dueño de la OUV puede realizar esta acción',
+  };
 };

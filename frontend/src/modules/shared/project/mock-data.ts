@@ -55,7 +55,17 @@ const kickoffBase: KickoffRecord = {
     { id: 'pmo', label: 'PMO confirma recepción', completada: false },
   ],
   validadoTeams: false,
+  agendamientoConfirmado: false,
+  agenda: null,
 };
+
+/** Fresh kickoff (no agenda) for reset / new scheduling. */
+export function createEmptyKickoff(): KickoffRecord {
+  return {
+    ...kickoffBase,
+    aprobaciones: kickoffBase.aprobaciones.map((a) => ({ ...a })),
+  };
+}
 
 function spUrl(path: string): string {
   return `https://verytel.sharepoint.com/sites/preventa/Shared%20Documents/${path}`;
@@ -200,6 +210,31 @@ export const DEMO_VENTAS_GANADAS: VentaGanadaRecord[] = [
         { id: 'pmo', label: 'PMO confirma recepción', completada: true },
       ],
       validadoTeams: true,
+      agendamientoConfirmado: true,
+      agenda: {
+        nombreReunion: 'Kickoff CMI MinDefensa',
+        invitados: [
+          {
+            id: 'int-laura',
+            email: 'laura.vargas@verytel.com',
+            nombre: 'Laura Vargas',
+            tipo: 'Interno',
+          },
+          {
+            id: 'int-diego',
+            email: 'diego.herrera@verytel.com',
+            nombre: 'Diego Herrera',
+            tipo: 'Interno',
+          },
+        ],
+        inicio: ISO('2026-08-22T14:30:00'),
+        fin: ISO('2026-08-22T15:30:00'),
+        ubicaciones: ['Teams'],
+        salaVerytel: null,
+        ubicacionDetalle: 'Reunión de Microsoft Teams',
+        observacionesInvitados: 'Kickoff de entrega del proyecto CMI.',
+        confirmadaEn: ISO('2026-08-20'),
+      },
     },
     envioPmo: {
       estado: 'NoEnviado',
@@ -278,6 +313,25 @@ export const DEMO_VENTAS_GANADAS: VentaGanadaRecord[] = [
         { id: 'pmo', label: 'PMO confirma recepción', completada: true },
       ],
       validadoTeams: true,
+      agendamientoConfirmado: true,
+      agenda: {
+        nombreReunion: 'Kickoff Smart Cities MDE',
+        invitados: [
+          {
+            id: 'int-maria',
+            email: 'maria.soto@verytel.com',
+            nombre: 'María Soto',
+            tipo: 'Interno',
+          },
+        ],
+        inicio: ISO('2026-08-01T10:00:00'),
+        fin: ISO('2026-08-01T11:00:00'),
+        ubicaciones: ['Presencial'],
+        salaVerytel: 'Sala Marte',
+        ubicacionDetalle: 'Oficinas Verytel — Sala Marte',
+        observacionesInvitados: '',
+        confirmadaEn: ISO('2026-07-28'),
+      },
     },
     envioPmo: {
       estado: 'Enviado',

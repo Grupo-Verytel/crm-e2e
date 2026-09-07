@@ -83,13 +83,13 @@ describe('guard2InfluenciasEnVerde', () => {
 });
 
 describe('guardUsuarioEsComercialDelOUV', () => {
-  it('rejects when comercial_id missing', () => {
-    const result = guardUsuarioEsComercialDelOUV(baseCtx());
+  it('rejects when comercial_id missing', async () => {
+    const result = await guardUsuarioEsComercialDelOUV(baseCtx());
     expect(result.ok).toBe(false);
   });
 
-  it('rejects when actor is not owner', () => {
-    const result = guardUsuarioEsComercialDelOUV(
+  it('rejects when actor is not owner', async () => {
+    const result = await guardUsuarioEsComercialDelOUV(
       baseCtx({
         actorUserId: 'user-1',
         payload: { comercial_id: 'user-2' },
@@ -98,11 +98,25 @@ describe('guardUsuarioEsComercialDelOUV', () => {
     expect(result.ok).toBe(false);
   });
 
-  it('allows owner', () => {
-    const result = guardUsuarioEsComercialDelOUV(
+  it('allows owner', async () => {
+    const result = await guardUsuarioEsComercialDelOUV(
       baseCtx({
         actorUserId: 'user-1',
         payload: { comercial_id: 'user-1' },
+      }),
+    );
+    expect(result.ok).toBe(true);
+  });
+
+  it('allows Admin when not owner', async () => {
+    const result = await guardUsuarioEsComercialDelOUV(
+      baseCtx({
+        actorUserId: 'admin-1',
+        payload: { comercial_id: 'user-2' },
+        usersService: {
+          isActiveWithRole: async (userId: string, role: string) =>
+            userId === 'admin-1' && role === 'Admin',
+        } as WorkflowGuardContext['usersService'],
       }),
     );
     expect(result.ok).toBe(true);

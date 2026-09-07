@@ -21,6 +21,7 @@ const SUBJECTS = {
   presales: ['Presale'],
   pricing: ['Pricing'],
   'proposals/contracts': ['Proposal', 'Contract'],
+  kickoffs: ['Kickoff'],
   services: ['Service'],
   billing: ['Billing'],
   'post-sales': ['PostSale'],
@@ -33,7 +34,8 @@ const MATRIX = {
     'users/roles': 'CRUA',
     // Full demand-gen so Admin can operate without switching roles in local/dev.
     'leads/campaigns': 'CRUA',
-    opportunities: 'R',
+    // Full opportunity ops so Admin can test OUV detalle (influencias, etc.).
+    opportunities: 'CRUX',
     accounts: 'CRU',
     'ouv-catalogs': 'CRUD',
     presales: 'R',
@@ -42,11 +44,13 @@ const MATRIX = {
     services: 'CR',
     billing: 'R',
     'post-sales': 'R',
+    kickoffs: 'CRUD',
     'audit-log': 'R',
   },
   DirectorMercadeo: {
     'leads/campaigns': 'CRUA',
     opportunities: 'R',
+    kickoffs: 'R',
     accounts: 'CRU',
   },
   GestorMercadeo: {
@@ -62,6 +66,7 @@ const MATRIX = {
     pricing: 'R',
     'proposals/contracts': 'CRU',
     services: 'CR',
+    kickoffs: 'CRU',
     'post-sales': 'R',
   },
   ProductManager: {
@@ -82,6 +87,7 @@ const MATRIX = {
     'proposals/contracts': 'CRUA',
     services: 'R',
     billing: 'R',
+    kickoffs: 'CRUD',
     'post-sales': 'CRU',
   },
   Preventa: {
@@ -89,6 +95,7 @@ const MATRIX = {
     accounts: 'CRU',
     presales: 'CRUA',
     pricing: 'R',
+    kickoffs: 'R',
     'proposals/contracts': 'R',
   },
   Pricing: {
@@ -96,11 +103,13 @@ const MATRIX = {
     accounts: 'CRU',
     presales: 'R',
     pricing: 'CRUA',
+    kickoffs: 'R',
     'proposals/contracts': 'R',
   },
   PMO: {
     accounts: 'CRU',
     services: 'CRUAX',
+    kickoffs: 'R',
     billing: 'R',
     'post-sales': 'R',
   },

@@ -1,3 +1,4 @@
+import { DatePickerField } from '../../../components/DatePickerField';
 import type {
   DatosBaseProyecto,
   EmpresaEjecutora,
@@ -46,17 +47,10 @@ function repartirEquitativo(miembros: MiembroEjecutor[]): MiembroEjecutor[] {
   }));
 }
 
-const DIRECTORES = [
-  { id: 'dp-001', nombre: 'Diego Herrera' },
-  { id: 'dp-002', nombre: 'María Soto' },
-  { id: 'dp-003', nombre: 'Andrés Pérez' },
-];
-
 type Props = {
   datos: DatosBaseProyecto;
   modo: 'crear' | 'ampliar';
   onChange: (datos: DatosBaseProyecto) => void;
-  onNotifyDirector?: (nombre: string) => void;
 };
 
 /** C6 — HU-F04 form, reused by HU-F06 "Ampliar proyecto". */
@@ -64,7 +58,6 @@ export function FormularioDatosProyecto({
   datos,
   modo,
   onChange,
-  onNotifyDirector,
 }: Props) {
   const pctSum = datos.unionesTemporales.reduce((s, u) => s + u.participacionPct, 0);
   const pctOk = pctSum === 100;
@@ -158,22 +151,20 @@ export function FormularioDatosProyecto({
           </div>
           <div>
             <label className={labelClass} htmlFor="fecha-inicio">Fecha inicio *</label>
-            <input
+            <DatePickerField
               id="fecha-inicio"
-              type="date"
-              className={inputClass}
               value={datos.fechaInicio}
-              onChange={(e) => patch({ fechaInicio: e.target.value })}
+              onChange={(next) => patch({ fechaInicio: next })}
+              aria-label="Fecha inicio"
             />
           </div>
           <div>
             <label className={labelClass} htmlFor="fecha-fin">Fecha fin *</label>
-            <input
+            <DatePickerField
               id="fecha-fin"
-              type="date"
-              className={inputClass}
               value={datos.fechaFin}
-              onChange={(e) => patch({ fechaFin: e.target.value })}
+              onChange={(next) => patch({ fechaFin: next })}
+              aria-label="Fecha fin"
             />
           </div>
           <div>
@@ -313,27 +304,6 @@ export function FormularioDatosProyecto({
         ) : null}
       </section>
 
-      <section className={cardClass}>
-        <h3 className="mb-3 text-sm font-bold text-ink">Director de proyecto</h3>
-        <select
-          className={selectClass}
-          value={datos.directorProyectoId ?? ''}
-          onChange={(e) => {
-            const d = DIRECTORES.find((x) => x.id === e.target.value);
-            patch({
-              directorProyectoId: d?.id ?? null,
-              directorProyectoNombre: d?.nombre ?? null,
-            });
-            if (d) onNotifyDirector?.(d.nombre);
-          }}
-        >
-          <option value="">Seleccionar…</option>
-          {DIRECTORES.map((d) => (
-            <option key={d.id} value={d.id}>{d.nombre}</option>
-          ))}
-        </select>
-      </section>
-
       <section className={`${cardClass} opacity-60`}>
         <h3 className="text-sm font-bold text-muted">Indicadores financieros</h3>
         <p className="mt-1 text-xs text-muted">Pendiente de definición con Preventa / Finanzas / PMO</p>
@@ -342,4 +312,3 @@ export function FormularioDatosProyecto({
   );
 }
 
-export { DIRECTORES };

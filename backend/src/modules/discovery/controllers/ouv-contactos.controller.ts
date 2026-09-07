@@ -25,9 +25,7 @@ export class OuvContactosController {
 
   @Get()
   @CheckAbility({ action: 'read', subject: 'Opportunity' })
-  async list(
-    @Param('ouvId') ouvId: string,
-  ): Promise<OuvContactoResponseDto[]> {
+  async list(@Param('ouvId') ouvId: string): Promise<OuvContactoResponseDto[]> {
     return this.contactosService.listByOuv(ouvId);
   }
 
@@ -39,12 +37,7 @@ export class OuvContactosController {
     @Body() dto: CrearOuvContactoDto,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<OuvContactoResponseDto> {
-    return this.contactosService.crear(
-      ouvId,
-      dto,
-      user.userId,
-      user.roleName,
-    );
+    return this.contactosService.crear(ouvId, dto, user.userId, user.roleName);
   }
 
   @Patch(':contactoOuvId')

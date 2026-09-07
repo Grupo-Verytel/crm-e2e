@@ -9,6 +9,12 @@ import type { Account, Person } from '../../accounts/types';
 import { ApiError } from '../../auth/types';
 import type { ContactoPayload, OuvContacto } from '../api/ouvs-api';
 import {
+  PERSON_INFLUENCIA_TIPOS,
+  loadPersonInfluenciaTipo,
+  savePersonInfluenciaTipo,
+  type PersonInfluenciaTipo,
+} from '../../accounts/lib/person-influencia-extensions';
+import {
   ghostButtonClass,
   inputClass,
   labelClass,
@@ -19,13 +25,19 @@ type Props = {
   initial?: OuvContacto | null;
   /** When set (e.g. OUV already has account), lock new contacts to that account. */
   lockAccountId?: string | null;
+  /** Influence type when adding from an influencia card. */
+  influenciaTipo?: string | null;
   onClose: () => void;
-  onSave: (payload: ContactoPayload) => Promise<void>;
+  onSave: (
+    payload: ContactoPayload,
+    meta?: { influenciaTipo?: PersonInfluenciaTipo | null },
+  ) => Promise<void>;
 };
 
 export function ContactoFormModal({
   initial,
   lockAccountId,
+  influenciaTipo,
   onClose,
   onSave,
 }: Props) {
@@ -47,13 +59,23 @@ export function ContactoFormModal({
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [searching, setSearching] = useState(false);
+  const [influenciaTipoDraft, setInfluenciaTipoDraft] = useState<
+    PersonInfluenciaTipo | ''
+  >((influenciaTipo as PersonInfluenciaTipo | undefined) ?? '');
 
   useEffect(() => {
     setNotas(initial?.notas ?? '');
     setSelectedPerson(null);
     setPersonHits([]);
     setPersonQuery('');
-  }, [initial]);
+    const fromContext =
+      (influenciaTipo as PersonInfluenciaTipo | undefined) ?? '';
+    const fromPerson =
+      initial?.person_id != null
+        ? loadPersonInfluenciaTipo(initial.person_id)
+        : null;
+    setInfluenciaTipoDraft(fromContext || fromPerson || '');
+  }, [initial, influenciaTipo]);
 
   async function searchPeople() {
     const q = personQuery.trim();
@@ -99,7 +121,16 @@ export function ContactoFormModal({
     setError(null);
     try {
       if (isEdit) {
-        await onSave({ notas: notas.trim() || null });
+        if (initial?.person_id) {
+          savePersonInfluenciaTipo(
+            initial.person_id,
+            influenciaTipoDraft || null,
+          );
+        }
+        await onSave(
+          { notas: notas.trim() || null },
+          { influenciaTipo: influenciaTipoDraft || null },
+        );
         onClose();
         return;
       }
@@ -132,10 +163,16 @@ export function ContactoFormModal({
         personId = person.person_id;
       }
 
-      await onSave({
-        person_id: personId,
-        notas: notas.trim() || undefined,
-      });
+      await onSave(
+        {
+          person_id: personId,
+          notas: notas.trim() || undefined,
+        },
+        { influenciaTipo: influenciaTipoDraft || null },
+      );
+      if (personId && influenciaTipoDraft) {
+        savePersonInfluenciaTipo(personId, influenciaTipoDraft);
+      }
       onClose();
     } catch (err) {
       setError(
@@ -157,6 +194,28 @@ export function ContactoFormModal({
           {isEdit ? 'Editar notas del contacto' : 'Agregar contacto'}
         </h2>
         <form className="space-y-3" onSubmit={onSubmit}>
+          <div>
+            <label className={labelClass} htmlFor="c-influencia-tipo">
+              Tipo de influencia
+            </label>
+            <select
+              id="c-influencia-tipo"
+              className={inputClass}
+              value={influenciaTipoDraft}
+              onChange={(e) =>
+                setInfluenciaTipoDraft(
+                  e.target.value as PersonInfluenciaTipo | '',
+                )
+              }
+            >
+              <option value="">Sin definir</option>
+              {PERSON_INFLUENCIA_TIPOS.map((tipo) => (
+                <option key={tipo} value={tipo}>
+                  {tipo}
+                </option>
+              ))}
+            </select>
+          </div>
           {isEdit ? (
             <div className="rounded bg-bg p-3 text-sm text-ink">
               <p className="font-bold">{initial?.name}</p>
@@ -206,6 +265,10 @@ export function ContactoFormModal({
                           onClick={() => {
                             setSelectedPerson(person);
                             setNewPersonName('');
+                            const stored = loadPersonInfluenciaTipo(
+                              person.person_id,
+                            );
+                            if (stored) setInfluenciaTipoDraft(stored);
                           }}
                         >
                           <span className="font-bold text-ink">

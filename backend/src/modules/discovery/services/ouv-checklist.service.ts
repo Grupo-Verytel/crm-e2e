@@ -86,7 +86,6 @@ export class OuvChecklistService {
     itemId: string,
     marcado: boolean,
     actorUserId: string,
-    roleName: string,
   ): Promise<OuvChecklistItem> {
     return this.ouvModel.sequelize!.transaction(async (transaction) => {
       const item = await this.itemModel.findByPk(itemId, {
@@ -104,7 +103,7 @@ export class OuvChecklistService {
       if (!ouv) {
         throw new NotFoundException(`OUV ${item.ouvId} not found`);
       }
-      if (!canMutateOuvEnCurso(ouv.comercialId, actorUserId, roleName)) {
+      if (!canMutateOuvEnCurso(ouv.comercialId, actorUserId)) {
         throw new ForbiddenException(
           'Only the owning Ejecutivo Comercial or Admin can update checklist',
         );

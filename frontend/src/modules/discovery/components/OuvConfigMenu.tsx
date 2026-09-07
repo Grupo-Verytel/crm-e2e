@@ -2,13 +2,17 @@ import { useEffect, useRef, useState } from 'react';
 import {
   ArrowLeft,
   ArrowRight,
+  Pencil,
   Settings,
   Users,
   XCircle,
 } from 'lucide-react';
 
 type Props = {
-  onContactos: () => void;
+  editingOuv?: boolean;
+  onEditar?: () => void;
+  /** Opcional: Fase 2 no expone contactos desde la cabecera. */
+  onContactos?: () => void;
   onAvanzar: () => void;
   onRetroceder: () => void;
   onCerrar: () => void;
@@ -18,6 +22,8 @@ const menuItemClass =
   'flex w-full items-center gap-2 border-t border-border px-3 py-2 text-left text-sm font-bold text-ink hover:bg-bg first:border-t-0';
 
 export function OuvConfigMenu({
+  editingOuv = false,
+  onEditar,
   onContactos,
   onAvanzar,
   onRetroceder,
@@ -59,15 +65,28 @@ export function OuvConfigMenu({
           className="absolute right-0 z-40 mt-2 min-w-[12rem] overflow-hidden rounded border border-border bg-surface shadow-card"
           role="menu"
         >
-          <button
-            type="button"
-            role="menuitem"
-            className={menuItemClass}
-            onClick={() => pick(onContactos)}
-          >
-            <Users size={16} strokeWidth={2} aria-hidden />
-            Contactos
-          </button>
+          {onEditar ? (
+            <button
+              type="button"
+              role="menuitem"
+              className={menuItemClass}
+              onClick={() => pick(onEditar)}
+            >
+              <Pencil size={16} strokeWidth={2} aria-hidden />
+              {editingOuv ? 'Finalizar edición' : 'Editar OUV'}
+            </button>
+          ) : null}
+          {onContactos ? (
+            <button
+              type="button"
+              role="menuitem"
+              className={menuItemClass}
+              onClick={() => pick(onContactos)}
+            >
+              <Users size={16} strokeWidth={2} aria-hidden />
+              Contactos
+            </button>
+          ) : null}
           <button
             type="button"
             role="menuitem"

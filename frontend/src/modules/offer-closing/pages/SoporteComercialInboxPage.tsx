@@ -11,7 +11,6 @@ import {
 } from '../../shared/project/mock-store';
 import type { VentaGanadaRecord } from '../../shared/project/types';
 import { TIPO_VENTA_LABEL, VALIDACION_TIPOS } from '../../shared/project/types';
-import { OfferClosingNav } from '../components/OfferClosingNav';
 import { ValidacionBadge } from '../components/ValidacionBadge';
 import {
   badgeClass,
@@ -83,8 +82,6 @@ export function SoporteComercialInboxPage() {
 
   return (
     <AppLayout title="Oferta & Cierre">
-      <OfferClosingNav />
-
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-ink">Bandeja soporte comercial</h1>

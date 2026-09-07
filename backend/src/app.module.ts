@@ -7,8 +7,10 @@ import { AuthModule } from './modules/auth/auth.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { DemandGenerationModule } from './modules/demand-generation/demand-generation.module';
 import { DiscoveryModule } from './modules/discovery/discovery.module';
+import { GraphIntegrationModule } from './modules/graph-integration/graph-integration.module';
 import { ImplementationModule } from './modules/implementation/implementation.module';
 import { MepIntegrationModule } from './modules/mep-integration/mep-integration.module';
+import { OfferClosingModule } from './modules/offer-closing/offer-closing.module';
 import { QualificationModule } from './modules/qualification/qualification.module';
 import { WorkflowEngineModule } from './modules/workflow-engine/workflow-engine.module';
 
@@ -20,7 +22,9 @@ import { WorkflowEngineModule } from './modules/workflow-engine/workflow-engine.
     AccountsModule,
     DemandGenerationModule,
     DiscoveryModule,
+    GraphIntegrationModule,
     MepIntegrationModule,
+    OfferClosingModule,
     QualificationModule,
     ImplementationModule,
     WorkflowEngineModule,
