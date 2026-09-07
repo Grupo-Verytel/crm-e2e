@@ -20,7 +20,7 @@ import { cardClass, ghostButtonClass, primaryButtonClass } from '../components/u
 import { ExpectedRoute } from '../components/leads/ExpectedRoute';
 import { ChecklistModal } from '../components/leads/ChecklistModal';
 import { RegisterAppointmentModal } from '../components/leads/RegisterAppointmentModal';
-import { CANAL_ORIGEN_LABEL } from '../lib/lead-vocab';
+import { CANAL_ORIGEN_LABEL, leadDisplayName } from '../lib/lead-vocab';
 import {
   contactAccountName,
   contactEmail,
@@ -139,7 +139,7 @@ export function LeadDetailPage() {
       : lead.empresa_nombre;
 
   return (
-    <AppLayout title={headerCompany}>
+    <AppLayout title={leadDisplayName(lead)}>
       <DemandNav />
 
       <Link to="/demand" className="mb-3 inline-block text-sm text-muted hover:text-ink">
@@ -149,9 +149,13 @@ export function LeadDetailPage() {
       <div className={`${cardClass} mb-4 p-5`}>
         <div className="mb-4 flex items-start justify-between">
           <div>
-            <h1 className="text-lg font-bold text-ink">{headerCompany}</h1>
+            <h1 className="text-lg font-bold text-ink">
+              {leadDisplayName(lead)}
+            </h1>
             <p className="text-sm text-muted">
-              {lead.contacto_nombre} · {lead.email}
+              {headerCompany}
+              {lead.contacto_nombre ? ` · ${lead.contacto_nombre}` : ''} ·{' '}
+              {lead.email}
             </p>
           </div>
           <StatusBadge value={lead.estado} />
@@ -160,6 +164,7 @@ export function LeadDetailPage() {
         <dl className="grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
           <Detail label="Segmento" value={lead.segmento} />
           <Detail label="Industria" value={lead.industria ?? '—'} />
+          <Detail label="Ciudad" value={lead.city ?? '—'} />
           <Detail label="Región" value={lead.region} />
           <Detail label="Origen" value={lead.origen} />
           <Detail

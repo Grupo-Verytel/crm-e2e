@@ -2,6 +2,7 @@ import { CANAL_ORIGEN_LABEL, leadEstadoLabel } from './lead-vocab';
 import type { Lead } from '../types';
 
 const COLUMNS: { header: string; value: (lead: Lead) => string }[] = [
+  { header: 'Nombre', value: (l) => l.name ?? '' },
   { header: 'Empresa', value: (l) => l.empresa_nombre },
   { header: 'Contacto', value: (l) => l.contacto_nombre },
   { header: 'Email', value: (l) => l.email },
@@ -16,6 +17,7 @@ const COLUMNS: { header: string; value: (lead: Lead) => string }[] = [
   },
   { header: 'Campaña', value: (l) => l.campana_id ?? '' },
   { header: 'Responsable', value: (l) => l.responsable_id },
+  { header: 'Ciudad', value: (l) => l.city ?? '' },
   { header: 'Región', value: (l) => l.region },
   { header: 'Última interacción', value: (l) => l.fecha_ultima_interaccion ?? '' },
   { header: 'Fecha de captura', value: (l) => l.fecha_captura },

@@ -4,11 +4,13 @@ import type { BulkImportJobStatus } from '../types';
 import { cardClass, ghostButtonClass, primaryButtonClass } from './ui';
 
 const EXPECTED_HEADERS = [
+  'name',
   'tipo_lead',
   'origen',
   'canal_origen',
   'segmento',
   'industria',
+  'city',
   'region',
   'pais',
   'account_name',

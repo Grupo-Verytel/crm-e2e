@@ -9,7 +9,7 @@ import {
   useChecklistProgress,
 } from '../../hooks/useChecklistProgress';
 import { downloadLeadsCsv } from '../../lib/lead-export';
-import { CANAL_ORIGEN_LABEL } from '../../lib/lead-vocab';
+import { CANAL_ORIGEN_LABEL, leadDisplayName } from '../../lib/lead-vocab';
 import type { Lead, LeadEstado } from '../../types';
 import { cardClass, ghostButtonClass } from '../ui';
 import { StatusBadge } from '../StatusBadge';
@@ -240,7 +240,7 @@ export function LeadsTableView({
                         type="checkbox"
                         checked={selected.has(lead.lead_id)}
                         onChange={() => toggleSelected(lead.lead_id)}
-                        aria-label={`Seleccionar ${lead.empresa_nombre}`}
+                        aria-label={`Seleccionar ${leadDisplayName(lead)}`}
                       />
                     </td>
                     ) : null}
@@ -250,9 +250,14 @@ export function LeadsTableView({
                         onClick={(event) => event.stopPropagation()}
                         className="font-bold text-ink hover:text-accent"
                       >
-                        {lead.empresa_nombre}
+                        {leadDisplayName(lead)}
                       </Link>
-                      <div className="text-xs text-muted">{lead.contacto_nombre}</div>
+                      <div className="text-xs text-muted">
+                        {lead.empresa_nombre}
+                        {lead.contacto_nombre
+                          ? ` · ${lead.contacto_nombre}`
+                          : ''}
+                      </div>
                     </td>
                     <td className="px-4 py-3">
                       <SegmentChip segmento={lead.segmento} />

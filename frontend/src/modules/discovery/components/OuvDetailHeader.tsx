@@ -101,7 +101,7 @@ export function OuvDetailHeader({
           <DetailField label="OUV ID" value={ouv.ouv_id} />
           <DetailField label="Organización" value={display(ouv.empresa_nombre)} />
           <DetailField label="Proyecto" value="—" />
-          <DetailField label="Ciudad" value="—" />
+          <DetailField label="Ciudad" value={display(ouv.city)} />
           <DetailField
             label="Estado OUV"
             value={OUV_RESULTADO_LABEL[resultado] ?? ouv.resultado}
@@ -114,7 +114,7 @@ export function OuvDetailHeader({
           />
           <DetailField label="Segmento" value={display(ouv.segmento)} />
           <DetailField label="Plazo ejecución" value="—" />
-          <DetailField label="Región" value="—" />
+          <DetailField label="Región" value={display(ouv.region)} />
           <DetailField
             label="Fecha creación"
             value={formatDateTime(ouv.created_at)}

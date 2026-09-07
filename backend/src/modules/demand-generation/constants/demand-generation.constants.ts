@@ -4,6 +4,7 @@ export const DEMAND_GENERATION_ERROR_CODES = {
   INVALID_TRANSITION: 'INVALID_TRANSITION',
   TRANSITION_PRECONDITION_FAILED: 'TRANSITION_PRECONDITION_FAILED',
   DUPLICATE_NIT: 'DUPLICATE_NIT',
+  DUPLICATE_LEAD_NAME: 'DUPLICATE_LEAD_NAME',
   DUPLICATE_CAMPAIGN_NAME: 'DUPLICATE_CAMPAIGN_NAME',
   CAMPAIGN_NOT_FOUND: 'CAMPAIGN_NOT_FOUND',
   CAMPAIGN_CLOSED: 'CAMPAIGN_CLOSED',
@@ -29,11 +30,13 @@ export const DEMAND_GENERATION_ROLES = {
 } as const;
 
 export const CSV_LEAD_HEADERS = [
+  'name',
   'tipo_lead',
   'origen',
   'canal_origen',
   'segmento',
   'industria',
+  'city',
   'region',
   'pais',
   'account_name',

@@ -15,6 +15,8 @@ export type Ouv = {
   account_id: string | null;
   titulo: string;
   empresa_nombre: string;
+  city: string | null;
+  region: string | null;
   descripcion: string | null;
   segmento: string;
   segment_id: string | null;
@@ -109,6 +111,8 @@ export type CrearOuvDirectaPayload = {
   account_id?: string;
   segment_id?: string;
   subsegment_id?: string;
+  city?: string;
+  region?: string;
 };
 
 export type ContactoPayload = {
@@ -142,6 +146,8 @@ export type UpdateOuvPayload = {
   subsegment_id?: string | null;
   /** Reasignación de dueño; el backend la restringe a Admin. */
   comercial_id?: string;
+  city?: string | null;
+  region?: string | null;
 };
 
 export async function updateOuv(

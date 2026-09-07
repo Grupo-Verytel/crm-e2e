@@ -29,6 +29,14 @@ export async function createLead(payload: CreateLeadPayload): Promise<Lead> {
   return apiRequest<Lead>('/leads', { method: 'POST', body: payload });
 }
 
+export async function checkLeadNameAvailable(
+  name: string,
+): Promise<{ available: boolean }> {
+  return apiRequest<{ available: boolean }>(
+    `/leads/name-available${buildQueryString({ name })}`,
+  );
+}
+
 export async function updateLead(
   leadId: string,
   payload: Partial<CreateLeadPayload>,

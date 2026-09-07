@@ -41,4 +41,14 @@ export class CrearOuvDto {
   @MaxLength(80)
   @IsIn(Object.values(OuvVertical))
   vertical!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  city?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  region?: string;
 }

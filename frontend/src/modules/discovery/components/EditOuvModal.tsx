@@ -8,6 +8,7 @@ import {
   VERTICALES,
 } from '../lib/ouv-vocab';
 import { ModalShell } from './ModalShell';
+import { ColombiaCitySearchField } from './ColombiaCitySearchField';
 import {
   ghostButtonClass,
   inputClass,
@@ -34,6 +35,8 @@ export function EditOuvModal({ ouv, onClose, onSaved, save }: Props) {
   const [segmento, setSegmento] = useState(ouv.segmento ?? '');
   const [vertical, setVertical] = useState(ouv.vertical ?? '');
   const [descripcion, setDescripcion] = useState(ouv.descripcion ?? '');
+  const [city, setCity] = useState(ouv.city ?? '');
+  const [region, setRegion] = useState(ouv.region ?? '');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -47,8 +50,14 @@ export function EditOuvModal({ ouv, onClose, onSaved, save }: Props) {
     if (segmento !== ouv.segmento) diff.segmento = segmento;
     if (vertical !== ouv.vertical) diff.vertical = vertical;
     if (d !== (ouv.descripcion ?? '').trim()) diff.descripcion = d;
+    if (city.trim() !== (ouv.city ?? '').trim()) {
+      diff.city = city.trim() || null;
+    }
+    if (region.trim() !== (ouv.region ?? '').trim()) {
+      diff.region = region.trim() || null;
+    }
     return diff;
-  }, [titulo, empresa, segmento, vertical, descripcion, ouv]);
+  }, [titulo, empresa, segmento, vertical, descripcion, city, region, ouv]);
 
   const hasChanges = Object.keys(payload).length > 0;
   const canSave = hasChanges && titulo.trim() !== '' && empresa.trim() !== '';
@@ -176,6 +185,39 @@ export function EditOuvModal({ ouv, onClose, onSaved, save }: Props) {
                 </option>
               ))}
             </select>
+          </div>
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-2">
+          <div>
+            <label className={labelClass} htmlFor="edit-ouv-city">
+              Ciudad
+            </label>
+            <ColombiaCitySearchField
+              id="edit-ouv-city"
+              value={city}
+              departamento={region}
+              onSelect={(row) => {
+                setCity(row.municipio);
+                setRegion(row.departamento);
+              }}
+              onClear={() => {
+                setCity('');
+                setRegion('');
+              }}
+            />
+          </div>
+          <div>
+            <label className={labelClass} htmlFor="edit-ouv-region">
+              Región
+            </label>
+            <input
+              id="edit-ouv-region"
+              className={inputClass}
+              value={region}
+              readOnly
+              placeholder="Se completa al elegir la ciudad"
+            />
           </div>
         </div>
 

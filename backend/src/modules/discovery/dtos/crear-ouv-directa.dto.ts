@@ -48,4 +48,14 @@ export class CrearOuvDirectaDto {
   @IsOptional()
   @IsUUID('4')
   subsegment_id?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  city?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  region?: string;
 }

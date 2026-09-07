@@ -8,10 +8,11 @@ import {
   fetchPeople,
 } from '../../accounts/api/accounts-api';
 import type { Account, Person } from '../../accounts/types';
-import { createLead } from '../api/leads-api';
+import { createLead, checkLeadNameAvailable } from '../api/leads-api';
 import { fetchSegments } from '../api/segments-api';
 import { fetchTraductorReferrers } from '../api/traductores-api';
 import type { User } from '../../auth/types';
+import { ColombiaCitySearchField } from '../../discovery/components/ColombiaCitySearchField';
 import {
   CANALES_ORIGEN,
   ORIGENES_LEAD,
@@ -63,6 +64,7 @@ const CHECKLIST_CRITERIA: {
 ];
 
 type FormState = {
+  name: string;
   tipo_lead: TipoLead;
   origen: OrigenLead;
   canal_origen: CanalOrigen;
@@ -70,8 +72,8 @@ type FormState = {
   segment_id: string;
   subsegment_id: string;
   industria: string;
+  city: string;
   region: string;
-  pais: string;
   business_referrer_id: string;
 };
 
@@ -95,6 +97,7 @@ const emptyChecklist = (): CreateLeadChecklistInput => ({
 });
 
 const initialState: FormState = {
+  name: '',
   tipo_lead: 'Inbound',
   origen: 'Web',
   canal_origen: 'CAMPANA_DIGITAL',
@@ -102,8 +105,8 @@ const initialState: FormState = {
   segment_id: '',
   subsegment_id: '',
   industria: '',
+  city: '',
   region: '',
-  pais: 'CO',
   business_referrer_id: '',
 };
 
@@ -178,6 +181,9 @@ export function LeadFormModal({
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [nameAvailable, setNameAvailable] = useState<
+    boolean | 'checking' | null
+  >(null);
 
   const canalOptions = canalOptionsForMode(mode);
   const selectedSegment = segments.find((segment) => segment.id === form.segment_id);
@@ -200,6 +206,35 @@ export function LeadFormModal({
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    const trimmed = form.name.trim();
+    if (trimmed.length < 1) {
+      setNameAvailable(null);
+      return;
+    }
+
+    let active = true;
+    setNameAvailable('checking');
+    const timer = window.setTimeout(() => {
+      void checkLeadNameAvailable(trimmed)
+        .then((result) => {
+          if (active) {
+            setNameAvailable(result.available);
+          }
+        })
+        .catch(() => {
+          if (active) {
+            setNameAvailable(null);
+          }
+        });
+    }, 350);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [form.name]);
 
   useEffect(() => {
     if (!showTraductorSelect) {
@@ -391,6 +426,19 @@ export function LeadFormModal({
     event.preventDefault();
     setError(null);
 
+    if (!form.name.trim()) {
+      setError('Ingresa el nombre del lead.');
+      return;
+    }
+    if (nameAvailable === false) {
+      setError('Ya existe un lead con ese nombre.');
+      return;
+    }
+    if (!form.city.trim() || !form.region.trim()) {
+      setError('Selecciona la ciudad (la región se completa automáticamente).');
+      return;
+    }
+
     if (!selectedAccount) {
       setError('Selecciona o crea una empresa para los contactos.');
       return;
@@ -421,12 +469,14 @@ export function LeadFormModal({
     setIsSubmitting(true);
 
     const payload: CreateLeadPayload = {
+      name: form.name.trim(),
       tipo_lead: form.tipo_lead,
       origen: form.origen,
       canal_origen: form.canal_origen,
       segmento: form.segmento,
+      city: form.city.trim(),
       region: form.region,
-      pais: form.pais.toUpperCase(),
+      pais: 'CO',
       contacts: contacts.map((contact) => ({
         person_id: contact.person_id!,
       })),
@@ -461,6 +511,31 @@ export function LeadFormModal({
   return (
     <ModalShell title={modalTitle(mode)} onClose={onClose} size="wide">
       <form onSubmit={handleSubmit} className="space-y-4">
+        <section className="space-y-3">
+          <div>
+            <label className={labelClass} htmlFor="lead-name">
+              Nombre del lead
+            </label>
+            <input
+              id="lead-name"
+              value={form.name}
+              onChange={(event) => update('name', event.target.value)}
+              className={inputClass}
+              placeholder="Nombre único del lead"
+              required
+              autoComplete="off"
+            />
+            {nameAvailable === false ? (
+              <p className="mt-1 text-xs text-danger">
+                Ya existe un lead con ese nombre.
+              </p>
+            ) : null}
+            {nameAvailable === true && form.name.trim() ? (
+              <p className="mt-1 text-xs text-muted">Nombre disponible.</p>
+            ) : null}
+          </div>
+        </section>
+
         <section className="space-y-3" aria-labelledby="lead-account-title">
           <h3 id="lead-account-title" className="text-sm font-bold text-ink">
             Empresa (cuenta)
@@ -709,22 +784,35 @@ export function LeadFormModal({
               </Field>
             ) : null}
 
-            <Field label="Región">
-              <input
-                value={form.region}
-                onChange={(event) => update('region', event.target.value)}
-                className={inputClass}
-                required
+            <Field label="Ciudad">
+              <ColombiaCitySearchField
+                id="lead-city"
+                value={form.city}
+                departamento={form.region}
+                onSelect={(row) => {
+                  setForm((prev) => ({
+                    ...prev,
+                    city: row.municipio,
+                    region: row.departamento,
+                  }));
+                }}
+                onClear={() => {
+                  setForm((prev) => ({
+                    ...prev,
+                    city: '',
+                    region: '',
+                  }));
+                }}
               />
             </Field>
 
-            <Field label="País (ISO-2)">
+            <Field label="Región">
               <input
-                value={form.pais}
-                onChange={(event) => update('pais', event.target.value)}
+                value={form.region}
                 className={inputClass}
-                maxLength={2}
+                readOnly
                 required
+                placeholder="Se completa al elegir la ciudad"
               />
             </Field>
           </div>
@@ -1009,7 +1097,11 @@ export function LeadFormModal({
           </button>
           <button
             type="submit"
-            disabled={isSubmitting}
+            disabled={
+              isSubmitting ||
+              nameAvailable === false ||
+              nameAvailable === 'checking'
+            }
             className={primaryButtonClass}
           >
             Crear lead

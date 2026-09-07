@@ -201,6 +201,7 @@ export type LeadFormMode = 'standard' | 'product_manager' | 'ejecutivo';
 
 export type Lead = {
   lead_id: string;
+  name: string | null;
   tipo_lead: string;
   origen: string;
   canal_origen: CanalOrigen;
@@ -208,6 +209,7 @@ export type Lead = {
   campana_id: string | null;
   segmento: string;
   industria: string | null;
+  city: string | null;
   region: string;
   pais: string;
   empresa_nombre: string;
@@ -259,6 +261,7 @@ export type LeadsQuery = {
 };
 
 export type CreateLeadPayload = {
+  name: string;
   tipo_lead: TipoLead;
   origen: OrigenLead;
   canal_origen: CanalOrigen;
@@ -266,8 +269,9 @@ export type CreateLeadPayload = {
   segment_id?: string;
   subsegment_id?: string;
   industria?: string;
+  city: string;
   region: string;
-  pais: string;
+  pais?: string;
   nit?: string;
   contacts: LeadContactInput[];
   responsable_id: string;

@@ -19,6 +19,15 @@ export function leadEstadoLabel(estado: string): string {
   return LEAD_ESTADO_LABEL[estado as LeadEstado] ?? estado;
 }
 
+/** Prefer lead.name; fall back to empresa for legacy rows without name. */
+export function leadDisplayName(lead: {
+  name?: string | null;
+  empresa_nombre: string;
+}): string {
+  const name = lead.name?.trim();
+  return name || lead.empresa_nombre;
+}
+
 export const CANAL_ORIGEN_LABEL: Record<CanalOrigen, string> = {
   CAMPANA_DIGITAL: 'Marketing Digital',
   BTL: 'BTL',

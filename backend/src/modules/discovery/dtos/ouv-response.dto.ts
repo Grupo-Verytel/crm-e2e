@@ -7,6 +7,8 @@ export class OuvResponseDto {
   account_id!: string | null;
   titulo!: string;
   empresa_nombre!: string;
+  city!: string | null;
+  region!: string | null;
   descripcion!: string | null;
   segmento!: string;
   segment_id!: string | null;

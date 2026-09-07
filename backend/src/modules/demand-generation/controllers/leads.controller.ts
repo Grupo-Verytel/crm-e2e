@@ -97,6 +97,24 @@ export class LeadsController {
     );
   }
 
+  @Get('name-available')
+  @CheckAbility({ action: 'read', subject: 'Lead' })
+  nameAvailable(
+    @Query('name') name: string | undefined,
+    @Query('exclude_lead_id') excludeLeadId?: string,
+  ): Promise<{ available: boolean }> {
+    if (!name?.trim()) {
+      throw new BadRequestException({
+        code: DEMAND_GENERATION_ERROR_CODES.VALIDATION_ERROR,
+        message: 'name is required',
+      });
+    }
+    return this.demandGenerationService.isLeadNameAvailable(
+      name,
+      excludeLeadId,
+    );
+  }
+
   @Get('appointment-commercials')
   @CheckAbility({ action: 'read', subject: 'Lead' })
   listAppointmentCommercials(): Promise<CommercialOptionDto[]> {

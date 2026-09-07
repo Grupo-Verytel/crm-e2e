@@ -120,6 +120,8 @@ export class OuvsService {
         accountId: person.account_id,
         titulo: input.dto.titulo.trim(),
         empresaNombre: person.account_name.trim(),
+        city: input.dto.city?.trim() || lead.city || null,
+        region: input.dto.region?.trim() || lead.region || null,
         descripcion: input.dto.descripcion?.trim() || null,
         segmento: input.dto.segmento,
         segmentId: input.dto.segment_id,
@@ -185,6 +187,8 @@ export class OuvsService {
           accountId,
           titulo: dto.titulo.trim(),
           empresaNombre,
+          city: dto.city?.trim() || null,
+          region: dto.region?.trim() || null,
           descripcion: dto.descripcion.trim(),
           segmento: dto.segmento,
           segmentId: dto.segment_id ?? null,
@@ -606,6 +610,12 @@ export class OuvsService {
       if (dto.descripcion !== undefined) {
         patch.descripcion = dto.descripcion.trim() || null;
       }
+      if (dto.city !== undefined) {
+        patch.city = dto.city?.trim() || null;
+      }
+      if (dto.region !== undefined) {
+        patch.region = dto.region?.trim() || null;
+      }
 
       // Vincular / desvincular la account. Si vincula, alinea empresa_nombre
       // al snapshot de accounts.name — a menos que el DTO ya haya mandado
@@ -862,6 +872,8 @@ export class OuvsService {
       account_id: ouv.accountId ?? null,
       titulo: ouv.titulo,
       empresa_nombre: ouv.empresaNombre,
+      city: ouv.city ?? null,
+      region: ouv.region ?? null,
       descripcion: ouv.descripcion,
       segmento: ouv.segmento,
       segment_id: ouv.segmentId ?? null,

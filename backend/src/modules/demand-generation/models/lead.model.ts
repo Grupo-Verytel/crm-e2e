@@ -43,6 +43,10 @@ export class Lead extends Model {
   })
   declare tipoLead: TipoLead;
 
+  /** Human-readable lead title; unique among active leads (enforced in service). */
+  @Column({ type: DataType.STRING(160), allowNull: true })
+  declare name: string | null;
+
   @Column({
     type: DataType.ENUM(...Object.values(OrigenLead)),
     allowNull: false,
@@ -75,6 +79,9 @@ export class Lead extends Model {
   /** Required when segmento = B2B (enforced in DTO/service). */
   @Column({ type: DataType.STRING(80), allowNull: true })
   declare industria: string | null;
+
+  @Column({ type: DataType.STRING(80), allowNull: true })
+  declare city: string | null;
 
   @Column({ type: DataType.STRING(60), allowNull: false })
   declare region: string;

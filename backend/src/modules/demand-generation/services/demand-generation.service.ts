@@ -82,6 +82,17 @@ export class DemandGenerationService {
     return this.leadsService.create(dto, createdBy, roleName);
   }
 
+  async isLeadNameAvailable(
+    name: string,
+    excludeLeadId?: string,
+  ): Promise<{ available: boolean }> {
+    const available = await this.leadsService.isNameAvailable(
+      name,
+      excludeLeadId,
+    );
+    return { available };
+  }
+
   async findLeadById(
     leadId: string,
     actorUserId?: string,
