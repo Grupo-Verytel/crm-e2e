@@ -15,10 +15,10 @@ import type {
 import {
   cancelGraphMeeting,
   createGraphMeeting,
-  updateGraphMeeting,
   fetchGraphAvailability,
   fetchGraphStatus,
   searchGraphUsers,
+  updateGraphMeeting,
   type GraphSchedule,
   type GraphStatus,
 } from '../api/graph-api';
@@ -38,6 +38,16 @@ import {
   labelClass,
   primaryButtonClass,
 } from './ui';
+
+/**
+ * Ventana horaria laboral del Kickoff: 06:00 a 18:59. El último bloque de 15
+ * minutos que cabe dentro de la ventana es 18:45.
+ */
+const KICKOFF_HORA_MIN = '06:00';
+const KICKOFF_HORA_MAX = '18:59';
+/** Duración propuesta al elegir la hora de inicio. */
+const KICKOFF_DURACION_MIN = 60;
+const KICKOFF_PASO_MIN = 15;
 
 type InviteCandidate = {
   id: string;
@@ -87,6 +97,56 @@ function combineSameDay(date: string, time: string): Date | null {
   if (!date || !time) return null;
   const d = new Date(`${date}T${time}`);
   return Number.isNaN(d.getTime()) ? null : d;
+}
+
+/** `HH:mm` → minutos desde medianoche; `null` si no es una hora válida. */
+function minutosDeHora(hhMm: string): number | null {
+  const [h, m] = hhMm.split(':').map(Number);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+  return h * 60 + m;
+}
+
+function horaDeMinutos(minutos: number): string {
+  return `${String(Math.floor(minutos / 60)).padStart(2, '0')}:${String(
+    minutos % 60,
+  ).padStart(2, '0')}`;
+}
+
+/** Último bloque seleccionable dentro de la ventana laboral (18:59 → 18:45). */
+const KICKOFF_ULTIMO_SLOT =
+  Math.floor((minutosDeHora(KICKOFF_HORA_MAX) ?? 0) / KICKOFF_PASO_MIN) *
+  KICKOFF_PASO_MIN;
+
+/**
+ * Tope de la hora de inicio: un bloque antes del final de la ventana, para que
+ * siempre quede al menos una hora de fin por elegir. Sin esto, iniciar en el
+ * último bloque dejaba el desplegable de fin vacío y sin forma de avanzar.
+ */
+const KICKOFF_INICIO_MAX = horaDeMinutos(
+  KICKOFF_ULTIMO_SLOT - KICKOFF_PASO_MIN,
+);
+
+/**
+ * Hora de fin propuesta al elegir la de inicio: una hora después, sin salir de
+ * la ventana laboral. Si el inicio está tan al final del día que no cabe
+ * ningún bloque después, se devuelve vacío y la validación pide corregirlo.
+ */
+function horaFinPorDefecto(horaInicio: string): string {
+  const inicio = minutosDeHora(horaInicio);
+  if (inicio === null) return '';
+
+  const fin = Math.min(inicio + KICKOFF_DURACION_MIN, KICKOFF_ULTIMO_SLOT);
+  return fin > inicio ? horaDeMinutos(fin) : '';
+}
+
+/**
+ * Primera hora de fin ofrecida: un bloque después del inicio, para que el
+ * desplegable no permita siquiera elegir una hora anterior o igual.
+ */
+function horaFinMinima(horaInicio: string): string {
+  const inicio = minutosDeHora(horaInicio);
+  if (inicio === null) return KICKOFF_HORA_MIN;
+  return horaDeMinutos(inicio + KICKOFF_PASO_MIN);
 }
 
 function dateFromIso(iso: string | undefined): string {
@@ -744,8 +804,12 @@ export function KickoffScheduleModal({
                   <TimePickerField
                     id="ko-hora-inicio"
                     value={horaInicio}
+                    minTime={KICKOFF_HORA_MIN}
+                    maxTime={KICKOFF_INICIO_MAX}
+                    stepMinutes={KICKOFF_PASO_MIN}
                     onChange={(next) => {
                       setHoraInicio(next);
+                      setHoraFin(next ? horaFinPorDefecto(next) : '');
                       invalidateAvailability();
                     }}
                   />
@@ -757,6 +821,9 @@ export function KickoffScheduleModal({
                   <TimePickerField
                     id="ko-hora-fin"
                     value={horaFin}
+                    minTime={horaFinMinima(horaInicio)}
+                    maxTime={KICKOFF_HORA_MAX}
+                    stepMinutes={KICKOFF_PASO_MIN}
                     onChange={(next) => {
                       setHoraFin(next);
                       invalidateAvailability();

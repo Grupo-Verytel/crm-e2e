@@ -267,12 +267,25 @@ export function VentaGanadaDetailPage() {
       />
 
       <nav
-        className="mb-4 flex flex-wrap gap-1 border-b border-border"
+        className="mb-4 flex flex-wrap items-center gap-1 border-b border-border"
         aria-label="Detalle venta ganada"
       >
         {tabBtn('validaciones', 'Viabilidad')}
         {tabBtn('kickoff', 'Kickoff', !kickoffHabilitado)}
         {tabBtn('datos', 'Datos proyecto', !kickoffHabilitado)}
+        {tabActivo === 'datos' ? (
+          <div className="ml-auto flex items-center pb-1">
+            <button
+              type="button"
+              className={primaryButtonClass}
+              disabled={!pmo.ok}
+              title={pmo.reason ?? 'Crear proyecto en Control de Proyectos'}
+              onClick={() => setShowResumen(true)}
+            >
+              Crear Proyecto
+            </button>
+          </div>
+        ) : null}
       </nav>
 
       {record.alertas.map((a) => (
@@ -369,20 +382,9 @@ export function VentaGanadaDetailPage() {
             modo="crear"
             onChange={(datosBase) => save({ ...record, datosBase })}
           />
-          <section className={`${cardClass} mt-4 p-4`}>
-            <button
-              type="button"
-              className={primaryButtonClass}
-              disabled={!pmo.ok}
-              title={pmo.reason ?? 'Crear proyecto en Control de Proyectos'}
-              onClick={() => setShowResumen(true)}
-            >
-              Crear Proyecto
-            </button>
-            {!pmo.ok && pmo.reason ? (
-              <p className="mt-2 text-xs text-muted">{pmo.reason}</p>
-            ) : null}
-          </section>
+          {!pmo.ok && pmo.reason ? (
+            <p className="mt-2 text-xs text-muted">{pmo.reason}</p>
+          ) : null}
         </>
       ) : null}
 

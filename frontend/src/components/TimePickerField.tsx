@@ -6,16 +6,25 @@ type Props = {
   onChange: (hhMm: string) => void;
   className?: string;
   stepMinutes?: number;
+  /** Primera hora ofrecida, `HH:mm` inclusive. */
+  minTime?: string;
+  /** Última hora ofrecida, `HH:mm` inclusive. */
+  maxTime?: string;
   'aria-label'?: string;
 };
 
-function buildOptions(stepMinutes: number): string[] {
+// `HH:mm` con ceros a la izquierda se ordena igual como texto que como hora,
+// así que la comparación de cadenas basta para acotar el rango.
+function buildOptions(
+  stepMinutes: number,
+  minTime: string,
+  maxTime: string,
+): string[] {
   const options: string[] = [];
   for (let h = 0; h < 24; h += 1) {
     for (let m = 0; m < 60; m += stepMinutes) {
-      options.push(
-        `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`,
-      );
+      const option = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+      if (option >= minTime && option <= maxTime) options.push(option);
     }
   }
   return options;
@@ -28,9 +37,13 @@ export function TimePickerField({
   onChange,
   className = '',
   stepMinutes = 15,
+  minTime = '00:00',
+  maxTime = '23:59',
   'aria-label': ariaLabel,
 }: Props) {
-  const options = buildOptions(stepMinutes);
+  const options = buildOptions(stepMinutes, minTime, maxTime);
+  // Una hora ya guardada fuera del rango (dato viejo, o un rango que cambió)
+  // se conserva como opción: si no, el select se vaciaría solo al abrirlo.
   if (value && !options.includes(value)) {
     options.unshift(value);
   }
