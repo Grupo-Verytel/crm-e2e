@@ -10,6 +10,10 @@ import {
   SOLICITUD_PREVENTA_FIELDS,
   SERVICE_LABELS,
 } from '../lib/opportunity-context-fields';
+import {
+  derivarMepStatus,
+  type MepSolicitudStatus,
+} from '../lib/solicitud-preventa-rules';
 import { FloatingToast } from './FloatingToast';
 import { ModalShell } from './ModalShell';
 import { SharePointDocumentLink } from './SharePointDocumentLink';
@@ -21,12 +25,7 @@ type Props = {
   commercialOwnerName?: string;
 };
 
-/** Estado que la UI muestra por solicitud, derivado de los datos reales. */
-export type MepSolicitudStatus =
-  | 'Aceptado'
-  | 'Aprobado'
-  | 'Rechazado'
-  | 'Pendiente';
+export type { MepSolicitudStatus };
 
 const MEP_STATUS_CLASS: Record<MepSolicitudStatus, string> = {
   Aceptado: 'bg-accent text-white',
@@ -41,30 +40,6 @@ function MepStatusBadge({ status }: { status: MepSolicitudStatus }) {
       {status}
     </span>
   );
-}
-
-/**
- * En el diseño este estado se sorteaba al azar (`MEP_MOCK_STATUSES`). Acá sale
- * de los hechos reales: el cierre comercial manda; si no, el último acuse
- * técnico; si no hay nada, la solicitud sigue pendiente.
- */
-function derivarMepStatus(solicitud: SolicitudPreventa): MepSolicitudStatus {
-  if (solicitud.estado.hito === 'INTERACTION_COMPLETED') {
-    return 'Aprobado';
-  }
-
-  const acuse = solicitud.pista_tecnica[0];
-  if (acuse) {
-    if (
-      acuse.processing_status === 'REJECTED' ||
-      acuse.processing_status === 'QUARANTINED'
-    ) {
-      return 'Rechazado';
-    }
-    return 'Aceptado';
-  }
-
-  return solicitud.estado.hito ? 'Aceptado' : 'Pendiente';
 }
 
 /** Nombre del combo a partir de los servicios que devolvió el backend. */
@@ -235,9 +210,11 @@ function SolicitudDetailModal({
         >
           {service.label}
         </span>
-        <span className={`${badgeClass} bg-border text-ink`}>
-          {nombreDelTipo(solicitud)}
-        </span>
+        {nombreDelTipo(solicitud) !== service.label ? (
+          <span className={`${badgeClass} bg-border text-ink`}>
+            {nombreDelTipo(solicitud)}
+          </span>
+        ) : null}
         <span className={`${badgeClass} bg-accent/15 text-accent`}>
           {solicitud.service_horizon === 'IMMEDIATE' ? 'ASAP' : 'Sombra'}
         </span>
@@ -496,6 +473,7 @@ export function PreventaActivityPanel({ ouv, commercialOwnerName }: Props) {
         <button
           type="button"
           className={ghostButtonClass}
+          disabled={loading}
           onClick={() => setModalOpen(true)}
         >
           Nueva solicitud
@@ -551,6 +529,7 @@ export function PreventaActivityPanel({ ouv, commercialOwnerName }: Props) {
         <SolicitudPreventaModal
           ouv={ouv}
           commercialOwnerName={commercialOwnerName}
+          existingSolicitudes={items}
           onClose={() => setModalOpen(false)}
           onResult={handleResult}
         />

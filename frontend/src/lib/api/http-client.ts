@@ -137,6 +137,12 @@ export async function apiRequest<T>(
         message = body.message.join(', ');
       } else if (typeof body.message === 'string') {
         message = body.message;
+      } else if (
+        body.message &&
+        typeof body.message === 'object' &&
+        typeof (body.message as { detalle?: string }).detalle === 'string'
+      ) {
+        message = (body.message as { detalle: string }).detalle;
       }
     } catch {
       // ignore parse errors
