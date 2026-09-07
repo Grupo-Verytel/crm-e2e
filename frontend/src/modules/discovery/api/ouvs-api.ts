@@ -278,9 +278,9 @@ export async function ganarOuv(
 export async function perderOuv(
   id: string,
   payload: {
-    motivo_id: string;
+    motivo_id?: string;
     motivo_detalle?: string;
-    monto_estimado_perdido: number;
+    monto_estimado_perdido?: number;
     competidor_ganador?: string;
   },
 ): Promise<Ouv> {

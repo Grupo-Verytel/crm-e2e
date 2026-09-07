@@ -48,6 +48,11 @@ function formatWonAmount(ouv: Ouv): string {
   return ouv.moneda_final ? `${amount} ${ouv.moneda_final}` : amount;
 }
 
+function formatLostAmount(ouv: Ouv): string {
+  if (!ouv.monto_estimado_perdido) return '—';
+  return formatAmountEsCo(ouv.monto_estimado_perdido);
+}
+
 export function OuvsBoardPage() {
   const { pathname } = useLocation();
   const bandeja = bandejaFromPath(pathname);
@@ -379,6 +384,9 @@ function OuvsTray({ bandeja }: { bandeja: OuvBandejaKey }) {
                         <th className="px-4 py-3 font-bold">
                           {bandeja === 'Ganada' ? 'Monto' : 'Motivo'}
                         </th>
+                        {bandeja === 'Perdida' ? (
+                          <th className="px-4 py-3 font-bold">Monto perdido</th>
+                        ) : null}
                         <th className="px-4 py-3 font-bold">Cierre</th>
                       </>
                     ) : (
@@ -419,6 +427,11 @@ function OuvsTray({ bandeja }: { bandeja: OuvBandejaKey }) {
                               ? formatWonAmount(ouv)
                               : ouv.motivo_snapshot || '—'}
                           </td>
+                          {bandeja === 'Perdida' ? (
+                            <td className="px-4 py-3 text-ink">
+                              {formatLostAmount(ouv)}
+                            </td>
+                          ) : null}
                           <td className="px-4 py-3 text-muted">
                             {formatDateTime(ouv.fecha_cierre)}
                           </td>

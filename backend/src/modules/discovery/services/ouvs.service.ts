@@ -452,17 +452,8 @@ export class OuvsService {
         transaction,
       );
 
-      const motivo = await this.motivoPerdidaModel.findByPk(dto.motivo_id, {
-        transaction,
-      });
-      if (!motivo) {
-        throw new BadRequestException(`motivo_id ${dto.motivo_id} not found`);
-      }
-      if (motivo.requiereDetalle && !dto.motivo_detalle?.trim()) {
-        throw new BadRequestException(
-          'motivo_detalle is required for this motivo',
-        );
-      }
+      const motivo = await this.resolveMotivoPerdida(dto, transaction);
+      const montoEstimadoPerdido = this.resolveMontoEstimadoPerdido(ouv, dto);
 
       const needsCompetidor = /competidor/i.test(motivo.nombre);
       if (needsCompetidor && !dto.competidor_ganador?.trim()) {
@@ -478,7 +469,7 @@ export class OuvsService {
           motivoId: motivo.motivoId,
           motivoSnapshot: motivo.nombre,
           motivoDetalle: dto.motivo_detalle?.trim() || null,
-          montoEstimadoPerdido: String(dto.monto_estimado_perdido),
+          montoEstimadoPerdido,
           competidorGanador: dto.competidor_ganador?.trim() || null,
           fechaCierre: new Date(),
         },
@@ -809,6 +800,56 @@ export class OuvsService {
       throw new ForbiddenException('Not allowed to view this OUV');
     }
     return ouv;
+  }
+
+  private async resolveMotivoPerdida(
+    dto: PerderOuvDto,
+    transaction: Transaction,
+  ): Promise<{ motivoId: string | null; nombre: string; requiereDetalle: boolean }> {
+    if (dto.motivo_id) {
+      const motivo = await this.motivoPerdidaModel.findByPk(dto.motivo_id, {
+        transaction,
+      });
+      if (!motivo) {
+        throw new BadRequestException(`motivo_id ${dto.motivo_id} not found`);
+      }
+      if (motivo.requiereDetalle && !dto.motivo_detalle?.trim()) {
+        throw new BadRequestException(
+          'motivo_detalle is required for this motivo',
+        );
+      }
+      return {
+        motivoId: motivo.motivoId,
+        nombre: motivo.nombre,
+        requiereDetalle: motivo.requiereDetalle,
+      };
+    }
+
+    const catalogCount = await this.motivoPerdidaModel.count({ transaction });
+    if (catalogCount > 0) {
+      throw new BadRequestException('motivo_id is required');
+    }
+    if (!dto.motivo_detalle?.trim()) {
+      throw new BadRequestException(
+        'motivo_detalle is required when motivos_perdida is empty',
+      );
+    }
+    return { motivoId: null, nombre: 'Otro', requiereDetalle: true };
+  }
+
+  private resolveMontoEstimadoPerdido(ouv: Ouv, dto: PerderOuvDto): string {
+    if (
+      dto.monto_estimado_perdido !== undefined &&
+      dto.monto_estimado_perdido !== null
+    ) {
+      return String(dto.monto_estimado_perdido);
+    }
+    if (ouv.presupuestoMonto != null && String(ouv.presupuestoMonto) !== '') {
+      return String(ouv.presupuestoMonto);
+    }
+    throw new BadRequestException(
+      'monto_estimado_perdido is required when the OUV has no presupuesto_monto',
+    );
   }
 
   toResponse(ouv: Ouv, diasPorZona?: OuvDiasPorZona): OuvResponseDto {

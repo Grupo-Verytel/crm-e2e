@@ -4,6 +4,7 @@ import { AccountsModule } from '../accounts/accounts.module';
 import { AuthModule } from '../auth/auth.module';
 import { DemandGenerationModule } from '../demand-generation/demand-generation.module';
 import { WorkflowEngineModule } from '../workflow-engine/workflow-engine.module';
+import { DiscoveryCatalogosController } from './controllers/discovery-catalogos.controller';
 import { MotivosDescarteController } from './controllers/motivos-descarte.controller';
 import { MotivosPerdidaController } from './controllers/motivos-perdida.controller';
 import { OuvContactosController } from './controllers/ouv-contactos.controller';
@@ -42,6 +43,7 @@ import { OuvsService } from './services/ouvs.service';
   controllers: [
     OuvsController,
     OuvContactosController,
+    DiscoveryCatalogosController,
     MotivosPerdidaController,
     MotivosDescarteController,
     ZonaChecklistTemplatesController,

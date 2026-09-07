@@ -463,7 +463,9 @@ export function OuvDetailPage() {
     const message =
       resultado === 'Ganada'
         ? 'La OUV se cerró correctamente como Ganada.'
-        : `La OUV se cerró correctamente como ${resultado}.`;
+        : resultado === 'Perdida'
+          ? 'La OUV se cerró como Perdida. Queda disponible en Oportunidades perdidas.'
+          : `La OUV se cerró correctamente como ${resultado}.`;
     setCloseToast(message);
     setActionSuccess(message);
     setCelebrateWin(resultado === 'Ganada');
@@ -965,7 +967,23 @@ export function OuvDetailPage() {
                 <dd className="text-ink">{ouv.competidor_ganador}</dd>
               </div>
             ) : null}
+            {ouv.motivo_detalle ? (
+              <div className="md:col-span-2">
+                <dt className="text-muted">Observación</dt>
+                <dd className="text-ink">{ouv.motivo_detalle}</dd>
+              </div>
+            ) : null}
           </dl>
+          {ouv.resultado === 'Perdida' ? (
+            <p className="mt-3 text-sm">
+              <Link
+                to="/opportunities/perdidas"
+                className="font-bold text-accent hover:underline"
+              >
+                Ver bandeja de oportunidades perdidas
+              </Link>
+            </p>
+          ) : null}
         </section>
       ) : null}
       </>
