@@ -9,6 +9,7 @@ const EXPECTED_HEADERS = [
   'canal_origen',
   'segmento',
   'industria',
+  'ciudad',
   'region',
   'pais',
   'account_name',

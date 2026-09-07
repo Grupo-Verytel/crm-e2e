@@ -373,6 +373,10 @@ export class LeadStateMachineService {
   }
 
   private async getLeadDisplayLabel(lead: Lead): Promise<string> {
+    if (lead.name?.trim()) {
+      return lead.name.trim();
+    }
+
     const contact = await this.leadContactModel.findOne({
       where: { leadId: lead.leadId },
       order: [['position', 'ASC']],

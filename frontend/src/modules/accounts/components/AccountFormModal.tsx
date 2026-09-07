@@ -1,10 +1,12 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import {
   createAccount,
   fetchAccounts,
   updateAccount,
 } from '../api/accounts-api';
+import { ECONOMIC_SECTORS } from '../lib/economic-sectors';
 import type { Account } from '../types';
+import { FloatingToast } from './FloatingToast';
 import {
   ghostButtonClass,
   inputClass,
@@ -18,6 +20,28 @@ type Props = {
   onSaved: () => void;
 };
 
+type SearchField = 'name' | 'tax';
+
+function normalizeNit(value: string): string {
+  return value.replace(/[\s.\-]/g, '').toLowerCase();
+}
+
+function isSameName(a: string, b: string): boolean {
+  return a.trim().toLowerCase() === b.trim().toLowerCase();
+}
+
+function isSameNit(a: string, b: string | null | undefined): boolean {
+  if (!a.trim() || !b?.trim()) {
+    return false;
+  }
+  return normalizeNit(a) === normalizeNit(b);
+}
+
+function duplicateMessage(account: Account): string {
+  const nitPart = account.tax_id ? ` · NIT ${account.tax_id}` : '';
+  return `Ya existe «${account.name}${nitPart}». Edítala desde el listado; no se puede crear de nuevo.`;
+}
+
 export function AccountFormModal({ editing, onClose, onSaved }: Props) {
   const isNew = editing === 'new';
 
@@ -30,36 +54,166 @@ export function AccountFormModal({ editing, onClose, onSaved }: Props) {
   const [website, setWebsite] = useState(isNew ? '' : (editing.website ?? ''));
   const [searchHits, setSearchHits] = useState<Account[]>([]);
   const [searching, setSearching] = useState(false);
+  const [activeField, setActiveField] = useState<SearchField | null>(null);
+  const [listOpen, setListOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const nameWrapRef = useRef<HTMLDivElement>(null);
+  const taxWrapRef = useRef<HTMLDivElement>(null);
+  const toastTimerRef = useRef<number | null>(null);
+  const lastDuplicateIdRef = useRef<string | null>(null);
 
-  async function runPreSearch() {
-    const q = [name.trim(), taxId.trim()].filter(Boolean).join(' ').trim();
-    if (!q) {
-      setSearchHits([]);
+  function showToast(message: string) {
+    if (toastTimerRef.current) {
+      window.clearTimeout(toastTimerRef.current);
+    }
+    setToast(message);
+    toastTimerRef.current = window.setTimeout(() => {
+      setToast(null);
+      toastTimerRef.current = null;
+    }, 4500);
+  }
+
+  /** Live search by name and/or NIT while creating. */
+  useEffect(() => {
+    if (!isNew) {
       return;
     }
-    setSearching(true);
-    try {
-      const data = await fetchAccounts({ q, page: 1, limit: 10 });
-      setSearchHits(data.items);
-    } catch {
+    const nameQ = name.trim();
+    const taxQ = taxId.trim();
+    if (nameQ.length < 2 && taxQ.length < 2) {
       setSearchHits([]);
-    } finally {
       setSearching(false);
+      setListOpen(false);
+      return;
     }
+    let active = true;
+    const timer = window.setTimeout(() => {
+      setSearching(true);
+      const queries = [
+        nameQ.length >= 2 ? nameQ : null,
+        taxQ.length >= 2 ? taxQ : null,
+      ].filter((q): q is string => q != null);
+
+      void Promise.all(
+        queries.map((q) => fetchAccounts({ q, page: 1, limit: 10 })),
+      )
+        .then((results) => {
+          if (!active) {
+            return;
+          }
+          const byId = new Map<string, Account>();
+          for (const page of results) {
+            for (const item of page.items) {
+              byId.set(item.account_id, item);
+            }
+          }
+          setSearchHits([...byId.values()]);
+          if (activeField) {
+            setListOpen(true);
+          }
+        })
+        .catch(() => {
+          if (active) {
+            setSearchHits([]);
+          }
+        })
+        .finally(() => {
+          if (active) {
+            setSearching(false);
+          }
+        });
+    }, 280);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [isNew, name, taxId, activeField]);
+
+  useEffect(() => {
+    function onPointerDown(event: MouseEvent) {
+      const target = event.target as Node;
+      if (
+        !nameWrapRef.current?.contains(target) &&
+        !taxWrapRef.current?.contains(target)
+      ) {
+        setListOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', onPointerDown);
+    return () => document.removeEventListener('mousedown', onPointerDown);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) {
+        window.clearTimeout(toastTimerRef.current);
+      }
+    };
+  }, []);
+
+  const requiredFilled =
+    name.trim().length > 0 &&
+    taxId.trim().length > 0 &&
+    economicSector.trim().length > 0 &&
+    address.trim().length > 0;
+
+  const duplicateAccount = useMemo(() => {
+    if (!isNew) {
+      return null;
+    }
+    return (
+      searchHits.find(
+        (hit) => isSameName(hit.name, name) || isSameNit(taxId, hit.tax_id),
+      ) ?? null
+    );
+  }, [isNew, name, taxId, searchHits]);
+
+  useEffect(() => {
+    if (!duplicateAccount) {
+      lastDuplicateIdRef.current = null;
+      return;
+    }
+    if (lastDuplicateIdRef.current === duplicateAccount.account_id) {
+      return;
+    }
+    lastDuplicateIdRef.current = duplicateAccount.account_id;
+    showToast(duplicateMessage(duplicateAccount));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- toast helper is stable for this mount
+  }, [duplicateAccount]);
+
+  const canSubmit =
+    requiredFilled && !saving && !searching && !(isNew && duplicateAccount);
+
+  function pickExisting(account: Account) {
+    setName(account.name);
+    setTaxId(account.tax_id ?? '');
+    setEconomicSector(account.economic_sector ?? '');
+    setAddress(account.address ?? '');
+    setWebsite(account.website ?? '');
+    setSearchHits([account]);
+    setListOpen(false);
+    setActiveField(null);
+    lastDuplicateIdRef.current = account.account_id;
+    showToast(duplicateMessage(account));
   }
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+    if (!canSubmit) {
+      return;
+    }
+    if (isNew && duplicateAccount) {
+      showToast(duplicateMessage(duplicateAccount));
+      return;
+    }
     setSaving(true);
-    setError(null);
     try {
       const payload = {
         name: name.trim(),
-        tax_id: taxId.trim() || null,
-        economic_sector: economicSector.trim() || null,
-        address: address.trim() || null,
+        tax_id: taxId.trim(),
+        economic_sector: economicSector.trim(),
+        address: address.trim(),
         website: website.trim() || null,
       };
       if (isNew) {
@@ -70,12 +224,49 @@ export function AccountFormModal({ editing, onClose, onSaved }: Props) {
       onSaved();
       onClose();
     } catch (err) {
-      setError(
+      showToast(
         err instanceof Error ? err.message : 'No se pudo guardar la empresa.',
       );
     } finally {
       setSaving(false);
     }
+  }
+
+  function renderHits() {
+    if (!isNew || !listOpen || !activeField) {
+      return null;
+    }
+    if (searching) {
+      return (
+        <ul className="absolute z-20 mt-1 max-h-48 w-full overflow-y-auto rounded border border-border bg-surface shadow-card">
+          <li className="px-3 py-2 text-sm text-muted">Buscando…</li>
+        </ul>
+      );
+    }
+    if (searchHits.length === 0) {
+      return null;
+    }
+    return (
+      <ul
+        className="absolute z-20 mt-1 max-h-48 w-full overflow-y-auto rounded border border-border bg-surface shadow-card"
+        role="listbox"
+      >
+        {searchHits.map((hit) => (
+          <li key={hit.account_id} role="option">
+            <button
+              type="button"
+              onClick={() => pickExisting(hit)}
+              className="flex w-full flex-col px-3 py-2 text-left text-sm hover:bg-bg"
+            >
+              <span className="font-bold text-ink">{hit.name}</span>
+              {hit.tax_id ? (
+                <span className="text-xs text-muted">NIT: {hit.tax_id}</span>
+              ) : null}
+            </button>
+          </li>
+        ))}
+      </ul>
+    );
   }
 
   return (
@@ -95,7 +286,7 @@ export function AccountFormModal({ editing, onClose, onSaved }: Props) {
           {isNew ? 'Crear empresa' : 'Editar empresa'}
         </h2>
 
-        <div>
+        <div className="relative" ref={nameWrapRef}>
           <label className={labelClass} htmlFor="account-name">
             Nombre
           </label>
@@ -103,37 +294,76 @@ export function AccountFormModal({ editing, onClose, onSaved }: Props) {
             id="account-name"
             className={inputClass}
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e) => {
+              setName(e.target.value);
+              setActiveField('name');
+            }}
+            onFocus={() => {
+              setActiveField('name');
+              if (searchHits.length > 0 && name.trim().length >= 2) {
+                setListOpen(true);
+              }
+            }}
             required
             maxLength={160}
+            autoComplete="off"
+            aria-autocomplete="list"
+            aria-expanded={activeField === 'name' && listOpen}
           />
+          {activeField === 'name' ? renderHits() : null}
         </div>
 
-        <div>
+        <div className="relative" ref={taxWrapRef}>
           <label className={labelClass} htmlFor="account-tax">
-            NIT / tax_id (opcional)
+            NIT
           </label>
           <input
             id="account-tax"
             className={inputClass}
             value={taxId}
-            onChange={(e) => setTaxId(e.target.value)}
+            onChange={(e) => {
+              setTaxId(e.target.value);
+              setActiveField('tax');
+            }}
+            onFocus={() => {
+              setActiveField('tax');
+              if (searchHits.length > 0 && taxId.trim().length >= 2) {
+                setListOpen(true);
+              }
+            }}
+            required
             maxLength={20}
+            autoComplete="off"
+            aria-autocomplete="list"
+            aria-expanded={activeField === 'tax' && listOpen}
           />
+          {activeField === 'tax' ? renderHits() : null}
         </div>
 
         <div>
           <label className={labelClass} htmlFor="account-sector">
             Sector económico
           </label>
-          <input
+          <select
             id="account-sector"
             className={inputClass}
             value={economicSector}
             onChange={(e) => setEconomicSector(e.target.value)}
-            maxLength={120}
-            placeholder="Ej. Manufactura, Servicios financieros"
-          />
+            required
+          >
+            <option value="">Seleccionar sector</option>
+            {ECONOMIC_SECTORS.map((sector) => (
+              <option key={sector} value={sector}>
+                {sector}
+              </option>
+            ))}
+            {economicSector &&
+            !ECONOMIC_SECTORS.includes(
+              economicSector as (typeof ECONOMIC_SECTORS)[number],
+            ) ? (
+              <option value={economicSector}>{economicSector}</option>
+            ) : null}
+          </select>
         </div>
 
         <div>
@@ -146,12 +376,13 @@ export function AccountFormModal({ editing, onClose, onSaved }: Props) {
             value={address}
             onChange={(e) => setAddress(e.target.value)}
             maxLength={255}
+            required
           />
         </div>
 
         <div>
           <label className={labelClass} htmlFor="account-website">
-            Sitio web
+            Sitio web (opcional)
           </label>
           <input
             id="account-website"
@@ -163,42 +394,19 @@ export function AccountFormModal({ editing, onClose, onSaved }: Props) {
           />
         </div>
 
-        {isNew ? (
-          <div className="space-y-2">
-            <button
-              type="button"
-              className={ghostButtonClass}
-              onClick={() => void runPreSearch()}
-              disabled={searching}
-            >
-              {searching ? 'Buscando…' : 'Buscar si ya existe'}
-            </button>
-            {searchHits.length > 0 ? (
-              <div className="rounded border border-border bg-bg p-3 text-sm">
-                <p className="mb-2 font-bold text-ink">
-                  Posibles coincidencias — revisa antes de crear:
-                </p>
-                <ul className="space-y-1 text-muted">
-                  {searchHits.map((hit) => (
-                    <li key={hit.account_id}>
-                      {hit.name}
-                      {hit.tax_id ? ` · ${hit.tax_id}` : ''}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-
-        {error ? (
-          <p className="text-sm text-danger" role="alert">
-            {error}
-          </p>
-        ) : null}
-
         <div className="flex gap-2 pt-1">
-          <button type="submit" className={primaryButtonClass} disabled={saving}>
+          <button
+            type="submit"
+            className={primaryButtonClass}
+            disabled={!canSubmit}
+            title={
+              !requiredFilled
+                ? 'Completa Nombre, NIT, Sector y Dirección'
+                : duplicateAccount
+                  ? 'La empresa ya existe'
+                  : undefined
+            }
+          >
             {saving ? 'Guardando…' : 'Guardar'}
           </button>
           <button type="button" className={ghostButtonClass} onClick={onClose}>
@@ -206,6 +414,16 @@ export function AccountFormModal({ editing, onClose, onSaved }: Props) {
           </button>
         </div>
       </form>
+
+      {toast ? (
+        <div onClick={(e) => e.stopPropagation()}>
+          <FloatingToast
+            message={toast}
+            tone="error"
+            onDismiss={() => setToast(null)}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }

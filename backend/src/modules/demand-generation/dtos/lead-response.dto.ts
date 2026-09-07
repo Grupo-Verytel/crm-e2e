@@ -57,6 +57,7 @@ export class LeadsQueryDto {
 
 export class LeadResponseDto {
   lead_id: string;
+  name: string | null;
   tipo_lead: string;
   origen: string;
   canal_origen: CanalOrigen;
@@ -64,6 +65,7 @@ export class LeadResponseDto {
   campana_id: string | null;
   segmento: string;
   industria: string | null;
+  ciudad: string | null;
   region: string;
   pais: string;
   /** Computed from primary contact → account (UI compat). */

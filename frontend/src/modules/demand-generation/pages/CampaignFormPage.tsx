@@ -5,7 +5,6 @@ import { AppLayout } from '../../../layout/AppLayout';
 import { useAuth } from '../../auth/hooks/useAuth';
 import { createCampaign } from '../api/campaigns-api';
 import { CsvImportStepper } from '../components/CsvImportStepper';
-import { DemandNav } from '../components/DemandNav';
 import {
   cardClass,
   inputClass,
@@ -92,7 +91,6 @@ export function CampaignFormPage() {
 
   return (
     <AppLayout title="Nueva campaña">
-      <DemandNav />
 
       <Link
         to="/demand/campaigns"

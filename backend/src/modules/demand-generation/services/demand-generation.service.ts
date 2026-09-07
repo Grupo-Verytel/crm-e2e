@@ -40,7 +40,12 @@ import { RejectMqlDto } from '../dtos/reject-mql.dto';
 import { TransitionToMqlDto } from '../dtos/transition-mql.dto';
 import { UpdateCampaignStatusDto } from '../dtos/update-campaign-status.dto';
 import { UpdateChecklistDto } from '../dtos/update-checklist.dto';
+import {
+  AssignLeadInfluenciaDto,
+  UpdateLeadContactDto,
+} from '../dtos/lead-contact.dto';
 import { UpdateLeadDto } from '../dtos/update-lead.dto';
+import { LeadContactInfluenciaTipo } from '../models/enums/lead.enums';
 import { Segment } from '../models/segment.model';
 import { Subsegment } from '../models/subsegment.model';
 import { CampaignsService } from './campaigns.service';
@@ -82,6 +87,17 @@ export class DemandGenerationService {
     return this.leadsService.create(dto, createdBy, roleName);
   }
 
+  async isLeadNameAvailable(
+    name: string,
+    excludeLeadId?: string,
+  ): Promise<{ available: boolean }> {
+    const available = await this.leadsService.isNameAvailable(
+      name,
+      excludeLeadId,
+    );
+    return { available };
+  }
+
   async findLeadById(
     leadId: string,
     actorUserId?: string,
@@ -95,6 +111,22 @@ export class DemandGenerationService {
     dto: UpdateLeadDto,
   ): Promise<LeadResponseDto> {
     return this.leadsService.update(leadId, dto);
+  }
+
+  async updateLeadContactInfluencia(
+    leadId: string,
+    contactId: string,
+    dto: UpdateLeadContactDto,
+  ): Promise<LeadResponseDto> {
+    return this.leadsService.updateContactInfluencia(leadId, contactId, dto);
+  }
+
+  async assignLeadInfluencia(
+    leadId: string,
+    tipo: LeadContactInfluenciaTipo,
+    dto: AssignLeadInfluenciaDto,
+  ): Promise<LeadResponseDto> {
+    return this.leadsService.assignInfluencia(leadId, tipo, dto);
   }
 
   async persistIcpScore(

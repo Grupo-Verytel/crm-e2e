@@ -38,6 +38,7 @@ import {
 import { PreventaActivityPanel } from '../components/PreventaActivityPanel';
 import { InteraccionesPreventaPanel } from '../components/InteraccionesPreventaPanel';
 import { RetrocesoZonaModal } from '../components/RetrocesoZonaModal';
+import { isOuvFollowUpViewer } from '../lib/ouv-access';
 import {
   cardClass,
   ghostButtonClass,
@@ -463,6 +464,7 @@ export function OuvDetailPage() {
   const editable =
     ouv.resultado === 'EnCurso' &&
     (user?.user_id === ouv.comercial_id || user?.role_name === 'Admin');
+  const followUpViewer = isOuvFollowUpViewer(user?.role_name);
 
   return (
     <AppLayout title={ouv.consecutivo}>
@@ -495,8 +497,9 @@ export function OuvDetailPage() {
 
       {detailTab === 'detalle' && !editable ? (
         <p className="mb-3 rounded border border-border bg-bg px-3 py-2 text-sm text-muted">
-          Solo lectura: las influencias y el presupuesto las edita el comercial
-          dueño de la OUV (o un Admin).
+          {followUpViewer
+            ? 'Vista de seguimiento (solo lectura): no puedes cambiar estados, zonas ni bandejas.'
+            : 'Solo lectura: las influencias y el presupuesto las edita el comercial dueño de la OUV (o un Admin).'}
         </p>
       ) : null}
 

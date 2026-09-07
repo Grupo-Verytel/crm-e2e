@@ -85,19 +85,29 @@ export class SqlsService {
     return { items, total: count, page, limit };
   }
 
-  /** Assigned SQLs for the current Ejecutivo Comercial. */
+  /** Assigned SQLs for the current Ejecutivo. Admin only lists ConvertidoOUV (org-wide). */
   async listAssigned(
     comercialUserId: string,
     query: SqlsQueryDto,
+    viewerRoleName?: string,
   ): Promise<PaginatedSqlsResponseDto> {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
     const offset = (page - 1) * limit;
+    const adminConvertedTray =
+      viewerRoleName === 'Admin' && query.estado === 'ConvertidoOUV';
+
+    const estadoFilter =
+      query.estado === 'ConvertidoOUV'
+        ? SqlEstado.ConvertidoOUV
+        : query.estado === 'Asignado'
+          ? { [Op.in]: [SqlEstado.Asignado, SqlEstado.EnGestion] }
+          : { [Op.ne]: SqlEstado.PendienteAsignacion };
 
     const { rows, count } = await this.sqlModel.findAndCountAll({
       where: {
-        comercialAsignadoId: comercialUserId,
-        estado: { [Op.ne]: SqlEstado.PendienteAsignacion },
+        ...(adminConvertedTray ? {} : { comercialAsignadoId: comercialUserId }),
+        estado: estadoFilter,
       },
       include: [{ model: Mql, required: true }],
       order: [['fechaAsignacion', 'DESC']],

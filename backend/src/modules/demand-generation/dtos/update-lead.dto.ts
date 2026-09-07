@@ -16,6 +16,12 @@ import { Segmento } from '../models/enums/segment.enum';
 
 export class UpdateLeadDto {
   @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(160)
+  name?: string;
+
+  @IsOptional()
   @IsEnum(TipoLead)
   tipo_lead?: TipoLead;
 
@@ -41,6 +47,11 @@ export class UpdateLeadDto {
   @IsString()
   @MaxLength(80)
   industria?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  ciudad?: string;
 
   @IsOptional()
   @IsString()

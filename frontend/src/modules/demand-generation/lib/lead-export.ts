@@ -16,6 +16,7 @@ const COLUMNS: { header: string; value: (lead: Lead) => string }[] = [
   },
   { header: 'Campaña', value: (l) => l.campana_id ?? '' },
   { header: 'Responsable', value: (l) => l.responsable_id },
+  { header: 'Ciudad', value: (l) => l.ciudad ?? '' },
   { header: 'Región', value: (l) => l.region },
   { header: 'Última interacción', value: (l) => l.fecha_ultima_interaccion ?? '' },
   { header: 'Fecha de captura', value: (l) => l.fecha_captura },

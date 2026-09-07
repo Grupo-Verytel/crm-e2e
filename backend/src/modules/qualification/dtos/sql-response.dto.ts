@@ -1,5 +1,8 @@
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, Max, Min } from 'class-validator';
+import { IsIn, IsInt, IsOptional, Max, Min } from 'class-validator';
+
+export const SQL_ASSIGNED_TRAY_ESTADOS = ['Asignado', 'ConvertidoOUV'] as const;
+export type SqlAssignedTrayEstado = (typeof SQL_ASSIGNED_TRAY_ESTADOS)[number];
 
 export class SqlsQueryDto {
   @IsOptional()
@@ -14,6 +17,11 @@ export class SqlsQueryDto {
   @Min(1)
   @Max(100)
   limit?: number = 20;
+
+  /** KAM trays: incoming (Asignado) vs already converted to OUV. */
+  @IsOptional()
+  @IsIn(SQL_ASSIGNED_TRAY_ESTADOS)
+  estado?: SqlAssignedTrayEstado;
 }
 
 export class SqlCitaResponseDto {

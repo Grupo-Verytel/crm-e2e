@@ -22,10 +22,10 @@ export function Header({ title }: { title: string }) {
   const isDark = theme === 'dark';
 
   return (
-    <header className="flex h-14 items-center gap-4 border-b border-border bg-surface px-6">
-      <h1 className="text-sm font-bold text-ink">{title}</h1>
+    <header className="grid h-14 grid-cols-[minmax(0,1fr)_minmax(12rem,28rem)_minmax(0,1fr)] items-center gap-4 border-b border-border bg-surface px-6">
+      <h1 className="truncate text-sm font-bold text-ink">{title}</h1>
 
-      <div className="relative ml-2 max-w-md flex-1">
+      <div className="w-full min-w-0 -translate-x-10 justify-self-center">
         <input
           type="search"
           placeholder="Buscar oportunidades, cuentas, contactos…"
@@ -34,7 +34,7 @@ export function Header({ title }: { title: string }) {
         />
       </div>
 
-      <div className="ml-auto flex items-center gap-3">
+      <div className="flex items-center justify-end gap-3">
         <NotificationBell />
 
         <button

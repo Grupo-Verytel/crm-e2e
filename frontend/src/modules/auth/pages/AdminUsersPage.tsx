@@ -7,6 +7,7 @@ import { createUser, fetchUsers, updateUser } from '../api/users-api';
 import { fetchRoles, updateRole } from '../api/roles-api';
 import { RoleEditModal } from '../components/RoleEditModal';
 import { UserFormModal } from '../components/UserFormModal';
+import { modulesAccessibleByPermissions } from '../lib/permission-catalog';
 import type { Role, User } from '../types';
 
 type AdminTab = 'users' | 'roles';
@@ -164,28 +165,52 @@ export function AdminUsersPage() {
                 <thead>
                   <tr className="border-b border-border text-xs uppercase tracking-wide text-muted">
                     <th className="px-4 py-3 font-bold">Nombre</th>
-                    <th className="px-4 py-3 font-bold">Descripción</th>
+                    <th className="px-4 py-3 font-bold">Módulos</th>
                     <th className="px-4 py-3 font-bold">Permisos</th>
                     <th className="px-4 py-3 font-bold" />
                   </tr>
                 </thead>
                 <tbody>
-                  {roles.map((role) => (
-                    <tr key={role.role_id} className="border-b border-border">
-                      <td className="px-4 py-3 font-bold text-ink">{role.name}</td>
-                      <td className="px-4 py-3 text-ink">{role.description ?? '—'}</td>
-                      <td className="px-4 py-3 text-muted">{role.permissions.length}</td>
-                      <td className="px-4 py-3 text-right">
-                        <button
-                          type="button"
-                          onClick={() => openEditRole(role)}
-                          className="btn-glow-outline rounded px-2 py-1 text-sm font-bold"
-                        >
-                          Editar
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  {roles.map((role) => {
+                    const modules = modulesAccessibleByPermissions(
+                      role.permissions,
+                    );
+                    return (
+                      <tr key={role.role_id} className="border-b border-border">
+                        <td className="px-4 py-3 font-bold text-ink">
+                          {role.name}
+                        </td>
+                        <td className="px-4 py-3">
+                          {modules.length === 0 ? (
+                            <span className="text-muted">Sin módulos</span>
+                          ) : (
+                            <div className="flex flex-wrap gap-1.5">
+                              {modules.map((module) => (
+                                <span
+                                  key={module.id}
+                                  className="rounded border border-border bg-bg px-2 py-0.5 text-xs font-bold text-ink"
+                                >
+                                  {module.label}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-muted">
+                          {role.permissions.length}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <button
+                            type="button"
+                            onClick={() => openEditRole(role)}
+                            className="btn-glow-outline rounded px-2 py-1 text-sm font-bold"
+                          >
+                            Editar
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             )}

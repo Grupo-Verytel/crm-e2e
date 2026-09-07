@@ -19,6 +19,29 @@ export function leadEstadoLabel(estado: string): string {
   return LEAD_ESTADO_LABEL[estado as LeadEstado] ?? estado;
 }
 
+/** Prefer lead.name; fall back to empresa for legacy rows without name. */
+export function leadDisplayName(lead: {
+  name?: string | null;
+  empresa_nombre: string;
+}): string {
+  const name = lead.name?.trim();
+  return name || lead.empresa_nombre;
+}
+
+export const LEAD_INFLUENCIA_SLOTS = [
+  { key: 'Economica', label: 'Económica' },
+  { key: 'Tecnica', label: 'Técnica' },
+  { key: 'Fabrica', label: 'Fábrica' },
+] as const;
+
+export type LeadInfluenciaKey = (typeof LEAD_INFLUENCIA_SLOTS)[number]['key'];
+
+export const LEAD_CONTACT_INFLUENCIA_LABEL: Record<LeadInfluenciaKey, string> = {
+  Economica: 'Económica',
+  Tecnica: 'Técnica',
+  Fabrica: 'Fábrica',
+};
+
 export const CANAL_ORIGEN_LABEL: Record<CanalOrigen, string> = {
   CAMPANA_DIGITAL: 'Marketing Digital',
   BTL: 'BTL',
@@ -42,13 +65,22 @@ export function segmentoDot(segmento: string): string {
 
 /**
  * The four guided board lanes, in flow order (spec §4). Reciclaje/Descartado are
- * NOT lanes — they are exception states. SQL is a read-only destination: the
- * promotion to SQL is the Director's decision in the MQL inbox, never a drag.
+ * NOT lanes — they are exception states. SQL is a read-only destination on the
+ * board (distinctive tray column): promotion is the Director's decision in the
+ * MQL inbox, never a drag.
  */
 export type KanbanEstado = Extract<
   LeadEstado,
   'TOFU' | 'MOFU' | 'MQL_PENDING' | 'SQL'
 >;
+
+/** Short labels for the lead funnel ribbon (uppercase, OUV-style). */
+export const LEAD_ESTADO_RIBBON_LABEL: Record<KanbanEstado, string> = {
+  TOFU: 'TOFU',
+  MOFU: 'MOFU',
+  MQL_PENDING: 'BOFU',
+  SQL: 'SQL',
+};
 
 export type KanbanColumn = {
   estado: KanbanEstado;
@@ -63,28 +95,28 @@ export type KanbanColumn = {
 export const KANBAN_COLUMNS: KanbanColumn[] = [
   {
     estado: 'TOFU',
-    label: 'Por Contactar - TOFU',
+    label: 'Por contactar · TOFU',
     hint: 'Captados, aún sin primera interacción',
     acceptsFrom: null,
     readOnly: false,
   },
   {
     estado: 'MOFU',
-    label: 'En nutrición - MOFU',
+    label: 'En nutrición · MOFU',
     hint: 'Con interacción; trabajando el checklist',
     acceptsFrom: 'TOFU',
     readOnly: false,
   },
   {
     estado: 'MQL_PENDING',
-    label: 'Pendiente aprobación - BOFU',
+    label: 'Pendiente aprobación · BOFU',
     hint: 'Checklist completo; espera al Director',
     acceptsFrom: 'MOFU',
     readOnly: false,
   },
   {
     estado: 'SQL',
-    label: 'SQL',
+    label: 'Bandeja SQL',
     hint: 'Aprobado por el Director · solo lectura',
     acceptsFrom: null,
     readOnly: true,

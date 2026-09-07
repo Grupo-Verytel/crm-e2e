@@ -17,6 +17,7 @@ export type Person = {
   phone: string | null;
   account_id: string;
   account_name?: string | null;
+  tipo_influencia?: 'Economica' | 'Tecnica' | 'Fabrica' | null;
   created_at: string;
   updated_at: string;
 };
@@ -43,9 +44,9 @@ export type PeopleQuery = {
 
 export type CreateAccountPayload = {
   name: string;
-  tax_id?: string | null;
-  economic_sector?: string | null;
-  address?: string | null;
+  tax_id: string;
+  economic_sector: string;
+  address: string;
   website?: string | null;
 };
 
@@ -63,6 +64,7 @@ export type CreatePersonPayload = {
   email?: string | null;
   phone?: string | null;
   account_id: string;
+  tipo_influencia?: 'Economica' | 'Tecnica' | 'Fabrica' | null;
 };
 
 export type UpdatePersonPayload = {
@@ -70,4 +72,5 @@ export type UpdatePersonPayload = {
   job_title?: string | null;
   email?: string | null;
   phone?: string | null;
+  tipo_influencia?: 'Economica' | 'Tecnica' | 'Fabrica' | null;
 };

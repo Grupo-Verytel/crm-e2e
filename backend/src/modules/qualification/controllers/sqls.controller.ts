@@ -43,7 +43,7 @@ export class SqlsController {
     @Query() query: SqlsQueryDto,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<PaginatedSqlsResponseDto> {
-    return this.sqlsService.listAssigned(user.userId, query);
+    return this.sqlsService.listAssigned(user.userId, query, user.roleName);
   }
 
   @Get(':id')

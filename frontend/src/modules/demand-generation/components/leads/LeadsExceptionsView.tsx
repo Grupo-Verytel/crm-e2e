@@ -7,12 +7,13 @@ import type { Lead, LeadsQuery } from '../../types';
 import { cardClass, ghostButtonClass } from '../ui';
 import { StatusBadge } from '../StatusBadge';
 import { SegmentChip } from './SegmentChip';
+import { leadDisplayName } from '../../lib/lead-vocab';
 import type { LeadFilterValues } from '../../lib/lead-filters';
 
 const PAGE_LIMIT = 50;
 type ExceptionFilter = 'all' | 'Reciclaje' | 'Descartado';
 
-const SUB_FILTERS: { value: ExceptionFilter; label: string }[] = [
+const TABS: { value: ExceptionFilter; label: string }[] = [
   { value: 'all', label: 'Todas' },
   { value: 'Reciclaje', label: 'En reciclaje' },
   { value: 'Descartado', label: 'Descartadas' },
@@ -68,14 +69,13 @@ export function LeadsExceptionsView({
       setItems(merged);
       setTruncated(total > merged.length);
     } catch {
-      setError('No se pudieron cargar las excepciones.');
+      setError('No se pudieron cargar las OUV devueltas.');
     } finally {
       setIsLoading(false);
     }
   }, [baseQuery, subFilter]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetch on filter change
     void load();
   }, [load]);
 
@@ -96,101 +96,112 @@ export function LeadsExceptionsView({
   }
 
   return (
-    <div className={cardClass}>
-      <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-3">
-        <p className="mr-2 text-sm text-muted">
-          Estados de excepción — fuera del flujo normal del tablero.
-        </p>
-        <div className="inline-flex rounded border border-border p-0.5">
-          {SUB_FILTERS.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              onClick={() => setSubFilter(option.value)}
-              aria-pressed={subFilter === option.value}
-              className={[
-                'rounded-sm px-3 py-1 text-xs font-bold transition-colors',
-                subFilter === option.value
-                  ? 'btn-glow'
-                  : 'btn-glow-outline border-transparent',
-              ].join(' ')}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-      </div>
+    <div className="space-y-4">
+      <nav
+        className="flex flex-wrap gap-1 border-b border-border"
+        aria-label="OUV devueltas"
+      >
+        {TABS.map((tab) => (
+          <button
+            key={tab.value}
+            type="button"
+            onClick={() => setSubFilter(tab.value)}
+            aria-pressed={subFilter === tab.value}
+            className={[
+              '-mb-px border-b-2 px-4 py-2 text-sm transition-colors',
+              subFilter === tab.value
+                ? 'border-accent font-bold text-accent'
+                : 'border-transparent text-muted hover:text-accent',
+            ].join(' ')}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </nav>
 
-      {isLoading ? (
-        <StateMessage>Cargando excepciones…</StateMessage>
-      ) : error ? (
-        <StateMessage>{error}</StateMessage>
-      ) : items.length === 0 ? (
-        <StateMessage>No hay leads en reciclaje ni descartados.</StateMessage>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[880px] text-left text-sm">
-            <thead>
-              <tr className="border-b border-border text-xs uppercase tracking-wide text-muted">
-                <th className="px-4 py-3 font-bold">Empresa / contacto</th>
-                <th className="px-4 py-3 font-bold">Segmento</th>
-                <th className="px-4 py-3 font-bold">Estado</th>
-                <th className="px-4 py-3 font-bold">Motivo</th>
-                <th className="px-4 py-3 font-bold">Última interacción</th>
-                <th className="px-4 py-3 font-bold" />
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((lead) => (
-                <tr key={lead.lead_id} className="border-b border-border">
-                  <td className="px-4 py-3">
-                    <Link
-                      to={`/demand/leads/${lead.lead_id}`}
-                      className="font-bold text-ink hover:text-accent"
-                    >
-                      {lead.empresa_nombre}
-                    </Link>
-                    <div className="text-xs text-muted">{lead.contacto_nombre}</div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <SegmentChip segmento={lead.segmento} />
-                  </td>
-                  <td className="px-4 py-3">
-                    <StatusBadge value={lead.estado} />
-                  </td>
-                  <td className="max-w-xs px-4 py-3 text-muted">
-                    {lead.motivo_descarte ?? '—'}
-                  </td>
-                  <td className="px-4 py-3 text-muted">
-                    {lead.fecha_ultima_interaccion
-                      ? formatRelative(lead.fecha_ultima_interaccion)
-                      : 'Sin interacción'}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    {lead.estado === 'Descartado' ? (
-                      <button
-                        type="button"
-                        onClick={() => handleRecycle(lead)}
-                        disabled={busyId === lead.lead_id}
-                        className={ghostButtonClass}
-                      >
-                        Reciclar a nutrición
-                      </button>
-                    ) : null}
-                  </td>
+      <div className={cardClass}>
+        {isLoading ? (
+          <StateMessage>Cargando OUV devueltas…</StateMessage>
+        ) : error ? (
+          <StateMessage>{error}</StateMessage>
+        ) : items.length === 0 ? (
+          <StateMessage>
+            {subFilter === 'all'
+              ? 'No hay leads en reciclaje ni descartados.'
+              : subFilter === 'Reciclaje'
+                ? 'No hay leads en reciclaje.'
+                : 'No hay leads descartados.'}
+          </StateMessage>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[880px] text-left text-sm">
+              <thead>
+                <tr className="border-b border-border text-xs uppercase tracking-wide text-muted">
+                  <th className="px-4 py-3 font-bold">Empresa / contacto</th>
+                  <th className="px-4 py-3 font-bold">Segmento</th>
+                  <th className="px-4 py-3 font-bold">Estado</th>
+                  <th className="px-4 py-3 font-bold">Motivo</th>
+                  <th className="px-4 py-3 font-bold">Última interacción</th>
+                  <th className="px-4 py-3 font-bold" />
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+              </thead>
+              <tbody>
+                {items.map((lead) => (
+                  <tr key={lead.lead_id} className="border-b border-border">
+                    <td className="px-4 py-3">
+                      <Link
+                        to={`/demand/leads/${lead.lead_id}`}
+                        className="font-bold text-ink hover:text-accent"
+                      >
+                        {leadDisplayName(lead)}
+                      </Link>
+                      <div className="text-xs text-muted">
+                        {lead.empresa_nombre}
+                        {lead.contacto_nombre
+                          ? ` · ${lead.contacto_nombre}`
+                          : ''}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <SegmentChip segmento={lead.segmento} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <StatusBadge value={lead.estado} />
+                    </td>
+                    <td className="max-w-xs px-4 py-3 text-muted">
+                      {lead.motivo_descarte ?? '—'}
+                    </td>
+                    <td className="px-4 py-3 text-muted">
+                      {lead.fecha_ultima_interaccion
+                        ? formatRelative(lead.fecha_ultima_interaccion)
+                        : 'Sin interacción'}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      {lead.estado === 'Descartado' ? (
+                        <button
+                          type="button"
+                          onClick={() => handleRecycle(lead)}
+                          disabled={busyId === lead.lead_id}
+                          className={ghostButtonClass}
+                        >
+                          Reciclar a nutrición
+                        </button>
+                      ) : null}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
 
-      {truncated ? (
-        <p className="border-t border-border px-4 py-3 text-xs text-muted">
-          Mostrando los primeros {PAGE_LIMIT} por estado. Acota con los filtros
-          globales para ver el resto.
-        </p>
-      ) : null}
+        {truncated ? (
+          <p className="border-t border-border px-4 py-3 text-xs text-muted">
+            Mostrando los primeros {PAGE_LIMIT} por estado. Acota con los filtros
+            globales para ver el resto.
+          </p>
+        ) : null}
+      </div>
     </div>
   );
 }

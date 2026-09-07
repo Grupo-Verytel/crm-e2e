@@ -1,8 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { DEMAND_GENERATION_ERROR_CODES } from '../constants/demand-generation.constants';
 import { CreateInteractionDto } from '../dtos/create-interaction.dto';
 import { InteractionResponseDto } from '../dtos/interaction-response.dto';
+import { isCanalAllowedForTipo } from '../models/enums/interaction.enums';
 import { Interaction } from '../models/interaction.model';
 import { Lead } from '../models/lead.model';
 
@@ -24,6 +25,14 @@ export class InteractionsService {
     responsableId: string,
   ): Promise<InteractionResponseDto> {
     const lead = await this.findLeadOrFail(leadId);
+
+    if (!isCanalAllowedForTipo(dto.tipo, dto.canal)) {
+      throw new BadRequestException({
+        code: DEMAND_GENERATION_ERROR_CODES.VALIDATION_ERROR,
+        message: `Canal ${dto.canal} is not valid for interaction type ${dto.tipo}`,
+      });
+    }
+
     const fecha = dto.fecha ? new Date(dto.fecha) : new Date();
 
     const interaction = await this.interactionModel.create({

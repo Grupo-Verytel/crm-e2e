@@ -121,7 +121,8 @@ function Item({ item, isCollapsed }: { item: NavItem; isCollapsed: boolean }) {
   const { label, path, icon: Icon } = item;
   return (
     <NavLink
-      to={path}
+      to={path === '/demand' ? { pathname: '/demand', search: '' } : path}
+      end={path === '/demand'}
       title={isCollapsed ? label : undefined}
       aria-label={isCollapsed ? label : undefined}
       className={({ isActive }) =>

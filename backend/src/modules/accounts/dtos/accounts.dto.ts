@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import {
+  IsEnum,
   IsInt,
   IsOptional,
   IsString,
@@ -8,7 +9,9 @@ import {
   MaxLength,
   Min,
   MinLength,
+  ValidateIf,
 } from 'class-validator';
+import { PersonInfluenciaTipo } from '../models/enums/person-influencia-tipo.enum';
 
 export class AccountsQueryDto {
   @IsOptional()
@@ -36,20 +39,20 @@ export class CreateAccountDto {
   @MaxLength(160)
   name!: string;
 
-  @IsOptional()
   @IsString()
+  @MinLength(1)
   @MaxLength(20)
-  tax_id?: string | null;
+  tax_id!: string;
 
-  @IsOptional()
   @IsString()
+  @MinLength(1)
   @MaxLength(120)
-  economic_sector?: string | null;
+  economic_sector!: string;
 
-  @IsOptional()
   @IsString()
+  @MinLength(1)
   @MaxLength(255)
-  address?: string | null;
+  address!: string;
 
   @IsOptional()
   @IsString()
@@ -150,6 +153,10 @@ export class CreatePersonDto {
 
   @IsUUID()
   account_id!: string;
+
+  @IsOptional()
+  @IsEnum(PersonInfluenciaTipo)
+  tipo_influencia?: PersonInfluenciaTipo;
 }
 
 export class UpdatePersonDto {
@@ -173,6 +180,11 @@ export class UpdatePersonDto {
   @IsString()
   @MaxLength(20)
   phone?: string | null;
+
+  @ValidateIf((_, value) => value !== null)
+  @IsOptional()
+  @IsEnum(PersonInfluenciaTipo)
+  tipo_influencia?: PersonInfluenciaTipo | null;
 }
 
 export class PersonResponseDto {
@@ -183,6 +195,7 @@ export class PersonResponseDto {
   phone!: string | null;
   account_id!: string;
   account_name?: string | null;
+  tipo_influencia!: PersonInfluenciaTipo | null;
   created_at!: Date;
   updated_at!: Date;
 }

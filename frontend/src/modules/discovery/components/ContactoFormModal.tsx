@@ -4,6 +4,7 @@ import {
   createPerson,
   fetchAccounts,
   fetchPeople,
+  updatePerson,
 } from '../../accounts/api/accounts-api';
 import type { Account, Person } from '../../accounts/types';
 import { ApiError } from '../../auth/types';
@@ -128,6 +129,9 @@ export function ContactoFormModal({
             initial.person_id,
             influenciaTipoDraft || null,
           );
+          await updatePerson(initial.person_id, {
+            tipo_influencia: influenciaTipoDraft || null,
+          });
         }
         await onSave(
           { notas: notas.trim() || null },
@@ -161,6 +165,7 @@ export function ContactoFormModal({
           job_title: newPersonJob.trim() || null,
           phone: newPersonPhone.trim() || null,
           account_id: accountId,
+          tipo_influencia: influenciaTipoDraft || null,
         });
         personId = person.person_id;
       }
@@ -174,6 +179,11 @@ export function ContactoFormModal({
       );
       if (personId && influenciaTipoDraft) {
         savePersonInfluenciaTipo(personId, influenciaTipoDraft);
+        if (selectedPerson) {
+          await updatePerson(personId, {
+            tipo_influencia: influenciaTipoDraft,
+          });
+        }
       }
       onClose();
     } catch (err) {

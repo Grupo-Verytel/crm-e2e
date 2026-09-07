@@ -1,15 +1,34 @@
-import { Type } from 'class-transformer';
+import { Transform } from 'class-transformer';
 import {
   IsBoolean,
-  IsNotEmpty,
+  IsEnum,
   IsOptional,
   IsUUID,
-  ValidateNested,
+  ValidateIf,
 } from 'class-validator';
+import { LeadContactInfluenciaTipo } from '../models/enums/lead.enums';
 
 export class LeadContactInputDto {
   @IsUUID('4')
   person_id: string;
+
+  @IsOptional()
+  @IsEnum(LeadContactInfluenciaTipo)
+  tipo_influencia?: LeadContactInfluenciaTipo;
+}
+
+export class UpdateLeadContactDto {
+  @Transform(({ value }) => (value === '' ? null : value))
+  @ValidateIf((_, value) => value !== null)
+  @IsEnum(LeadContactInfluenciaTipo)
+  tipo_influencia: LeadContactInfluenciaTipo | null;
+}
+
+export class AssignLeadInfluenciaDto {
+  @Transform(({ value }) => (value === '' ? null : value))
+  @ValidateIf((_, value) => value !== null)
+  @IsUUID('4')
+  person_id: string | null;
 }
 
 export class DirectChecklistDto {
@@ -37,4 +56,5 @@ export class LeadContactResponseDto {
   account_id: string;
   account_name: string;
   account_tax_id: string | null;
+  tipo_influencia: string | null;
 }

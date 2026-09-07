@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import { Pagination } from '../../../components/Pagination';
 import { AppLayout } from '../../../layout/AppLayout';
 import { fetchLeads } from '../api/leads-api';
-import { DemandNav } from '../components/DemandNav';
 import { RegisterAppointmentModal } from '../components/leads/RegisterAppointmentModal';
 import {
   cardClass,
@@ -65,7 +64,6 @@ export function AgendaInboxPage() {
 
   return (
     <AppLayout title="Bandeja de Agenda">
-      <DemandNav />
       <h1 className="mb-4 text-lg font-bold text-ink">Bandeja de Agenda</h1>
 
       <form

@@ -35,6 +35,7 @@ import { InfluenciaTipo, OuvZona } from '../models/enums/ouv.enums';
 import { OuvChecklistService } from '../services/ouv-checklist.service';
 import { OuvInfluenciasService } from '../services/ouv-influencias.service';
 import { OuvsService } from '../services/ouvs.service';
+import { canReadAllOuvs } from '../lib/ouv-ownership';
 
 @Controller('discovery/ouvs')
 export class OuvsController {
@@ -61,8 +62,7 @@ export class OuvsController {
     @Query() query: ListarOuvsQueryDto,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<PaginatedOuvsResponseDto> {
-    const canListAll =
-      user.roleName === 'SoporteComercial' || user.roleName === 'Admin';
+    const canListAll = canReadAllOuvs(user.roleName);
     const result = await this.ouvsService.listarPorComercial(user.userId, {
       ...query,
       all: canListAll ? query.all === true : false,

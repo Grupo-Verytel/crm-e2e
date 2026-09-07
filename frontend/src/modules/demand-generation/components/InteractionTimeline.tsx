@@ -1,137 +1,111 @@
 import { useEffect, useState } from 'react';
-import type { FormEvent } from 'react';
 import { formatDateTime } from '../../../lib/format';
-import { fetchInteractions, registerInteraction } from '../api/leads-api';
+import { fetchInteractions } from '../api/leads-api';
 import {
-  INTERACTION_CANALES,
-  INTERACTION_TIPOS,
+  INTERACTION_CANAL_LABEL,
+  INTERACTION_TIPO_LABEL,
   type Interaction,
   type InteractionCanal,
   type InteractionTipo,
 } from '../types';
-import { cardClass, inputClass, labelClass, primaryButtonClass } from './ui';
+import { cardClass, ghostButtonClass } from './ui';
+import { QuickInteractionModal } from './leads/QuickInteractionModal';
 
 export function InteractionTimeline({
   leadId,
+  leadName,
   onRegistered,
   readOnly = false,
 }: {
   leadId: string;
+  leadName: string;
   onRegistered: () => void;
   readOnly?: boolean;
 }) {
   const [items, setItems] = useState<Interaction[]>([]);
-  const [tipo, setTipo] = useState<InteractionTipo>('Llamada');
-  const [canal, setCanal] = useState<InteractionCanal>('Telefono');
-  const [descripcion, setDescripcion] = useState('');
-  const [isSaving, setIsSaving] = useState(false);
+  const [showModal, setShowModal] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function load() {
-    const data = await fetchInteractions(leadId);
-    setItems(data);
+    try {
+      setItems(await fetchInteractions(leadId));
+      setError(null);
+    } catch {
+      setError('No se pudieron cargar las interacciones.');
+    }
   }
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetch on lead change
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [leadId]);
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setIsSaving(true);
-    setError(null);
-    try {
-      await registerInteraction(leadId, {
-        tipo,
-        canal,
-        descripcion: descripcion || undefined,
-      });
-      setDescripcion('');
-      await load();
-      onRegistered();
-    } catch (saveError) {
-      setError(
-        saveError instanceof Error
-          ? saveError.message
-          : 'No se pudo registrar la interacción.',
-      );
-    } finally {
-      setIsSaving(false);
-    }
-  }
-
   return (
-    <div className={`${cardClass} p-5`}>
-      <h2 className="mb-3 text-sm font-bold text-ink">Interacciones</h2>
-
-      {!readOnly ? (
-      <form onSubmit={handleSubmit} className="mb-4 grid gap-3 md:grid-cols-4">
+    <section className={`${cardClass} p-5`}>
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <span className={labelClass}>Tipo</span>
-          <select
-            value={tipo}
-            onChange={(event) => setTipo(event.target.value as InteractionTipo)}
-            className={inputClass}
+          <h2 className="text-sm font-bold text-ink">Interacciones</h2>
+          <p className="text-xs text-muted">
+            Registra el tipo de comunicación y el canal acorde (llamada,
+            reunión, email, etc.).
+          </p>
+        </div>
+        {!readOnly ? (
+          <button
+            type="button"
+            className={ghostButtonClass}
+            onClick={() => setShowModal(true)}
           >
-            {INTERACTION_TIPOS.map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <span className={labelClass}>Canal</span>
-          <select
-            value={canal}
-            onChange={(event) => setCanal(event.target.value as InteractionCanal)}
-            className={inputClass}
-          >
-            {INTERACTION_CANALES.map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="md:col-span-2">
-          <span className={labelClass}>Descripción</span>
-          <input
-            value={descripcion}
-            onChange={(event) => setDescripcion(event.target.value)}
-            className={inputClass}
-          />
-        </div>
-        <div className="md:col-span-4">
-          <button type="submit" disabled={isSaving} className={primaryButtonClass}>
             Registrar interacción
           </button>
-        </div>
-      </form>
-      ) : null}
+        ) : null}
+      </div>
 
       {error ? <p className="mb-2 text-sm text-danger">{error}</p> : null}
 
       {items.length === 0 ? (
-        <p className="text-sm text-muted">Aún no hay interacciones registradas.</p>
+        <p className="rounded border border-dashed border-border bg-bg px-3 py-6 text-center text-sm text-muted">
+          Aún no hay interacciones registradas.
+        </p>
       ) : (
         <ol className="space-y-3 border-l border-border pl-4">
           {items.map((interaction) => (
             <li key={interaction.interaction_id} className="relative">
               <span className="absolute -left-[21px] top-1 h-2 w-2 rounded-full bg-accent" />
               <p className="text-sm font-bold text-ink">
-                {interaction.tipo} · {interaction.canal}
+                {INTERACTION_TIPO_LABEL[
+                  interaction.tipo as InteractionTipo
+                ] ?? interaction.tipo}{' '}
+                ·{' '}
+                {INTERACTION_CANAL_LABEL[
+                  interaction.canal as InteractionCanal
+                ] ?? interaction.canal}
               </p>
               {interaction.descripcion ? (
                 <p className="text-sm text-ink">{interaction.descripcion}</p>
               ) : null}
-              <p className="text-xs text-muted">{formatDateTime(interaction.fecha)}</p>
+              <p className="text-xs text-muted">
+                {formatDateTime(interaction.fecha)}
+              </p>
             </li>
           ))}
         </ol>
       )}
-    </div>
+
+      {showModal ? (
+        <QuickInteractionModal
+          leadId={leadId}
+          leadName={leadName}
+          subtitle={`Registra una interacción para ${leadName}.`}
+          submitLabel="Guardar interacción"
+          descriptionRequired
+          onRegistered={async () => {
+            await load();
+            onRegistered();
+          }}
+          onClose={() => setShowModal(false)}
+        />
+      ) : null}
+    </section>
   );
 }

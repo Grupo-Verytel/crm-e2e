@@ -24,6 +24,11 @@ import {
 } from './lead-contact.dto';
 
 export class CreateLeadDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(160)
+  name: string;
+
   @IsEnum(TipoLead)
   tipo_lead: TipoLead;
 
@@ -61,13 +66,20 @@ export class CreateLeadDto {
 
   @IsString()
   @MinLength(1)
+  @MaxLength(80)
+  ciudad: string;
+
+  @IsString()
+  @MinLength(1)
   @MaxLength(60)
   region: string;
 
+  /** Defaults to CO when omitted (Colombia city/region picker). */
+  @IsOptional()
   @IsString()
   @MinLength(2)
   @MaxLength(2)
-  pais: string;
+  pais?: string;
 
   @IsOptional()
   @IsString()

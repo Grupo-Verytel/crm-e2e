@@ -12,6 +12,7 @@ import {
   UpdatedAt,
 } from 'sequelize-typescript';
 import { Account } from './account.model';
+import { PersonInfluenciaTipo } from './enums/person-influencia-tipo.enum';
 
 @Table({
   tableName: 'people',
@@ -44,6 +45,13 @@ export class Person extends Model {
     allowNull: false,
   })
   declare accountId: string;
+
+  @Column({
+    type: DataType.ENUM(...Object.values(PersonInfluenciaTipo)),
+    field: 'influence_type',
+    allowNull: true,
+  })
+  declare influenceType: PersonInfluenciaTipo | null;
 
   @BelongsTo(() => Account, { foreignKey: 'accountId', as: 'account' })
   declare account: Account;

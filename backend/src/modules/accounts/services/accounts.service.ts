@@ -256,6 +256,19 @@ export class AccountsService {
     return [...accountIds][0];
   }
 
+  async assertPersonInfluenciaTipo(
+    personId: string,
+    tipo: 'Economica' | 'Tecnica' | 'Fabrica',
+  ): Promise<void> {
+    const person = await this.findPersonOrFail(personId);
+    if (person.influenceType && person.influenceType !== tipo) {
+      throw new ConflictException({
+        code: ACCOUNTS_ERROR_CODES.INFLUENCE_TYPE_MISMATCH,
+        message: `Este contacto es tipología ${person.influenceType}, no se puede asignar a ${tipo}.`,
+      });
+    }
+  }
+
   async findOrCreateAccountAndPerson(input: {
     account_name: string;
     tax_id?: string | null;
@@ -278,11 +291,16 @@ export class AccountsService {
       });
     }
     if (!account) {
-      const created = await this.createAccount({
-        name: input.account_name,
-        tax_id: taxId,
+      await this.assertAccountUniqueness(input.account_name.trim(), taxId);
+      // Internal upsert for lead/OUV import — not the HTTP CreateAccountDto
+      // (UI still requires tax_id, economic_sector, address). DB columns stay nullable.
+      account = await this.accountModel.create({
+        name: input.account_name.trim(),
+        taxId,
+        economicSector: null,
+        address: null,
+        website: null,
       });
-      account = await this.findAccountOrFail(created.account_id);
     }
 
     let person =
@@ -322,6 +340,7 @@ export class AccountsService {
       email,
       phone: this.normalizeOptional(dto.phone),
       accountId: dto.account_id,
+      influenceType: dto.tipo_influencia ?? null,
     });
 
     await person.reload({
@@ -349,6 +368,9 @@ export class AccountsService {
     }
     if (dto.phone !== undefined) {
       person.phone = this.normalizeOptional(dto.phone);
+    }
+    if (dto.tipo_influencia !== undefined) {
+      person.influenceType = dto.tipo_influencia;
     }
 
     await person.save();
@@ -505,6 +527,7 @@ export class AccountsService {
       phone: person.phone,
       account_id: person.accountId,
       account_name: person.account?.name ?? null,
+      tipo_influencia: person.influenceType ?? null,
       created_at: person.createdAt,
       updated_at: person.updatedAt,
     };

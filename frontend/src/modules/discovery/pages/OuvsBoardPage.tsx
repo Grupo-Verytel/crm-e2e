@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Filter, LayoutGrid, List, Plus } from 'lucide-react';
+import { Filter, LayoutGrid, List, Plus, Upload } from 'lucide-react';
 import { Pagination } from '../../../components/Pagination';
 import { AppLayout } from '../../../layout/AppLayout';
 import { formatDateTime } from '../../../lib/format';
@@ -13,10 +13,15 @@ import { fetchOuvs, type Ouv } from '../api/ouvs-api';
 import { CrearOuvDirectaModal } from '../components/CrearOuvDirectaModal';
 import { DiscoveryNav } from '../components/DiscoveryNav';
 import { GapBadge, ResultadoBadge, ZonaBadge } from '../components/OuvBadges';
+import { OuvBulkImportModal } from '../components/OuvBulkImportModal';
 import { OuvFiltersPanel } from '../components/OuvFiltersPanel';
 import {
   cardClass,
 } from '../components/ui';
+import {
+  canReadAllOuvs,
+  isOuvFollowUpViewer,
+} from '../lib/ouv-access';
 import {
   countActiveOuvFilters,
   EMPTY_OUV_FILTERS,
@@ -39,9 +44,8 @@ export function OuvsBoardPage() {
   const navigate = useNavigate();
   const isEjecutivo =
     user?.role_name === 'EjecutivoComercial' || user?.role_name === 'Admin';
-  const isSoporte = user?.role_name === 'SoporteComercial';
-  const canListAll =
-    user?.role_name === 'SoporteComercial' || user?.role_name === 'Admin';
+  const isFollowUpViewer = isOuvFollowUpViewer(user?.role_name);
+  const canListAll = canReadAllOuvs(user?.role_name);
 
   const [view, setView] = useState<ViewMode>('kanban');
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -59,6 +63,7 @@ export function OuvsBoardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [showBulkImport, setShowBulkImport] = useState(false);
 
   const activeFilterCount = countActiveOuvFilters(applied);
 
@@ -193,15 +198,15 @@ export function OuvsBoardPage() {
   return (
     <AppLayout title="Oportunidades (OUV)">
       <DiscoveryNav />
-      {isSoporte ? (
+      {isFollowUpViewer ? (
         <p className="mb-3 rounded border border-border bg-bg px-3 py-2 text-sm text-ink">
-          Bandeja Soporte: ves todas las OUVs (solo lectura de avance/cierre).
-          Administra motivos y plantillas de checklist desde el menú.
+          Vista de seguimiento: ves todas las OUVs en solo lectura. No puedes
+          crear, mover de zona ni cambiar estados o bandejas.
         </p>
       ) : null}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-lg font-bold text-ink">
-          {isSoporte ? 'Bandeja OUV (Soporte)' : 'Bandeja OUV'}
+          {isFollowUpViewer ? 'Bandeja OUV (seguimiento)' : 'Bandeja OUV'}
         </h1>
         <div className="flex flex-wrap items-center gap-2">
           {/* Kanban first — primary view */}
@@ -244,6 +249,17 @@ export function OuvsBoardPage() {
               </span>
             ) : null}
           </button>
+          {isEjecutivo ? (
+            <button
+              type="button"
+              className={viewToggleClass(false)}
+              onClick={() => setShowBulkImport(true)}
+              aria-label="Carga masiva de OUV"
+              title="Carga masiva"
+            >
+              <Upload size={18} strokeWidth={2} />
+            </button>
+          ) : null}
           {isEjecutivo ? (
             <button
               type="button"
@@ -365,7 +381,7 @@ export function OuvsBoardPage() {
                         className={[
                           'block rounded border bg-bg p-2',
                           ouv.resultado === 'Ganada'
-                            ? 'border-2 border-semaphore-verde hover:border-semaphore-verde/80'
+                            ? 'border border-semaphore-verde/45 hover:border-semaphore-verde/60'
                             : 'border-border hover:border-accent',
                         ].join(' ')}
                       >
@@ -397,6 +413,17 @@ export function OuvsBoardPage() {
           onCreated={(id) => {
             setShowCreate(false);
             navigate(`/opportunities/${id}`);
+          }}
+        />
+      ) : null}
+
+      {showBulkImport ? (
+        <OuvBulkImportModal
+          onClose={() => setShowBulkImport(false)}
+          onDone={() => {
+            setShowBulkImport(false);
+            if (view === 'lista') void loadLista();
+            else void loadKanban();
           }}
         />
       ) : null}

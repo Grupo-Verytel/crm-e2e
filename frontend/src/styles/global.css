@@ -160,3 +160,41 @@ body {
 .toast-fade-in {
   animation: fadeSlideIn 280ms ease-out;
 }
+
+/**
+ * Global scrollbars (additive only).
+ * Transparent track so the thumb sits over the surface; no layout/color changes
+ * to existing components — only ::-webkit-scrollbar / scrollbar-* properties.
+ */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--text-muted) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: var(--text-muted);
+  border-radius: var(--radius-sm);
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: var(--text);
+}
+
+*::-webkit-scrollbar-thumb:active {
+  background-color: var(--ink);
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}

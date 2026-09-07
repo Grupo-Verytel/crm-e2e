@@ -1,14 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
-import { ChevronDown, ChevronRight, Plus, Trash2 } from 'lucide-react';
-import {
-  createAccount,
-  createPerson,
-  fetchAccounts,
-  fetchPeople,
-} from '../../accounts/api/accounts-api';
+import { Link } from 'react-router-dom';
+import { X } from 'lucide-react';
+import { fetchAccounts, fetchPeople } from '../../accounts/api/accounts-api';
+import { resolvePersonInfluenciaTipo } from '../../accounts/lib/person-influencia-extensions';
 import type { Account, Person } from '../../accounts/types';
-import { createLead } from '../api/leads-api';
+import { createLead, checkLeadNameAvailable } from '../api/leads-api';
 import { fetchSegments } from '../api/segments-api';
 import { fetchTraductorReferrers } from '../api/traductores-api';
 import type { User } from '../../auth/types';
@@ -27,7 +24,8 @@ import {
   type Segmento,
   type TipoLead,
 } from '../types';
-import { CANAL_ORIGEN_LABEL } from '../lib/lead-vocab';
+import { CANAL_ORIGEN_LABEL, LEAD_INFLUENCIA_SLOTS } from '../lib/lead-vocab';
+import { ColombiaCitySearchField } from '../../discovery/components/ColombiaCitySearchField';
 import { ModalShell } from './ModalShell';
 import {
   ghostButtonClass,
@@ -62,16 +60,18 @@ const CHECKLIST_CRITERIA: {
   },
 ];
 
+type InfluenciaKey = (typeof LEAD_INFLUENCIA_SLOTS)[number]['key'];
+
 type FormState = {
+  name: string;
   tipo_lead: TipoLead;
   origen: OrigenLead;
   canal_origen: CanalOrigen;
   segmento: Segmento;
   segment_id: string;
   subsegment_id: string;
-  industria: string;
+  ciudad: string;
   region: string;
-  pais: string;
   business_referrer_id: string;
 };
 
@@ -80,12 +80,13 @@ type ContactSlot = {
   label: string;
 };
 
-type NewPersonDraft = {
-  name: string;
-  job_title: string;
-  email: string;
-  phone: string;
-};
+const emptyContact = (): ContactSlot => ({ person_id: null, label: '' });
+
+const emptyInfluences = (): Record<InfluenciaKey, ContactSlot> => ({
+  Economica: emptyContact(),
+  Tecnica: emptyContact(),
+  Fabrica: emptyContact(),
+});
 
 const emptyChecklist = (): CreateLeadChecklistInput => ({
   criterio_sector_objetivo: false,
@@ -95,15 +96,15 @@ const emptyChecklist = (): CreateLeadChecklistInput => ({
 });
 
 const initialState: FormState = {
+  name: '',
   tipo_lead: 'Inbound',
   origen: 'Web',
   canal_origen: 'CAMPANA_DIGITAL',
   segmento: 'Gobierno',
   segment_id: '',
   subsegment_id: '',
-  industria: '',
+  ciudad: '',
   region: '',
-  pais: 'CO',
   business_referrer_id: '',
 };
 
@@ -134,6 +135,10 @@ function modalTitle(mode: LeadFormMode): string {
   return 'Nuevo lead';
 }
 
+function personLabel(person: Person): string {
+  return `${person.name}${person.email ? ` · ${person.email}` : ''}`;
+}
+
 export function LeadFormModal({
   mode = 'standard',
   responsableId,
@@ -154,36 +159,53 @@ export function LeadFormModal({
   const [checklist, setChecklist] = useState<CreateLeadChecklistInput>(emptyChecklist);
 
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
-  const [accountQuery, setAccountQuery] = useState('');
+  const [empresaQuery, setEmpresaQuery] = useState('');
+  const [nitQuery, setNitQuery] = useState('');
   const [accountHits, setAccountHits] = useState<Account[]>([]);
   const [accountSearching, setAccountSearching] = useState(false);
-  const [showCreateAccount, setShowCreateAccount] = useState(false);
-  const [newAccountName, setNewAccountName] = useState('');
-  const [newAccountTaxId, setNewAccountTaxId] = useState('');
+  const [accountListOpen, setAccountListOpen] = useState(false);
+  const accountSearchRef = useRef<HTMLDivElement>(null);
 
-  const [contacts, setContacts] = useState<ContactSlot[]>([
-    { person_id: null, label: '' },
-  ]);
-  const [expandedContact, setExpandedContact] = useState(0);
+  const [influences, setInfluences] =
+    useState<Record<InfluenciaKey, ContactSlot>>(emptyInfluences);
+  const [accountPeople, setAccountPeople] = useState<Person[]>([]);
+  const [peopleLoading, setPeopleLoading] = useState(false);
+  const [activePersonSearch, setActivePersonSearch] = useState<InfluenciaKey | null>(
+    null,
+  );
   const [personQuery, setPersonQuery] = useState('');
-  const [personHits, setPersonHits] = useState<Person[]>([]);
-  const [personSearching, setPersonSearching] = useState(false);
-  const [creatingPersonFor, setCreatingPersonFor] = useState<number | null>(null);
-  const [newPerson, setNewPerson] = useState<NewPersonDraft>({
-    name: '',
-    job_title: '',
-    email: '',
-    phone: '',
-  });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [nameAvailable, setNameAvailable] = useState<
+    boolean | null | 'checking'
+  >(null);
 
   const canalOptions = canalOptionsForMode(mode);
   const selectedSegment = segments.find((segment) => segment.id === form.segment_id);
   const requiresChecklist = mode === 'product_manager' || mode === 'ejecutivo';
   const showTraductorSelect =
     mode === 'ejecutivo' && form.canal_origen === 'TRADUCTOR_NEGOCIO';
+
+  const filteredPeople = useMemo(() => {
+    const typed = activePersonSearch
+      ? accountPeople.filter(
+          (person) =>
+            resolvePersonInfluenciaTipo(person) === activePersonSearch,
+        )
+      : accountPeople;
+    const q = personQuery.trim().toLowerCase();
+    if (!q) {
+      return typed;
+    }
+    return typed.filter((person) => {
+      const haystack = [person.name, person.email, person.job_title, person.phone]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [accountPeople, personQuery, activePersonSearch]);
 
   useEffect(() => {
     let active = true;
@@ -200,6 +222,35 @@ export function LeadFormModal({
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    const trimmed = form.name.trim();
+    if (trimmed.length < 1) {
+      setNameAvailable(null);
+      return;
+    }
+
+    let active = true;
+    setNameAvailable('checking');
+    const timer = window.setTimeout(() => {
+      void checkLeadNameAvailable(trimmed)
+        .then((result) => {
+          if (active) {
+            setNameAvailable(result.available);
+          }
+        })
+        .catch(() => {
+          if (active) {
+            setNameAvailable(null);
+          }
+        });
+    }, 350);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [form.name]);
 
   useEffect(() => {
     if (!showTraductorSelect) {
@@ -221,6 +272,87 @@ export function LeadFormModal({
       active = false;
     };
   }, [showTraductorSelect]);
+
+  useEffect(() => {
+    function onPointerDown(event: MouseEvent) {
+      if (!accountSearchRef.current?.contains(event.target as Node)) {
+        setAccountListOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', onPointerDown);
+    return () => document.removeEventListener('mousedown', onPointerDown);
+  }, []);
+
+  /** Debounced account search by empresa name or NIT. */
+  useEffect(() => {
+    if (selectedAccount) {
+      return;
+    }
+    const q = (empresaQuery.trim() || nitQuery.trim()).trim();
+    if (q.length < 2) {
+      setAccountHits([]);
+      setAccountSearching(false);
+      return;
+    }
+    let active = true;
+    const timer = window.setTimeout(() => {
+      setAccountSearching(true);
+      void fetchAccounts({ q, page: 1, limit: 12 })
+        .then((data) => {
+          if (!active) {
+            return;
+          }
+          setAccountHits(data.items);
+          setAccountListOpen(true);
+        })
+        .catch(() => {
+          if (active) {
+            setAccountHits([]);
+          }
+        })
+        .finally(() => {
+          if (active) {
+            setAccountSearching(false);
+          }
+        });
+    }, 280);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [empresaQuery, nitQuery, selectedAccount]);
+
+  useEffect(() => {
+    if (!selectedAccount) {
+      setAccountPeople([]);
+      return;
+    }
+    let active = true;
+    setPeopleLoading(true);
+    void fetchPeople({
+      account_id: selectedAccount.account_id,
+      page: 1,
+      limit: 100,
+    })
+      .then((data) => {
+        if (active) {
+          setAccountPeople(data.items);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setAccountPeople([]);
+        }
+      })
+      .finally(() => {
+        if (active) {
+          setPeopleLoading(false);
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [selectedAccount]);
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -248,160 +380,64 @@ export function LeadFormModal({
     }));
   }
 
-  async function searchAccounts() {
-    const q = accountQuery.trim();
-    if (!q) {
-      setAccountHits([]);
-      return;
-    }
-    setAccountSearching(true);
-    try {
-      const data = await fetchAccounts({ q, page: 1, limit: 10 });
-      setAccountHits(data.items);
-    } catch {
-      setAccountHits([]);
-    } finally {
-      setAccountSearching(false);
-    }
-  }
-
-  async function handleCreateAccount() {
-    if (!newAccountName.trim()) {
-      setError('Indica el nombre de la empresa.');
-      return;
-    }
-    setError(null);
-    try {
-      const account = await createAccount({
-        name: newAccountName.trim(),
-        tax_id: newAccountTaxId.trim() || null,
-      });
-      setSelectedAccount(account);
-      setAccountHits([]);
-      setShowCreateAccount(false);
-      setNewAccountName('');
-      setNewAccountTaxId('');
-      setContacts([{ person_id: null, label: '' }]);
-    } catch (createError) {
-      setError(
-        createError instanceof Error
-          ? createError.message
-          : 'No se pudo crear la empresa.',
-      );
-    }
-  }
-
   function selectAccount(account: Account) {
     setSelectedAccount(account);
+    setEmpresaQuery(account.name);
+    setNitQuery(account.tax_id ?? '');
     setAccountHits([]);
-    setAccountQuery('');
-    setContacts([{ person_id: null, label: '' }]);
-    setExpandedContact(0);
-  }
-
-  async function searchPeople() {
-    if (!selectedAccount) {
-      return;
-    }
-    const q = personQuery.trim();
-    setPersonSearching(true);
-    try {
-      const data = await fetchPeople({
-        q: q || undefined,
-        account_id: selectedAccount.account_id,
-        page: 1,
-        limit: 10,
-      });
-      setPersonHits(data.items);
-    } catch {
-      setPersonHits([]);
-    } finally {
-      setPersonSearching(false);
-    }
-  }
-
-  function selectPerson(index: number, person: Person) {
-    setContacts((current) =>
-      current.map((slot, slotIndex) =>
-        slotIndex === index
-          ? {
-              person_id: person.person_id,
-              label: `${person.name}${person.email ? ` · ${person.email}` : ''}`,
-            }
-          : slot,
-      ),
-    );
-    setPersonHits([]);
+    setAccountListOpen(false);
+    setInfluences(emptyInfluences());
+    setActivePersonSearch(null);
     setPersonQuery('');
-    setCreatingPersonFor(null);
   }
 
-  async function handleCreatePerson(index: number) {
-    if (!selectedAccount) {
-      setError('Selecciona una empresa antes de crear contactos.');
-      return;
-    }
-    if (!newPerson.name.trim()) {
-      setError('Indica el nombre del contacto.');
-      return;
-    }
-    setError(null);
-    try {
-      const person = await createPerson({
-        name: newPerson.name.trim(),
-        job_title: newPerson.job_title.trim() || null,
-        email: newPerson.email.trim() || null,
-        phone: newPerson.phone.trim() || null,
-        account_id: selectedAccount.account_id,
-      });
-      selectPerson(index, person);
-      setNewPerson({ name: '', job_title: '', email: '', phone: '' });
-    } catch (createError) {
-      setError(
-        createError instanceof Error
-          ? createError.message
-          : 'No se pudo crear el contacto.',
-      );
-    }
+  function selectPerson(tipo: InfluenciaKey, person: Person) {
+    setInfluences((current) => ({
+      ...current,
+      [tipo]: {
+        person_id: person.person_id,
+        label: personLabel(person),
+      },
+    }));
+    setActivePersonSearch(null);
+    setPersonQuery('');
   }
 
-  function addContact() {
-    if (contacts.length >= 3) {
-      return;
-    }
-    setContacts((current) => [...current, { person_id: null, label: '' }]);
-    setExpandedContact(contacts.length);
-  }
-
-  function removeContact(index: number) {
-    setContacts((current) =>
-      current.length > 1
-        ? current.filter((_, contactIndex) => contactIndex !== index)
-        : current,
-    );
-    setExpandedContact((current) => {
-      if (current === index) {
-        return 0;
-      }
-      return current > index ? current - 1 : current;
-    });
+  function clearPerson(tipo: InfluenciaKey) {
+    setInfluences((current) => ({
+      ...current,
+      [tipo]: emptyContact(),
+    }));
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
 
-    if (!selectedAccount) {
-      setError('Selecciona o crea una empresa para los contactos.');
+    if (!form.name.trim()) {
+      setError('Indica el nombre del lead.');
       return;
     }
 
-    const missingContactIndex = contacts.findIndex((contact) => !contact.person_id);
-    if (missingContactIndex >= 0) {
-      setExpandedContact(missingContactIndex);
-      setError(
-        `Selecciona o crea el contacto ${missingContactIndex + 1} en la empresa "${selectedAccount.name}".`,
-      );
+    if (nameAvailable === false) {
+      setError('Ya existe un lead con ese nombre.');
+      return;
+    }
+
+    if (!selectedAccount) {
+      setError('Selecciona una empresa existente (créala desde Empresas si no está).');
+      return;
+    }
+
+    const contacts = LEAD_INFLUENCIA_SLOTS.flatMap(({ key }) => {
+      const slot = influences[key];
+      if (!slot.person_id) {
+        return [];
+      }
+      return [{ person_id: slot.person_id, tipo_influencia: key }];
+    });
+    if (contacts.length === 0) {
+      setError('Asigna al menos un contacto en Económica, Técnica o Fábrica.');
       return;
     }
 
@@ -418,25 +454,38 @@ export function LeadFormModal({
       return;
     }
 
+    if (!form.ciudad.trim() || !form.region.trim()) {
+      setError('Selecciona la ciudad (la región se completa automáticamente).');
+      return;
+    }
+
+    const industria = selectedAccount.economic_sector?.trim() ?? '';
+    if (form.segmento === 'B2B' && !industria) {
+      setError(
+        'La empresa no tiene sector económico. Complétalo en Empresas antes de crear el lead B2B.',
+      );
+      return;
+    }
+
     setIsSubmitting(true);
 
     const payload: CreateLeadPayload = {
+      name: form.name.trim(),
       tipo_lead: form.tipo_lead,
       origen: form.origen,
       canal_origen: form.canal_origen,
       segmento: form.segmento,
-      region: form.region,
-      pais: form.pais.toUpperCase(),
-      contacts: contacts.map((contact) => ({
-        person_id: contact.person_id!,
-      })),
+      ciudad: form.ciudad.trim(),
+      region: form.region.trim(),
+      pais: 'CO',
+      contacts,
       responsable_id: responsableId,
       ...(form.segment_id ? { segment_id: form.segment_id } : {}),
       ...(form.subsegment_id ? { subsegment_id: form.subsegment_id } : {}),
-      ...(form.segmento === 'B2B' && form.industria
-        ? { industria: form.industria }
+      ...(form.segmento === 'B2B' ? { industria } : {}),
+      ...(selectedAccount.tax_id || nitQuery.trim()
+        ? { nit: selectedAccount.tax_id ?? nitQuery.trim() }
         : {}),
-      ...(selectedAccount.tax_id ? { nit: selectedAccount.tax_id } : {}),
       ...(showTraductorSelect && form.business_referrer_id
         ? { business_referrer_id: form.business_referrer_id }
         : {}),
@@ -461,119 +510,137 @@ export function LeadFormModal({
   return (
     <ModalShell title={modalTitle(mode)} onClose={onClose} size="wide">
       <form onSubmit={handleSubmit} className="space-y-4">
-        <section className="space-y-3" aria-labelledby="lead-account-title">
-          <h3 id="lead-account-title" className="text-sm font-bold text-ink">
-            Empresa (cuenta)
-          </h3>
+        <section className="space-y-3">
+          <div>
+            <label className={labelClass} htmlFor="lead-name">
+              Nombre del lead
+            </label>
+            <input
+              id="lead-name"
+              value={form.name}
+              onChange={(event) => update('name', event.target.value)}
+              className={inputClass}
+              placeholder="Nombre único del lead"
+              required
+              autoComplete="off"
+            />
+            {nameAvailable === false ? (
+              <p className="mt-1 text-xs text-danger">
+                Ya existe un lead con ese nombre.
+              </p>
+            ) : null}
+            {nameAvailable === true && form.name.trim() ? (
+              <p className="mt-1 text-xs text-muted">Nombre disponible.</p>
+            ) : null}
+          </div>
+
           <p className="text-xs text-muted">
-            Todos los contactos deben pertenecer a la misma empresa.
+            La empresa debe existir en el catálogo.{' '}
+            <Link
+              to="/accounts/empresas"
+              className="font-bold text-accent hover:underline"
+              onClick={onClose}
+            >
+              Crear o editar en Empresas
+            </Link>
+            .
           </p>
 
-          {selectedAccount ? (
-            <div className="flex flex-wrap items-center justify-between gap-2 rounded border border-border bg-bg px-4 py-3">
-              <div>
-                <p className="text-sm font-bold text-ink">{selectedAccount.name}</p>
-                {selectedAccount.tax_id ? (
-                  <p className="text-xs text-muted">NIT: {selectedAccount.tax_id}</p>
-                ) : null}
-              </div>
-              <button
-                type="button"
-                className={ghostButtonClass}
-                onClick={() => {
-                  setSelectedAccount(null);
-                  setContacts([{ person_id: null, label: '' }]);
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="relative sm:col-span-1" ref={accountSearchRef}>
+              <label className={labelClass} htmlFor="lead-empresa">
+                Empresa
+              </label>
+              <input
+                id="lead-empresa"
+                value={empresaQuery}
+                onChange={(event) => {
+                  setEmpresaQuery(event.target.value);
+                  if (selectedAccount) {
+                    setSelectedAccount(null);
+                    setInfluences(emptyInfluences());
+                  }
+                  setAccountListOpen(true);
                 }}
-              >
-                Cambiar empresa
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-3 rounded border border-border bg-bg p-4">
-              <div className="flex flex-wrap gap-2">
-                <input
-                  value={accountQuery}
-                  onChange={(event) => setAccountQuery(event.target.value)}
-                  className={`${inputClass} min-w-[200px] flex-1`}
-                  placeholder="Buscar por nombre o NIT"
-                />
-                <button
-                  type="button"
-                  onClick={() => void searchAccounts()}
-                  disabled={accountSearching}
-                  className={ghostButtonClass}
-                >
-                  {accountSearching ? 'Buscando…' : 'Buscar'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowCreateAccount((value) => !value)}
-                  className={ghostButtonClass}
-                >
-                  {showCreateAccount ? 'Cancelar creación' : 'Crear empresa'}
-                </button>
-              </div>
-
-              {accountHits.length > 0 ? (
-                <ul className="divide-y divide-border rounded border border-border bg-surface">
-                  {accountHits.map((account) => (
-                    <li key={account.account_id}>
-                      <button
-                        type="button"
-                        onClick={() => selectAccount(account)}
-                        className="flex w-full flex-col px-3 py-2 text-left text-sm hover:bg-bg"
-                      >
-                        <span className="font-bold text-ink">{account.name}</span>
-                        {account.tax_id ? (
-                          <span className="text-xs text-muted">
-                            NIT: {account.tax_id}
-                          </span>
-                        ) : null}
-                      </button>
-                    </li>
-                  ))}
+                onFocus={() => {
+                  if (!selectedAccount && accountHits.length > 0) {
+                    setAccountListOpen(true);
+                  }
+                }}
+                className={inputClass}
+                placeholder="Escribe el nombre de la empresa"
+                autoComplete="off"
+                required={!selectedAccount}
+              />
+              {!selectedAccount && accountListOpen && (accountHits.length > 0 || accountSearching) ? (
+                <ul className="absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded border border-border bg-surface shadow-card">
+                  {accountSearching ? (
+                    <li className="px-3 py-2 text-sm text-muted">Buscando…</li>
+                  ) : (
+                    accountHits.map((account) => (
+                      <li key={account.account_id}>
+                        <button
+                          type="button"
+                          onClick={() => selectAccount(account)}
+                          className="flex w-full flex-col px-3 py-2 text-left text-sm hover:bg-bg"
+                        >
+                          <span className="font-bold text-ink">{account.name}</span>
+                          {account.tax_id ? (
+                            <span className="text-xs text-muted">
+                              NIT: {account.tax_id}
+                            </span>
+                          ) : null}
+                        </button>
+                      </li>
+                    ))
+                  )}
                 </ul>
               ) : null}
-
-              {showCreateAccount ? (
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <Field label="Nombre de empresa">
-                    <input
-                      value={newAccountName}
-                      onChange={(event) => setNewAccountName(event.target.value)}
-                      className={inputClass}
-                      maxLength={120}
-                      required
-                    />
-                  </Field>
-                  <Field label="NIT (opcional)">
-                    <input
-                      value={newAccountTaxId}
-                      onChange={(event) => setNewAccountTaxId(event.target.value)}
-                      className={inputClass}
-                      maxLength={20}
-                    />
-                  </Field>
-                  <div className="sm:col-span-2">
-                    <button
-                      type="button"
-                      onClick={() => void handleCreateAccount()}
-                      className={primaryButtonClass}
-                    >
-                      Guardar empresa
-                    </button>
-                  </div>
-                </div>
+              {!selectedAccount &&
+              !accountSearching &&
+              (empresaQuery.trim().length >= 2 || nitQuery.trim().length >= 2) &&
+              accountHits.length === 0 ? (
+                <p className="mt-1 text-xs text-muted">
+                  Sin coincidencias. Crea la empresa en{' '}
+                  <Link
+                    to="/accounts/empresas"
+                    className="font-bold text-accent hover:underline"
+                    onClick={onClose}
+                  >
+                    Empresas
+                  </Link>
+                  .
+                </p>
               ) : null}
             </div>
-          )}
-        </section>
 
-        <section className="space-y-3" aria-labelledby="lead-data-title">
-          <h3 id="lead-data-title" className="text-sm font-bold text-ink">
-            Datos del lead
-          </h3>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label className={labelClass} htmlFor="lead-nit">
+                NIT
+              </label>
+              <input
+                id="lead-nit"
+                value={nitQuery}
+                onChange={(event) => {
+                  setNitQuery(event.target.value);
+                  if (selectedAccount) {
+                    setSelectedAccount(null);
+                    setInfluences(emptyInfluences());
+                  }
+                  setAccountListOpen(true);
+                }}
+                onFocus={() => {
+                  if (!selectedAccount && accountHits.length > 0) {
+                    setAccountListOpen(true);
+                  }
+                }}
+                className={inputClass}
+                placeholder="Buscar por NIT"
+                autoComplete="off"
+                readOnly={!!selectedAccount && !!selectedAccount.tax_id}
+              />
+            </div>
+
             <Field label="Canal de origen">
               <select
                 value={form.canal_origen}
@@ -699,277 +766,154 @@ export function LeadFormModal({
             </Field>
 
             {form.segmento === 'B2B' ? (
-              <Field label="Industria (requerida para B2B)">
+              <Field label="Industria">
                 <input
-                  value={form.industria}
-                  onChange={(event) => update('industria', event.target.value)}
+                  value={selectedAccount?.economic_sector ?? ''}
                   className={inputClass}
+                  readOnly
                   required
+                  placeholder={
+                    selectedAccount
+                      ? 'La empresa no tiene sector económico'
+                      : 'Se completa al seleccionar la empresa'
+                  }
                 />
               </Field>
             ) : null}
 
-            <Field label="Región">
-              <input
-                value={form.region}
-                onChange={(event) => update('region', event.target.value)}
-                className={inputClass}
-                required
+            <Field label="Ciudad">
+              <ColombiaCitySearchField
+                id="lead-ciudad"
+                value={form.ciudad}
+                departamento={form.region}
+                onSelect={(row) => {
+                  setForm((prev) => ({
+                    ...prev,
+                    ciudad: row.municipio,
+                    region: row.departamento,
+                  }));
+                }}
+                onClear={() => {
+                  setForm((prev) => ({
+                    ...prev,
+                    ciudad: '',
+                    region: '',
+                  }));
+                }}
               />
             </Field>
 
-            <Field label="País (ISO-2)">
+            <Field label="Región">
               <input
-                value={form.pais}
-                onChange={(event) => update('pais', event.target.value)}
+                value={form.region}
                 className={inputClass}
-                maxLength={2}
+                readOnly
                 required
+                placeholder="Se completa al elegir la ciudad"
               />
             </Field>
           </div>
         </section>
 
-        <section className="space-y-3" aria-labelledby="lead-contacts-title">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <h3
-                id="lead-contacts-title"
-                className="text-sm font-bold text-ink"
-              >
-                Contactos
-              </h3>
-              <p className="text-xs text-muted">
-                Registra entre 1 y 3 contactos de la misma empresa. El primero
-                será el principal.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={addContact}
-              disabled={!selectedAccount || contacts.length >= 3}
-              className={ghostButtonClass}
-            >
-              <span className="inline-flex items-center gap-1.5">
-                <Plus size={15} strokeWidth={1.75} />
-                Agregar contacto
-              </span>
-            </button>
+        <section className="space-y-3" aria-labelledby="lead-influencias-title">
+          <div>
+            <h3 id="lead-influencias-title" className="text-sm font-bold text-ink">
+              Contactos por influencia
+            </h3>
+            <p className="text-xs text-muted">
+              Coselecciona contactos de la empresa en Económica, Técnica y/o
+              Fábrica. Al menos uno es obligatorio.
+            </p>
           </div>
 
           {!selectedAccount ? (
             <p className="text-sm text-muted">
-              Selecciona una empresa para buscar o crear contactos.
+              Selecciona una empresa para asignar contactos.
             </p>
-          ) : null}
+          ) : (
+            <div className="grid gap-3 md:grid-cols-3">
+              {LEAD_INFLUENCIA_SLOTS.map(({ key, label }) => {
+                const slot = influences[key];
+                const searching = activePersonSearch === key;
 
-          {contacts.map((contact, index) => {
-            const isExpanded =
-              contacts.length === 1 || expandedContact === index;
-
-            return (
-              <div key={index} className="rounded border border-border bg-bg">
-                <div
-                  className={[
-                    'flex items-center justify-between gap-2 px-4 py-3',
-                    isExpanded ? 'border-b border-border' : '',
-                  ].join(' ')}
-                >
-                  <button
-                    type="button"
-                    onClick={() => setExpandedContact(index)}
-                    className="btn-glow-outline flex min-w-0 flex-1 items-center gap-2 rounded border-transparent px-2 py-1 text-left text-sm font-bold"
-                    aria-expanded={isExpanded}
-                    aria-controls={`lead-contact-${index}`}
-                    disabled={contacts.length === 1}
-                  >
-                    {contacts.length > 1 ? (
-                      isExpanded ? (
-                        <ChevronDown size={16} strokeWidth={1.75} />
-                      ) : (
-                        <ChevronRight size={16} strokeWidth={1.75} />
-                      )
-                    ) : null}
-                    <span>
-                      {index === 0
-                        ? 'Contacto principal'
-                        : `Contacto ${index + 1}`}
-                    </span>
-                    {!isExpanded && contact.label ? (
-                      <span className="truncate text-xs font-normal text-muted">
-                        {contact.label}
-                      </span>
-                    ) : null}
-                  </button>
-                  {contacts.length > 1 ? (
-                    <button
-                      type="button"
-                      onClick={() => removeContact(index)}
-                      className="btn-glow-outline inline-flex items-center gap-1.5 rounded px-2 py-1 text-xs font-bold"
-                      aria-label={`Eliminar contacto ${index + 1}`}
-                    >
-                      <Trash2 size={14} strokeWidth={1.75} />
-                      Eliminar
-                    </button>
-                  ) : null}
-                </div>
-
-                {isExpanded && selectedAccount ? (
+                return (
                   <div
-                    id={`lead-contact-${index}`}
-                    className="space-y-3 p-4"
+                    key={key}
+                    className="rounded border border-border bg-bg p-3"
                   >
-                    {contact.person_id ? (
-                      <div className="flex flex-wrap items-center justify-between gap-2 rounded border border-border bg-surface px-3 py-2">
-                        <p className="text-sm text-ink">{contact.label}</p>
+                    <p className="mb-3 text-sm font-bold text-ink">{label}</p>
+                    <span className={labelClass}>Contacto</span>
+
+                    {slot.person_id ? (
+                      <div className="relative rounded border border-border bg-surface p-2.5 pr-8 text-xs">
                         <button
                           type="button"
-                          className={ghostButtonClass}
-                          onClick={() =>
-                            setContacts((current) =>
-                              current.map((slot, slotIndex) =>
-                                slotIndex === index
-                                  ? { person_id: null, label: '' }
-                                  : slot,
-                              ),
-                            )
-                          }
+                          className="icon-btn absolute right-1 top-1 grid h-6 w-6 place-items-center rounded text-muted"
+                          aria-label={`Quitar contacto de ${label}`}
+                          onClick={() => clearPerson(key)}
                         >
-                          Cambiar
+                          <X size={14} strokeWidth={2.5} />
                         </button>
+                        <p className="font-bold text-ink">{slot.label}</p>
                       </div>
                     ) : (
-                      <>
-                        <div className="flex flex-wrap gap-2">
-                          <input
-                            value={personQuery}
-                            onChange={(event) =>
-                              setPersonQuery(event.target.value)
-                            }
-                            className={`${inputClass} min-w-[200px] flex-1`}
-                            placeholder="Buscar contacto en esta empresa"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => void searchPeople()}
-                            disabled={personSearching}
-                            className={ghostButtonClass}
-                          >
-                            {personSearching ? 'Buscando…' : 'Buscar'}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setCreatingPersonFor(
-                                creatingPersonFor === index ? null : index,
-                              )
-                            }
-                            className={ghostButtonClass}
-                          >
-                            {creatingPersonFor === index
-                              ? 'Cancelar creación'
-                              : 'Crear contacto'}
-                          </button>
-                        </div>
-
-                        {personHits.length > 0 ? (
-                          <ul className="divide-y divide-border rounded border border-border bg-surface">
-                            {personHits.map((person) => (
-                              <li key={person.person_id}>
-                                <button
-                                  type="button"
-                                  onClick={() => selectPerson(index, person)}
-                                  className="flex w-full flex-col px-3 py-2 text-left text-sm hover:bg-bg"
-                                >
-                                  <span className="font-bold text-ink">
-                                    {person.name}
-                                  </span>
-                                  <span className="text-xs text-muted">
-                                    {[person.job_title, person.email, person.phone]
-                                      .filter(Boolean)
-                                      .join(' · ') || 'Sin datos adicionales'}
-                                  </span>
-                                </button>
+                      <div className="space-y-2">
+                        <input
+                          value={searching ? personQuery : ''}
+                          onChange={(event) => {
+                            setActivePersonSearch(key);
+                            setPersonQuery(event.target.value);
+                          }}
+                          onFocus={() => {
+                            setActivePersonSearch(key);
+                            setPersonQuery('');
+                          }}
+                          className={inputClass}
+                          placeholder={
+                            peopleLoading
+                              ? 'Cargando contactos…'
+                              : 'Buscar contacto'
+                          }
+                          disabled={peopleLoading}
+                          autoComplete="off"
+                        />
+                        {searching ? (
+                          <ul className="max-h-40 overflow-y-auto rounded border border-border bg-surface">
+                            {filteredPeople.length === 0 ? (
+                              <li className="px-3 py-2 text-xs text-muted">
+                                {accountPeople.length === 0
+                                  ? 'Esta empresa no tiene contactos. Créalos en Contactos.'
+                                  : 'No hay contactos con esta tipología. Defínela en Contactos.'}
                               </li>
-                            ))}
+                            ) : (
+                              filteredPeople.map((person) => (
+                                <li key={person.person_id}>
+                                  <button
+                                    type="button"
+                                    onClick={() => selectPerson(key, person)}
+                                    className="flex w-full flex-col px-3 py-2 text-left text-sm hover:bg-bg"
+                                  >
+                                    <span className="font-bold text-ink">
+                                      {person.name}
+                                    </span>
+                                    <span className="text-xs text-muted">
+                                      {[person.job_title, person.email]
+                                        .filter(Boolean)
+                                        .join(' · ') || 'Sin datos adicionales'}
+                                    </span>
+                                  </button>
+                                </li>
+                              ))
+                            )}
                           </ul>
                         ) : null}
-
-                        {creatingPersonFor === index ? (
-                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                            <Field label="Nombre">
-                              <input
-                                value={newPerson.name}
-                                onChange={(event) =>
-                                  setNewPerson((prev) => ({
-                                    ...prev,
-                                    name: event.target.value,
-                                  }))
-                                }
-                                className={inputClass}
-                                maxLength={120}
-                                required
-                              />
-                            </Field>
-                            <Field label="Cargo">
-                              <input
-                                value={newPerson.job_title}
-                                onChange={(event) =>
-                                  setNewPerson((prev) => ({
-                                    ...prev,
-                                    job_title: event.target.value,
-                                  }))
-                                }
-                                className={inputClass}
-                                maxLength={80}
-                              />
-                            </Field>
-                            <Field label="Correo">
-                              <input
-                                type="email"
-                                value={newPerson.email}
-                                onChange={(event) =>
-                                  setNewPerson((prev) => ({
-                                    ...prev,
-                                    email: event.target.value,
-                                  }))
-                                }
-                                className={inputClass}
-                                maxLength={180}
-                              />
-                            </Field>
-                            <Field label="Teléfono">
-                              <input
-                                type="tel"
-                                value={newPerson.phone}
-                                onChange={(event) =>
-                                  setNewPerson((prev) => ({
-                                    ...prev,
-                                    phone: event.target.value,
-                                  }))
-                                }
-                                className={inputClass}
-                                maxLength={20}
-                              />
-                            </Field>
-                            <div className="sm:col-span-2">
-                              <button
-                                type="button"
-                                onClick={() => void handleCreatePerson(index)}
-                                className={primaryButtonClass}
-                              >
-                                Guardar contacto
-                              </button>
-                            </div>
-                          </div>
-                        ) : null}
-                      </>
+                      </div>
                     )}
                   </div>
-                ) : null}
-              </div>
-            );
-          })}
+                );
+              })}
+            </div>
+          )}
         </section>
 
         {requiresChecklist ? (
@@ -1009,7 +953,11 @@ export function LeadFormModal({
           </button>
           <button
             type="submit"
-            disabled={isSubmitting}
+            disabled={
+              isSubmitting ||
+              nameAvailable === false ||
+              nameAvailable === 'checking'
+            }
             className={primaryButtonClass}
           >
             Crear lead

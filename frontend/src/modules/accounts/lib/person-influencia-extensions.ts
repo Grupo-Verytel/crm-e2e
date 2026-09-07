@@ -35,6 +35,17 @@ export function savePersonInfluenciaTipo(
   localStorage.setItem(key, tipo);
 }
 
+export function resolvePersonInfluenciaTipo(person: {
+  person_id: string;
+  tipo_influencia?: PersonInfluenciaTipo | null;
+}): PersonInfluenciaTipo | null {
+  const fromApi = person.tipo_influencia;
+  if (fromApi && PERSON_INFLUENCIA_TIPOS.includes(fromApi)) {
+    return fromApi;
+  }
+  return loadPersonInfluenciaTipo(person.person_id);
+}
+
 /**
  * Demo seed: assign Económica / Técnica / Fábrica to contacts missing a type
  * so OUV contact → influencia routing can be tested.

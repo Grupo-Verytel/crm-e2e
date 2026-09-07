@@ -45,10 +45,12 @@ describe('Demand generation module (EARS DG-01..DG-18)', () => {
     overrides: Record<string, unknown> = {},
   ): Record<string, unknown> {
     return {
+      name: `Lead EARS ${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       tipo_lead: 'Inbound',
       origen: 'Web',
       canal_origen: 'CAMPANA_DIGITAL',
       segmento: 'Gobierno',
+      ciudad: 'Bogota',
       region: 'Bogota',
       pais: 'CO',
       contacts: [
@@ -498,14 +500,15 @@ describe('Demand generation module (EARS DG-01..DG-18)', () => {
     const email = uniqueTestEmail('csv-import');
     const csvHeader = CSV_LEAD_HEADERS.join(',');
     const rowNew = buildCsvRow({
+      name: `CSV Lead ${Date.now()}-a`,
       tipo_lead: 'Outbound',
       origen: 'Email',
       canal_origen: 'CAMPANA_DIGITAL',
       segmento: 'Gobierno',
       region: 'Bogota',
       pais: 'CO',
-      empresa_nombre: 'CSV Co',
-      nit: '900123456',
+      account_name: 'CSV Co',
+      tax_id: '900123456',
       contacto_nombre: 'CSV User',
       email,
       telefono: '3001234567',
@@ -527,14 +530,15 @@ describe('Demand generation module (EARS DG-01..DG-18)', () => {
       ],
     });
     const rowDup = buildCsvRow({
+      name: `CSV Lead ${Date.now()}-b`,
       tipo_lead: 'Outbound',
       origen: 'Email',
       canal_origen: 'CAMPANA_DIGITAL',
       segmento: 'Gobierno',
       region: 'Bogota',
       pais: 'CO',
-      empresa_nombre: 'Dup Co',
-      nit: dupNit,
+      account_name: 'Dup Co',
+      tax_id: dupNit,
       contacto_nombre: 'Dup User',
       email: dupEmail,
       responsable_id: marketingUserId,

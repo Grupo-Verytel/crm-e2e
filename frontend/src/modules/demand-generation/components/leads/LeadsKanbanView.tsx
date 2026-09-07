@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import { ApiError } from '../../../auth/types';
 import {
+  discardLead,
   fetchChecklist,
   fetchLeads,
   transitionLeadToMofu,
@@ -10,11 +12,14 @@ import { useChecklistProgress } from '../../hooks/useChecklistProgress';
 import {
   CHANNEL_ROUTES,
   KANBAN_COLUMNS,
+  leadDisplayName,
   type KanbanColumn,
   type KanbanEstado,
 } from '../../lib/lead-vocab';
 import type { Checklist, Lead, LeadsQuery } from '../../types';
 import type { LeadFilterValues } from '../../lib/lead-filters';
+import { MotivoModal } from '../MotivoModal';
+import { cardClass } from '../ui';
 import { ChecklistModal } from './ChecklistModal';
 import { LeadCard } from './LeadCard';
 import { QuickInteractionModal } from './QuickInteractionModal';
@@ -71,7 +76,13 @@ function friendlyTransitionError(error: unknown): string {
   return 'No se pudo mover el lead. Inténtalo de nuevo.';
 }
 
-export function LeadsKanbanView({ filters }: { filters: LeadFilterValues }) {
+type Props = {
+  filters: LeadFilterValues;
+  /** Traductor / follow-up: no drag and no transitions. */
+  readOnly?: boolean;
+};
+
+export function LeadsKanbanView({ filters, readOnly = false }: Props) {
   const [columns, setColumns] = useState<Record<KanbanEstado, ColumnState>>(
     buildInitialColumns,
   );
@@ -82,8 +93,16 @@ export function LeadsKanbanView({ filters }: { filters: LeadFilterValues }) {
   const [interactionFor, setInteractionFor] = useState<Lead | null>(null);
   const [checklistFor, setChecklistFor] = useState<Lead | null>(null);
   const [appointmentFor, setAppointmentFor] = useState<Lead | null>(null);
+  const [discardFor, setDiscardFor] = useState<Lead | null>(null);
+  const [collapsed, setCollapsed] = useState<Partial<Record<KanbanEstado, boolean>>>(
+    {},
+  );
 
   const filtersKey = JSON.stringify(filters);
+
+  function toggleCollapsed(estado: KanbanEstado) {
+    setCollapsed((prev) => ({ ...prev, [estado]: !prev[estado] }));
+  }
 
   const buildQuery = useCallback(
     (estado: KanbanEstado, page: number): LeadsQuery => ({
@@ -160,7 +179,7 @@ export function LeadsKanbanView({ filters }: { filters: LeadFilterValues }) {
 
   const columnAccepts = useCallback(
     (column: KanbanColumn): boolean => {
-      if (!dragged || column.readOnly) {
+      if (readOnly || !dragged || column.readOnly) {
         return false;
       }
 
@@ -177,7 +196,7 @@ export function LeadsKanbanView({ filters }: { filters: LeadFilterValues }) {
 
       return column.acceptsFrom === dragged.estado;
     },
-    [dragged],
+    [dragged, readOnly],
   );
 
   async function promoteToMofu(lead: Lead) {
@@ -234,6 +253,7 @@ export function LeadsKanbanView({ filters }: { filters: LeadFilterValues }) {
   }
 
   function handleDrop(column: KanbanColumn) {
+    if (readOnly) return;
     const lead = dragged;
     setDragOver(null);
     setDragged(null);
@@ -249,7 +269,7 @@ export function LeadsKanbanView({ filters }: { filters: LeadFilterValues }) {
 
   return (
     <>
-      <div className="flex gap-3 overflow-x-auto pb-2">
+      <div className="grid items-start gap-3 lg:grid-cols-4">
         {KANBAN_COLUMNS.map((column) => {
           const state = columns[column.estado];
           const route = filters.canal_origen
@@ -257,14 +277,15 @@ export function LeadsKanbanView({ filters }: { filters: LeadFilterValues }) {
             : undefined;
           const applies = !route || route.includes(column.estado);
           const accepts = columnAccepts(column);
-          const blocked = !!dragged && column.readOnly;
           const isDropTarget = dragOver === column.estado && accepts;
+          const isSqlTray = column.estado === 'SQL';
+          const isCollapsed = !!collapsed[column.estado];
 
           return (
             <section
               key={column.estado}
               onDragOver={(event) => {
-                if (accepts) {
+                if (accepts && !isCollapsed) {
                   event.preventDefault();
                   event.dataTransfer.dropEffect = 'move';
                   if (dragOver !== column.estado) {
@@ -276,32 +297,66 @@ export function LeadsKanbanView({ filters }: { filters: LeadFilterValues }) {
               }}
               onDrop={(event) => {
                 event.preventDefault();
-                handleDrop(column);
+                if (!isCollapsed) handleDrop(column);
               }}
               className={[
-                'flex w-80 shrink-0 flex-col rounded',
-                column.readOnly
-                  ? 'border border-dashed border-border bg-bg/60'
-                  : 'bg-bg',
+                `${cardClass} flex flex-col p-3`,
+                isCollapsed ? 'min-h-0' : 'min-h-64',
+                isSqlTray
+                  ? 'border border-semaphore-verde/45 hover:border-semaphore-verde/60'
+                  : '',
                 isDropTarget ? 'outline outline-2 outline-accent' : '',
-                blocked ? 'cursor-not-allowed' : '',
                 !applies ? 'opacity-40' : '',
               ].join(' ')}
             >
-              <header className="flex items-start justify-between gap-2 px-3 py-2">
-                <div className="min-w-0">
-                  <h2 className="text-sm font-bold text-ink">{column.label}</h2>
-                  <p className="text-xs text-muted">{column.hint}</p>
-                  {!applies ? (
-                    <p className="text-xs font-bold text-muted">No aplica</p>
+              <header className="flex items-start justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={() => toggleCollapsed(column.estado)}
+                  aria-expanded={!isCollapsed}
+                  title={isCollapsed ? 'Expandir bandeja' : 'Colapsar bandeja'}
+                  className="min-w-0 flex-1 rounded text-left hover:opacity-90"
+                >
+                  <div className="flex items-center gap-1.5">
+                    {isCollapsed ? (
+                      <ChevronRight
+                        size={16}
+                        strokeWidth={2}
+                        className="shrink-0 text-muted"
+                        aria-hidden
+                      />
+                    ) : (
+                      <ChevronDown
+                        size={16}
+                        strokeWidth={2}
+                        className="shrink-0 text-muted"
+                        aria-hidden
+                      />
+                    )}
+                    <h2 className="text-sm font-bold text-ink">
+                      {column.label}
+                    </h2>
+                  </div>
+                  {!isCollapsed ? (
+                    <>
+                      <p className="mt-0.5 pl-[22px] text-xs text-muted">
+                        {column.hint}
+                      </p>
+                      {!applies ? (
+                        <p className="pl-[22px] text-xs font-bold text-muted">
+                          No aplica
+                        </p>
+                      ) : null}
+                    </>
                   ) : null}
-                </div>
-                <span className="shrink-0 rounded-sm border border-border bg-surface px-2 py-0.5 text-xs font-bold text-muted">
+                </button>
+                <span className="shrink-0 rounded-sm border border-border bg-bg px-2 py-0.5 text-xs font-bold text-muted">
                   {state.total}
                 </span>
               </header>
 
-              <div className="flex-1 space-y-2 px-3 pb-3">
+              {!isCollapsed ? (
+              <div className="mt-3 flex-1 space-y-2">
                 {state.loading && state.items.length === 0 ? (
                   <p className="py-6 text-center text-xs text-muted">Cargando…</p>
                 ) : state.error ? (
@@ -309,17 +364,17 @@ export function LeadsKanbanView({ filters }: { filters: LeadFilterValues }) {
                     {state.error}
                   </p>
                 ) : state.items.length === 0 ? (
-                  <p className="py-6 text-center text-xs text-muted">
-                    Sin leads aquí.
-                  </p>
+                  <p className="py-6 text-center text-xs text-muted">Vacío</p>
                 ) : (
                   <>
                     {state.items.map((lead) => (
                       <LeadCard
                         key={lead.lead_id}
                         lead={lead}
+                        variant={isSqlTray ? 'ouv' : 'default'}
                         draggable={
-                          column.estado === 'TOFU' || column.estado === 'MOFU'
+                          !readOnly &&
+                          (column.estado === 'TOFU' || column.estado === 'MOFU')
                         }
                         onDragStart={() => setDragged(lead)}
                         onDragEnd={() => {
@@ -327,11 +382,12 @@ export function LeadsKanbanView({ filters }: { filters: LeadFilterValues }) {
                           setDragOver(null);
                         }}
                         showChecklist={
-                          column.estado === 'MOFU' ||
-                          (column.estado === 'TOFU' &&
-                            lead.canal_origen === 'FABRICA')
+                          !readOnly &&
+                          (column.estado === 'MOFU' ||
+                            (column.estado === 'TOFU' &&
+                              lead.canal_origen === 'FABRICA'))
                         }
-                        showRoute={!filters.canal_origen}
+                        showRoute={!filters.canal_origen && !readOnly}
                         checklistProgress={
                           column.estado === 'MOFU' ||
                           (column.estado === 'TOFU' &&
@@ -341,6 +397,14 @@ export function LeadsKanbanView({ filters }: { filters: LeadFilterValues }) {
                         }
                         errorMessage={cardErrors[lead.lead_id] ?? null}
                         busy={busyLeadId === lead.lead_id}
+                        onDiscard={
+                          !readOnly &&
+                          (column.estado === 'TOFU' ||
+                            column.estado === 'MOFU' ||
+                            column.estado === 'MQL_PENDING')
+                            ? setDiscardFor
+                            : undefined
+                        }
                       />
                     ))}
 
@@ -359,30 +423,31 @@ export function LeadsKanbanView({ filters }: { filters: LeadFilterValues }) {
                   </>
                 )}
 
-                {column.readOnly ? (
+                {isSqlTray && !readOnly ? (
                   <p className="pt-1 text-[11px] text-muted">
                     Solo el Director promueve a calificado desde la Bandeja MQL.
                   </p>
                 ) : null}
               </div>
+              ) : null}
             </section>
           );
         })}
       </div>
 
-      {interactionFor ? (
+      {!readOnly && interactionFor ? (
         <QuickInteractionModal
           leadId={interactionFor.lead_id}
-          leadName={interactionFor.empresa_nombre}
+          leadName={leadDisplayName(interactionFor)}
           onRegistered={() => promoteToMofu(interactionFor)}
           onClose={() => setInteractionFor(null)}
         />
       ) : null}
 
-      {checklistFor ? (
+      {!readOnly && checklistFor ? (
         <ChecklistModal
           leadId={checklistFor.lead_id}
-          leadName={checklistFor.empresa_nombre}
+          leadName={leadDisplayName(checklistFor)}
           onQualified={() => reloadAll()}
           onSaved={() =>
             loadColumn(
@@ -395,7 +460,7 @@ export function LeadsKanbanView({ filters }: { filters: LeadFilterValues }) {
         />
       ) : null}
 
-      {appointmentFor ? (
+      {!readOnly && appointmentFor ? (
         <RegisterAppointmentModal
           lead={appointmentFor}
           onRegistered={() => {
@@ -403,6 +468,20 @@ export function LeadsKanbanView({ filters }: { filters: LeadFilterValues }) {
             reloadAll();
           }}
           onClose={() => setAppointmentFor(null)}
+        />
+      ) : null}
+
+      {!readOnly && discardFor ? (
+        <MotivoModal
+          title={`Eliminar lead · ${leadDisplayName(discardFor)}`}
+          confirmLabel="Eliminar"
+          placeholder="Motivo del descarte (obligatorio)."
+          onConfirm={async (motivo) => {
+            await discardLead(discardFor.lead_id, motivo);
+            setDiscardFor(null);
+            reloadAll();
+          }}
+          onClose={() => setDiscardFor(null)}
         />
       ) : null}
     </>

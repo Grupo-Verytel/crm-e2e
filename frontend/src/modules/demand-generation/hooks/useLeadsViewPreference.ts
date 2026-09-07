@@ -2,8 +2,9 @@ import { useCallback, useState } from 'react';
 
 export type LeadsViewMode = 'list' | 'kanban';
 
-const STORAGE_KEY = 'demand.leads.view';
-const DEFAULT_VIEW: LeadsViewMode = 'list';
+const STORAGE_KEY = 'demand.leads.view.v2';
+/** Kanban is the primary view (aligned with Oportunidades OUV). */
+const DEFAULT_VIEW: LeadsViewMode = 'kanban';
 
 function readStored(): LeadsViewMode {
   try {
@@ -15,7 +16,7 @@ function readStored(): LeadsViewMode {
 }
 
 /**
- * Remembers the last view (Lista is the default) per browser. The project has
+ * Remembers the last view (Kanban is the default) per browser. The project has
  * no server-side user-preferences store yet, so we persist client-side; swap the
  * read/write here if that pattern ever lands without touching call sites.
  */

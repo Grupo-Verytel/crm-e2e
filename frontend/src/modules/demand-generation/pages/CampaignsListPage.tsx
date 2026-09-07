@@ -4,7 +4,6 @@ import { Link } from 'react-router-dom';
 import { AppLayout } from '../../../layout/AppLayout';
 import { Pagination } from '../../../components/Pagination';
 import { fetchCampaigns, updateCampaignStatus } from '../api/campaigns-api';
-import { DemandNav } from '../components/DemandNav';
 import { StatusBadge } from '../components/StatusBadge';
 import { cardClass, inputClass, labelClass, primaryButtonClass } from '../components/ui';
 import {
@@ -68,8 +67,7 @@ export function CampaignsListPage() {
   }
 
   return (
-    <AppLayout title="Generación de demanda">
-      <DemandNav />
+    <AppLayout title="Leads">
 
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-lg font-bold text-ink">Campañas</h1>

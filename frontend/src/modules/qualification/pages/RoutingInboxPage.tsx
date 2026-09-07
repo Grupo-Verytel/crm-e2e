@@ -10,10 +10,15 @@ import {
 import { fetchSqlInbox } from '../api/sqls-api';
 import { AssignSqlModal } from '../components/AssignSqlModal';
 import { QualificationNav } from '../components/QualificationNav';
-import { cardClass, primaryButtonClass } from '../components/ui';
+import { primaryButtonClass } from '../components/ui';
 import type { SqlDetail } from '../api/sqls-api';
 
 const PAGE_SIZE = 20;
+
+function sqlAccentId(sql: SqlDetail): string {
+  const raw = sql.sql_id.replace(/-/g, '').slice(0, 6).toUpperCase();
+  return `SQL-${raw}`;
+}
 
 export function RoutingInboxPage() {
   const [items, setItems] = useState<SqlDetail[]>([]);
@@ -74,61 +79,49 @@ export function RoutingInboxPage() {
         Bandeja de enrutamiento
       </h1>
 
-      {error ? <p className="mb-3 text-sm text-red-600">{error}</p> : null}
+      {error ? <p className="mb-3 text-sm text-danger">{error}</p> : null}
 
-      <div className={cardClass}>
-        {isLoading ? (
-          <p className="p-6 text-sm text-muted">Cargando…</p>
-        ) : error ? (
-          <p className="p-6 text-sm text-muted">
-            Reintenta cargar la bandeja o verifica tus permisos.
-          </p>
-        ) : items.length === 0 ? (
-          <p className="p-6 text-sm text-muted">
-            No hay SQL pendientes de asignación.
-          </p>
-        ) : (
-          <table className="w-full text-left text-sm">
-            <thead className="border-b border-border text-xs text-muted">
-              <tr>
-                <th className="px-4 py-3 font-bold">Empresa</th>
-                <th className="px-4 py-3 font-bold">Contacto</th>
-                <th className="px-4 py-3 font-bold">Creado</th>
-                <th className="px-4 py-3 font-bold">Acción</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((sql) => (
-                <tr key={sql.sql_id} className="border-b border-border">
-                  <td className="px-4 py-3">
-                    <Link
-                      to={`/qualification/sqls/${sql.sql_id}`}
-                      className="font-bold text-accent hover:underline"
-                    >
-                      {String(sql.lead.empresa_nombre ?? '—')}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-3 text-ink">
+      {isLoading ? (
+        <p className="text-sm text-muted">Cargando…</p>
+      ) : error ? (
+        <p className="text-sm text-muted">
+          Reintenta cargar la bandeja o verifica tus permisos.
+        </p>
+      ) : items.length === 0 ? (
+        <p className="text-sm text-muted">No hay SQL pendientes de asignación.</p>
+      ) : (
+        <ul className="space-y-2">
+          {items.map((sql) => (
+            <li key={sql.sql_id}>
+              <div className="flex flex-wrap items-center gap-3 rounded border border-border bg-bg p-2 hover:border-accent">
+                <Link
+                  to={`/qualification/sqls/${sql.sql_id}`}
+                  className="min-w-0 flex-1"
+                >
+                  <p className="text-xs font-bold text-accent">
+                    {sqlAccentId(sql)}
+                  </p>
+                  <p className="text-sm text-ink">
+                    {String(sql.lead.empresa_nombre ?? '—')}
+                  </p>
+                  <p className="text-xs text-muted">
                     {String(sql.lead.contacto_nombre ?? '—')}
-                  </td>
-                  <td className="px-4 py-3 text-muted">
+                    {' · '}
                     {formatDateTime(sql.fecha_creacion)}
-                  </td>
-                  <td className="px-4 py-3">
-                    <button
-                      type="button"
-                      className={primaryButtonClass}
-                      onClick={() => setSelected(sql)}
-                    >
-                      Asignar
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+                  </p>
+                </Link>
+                <button
+                  type="button"
+                  className={primaryButtonClass}
+                  onClick={() => setSelected(sql)}
+                >
+                  Asignar
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
 
       <div className="mt-4">
         <Pagination

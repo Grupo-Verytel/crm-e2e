@@ -7,6 +7,7 @@ import {
   type ConvertirSqlPayload,
   type SqlDetail,
 } from '../api/sqls-api';
+import { saveOuvExtensions } from '../../discovery/lib/ouv-detail-extensions';
 import {
   ghostButtonClass,
   inputClass,
@@ -114,6 +115,19 @@ export function ConvertirSqlEnOuvModal({ sql, onClose, onConverted }: Props) {
         ...(subsegmentId ? { subsegment_id: subsegmentId } : {}),
         vertical,
       });
+      const ciudad =
+        typeof sql.lead.ciudad === 'string' ? sql.lead.ciudad.trim() : '';
+      const region =
+        typeof sql.lead.region === 'string' ? sql.lead.region.trim() : '';
+      if (ciudad || region) {
+        saveOuvExtensions(result.ouv.ouv_id, {
+          ...(ciudad ? { ciudad } : {}),
+          ...(region ? { region } : {}),
+          origen_ouv: 'Desde SQL',
+        });
+      } else {
+        saveOuvExtensions(result.ouv.ouv_id, { origen_ouv: 'Desde SQL' });
+      }
       onConverted(result.ouv.ouv_id, result.ouv.consecutivo);
       onClose();
     } catch (err) {

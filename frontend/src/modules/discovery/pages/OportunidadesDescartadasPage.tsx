@@ -10,6 +10,7 @@ import { DiscoveryNav } from '../components/DiscoveryNav';
 import { GapBadge, ZonaBadge } from '../components/OuvBadges';
 import { OuvFiltersPanel } from '../components/OuvFiltersPanel';
 import { cardClass } from '../components/ui';
+import { canReadAllOuvs } from '../lib/ouv-access';
 import {
   countActiveOuvFilters,
   EMPTY_OUV_FILTERS,
@@ -25,8 +26,7 @@ type ViewMode = 'lista' | 'kanban';
 /** Bandeja de OUVs descartadas — mismo embudo, marco warning. */
 export function OportunidadesDescartadasPage() {
   const { user } = useAuth();
-  const canListAll =
-    user?.role_name === 'SoporteComercial' || user?.role_name === 'Admin';
+  const canListAll = canReadAllOuvs(user?.role_name);
 
   const [view, setView] = useState<ViewMode>('kanban');
   const [filtersOpen, setFiltersOpen] = useState(false);

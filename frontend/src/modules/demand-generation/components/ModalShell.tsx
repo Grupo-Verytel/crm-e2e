@@ -2,7 +2,6 @@ import type { ReactNode } from 'react';
 
 export function ModalShell({
   title,
-  onClose,
   children,
   size = 'default',
 }: {
@@ -24,16 +23,8 @@ export function ModalShell({
           size === 'wide' ? 'max-w-3xl' : 'max-w-lg',
         ].join(' ')}
       >
-        <div className="mb-4 flex items-center justify-between">
+        <div className="mb-4">
           <h2 className="text-base font-bold text-ink">{title}</h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="btn-glow-outline rounded px-2 py-1 text-sm font-bold"
-            aria-label="Cerrar"
-          >
-            Cerrar
-          </button>
         </div>
         {children}
       </div>

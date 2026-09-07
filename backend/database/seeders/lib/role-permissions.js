@@ -5,6 +5,7 @@ const ACTION_MAP = {
   A: 'approve',
   X: 'close',
   D: 'delete',
+  S: 'schedule',
 };
 
 const SUBJECTS = {
@@ -22,6 +23,7 @@ const SUBJECTS = {
   pricing: ['Pricing'],
   'proposals/contracts': ['Proposal', 'Contract'],
   services: ['Service'],
+  kickoff: ['Kickoff'],
   billing: ['Billing'],
   'post-sales': ['PostSale'],
   'audit-log': ['AuditLog'],
@@ -30,19 +32,18 @@ const SUBJECTS = {
 /** RBAC matrix §3.1 from spec-auth (keys match Role.name). */
 const MATRIX = {
   Admin: {
-    'users/roles': 'CRUA',
-    // Full demand-gen so Admin can operate without switching roles in local/dev.
-    'leads/campaigns': 'CRUA',
-    // Full opportunity ops so Admin can test OUV detalle (influencias, etc.).
-    opportunities: 'CRUX',
-    accounts: 'CRU',
+    'users/roles': 'CRUDAS',
+    'leads/campaigns': 'CRUDAS',
+    opportunities: 'CRUDX',
+    accounts: 'CRUD',
     'ouv-catalogs': 'CRUD',
-    presales: 'R',
-    pricing: 'R',
-    'proposals/contracts': 'R',
-    services: 'R',
-    billing: 'R',
-    'post-sales': 'R',
+    presales: 'CRUAD',
+    pricing: 'CRUAD',
+    'proposals/contracts': 'CRUDAD',
+    services: 'CRUAD',
+    kickoff: 'CRUD',
+    billing: 'CRUAD',
+    'post-sales': 'CRUD',
     'audit-log': 'R',
   },
   DirectorMercadeo: {
@@ -102,6 +103,7 @@ const MATRIX = {
   PMO: {
     accounts: 'CRU',
     services: 'CRUAX',
+    kickoff: 'CRUD',
     billing: 'R',
     'post-sales': 'R',
   },
@@ -176,6 +178,7 @@ function parsePermissionCodes(permissionCodes) {
 function buildPermissions(roleName) {
   const roleMatrix = MATRIX[roleName] || {};
   const rules = [];
+  const seen = new Set();
 
   for (const [resource, permissionCodes] of Object.entries(roleMatrix)) {
     if (!permissionCodes) {
@@ -187,13 +190,19 @@ function buildPermissions(roleName) {
 
     for (const subject of subjects) {
       for (const action of actions) {
+        const key = `${action}::${subject}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
         rules.push({ action, subject });
       }
     }
   }
 
   if (roleName === 'SoporteComercial' || roleName === 'Admin') {
-    rules.push({ action: 'schedule', subject: 'Lead' });
+    const key = 'schedule::Lead';
+    if (!seen.has(key)) {
+      rules.push({ action: 'schedule', subject: 'Lead' });
+    }
   }
 
   return rules;
@@ -202,4 +211,6 @@ function buildPermissions(roleName) {
 module.exports = {
   BASE_ROLES,
   buildPermissions,
+  MATRIX,
+  SUBJECTS,
 };

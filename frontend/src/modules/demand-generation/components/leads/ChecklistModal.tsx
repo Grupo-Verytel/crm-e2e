@@ -165,6 +165,9 @@ export function ChecklistModal({
         ) : null}
 
         <div className="flex justify-end gap-2">
+          <button type="button" onClick={onClose} className={ghostButtonClass}>
+            Cancelar
+          </button>
           <button
             type="button"
             onClick={handleSaveProgress}

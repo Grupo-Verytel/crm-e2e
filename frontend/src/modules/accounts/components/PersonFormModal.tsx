@@ -33,7 +33,13 @@ export function PersonFormModal({ editing, onClose, onSaved }: Props) {
   const [phone, setPhone] = useState(isNew ? '' : (editing.phone ?? ''));
   const [influenciaTipo, setInfluenciaTipo] = useState<
     PersonInfluenciaTipo | ''
-  >('');
+  >(
+    isNew
+      ? ''
+      : (editing.tipo_influencia ??
+        loadPersonInfluenciaTipo(editing.person_id) ??
+        ''),
+  );
   const [accountId, setAccountId] = useState(isNew ? '' : editing.account_id);
   const [accountSearch, setAccountSearch] = useState('');
   const [accountOptions, setAccountOptions] = useState<Account[]>([]);
@@ -45,7 +51,11 @@ export function PersonFormModal({ editing, onClose, onSaved }: Props) {
 
   useEffect(() => {
     if (!isNew && editing !== 'new') {
-      setInfluenciaTipo(loadPersonInfluenciaTipo(editing.person_id) ?? '');
+      setInfluenciaTipo(
+        editing.tipo_influencia ??
+          loadPersonInfluenciaTipo(editing.person_id) ??
+          '',
+      );
     }
   }, [editing, isNew]);
 
@@ -78,6 +88,7 @@ export function PersonFormModal({ editing, onClose, onSaved }: Props) {
           email: email.trim() || null,
           phone: phone.trim() || null,
           account_id: accountId,
+          tipo_influencia: influenciaTipo || null,
         });
         if (influenciaTipo) {
           savePersonInfluenciaTipo(created.person_id, influenciaTipo);
@@ -88,6 +99,7 @@ export function PersonFormModal({ editing, onClose, onSaved }: Props) {
           job_title: jobTitle.trim() || null,
           email: email.trim() || null,
           phone: phone.trim() || null,
+          tipo_influencia: influenciaTipo || null,
         });
         savePersonInfluenciaTipo(
           editing.person_id,

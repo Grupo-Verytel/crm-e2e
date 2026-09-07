@@ -34,6 +34,13 @@ export enum TipoInfluencia {
   DeFabrica = 'DeFabrica',
 }
 
+/** Per-contact slot — same tipos as OUV influencias. */
+export enum LeadContactInfluenciaTipo {
+  Economica = 'Economica',
+  Tecnica = 'Tecnica',
+  Fabrica = 'Fabrica',
+}
+
 export enum LeadEstado {
   Nuevo = 'Nuevo',
   TOFU = 'TOFU',
