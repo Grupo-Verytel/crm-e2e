@@ -1,4 +1,9 @@
 import { useEffect, useState, type FormEvent } from 'react';
+import {
+  formatAmountEsCo,
+  formatAmountInputEsCo,
+  parseAmountInputEsCo,
+} from '../../../lib/format';
 import { ApiError } from '../../auth/types';
 import {
   descartarOuv,
@@ -19,13 +24,26 @@ import {
   primaryButtonClass,
 } from './ui';
 
-type ResultadoCierre = 'Ganada' | 'Perdida' | 'Descartada';
+export type ResultadoCierre = 'Ganada' | 'Perdida' | 'Descartada';
+
+export type OuvClosedEvent = {
+  resultado: ResultadoCierre;
+  ouv: Ouv;
+};
 
 type Props = {
   ouv: Ouv;
   onClose: () => void;
-  onClosed: () => void;
+  onClosed: (event: OuvClosedEvent) => void;
 };
+
+function requireAmount(formatted: string, invalidMessage: string): number {
+  const monto = parseAmountInputEsCo(formatted);
+  if (monto === null || monto < 0) {
+    throw new Error(invalidMessage);
+  }
+  return monto;
+}
 
 export function CierreOuvModal({ ouv, onClose, onClosed }: Props) {
   const [resultado, setResultado] = useState<ResultadoCierre>('Ganada');
@@ -35,9 +53,15 @@ export function CierreOuvModal({ ouv, onClose, onClosed }: Props) {
   );
   const [motivoId, setMotivoId] = useState('');
   const [motivoDetalle, setMotivoDetalle] = useState('');
-  const [montoFinal, setMontoFinal] = useState('');
-  const [monedaFinal, setMonedaFinal] = useState('COP');
-  const [montoPerdido, setMontoPerdido] = useState('');
+  const [montoFinal, setMontoFinal] = useState(
+    () => formatAmountEsCo(ouv.presupuesto_monto) || '',
+  );
+  const [monedaFinal, setMonedaFinal] = useState(
+    ouv.presupuesto_moneda ?? 'COP',
+  );
+  const [montoPerdido, setMontoPerdido] = useState(
+    () => formatAmountEsCo(ouv.presupuesto_monto) || '',
+  );
   const [competidor, setCompetidor] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -68,17 +92,15 @@ export function CierreOuvModal({ ouv, onClose, onClosed }: Props) {
     setSaving(true);
     setError(null);
     try {
+      let closed: Ouv;
       if (resultado === 'Ganada') {
         if (ouv.zona_actual !== 'MAYOR_PROBABILIDAD') {
           throw new Error(
             'Ganada solo desde zona Mayor Probabilidad (Wave 1).',
           );
         }
-        const monto = Number(montoFinal);
-        if (!Number.isFinite(monto) || monto < 0) {
-          throw new Error('Monto final inválido.');
-        }
-        await ganarOuv(ouv.ouv_id, {
+        const monto = requireAmount(montoFinal, 'Monto final inválido.');
+        closed = await ganarOuv(ouv.ouv_id, {
           motivo_id: motivoId || undefined,
           motivo_detalle: motivoDetalle.trim() || undefined,
           monto_final: monto,
@@ -86,17 +108,17 @@ export function CierreOuvModal({ ouv, onClose, onClosed }: Props) {
         });
       } else if (resultado === 'Perdida') {
         if (!motivoId) throw new Error('Selecciona un motivo de pérdida.');
-        const monto = Number(montoPerdido);
-        if (!Number.isFinite(monto) || monto < 0) {
-          throw new Error('Monto estimado perdido inválido.');
-        }
+        const monto = requireAmount(
+          montoPerdido,
+          'Monto estimado perdido inválido.',
+        );
         if (needsCompetidor && !competidor.trim()) {
           throw new Error('Indica el competidor ganador.');
         }
         if (selected?.requiere_detalle && !motivoDetalle.trim()) {
           throw new Error('El detalle del motivo es obligatorio.');
         }
-        await perderOuv(ouv.ouv_id, {
+        closed = await perderOuv(ouv.ouv_id, {
           motivo_id: motivoId,
           motivo_detalle: motivoDetalle.trim() || undefined,
           monto_estimado_perdido: monto,
@@ -107,12 +129,12 @@ export function CierreOuvModal({ ouv, onClose, onClosed }: Props) {
         if (selected?.requiere_detalle && !motivoDetalle.trim()) {
           throw new Error('El detalle del motivo es obligatorio.');
         }
-        await descartarOuv(ouv.ouv_id, {
+        closed = await descartarOuv(ouv.ouv_id, {
           motivo_id: motivoId,
           motivo_detalle: motivoDetalle.trim() || undefined,
         });
       }
-      onClosed();
+      onClosed({ resultado, ouv: closed });
       onClose();
     } catch (err) {
       setError(
@@ -178,7 +200,11 @@ export function CierreOuvModal({ ouv, onClose, onClosed }: Props) {
                 <input
                   className={inputClass}
                   value={montoFinal}
-                  onChange={(e) => setMontoFinal(e.target.value)}
+                  inputMode="decimal"
+                  autoComplete="off"
+                  onChange={(e) =>
+                    setMontoFinal(formatAmountInputEsCo(e.target.value))
+                  }
                   required
                 />
               </div>
@@ -220,7 +246,11 @@ export function CierreOuvModal({ ouv, onClose, onClosed }: Props) {
               <input
                 className={inputClass}
                 value={montoPerdido}
-                onChange={(e) => setMontoPerdido(e.target.value)}
+                inputMode="decimal"
+                autoComplete="off"
+                onChange={(e) =>
+                  setMontoPerdido(formatAmountInputEsCo(e.target.value))
+                }
                 required
               />
             </div>

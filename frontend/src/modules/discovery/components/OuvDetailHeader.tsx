@@ -25,6 +25,7 @@ export function OuvDetailHeader({
   ouv,
   contactosCount,
   onOpenContactos,
+  onEditar,
   onAvanzar,
   onRetroceder,
   onCerrar,
@@ -32,6 +33,7 @@ export function OuvDetailHeader({
   ouv: Ouv;
   contactosCount: number;
   onOpenContactos: () => void;
+  onEditar: () => void;
   onAvanzar: () => void;
   onRetroceder: () => void;
   onCerrar: () => void;
@@ -85,6 +87,7 @@ export function OuvDetailHeader({
             ) : null}
           </button>
           <OuvConfigMenu
+            onEditar={onEditar}
             onContactos={onOpenContactos}
             onAvanzar={onAvanzar}
             onRetroceder={onRetroceder}

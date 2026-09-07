@@ -1,114 +1,41 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { fetchAccounts } from '../../accounts/api/accounts-api';
-import type { Account } from '../../accounts/types';
-import { fetchUsers } from '../../auth/api/users-api';
-import type { User } from '../../auth/types';
+import { useMemo, useState, type FormEvent } from 'react';
 import { ApiError } from '../../auth/types';
-import { fetchSegments } from '../../demand-generation/api/segments-api';
-import type { Segment } from '../../demand-generation/types';
 import type { Ouv, UpdateOuvPayload } from '../api/ouvs-api';
-import { SEGMENTOS, VERTICALES } from '../lib/ouv-vocab';
+import {
+  OUV_RESULTADO_LABEL,
+  OUV_ZONA_LABEL,
+  SEGMENTOS,
+  VERTICALES,
+} from '../lib/ouv-vocab';
 import { ModalShell } from './ModalShell';
 import {
   ghostButtonClass,
   inputClass,
   labelClass,
   primaryButtonClass,
+  readonlyInputClass,
 } from './ui';
 
 type Props = {
   ouv: Ouv;
-  /** Rol del actor; solo Admin puede reasignar el comercial dueño. */
-  actorRoleName: string | undefined;
   onClose: () => void;
   onSaved: (updated: Ouv) => void;
   save: (payload: UpdateOuvPayload) => Promise<Ouv>;
 };
 
 /**
- * Modal para editar todos los metadatos y relaciones editables de una OUV:
- * cabecera (título, empresa, segmento, vertical, descripción), account
- * vinculada, segmento estructurado (segment_id + subsegment_id), y —solo si
- * el actor es Admin— reasignación del comercial dueño. Zona, resultado y
- * presupuesto tienen sus propios flujos y NO se editan desde aquí.
+ * Edit the same header fields the user sees when creating or consulting an
+ * OUV: title, organization, segmento, vertical and description.
+ * Zona, resultado and presupuesto keep their own menu actions.
  */
-export function EditOuvModal({
-  ouv,
-  actorRoleName,
-  onClose,
-  onSaved,
-  save,
-}: Props) {
+export function EditOuvModal({ ouv, onClose, onSaved, save }: Props) {
   const [titulo, setTitulo] = useState(ouv.titulo ?? '');
   const [empresa, setEmpresa] = useState(ouv.empresa_nombre ?? '');
   const [segmento, setSegmento] = useState(ouv.segmento ?? '');
   const [vertical, setVertical] = useState(ouv.vertical ?? '');
   const [descripcion, setDescripcion] = useState(ouv.descripcion ?? '');
-  const [accountId, setAccountId] = useState<string>(ouv.account_id ?? '');
-  const [segmentId, setSegmentId] = useState<string>(ouv.segment_id ?? '');
-  const [subsegmentId, setSubsegmentId] = useState<string>(
-    ouv.subsegment_id ?? '',
-  );
-  const [comercialId, setComercialId] = useState<string>(ouv.comercial_id ?? '');
-
-  const [accounts, setAccounts] = useState<Account[]>([]);
-  const [segments, setSegments] = useState<Segment[]>([]);
-  const [comerciales, setComerciales] = useState<User[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [loadingCatalogs, setLoadingCatalogs] = useState(true);
-
-  const isAdmin = actorRoleName === 'Admin';
-
-  useEffect(() => {
-    let cancelled = false;
-    async function loadCatalogs() {
-      try {
-        const [accountsPage, segmentsList, usersPage] = await Promise.all([
-          // Traemos un tramo grande porque el select vive en un modal — si la
-          // cuenta de accounts supera esto habrá que reemplazarlo por combobox
-          // con búsqueda paginada.
-          fetchAccounts({ limit: 500 }),
-          fetchSegments(),
-          isAdmin ? fetchUsers({ limit: 500 }) : Promise.resolve(null),
-        ]);
-        if (cancelled) return;
-        setAccounts(accountsPage.items);
-        setSegments(segmentsList);
-        if (usersPage) {
-          setComerciales(
-            usersPage.items.filter(
-              (u) => u.role_name === 'EjecutivoComercial' && u.is_active,
-            ),
-          );
-        }
-      } catch {
-        if (!cancelled) {
-          setError('No se pudieron cargar los catálogos.');
-        }
-      } finally {
-        if (!cancelled) setLoadingCatalogs(false);
-      }
-    }
-    void loadCatalogs();
-    return () => {
-      cancelled = true;
-    };
-  }, [isAdmin]);
-
-  const selectedSegment = useMemo(
-    () => segments.find((s) => s.id === segmentId) ?? null,
-    [segments, segmentId],
-  );
-
-  function handleSegmentChange(nextId: string) {
-    setSegmentId(nextId);
-    // Reset subsegmento si ya no pertenece al segmento elegido.
-    const next = segments.find((s) => s.id === nextId);
-    if (!next || !next.subsegments.some((ss) => ss.id === subsegmentId)) {
-      setSubsegmentId('');
-    }
-  }
 
   const payload = useMemo<UpdateOuvPayload>(() => {
     const diff: UpdateOuvPayload = {};
@@ -120,36 +47,8 @@ export function EditOuvModal({
     if (segmento !== ouv.segmento) diff.segmento = segmento;
     if (vertical !== ouv.vertical) diff.vertical = vertical;
     if (d !== (ouv.descripcion ?? '').trim()) diff.descripcion = d;
-
-    const nextAccountId = accountId || null;
-    if (nextAccountId !== (ouv.account_id ?? null)) {
-      diff.account_id = nextAccountId;
-    }
-    const nextSegmentId = segmentId || null;
-    if (nextSegmentId !== (ouv.segment_id ?? null)) {
-      diff.segment_id = nextSegmentId;
-    }
-    const nextSubsegmentId = subsegmentId || null;
-    if (nextSubsegmentId !== (ouv.subsegment_id ?? null)) {
-      diff.subsegment_id = nextSubsegmentId;
-    }
-    if (isAdmin && comercialId && comercialId !== ouv.comercial_id) {
-      diff.comercial_id = comercialId;
-    }
     return diff;
-  }, [
-    titulo,
-    empresa,
-    segmento,
-    vertical,
-    descripcion,
-    accountId,
-    segmentId,
-    subsegmentId,
-    comercialId,
-    isAdmin,
-    ouv,
-  ]);
+  }, [titulo, empresa, segmento, vertical, descripcion, ouv]);
 
   const hasChanges = Object.keys(payload).length > 0;
   const canSave = hasChanges && titulo.trim() !== '' && empresa.trim() !== '';
@@ -176,6 +75,45 @@ export function EditOuvModal({
   return (
     <ModalShell title="Editar OUV" onClose={onClose} size="wide">
       <form className="space-y-3" onSubmit={handleSubmit}>
+        <div className="grid gap-3 md:grid-cols-3">
+          <div>
+            <label className={labelClass} htmlFor="edit-ouv-consecutivo">
+              Consecutivo
+            </label>
+            <input
+              id="edit-ouv-consecutivo"
+              className={`${readonlyInputClass} font-mono`}
+              value={ouv.consecutivo}
+              readOnly
+              disabled
+            />
+          </div>
+          <div>
+            <label className={labelClass} htmlFor="edit-ouv-zona">
+              Zona
+            </label>
+            <input
+              id="edit-ouv-zona"
+              className={readonlyInputClass}
+              value={OUV_ZONA_LABEL[ouv.zona_actual] ?? ouv.zona_actual}
+              readOnly
+              disabled
+            />
+          </div>
+          <div>
+            <label className={labelClass} htmlFor="edit-ouv-resultado">
+              Estado OUV
+            </label>
+            <input
+              id="edit-ouv-resultado"
+              className={readonlyInputClass}
+              value={OUV_RESULTADO_LABEL[ouv.resultado] ?? ouv.resultado}
+              readOnly
+              disabled
+            />
+          </div>
+        </div>
+
         <div>
           <label className={labelClass} htmlFor="edit-ouv-titulo">
             Título
@@ -192,7 +130,7 @@ export function EditOuvModal({
 
         <div>
           <label className={labelClass} htmlFor="edit-ouv-empresa">
-            Empresa / cuenta (snapshot)
+            Organización
           </label>
           <input
             id="edit-ouv-empresa"
@@ -202,37 +140,12 @@ export function EditOuvModal({
             maxLength={200}
             required
           />
-          <p className="mt-1 text-xs text-muted">
-            Texto plano de referencia. Si vinculás una account abajo y no tocás
-            este campo, se sincroniza al nombre de la account.
-          </p>
-        </div>
-
-        <div>
-          <label className={labelClass} htmlFor="edit-ouv-account">
-            Account vinculada
-          </label>
-          <select
-            id="edit-ouv-account"
-            className={inputClass}
-            value={accountId}
-            onChange={(e) => setAccountId(e.target.value)}
-            disabled={loadingCatalogs}
-          >
-            <option value="">Sin account vinculada</option>
-            {accounts.map((a) => (
-              <option key={a.account_id} value={a.account_id}>
-                {a.name}
-                {a.tax_id ? ` · ${a.tax_id}` : ''}
-              </option>
-            ))}
-          </select>
         </div>
 
         <div className="grid gap-3 md:grid-cols-2">
           <div>
             <label className={labelClass} htmlFor="edit-ouv-segmento">
-              Segmento (arquetipo)
+              Segmento
             </label>
             <select
               id="edit-ouv-segmento"
@@ -265,79 +178,6 @@ export function EditOuvModal({
             </select>
           </div>
         </div>
-
-        <div className="grid gap-3 md:grid-cols-2">
-          <div>
-            <label className={labelClass} htmlFor="edit-ouv-segment">
-              Segmento estructurado
-            </label>
-            <select
-              id="edit-ouv-segment"
-              className={inputClass}
-              value={segmentId}
-              onChange={(e) => handleSegmentChange(e.target.value)}
-              disabled={loadingCatalogs}
-            >
-              <option value="">Sin segmento estructurado</option>
-              {segments.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className={labelClass} htmlFor="edit-ouv-subsegment">
-              Subsegmento
-            </label>
-            <select
-              id="edit-ouv-subsegment"
-              className={inputClass}
-              value={subsegmentId}
-              onChange={(e) => setSubsegmentId(e.target.value)}
-              disabled={loadingCatalogs || !selectedSegment}
-            >
-              <option value="">
-                {selectedSegment ? 'Sin subsegmento' : '(elige segmento)'}
-              </option>
-              {selectedSegment?.subsegments.map((ss) => (
-                <option key={ss.id} value={ss.id}>
-                  {ss.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {isAdmin ? (
-          <div>
-            <label className={labelClass} htmlFor="edit-ouv-comercial">
-              Comercial dueño
-            </label>
-            <select
-              id="edit-ouv-comercial"
-              className={inputClass}
-              value={comercialId}
-              onChange={(e) => setComercialId(e.target.value)}
-              disabled={loadingCatalogs}
-            >
-              {comerciales.map((u) => (
-                <option key={u.user_id} value={u.user_id}>
-                  {u.full_name} · {u.email}
-                </option>
-              ))}
-              {!comerciales.some((u) => u.user_id === ouv.comercial_id) &&
-              ouv.comercial_id ? (
-                <option value={ouv.comercial_id}>
-                  (dueño actual, no listado)
-                </option>
-              ) : null}
-            </select>
-            <p className="mt-1 text-xs text-muted">
-              Reasigna la propiedad del OUV. Solo Admin puede hacerlo.
-            </p>
-          </div>
-        ) : null}
 
         <div>
           <label className={labelClass} htmlFor="edit-ouv-descripcion">
