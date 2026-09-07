@@ -33,12 +33,17 @@ import {
 } from '../api/ouvs-api';
 import { Users } from 'lucide-react';
 import { AvanceZonaModal } from '../components/AvanceZonaModal';
-import { CierreOuvModal } from '../components/CierreOuvModal';
+import {
+  CierreOuvModal,
+  type OuvClosedEvent,
+} from '../components/CierreOuvModal';
 import { ContactoFormModal } from '../components/ContactoFormModal';
 import { ContactosSidePanel } from '../components/ContactosSidePanel';
 import { DiscoveryNav } from '../components/DiscoveryNav';
 import { EditOuvModal } from '../components/EditOuvModal';
+import { FloatingToast } from '../components/FloatingToast';
 import { OuvConfigMenu } from '../components/OuvConfigMenu';
+import { WonCelebration } from '../components/WonCelebration';
 import { GapBadge, ResultadoBadge, ZonaBadge } from '../components/OuvBadges';
 import { InteraccionesPreventaPanel } from '../components/InteraccionesPreventaPanel';
 import { OuvFunnelRibbon } from '../components/OuvFunnelRibbon';
@@ -169,6 +174,8 @@ export function OuvDetailPage() {
   const [showAvance, setShowAvance] = useState(false);
   const [showRetroceso, setShowRetroceso] = useState(false);
   const [showCierre, setShowCierre] = useState(false);
+  const [closeToast, setCloseToast] = useState<string | null>(null);
+  const [celebrateWin, setCelebrateWin] = useState(false);
   const [tab, setTab] = useState<DetailTab>('detalle');
 
   const [presupuestoConfirmado, setPresupuestoConfirmado] = useState(false);
@@ -248,6 +255,12 @@ export function OuvDetailPage() {
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (!closeToast) return;
+    const timer = window.setTimeout(() => setCloseToast(null), 4500);
+    return () => window.clearTimeout(timer);
+  }, [closeToast]);
 
   function flashInfluencia(tipo: InfluenciaTipo) {
     setInfluenciaFlash(tipo);
@@ -433,6 +446,28 @@ export function OuvDetailPage() {
     } finally {
       setSavingPresupuesto(false);
     }
+  }
+
+  function handleOuvClosed({ resultado, ouv: updated }: OuvClosedEvent) {
+    setOuv((prev) =>
+      prev
+        ? {
+            ...prev,
+            ...updated,
+            dias_por_zona: updated.dias_por_zona ?? prev.dias_por_zona,
+          }
+        : updated,
+    );
+    setShowCierre(false);
+    setActionError(null);
+    const message =
+      resultado === 'Ganada'
+        ? 'La OUV se cerró correctamente como Ganada.'
+        : `La OUV se cerró correctamente como ${resultado}.`;
+    setCloseToast(message);
+    setActionSuccess(message);
+    setCelebrateWin(resultado === 'Ganada');
+    void load({ silent: true });
   }
 
   if (loading) {
@@ -918,9 +953,9 @@ export function OuvDetailPage() {
               <dt className="text-muted">Monto</dt>
               <dd className="text-ink">
                 {ouv.monto_final
-                  ? `${ouv.monto_final} ${ouv.moneda_final ?? ''}`
+                  ? `${formatAmountEsCo(ouv.monto_final)} ${ouv.moneda_final ?? ''}`.trim()
                   : ouv.monto_estimado_perdido
-                    ? `${ouv.monto_estimado_perdido} (estimado)`
+                    ? `${formatAmountEsCo(ouv.monto_estimado_perdido)} (estimado)`
                     : '—'}
               </dd>
             </div>
@@ -996,8 +1031,18 @@ export function OuvDetailPage() {
         <CierreOuvModal
           ouv={ouv}
           onClose={() => setShowCierre(false)}
-          onClosed={() => void load({ silent: true })}
+          onClosed={handleOuvClosed}
         />
+      ) : null}
+      {closeToast ? (
+        <FloatingToast
+          message={closeToast}
+          tone="success"
+          onDismiss={() => setCloseToast(null)}
+        />
+      ) : null}
+      {celebrateWin ? (
+        <WonCelebration onDone={() => setCelebrateWin(false)} />
       ) : null}
     </AppLayout>
   );
