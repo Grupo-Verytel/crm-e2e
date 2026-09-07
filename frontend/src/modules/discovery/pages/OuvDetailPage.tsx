@@ -21,6 +21,7 @@ import {
   fetchOuvContactos,
   fetchOuvInfluencias,
   marcarChecklistItem,
+  updateOuv,
   updateOuvContacto,
   updateOuvInfluencia,
   updateOuvPresupuesto,
@@ -36,6 +37,7 @@ import { CierreOuvModal } from '../components/CierreOuvModal';
 import { ContactoFormModal } from '../components/ContactoFormModal';
 import { ContactosSidePanel } from '../components/ContactosSidePanel';
 import { DiscoveryNav } from '../components/DiscoveryNav';
+import { EditOuvModal } from '../components/EditOuvModal';
 import { OuvConfigMenu } from '../components/OuvConfigMenu';
 import { GapBadge, ResultadoBadge, ZonaBadge } from '../components/OuvBadges';
 import { InteraccionesPreventaPanel } from '../components/InteraccionesPreventaPanel';
@@ -163,6 +165,7 @@ export function OuvDetailPage() {
     null,
   );
   const [showContactosPanel, setShowContactosPanel] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
   const [showAvance, setShowAvance] = useState(false);
   const [showRetroceso, setShowRetroceso] = useState(false);
   const [showCierre, setShowCierre] = useState(false);
@@ -492,6 +495,7 @@ export function OuvDetailPage() {
           <div className="flex flex-wrap items-center gap-2">
             {editable ? (
               <OuvConfigMenu
+                onEditar={() => setShowEdit(true)}
                 onContactos={() => setShowContactosPanel(true)}
                 onAvanzar={() => setShowAvance(true)}
                 onRetroceder={() => setShowRetroceso(true)}
@@ -955,6 +959,24 @@ export function OuvDetailPage() {
         onEdit={(c) => setContactoModal(c)}
         onDelete={(c) => void handleDeleteContacto(c)}
       />
+      {showEdit ? (
+        <EditOuvModal
+          ouv={ouv}
+          onClose={() => setShowEdit(false)}
+          onSaved={(updated) => {
+            setOuv((prev) =>
+              prev
+                ? { ...prev, ...updated, dias_por_zona: prev.dias_por_zona }
+                : updated,
+            );
+            setShowEdit(false);
+            setActionError(null);
+            setActionSuccess('OUV actualizada.');
+            void load({ silent: true });
+          }}
+          save={(payload) => updateOuv(id, payload)}
+        />
+      ) : null}
       {showAvance ? (
         <AvanceZonaModal
           ouv={ouv}

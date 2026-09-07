@@ -2,12 +2,14 @@ import { useEffect, useRef, useState } from 'react';
 import {
   ArrowLeft,
   ArrowRight,
+  Pencil,
   Settings,
   Users,
   XCircle,
 } from 'lucide-react';
 
 type Props = {
+  onEditar: () => void;
   onContactos: () => void;
   onAvanzar: () => void;
   onRetroceder: () => void;
@@ -18,6 +20,7 @@ const menuItemClass =
   'flex w-full items-center gap-2 border-t border-border px-3 py-2 text-left text-sm font-bold text-ink hover:bg-bg first:border-t-0';
 
 export function OuvConfigMenu({
+  onEditar,
   onContactos,
   onAvanzar,
   onRetroceder,
@@ -59,6 +62,15 @@ export function OuvConfigMenu({
           className="absolute right-0 z-40 mt-2 min-w-[12rem] overflow-hidden rounded border border-border bg-surface shadow-card"
           role="menu"
         >
+          <button
+            type="button"
+            role="menuitem"
+            className={menuItemClass}
+            onClick={() => pick(onEditar)}
+          >
+            <Pencil size={16} strokeWidth={2} aria-hidden />
+            Editar OUV
+          </button>
           <button
             type="button"
             role="menuitem"
