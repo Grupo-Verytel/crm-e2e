@@ -4,18 +4,18 @@
 
 @config '../../tailwind.config.js';
 
-/* Light mode uses vivid orange; dark mode keeps the deeper Oriole accent. */
+/* Accent is theme-split: vivid Frisson orange in light only; dark keeps deeper Oriole. */
 html[data-theme='light'],
 :root:not([data-theme='dark']) {
-  --accent: var(--accent-light);
-  --accent-700: color-mix(in srgb, var(--accent-light) 80%, black 20%);
-  --accent-icon-hover: color-mix(in srgb, var(--accent-light) 90%, black 10%);
+  --accent: #f88702;
+  --accent-700: color-mix(in srgb, #f88702 80%, black 20%);
+  --accent-icon-hover: color-mix(in srgb, #f88702 90%, black 10%);
 }
 
 html[data-theme='dark'] {
-  --accent: var(--accent-dark);
-  --accent-700: color-mix(in srgb, var(--accent-dark) 80%, black 20%);
-  --accent-icon-hover: color-mix(in srgb, var(--accent-dark) 90%, black 10%);
+  --accent: #c25e00;
+  --accent-700: color-mix(in srgb, #c25e00 80%, black 20%);
+  --accent-icon-hover: color-mix(in srgb, #c25e00 90%, black 10%);
 }
 
 html,
@@ -161,6 +161,11 @@ body {
   animation: fadeSlideIn 280ms ease-out;
 }
 
+/**
+ * Global scrollbars (additive only).
+ * Transparent track so the thumb sits over the surface; no layout/color changes
+ * to existing components — only ::-webkit-scrollbar / scrollbar-* properties.
+ */
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--text-muted) transparent;
@@ -177,8 +182,8 @@ body {
 
 *::-webkit-scrollbar-thumb {
   background-color: var(--text-muted);
-  border: 2px solid transparent;
   border-radius: var(--radius-sm);
+  border: 2px solid transparent;
   background-clip: content-box;
 }
 
