@@ -54,6 +54,8 @@ function ouvFromVentaRecord(record: VentaGanadaRecord): Ouv {
     account_id: null,
     titulo: record.titulo,
     empresa_nombre: record.empresaNombre,
+    city: null,
+    region: null,
     descripcion: null,
     segmento: 'Gobierno',
     segment_id: null,

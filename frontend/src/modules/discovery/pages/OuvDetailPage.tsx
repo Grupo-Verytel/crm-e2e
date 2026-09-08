@@ -479,7 +479,6 @@ export function OuvDetailPage() {
     setCelebrateWin(resultado === 'Ganada');
     void load({ silent: true });
   }
-  }
 
   if (loading) {
     return (
