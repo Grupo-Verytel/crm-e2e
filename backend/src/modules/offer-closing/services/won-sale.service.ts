@@ -6,6 +6,7 @@ import {
   canReachOuvChild,
 } from '../../discovery/lib/ouv-access';
 import { OuvsService } from '../../discovery/services/ouvs.service';
+import { conReintentoPorDeadlock } from '../lib/deadlock-retry';
 import {
   SaveWonSaleDto,
   WonSaleEnvelopeDto,
@@ -130,48 +131,50 @@ export class WonSaleService {
     await this.assertPuedeVerOuv(ouvId, actor);
     const userId = actor.userId;
 
-    await this.wonSaleModel.sequelize!.transaction(async (transaction) => {
-      const existing = await this.wonSaleModel.findOne({
-        where: { ouvId },
-        transaction,
-        lock: transaction.LOCK.UPDATE,
-      });
+    await conReintentoPorDeadlock(() =>
+      this.wonSaleModel.sequelize!.transaction(async (transaction) => {
+        const existing = await this.wonSaleModel.findOne({
+          where: { ouvId },
+          transaction,
+          lock: transaction.LOCK.UPDATE,
+        });
 
-      const values = {
-        ouvId,
-        estadoRevision: dto.estadoRevision,
-        nombreProyecto: dto.nombreProyecto.trim(),
-        fechaInicio: dto.fechaInicio ?? null,
-        fechaFin: dto.fechaFin ?? null,
-        valorFacturar: String(dto.valorFacturar),
-        costoEstimado: String(dto.costoEstimado),
-        recurrente: dto.recurrente,
-        tipoVenta: dto.tipoVenta,
-        directorProyectoId: dto.directorProyectoId ?? null,
-        directorProyectoNombre: dto.directorProyectoNombre ?? null,
-        centroCostos: dto.centroCostos ?? null,
-        ubv: dto.ubv ?? null,
-        participacion: dto.participacion ?? null,
-        participacionPct: dto.participacionPct,
-        envioPmoEstado: dto.envioPmoEstado,
-        envioPmoConsecutivo: dto.envioPmoConsecutivo ?? null,
-        envioPmoSer: dto.envioPmoSer ?? null,
-        envioPmoMotivo: dto.envioPmoMotivo ?? null,
-        envioPmoEnviadoEn: toDate(dto.envioPmoEnviadoEn),
-        indicadores: dto.indicadores ?? null,
-        csat: dto.csat ?? null,
-        updatedBy: userId,
-      };
+        const values = {
+          ouvId,
+          estadoRevision: dto.estadoRevision,
+          nombreProyecto: dto.nombreProyecto.trim(),
+          fechaInicio: dto.fechaInicio ?? null,
+          fechaFin: dto.fechaFin ?? null,
+          valorFacturar: String(dto.valorFacturar),
+          costoEstimado: String(dto.costoEstimado),
+          recurrente: dto.recurrente,
+          tipoVenta: dto.tipoVenta,
+          directorProyectoId: dto.directorProyectoId ?? null,
+          directorProyectoNombre: dto.directorProyectoNombre ?? null,
+          centroCostos: dto.centroCostos ?? null,
+          ubv: dto.ubv ?? null,
+          participacion: dto.participacion ?? null,
+          participacionPct: dto.participacionPct,
+          envioPmoEstado: dto.envioPmoEstado,
+          envioPmoConsecutivo: dto.envioPmoConsecutivo ?? null,
+          envioPmoSer: dto.envioPmoSer ?? null,
+          envioPmoMotivo: dto.envioPmoMotivo ?? null,
+          envioPmoEnviadoEn: toDate(dto.envioPmoEnviadoEn),
+          indicadores: dto.indicadores ?? null,
+          csat: dto.csat ?? null,
+          updatedBy: userId,
+        };
 
-      const wonSale = existing
-        ? await existing.update(values, { transaction })
-        : await this.wonSaleModel.create(
-            { ...values, createdBy: userId },
-            { transaction },
-          );
+        const wonSale = existing
+          ? await existing.update(values, { transaction })
+          : await this.wonSaleModel.create(
+              { ...values, createdBy: userId },
+              { transaction },
+            );
 
-      await this.replaceChildren(wonSale.wonSaleId, dto, transaction);
-    });
+        await this.replaceChildren(wonSale.wonSaleId, dto, transaction);
+      }),
+    );
 
     const wonSale = await this.findWithChildren(ouvId);
     if (!wonSale) {

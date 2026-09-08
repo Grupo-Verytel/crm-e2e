@@ -1,26 +1,42 @@
 import { Lock } from 'lucide-react';
 import type {
+  IndicadorAlcance,
   IndicadorEjecucion,
   ProyectoEjecucion,
 } from '../api/projects-api';
 import { badgeClass, cardClass } from './ui';
 
-const BLOQUES: {
-  key: keyof Omit<ProyectoEjecucion, 'ouvId' | 'proyectoId'>;
-  label: string;
-}[] = [
+type BloqueKey = 'billing' | 'costs' | 'schedule' | 'scope';
+
+const BLOQUES: { key: BloqueKey; label: string }[] = [
   { key: 'billing', label: 'Facturación' },
   { key: 'costs', label: 'Costos' },
   { key: 'schedule', label: 'Tiempo' },
   { key: 'scope', label: 'Alcance' },
 ];
 
-function formatPorcentaje(valor: number): string {
+/** El signo solo aporta en la desviación; en el avance sobra. */
+function formatPorcentaje(valor: number, conSigno = false): string {
   return `${new Intl.NumberFormat('es-CO', {
     minimumFractionDigits: 1,
     maximumFractionDigits: 1,
-    signDisplay: 'exceptZero',
+    signDisplay: conSigno ? 'exceptZero' : 'auto',
   }).format(valor)}%`;
+}
+
+function formatPesos(valor: number): string {
+  return new Intl.NumberFormat('es-CO', {
+    style: 'currency',
+    currency: 'COP',
+    maximumFractionDigits: 0,
+  }).format(valor);
+}
+
+function formatFecha(iso: string): string {
+  const fecha = new Date(iso);
+  return Number.isNaN(fecha.getTime())
+    ? iso
+    : fecha.toLocaleDateString('es-CO');
 }
 
 /**
@@ -35,7 +51,7 @@ const TOLERANCIA_PCT = 5;
  * significa sobrecosto y en Facturación, adelanto. Por eso el tono depende del
  * bloque, y solo se enciende cuando la desviación supera la tolerancia.
  */
-function tonoDesviacion(key: string, deviation: number): string {
+function tonoDesviacion(key: BloqueKey, deviation: number): string {
   if (Math.abs(deviation) <= TOLERANCIA_PCT) return 'bg-border text-muted';
   const desfavorable = key === 'costs' ? deviation > 0 : deviation < 0;
   return desfavorable
@@ -43,15 +59,53 @@ function tonoDesviacion(key: string, deviation: number): string {
     : 'bg-positive/15 text-positive';
 }
 
+/**
+ * Cifra principal de cada tarjeta, en la unidad que le es propia: pesos
+ * facturados, semana del cronograma, entregables cerrados. El porcentaje solo
+ * queda como respaldo cuando el PMO no envía el agregado.
+ */
+function valorPrincipal(
+  key: BloqueKey,
+  indicador: IndicadorEjecucion | IndicadorAlcance,
+): string {
+  const resumen = indicador.summary;
+
+  if (key === 'scope') {
+    const alcance = resumen as IndicadorAlcance['summary'];
+    if (alcance && alcance.total > 0) {
+      return `${alcance.completed}/${alcance.total} entregables`;
+    }
+    return formatPorcentaje(indicador.percentage);
+  }
+
+  const serie = resumen as IndicadorEjecucion['summary'];
+  if (key === 'billing' && serie && serie.actualTotal > 0) {
+    return formatPesos(serie.actualTotal);
+  }
+  if (key === 'schedule' && serie?.lastWeek != null && serie.totalWeeks > 0) {
+    return `Semana ${serie.lastWeek}/${serie.totalWeeks}`;
+  }
+  return formatPorcentaje(indicador.percentage);
+}
+
+function fechaCorte(
+  indicador: IndicadorEjecucion | IndicadorAlcance,
+): string | null {
+  const resumen = indicador.summary as IndicadorEjecucion['summary'];
+  return resumen?.lastDate ?? null;
+}
+
 function Bloque({
+  bloqueKey,
   label,
   indicador,
-  tono,
 }: {
+  bloqueKey: BloqueKey;
   label: string;
-  indicador: IndicadorEjecucion;
-  tono: string;
+  indicador: IndicadorEjecucion | IndicadorAlcance;
 }) {
+  const corte = fechaCorte(indicador);
+
   return (
     <div className={cardClass}>
       <div className="mb-2 flex items-center justify-between">
@@ -66,10 +120,15 @@ function Bloque({
       {indicador.available ? (
         <>
           <p className="text-2xl font-bold text-accent">
-            {formatPorcentaje(indicador.percentage)}
+            {valorPrincipal(bloqueKey, indicador)}
           </p>
-          <span className={`${badgeClass} mt-2 ${tono}`}>
-            Desviación {formatPorcentaje(indicador.deviation)}
+          <span
+            className={`${badgeClass} mt-2 ${tonoDesviacion(
+              bloqueKey,
+              indicador.deviation,
+            )}`}
+          >
+            Desviación {formatPorcentaje(indicador.deviation, true)}
           </span>
         </>
       ) : (
@@ -81,7 +140,13 @@ function Bloque({
         </>
       )}
 
-      <p className="mt-2 text-xs text-muted">
+      {corte ? (
+        <p className="mt-2 text-xs text-muted">
+          Actualizado: {formatFecha(corte)}
+        </p>
+      ) : null}
+
+      <p className="mt-1 text-xs text-muted">
         Fuente: Control de Proyectos · {indicador.source}
       </p>
     </div>
@@ -102,9 +167,9 @@ export function IndicadoresEjecucion({
       {BLOQUES.map(({ key, label }) => (
         <Bloque
           key={key}
+          bloqueKey={key}
           label={label}
           indicador={proyecto[key]}
-          tono={tonoDesviacion(key, proyecto[key].deviation)}
         />
       ))}
     </div>

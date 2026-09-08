@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ExternalLink } from 'lucide-react';
 import { AppLayout } from '../../../layout/AppLayout';
@@ -39,6 +39,9 @@ import {
 } from '../components/ui';
 
 type Tab = 'validaciones' | 'kickoff' | 'datos';
+
+/** Rebote del guardado: suficiente para agrupar una ráfaga de tecleo. */
+const GUARDADO_DEBOUNCE_MS = 700;
 
 function ouvFromVentaRecord(record: VentaGanadaRecord): Ouv {
   const now = new Date().toISOString();
@@ -115,10 +118,53 @@ export function VentaGanadaDetailPage() {
   const [showResumen, setShowResumen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  /** Última versión sin enviar, y si hay un `PUT` en vuelo. */
+  const pendienteRef = useRef<VentaGanadaRecord | null>(null);
+  const guardandoRef = useRef(false);
+  const guardadoTimer = useRef<number | null>(null);
   const [preview, setPreview] = useState<{
     title: string;
     url: string;
   } | null>(null);
+
+  /**
+   * Envía el último estado pendiente. Si ya hay un `PUT` en vuelo no arranca
+   * otro: al terminar, ese mismo vuelve a mirar si quedó algo más reciente.
+   */
+  const enviarPendiente = useCallback(async function enviar(): Promise<void> {
+    if (guardandoRef.current) return;
+    const aGuardar = pendienteRef.current;
+    if (!aGuardar) return;
+
+    guardandoRef.current = true;
+    pendienteRef.current = null;
+    try {
+      const wonSale = await saveWonSale(aGuardar);
+      // Solo se refresca si entretanto no llegó una edición más nueva, para no
+      // pisar lo que el usuario acaba de escribir.
+      if (!pendienteRef.current) {
+        setRecord((prev) => (prev ? applyWonSale(prev, wonSale) : prev));
+      }
+    } catch (error) {
+      setToast(mensajeDeGuardado(error));
+    } finally {
+      guardandoRef.current = false;
+      if (pendienteRef.current) await enviar();
+    }
+  }, []);
+
+  // Al salir de la pantalla se envía lo que quedara en el rebote. Sin esto,
+  // cerrar o navegar dentro de esos 700 ms perdería la última edición — y
+  // "Crear Proyecto" navega a /services justo después de guardar.
+  useEffect(() => {
+    return () => {
+      if (guardadoTimer.current !== null) {
+        window.clearTimeout(guardadoTimer.current);
+        guardadoTimer.current = null;
+      }
+      void enviarPendiente();
+    };
+  }, [enviarPendiente]);
 
   // El registro base sale de la OUV (consecutivo, cliente, título); lo que se
   // diligencia en pantalla llega del backend, encima de esa base.
@@ -205,19 +251,25 @@ export function VentaGanadaDetailPage() {
   }
 
   /**
-   * Guarda en el backend y deja el resultado en pantalla. El `setRecord`
-   * inmediato mantiene el formulario fluido; si el `PUT` falla se avisa y el
-   * usuario conserva lo escrito para reintentar.
+   * Guarda en el backend con rebote y sin solapar peticiones.
+   *
+   * El formulario avisa en cada pulsación, y un `PUT` por tecla abría varias
+   * transacciones a la vez sobre la misma OUV: cada una bloquea la fila y
+   * reemplaza cuatro tablas hijas, así que MySQL acababa matando alguna por
+   * deadlock. Se guarda el estado en pantalla al instante —escribir sigue
+   * siendo fluido— y el envío espera a que el usuario pare.
    */
   function save(next: VentaGanadaRecord) {
     setRecord(next);
-    void saveWonSale(next)
-      .then((wonSale) => {
-        setRecord((prev) => (prev ? applyWonSale(prev, wonSale) : prev));
-      })
-      .catch((error: unknown) => {
-        setToast(mensajeDeGuardado(error));
-      });
+    pendienteRef.current = next;
+
+    if (guardadoTimer.current !== null) {
+      window.clearTimeout(guardadoTimer.current);
+    }
+    guardadoTimer.current = window.setTimeout(() => {
+      guardadoTimer.current = null;
+      void enviarPendiente();
+    }, GUARDADO_DEBOUNCE_MS);
   }
 
   /**

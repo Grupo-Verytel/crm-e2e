@@ -26,8 +26,27 @@ export class PmoApiClient {
 
   constructor(private readonly configService: ConfigService) {}
 
-  getExecution(ouvId: string): Promise<ProjectExecutionDto> {
-    return this.get<ProjectExecutionDto>('/api/projects/execution', ouvId);
+  /**
+   * El PMO nombra el identificador `proyectoId`; el resto del CRM lo llama
+   * `projectId`, igual que en `state-history`. Se traduce aquí, en el borde,
+   * para que el DTO diga la verdad: antes se hacía un cast ciego y la pantalla
+   * terminaba mostrando «Proyecto PMO #undefined».
+   */
+  async getExecution(ouvId: string): Promise<ProjectExecutionDto> {
+    const crudo = await this.get<
+      Omit<ProjectExecutionDto, 'projectId'> & {
+        proyectoId?: number;
+        projectId?: number;
+      }
+    >('/api/projects/execution', ouvId);
+
+    const { proyectoId, ...resto } = crudo;
+    const projectId = resto.projectId ?? proyectoId;
+    if (typeof projectId !== 'number') {
+      throw this.badResponse('/api/projects/execution', 200);
+    }
+
+    return { ...resto, projectId };
   }
 
   getStateHistory(ouvId: string): Promise<ProjectStateHistoryDto> {

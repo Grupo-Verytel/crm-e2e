@@ -11,6 +11,7 @@ import {
   KickoffResponseDto,
   SaveKickoffDto,
 } from '../dtos/kickoff.dto';
+import { conReintentoPorDeadlock } from '../lib/deadlock-retry';
 import { Kickoff, KickoffApproval, KickoffInvitee } from '../models';
 import type { OuvActor } from './won-sale.service';
 
@@ -71,8 +72,8 @@ export class KickoffService {
     await this.assertPuedeVerOuv(ouvId, actor);
     const userId = actor.userId;
 
-    const saved = await this.kickoffModel.sequelize!.transaction(
-      async (transaction) => {
+    const saved = await conReintentoPorDeadlock(() =>
+      this.kickoffModel.sequelize!.transaction(async (transaction) => {
         const existing = await this.kickoffModel.findOne({
           where: { ouvId },
           transaction,
@@ -111,7 +112,7 @@ export class KickoffService {
 
         await this.replaceChildren(kickoff.kickoffId, dto, transaction);
         return kickoff.kickoffId;
-      },
+      }),
     );
 
     const kickoff = await this.findWithChildren(ouvId);
