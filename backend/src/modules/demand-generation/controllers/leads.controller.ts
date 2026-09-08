@@ -5,6 +5,8 @@ import {
   Get,
   HttpCode,
   Param,
+  ParseEnumPipe,
+  Patch,
   Post,
   Put,
   Query,
@@ -25,6 +27,7 @@ import { CommercialOptionDto } from '../dtos/commercial-option.dto';
 import { CreateInteractionDto } from '../dtos/create-interaction.dto';
 import { CreateLeadDto } from '../dtos/create-lead.dto';
 import { DiscardLeadDto } from '../dtos/discard-lead.dto';
+import { AssignLeadInfluenciaDto } from '../dtos/lead-contact.dto';
 import { InteractionResponseDto } from '../dtos/interaction-response.dto';
 import {
   LeadResponseDto,
@@ -36,6 +39,7 @@ import { RegisterAppointmentDto } from '../dtos/register-appointment.dto';
 import { TransitionToMqlDto } from '../dtos/transition-mql.dto';
 import { UpdateChecklistDto } from '../dtos/update-checklist.dto';
 import { UpdateLeadDto } from '../dtos/update-lead.dto';
+import { LeadContactInfluenciaTipo } from '../models/enums/lead.enums';
 import { DemandGenerationService } from '../services/demand-generation.service';
 
 @Controller('leads')
@@ -141,6 +145,17 @@ export class LeadsController {
     @Body() dto: UpdateLeadDto,
   ): Promise<LeadResponseDto> {
     return this.demandGenerationService.updateLead(id, dto);
+  }
+
+  @Patch(':id/influencias/:tipo')
+  @CheckAbility({ action: 'update', subject: 'Lead' })
+  assignInfluencia(
+    @Param('id') id: string,
+    @Param('tipo', new ParseEnumPipe(LeadContactInfluenciaTipo))
+    tipo: LeadContactInfluenciaTipo,
+    @Body() dto: AssignLeadInfluenciaDto,
+  ): Promise<LeadResponseDto> {
+    return this.demandGenerationService.assignLeadInfluencia(id, tipo, dto);
   }
 
   @Post(':id/recycle')

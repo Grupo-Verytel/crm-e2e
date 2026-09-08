@@ -10,6 +10,7 @@ export {
   InteractionTipo,
 } from './enums/interaction.enums';
 export {
+  LeadContactInfluenciaTipo,
   LeadEstado,
   OrigenLead,
   TipoInfluencia,

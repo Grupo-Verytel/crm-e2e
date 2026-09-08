@@ -34,6 +34,13 @@ export enum TipoInfluencia {
   DeFabrica = 'DeFabrica',
 }
 
+/** Per-contact role on a lead. Optional at capture time. */
+export enum LeadContactInfluenciaTipo {
+  Economica = 'Economica',
+  Tecnica = 'Tecnica',
+  Fabrica = 'Fabrica',
+}
+
 export enum LeadEstado {
   Nuevo = 'Nuevo',
   TOFU = 'TOFU',

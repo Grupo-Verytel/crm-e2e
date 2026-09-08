@@ -11,6 +11,7 @@ import type {
   CreateLeadPayload,
   Interaction,
   Lead,
+  LeadInfluenciaTipo,
   LeadsQuery,
   PaginatedLeads,
   RegisterAppointmentPayload,
@@ -42,6 +43,17 @@ export async function updateLead(
   payload: Partial<CreateLeadPayload>,
 ): Promise<Lead> {
   return apiRequest<Lead>(`/leads/${leadId}`, { method: 'PUT', body: payload });
+}
+
+export async function assignLeadInfluencia(
+  leadId: string,
+  tipo: LeadInfluenciaTipo,
+  personId: string | null,
+): Promise<Lead> {
+  return apiRequest<Lead>(`/leads/${leadId}/influencias/${tipo}`, {
+    method: 'PATCH',
+    body: { person_id: personId },
+  });
 }
 
 export async function reassignLead(

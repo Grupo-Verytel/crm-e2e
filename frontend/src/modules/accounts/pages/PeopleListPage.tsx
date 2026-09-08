@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { AppLayout } from '../../../layout/AppLayout';
 import { Pagination } from '../../../components/Pagination';
 import { useAuth } from '../../auth/hooks/useAuth';
@@ -6,6 +7,7 @@ import { ApiError } from '../../auth/types';
 import {
   createPerson,
   deletePerson,
+  fetchAccount,
   fetchAccounts,
   fetchPeople,
   updatePerson,
@@ -24,6 +26,7 @@ const LIMIT = 20;
 
 export function PeopleListPage() {
   const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const canDelete = Boolean(
     user?.permissions?.some(
       (p) => p.action === 'delete' && p.subject === 'Person',
@@ -72,6 +75,55 @@ export function PeopleListPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    const shouldCreate = searchParams.get('new') === '1';
+    const accountIdParam = searchParams.get('account_id');
+    if (!shouldCreate) {
+      return;
+    }
+
+    let active = true;
+    setEditing('new');
+    setName('');
+    setJobTitle('');
+    setEmail('');
+    setPhone('');
+    setAccountSearch('');
+    setAccountOptions([]);
+
+    if (!accountIdParam) {
+      setAccountId('');
+      setLockedAccountName(null);
+      setSearchParams({}, { replace: true });
+      return;
+    }
+
+    void fetchAccount(accountIdParam)
+      .then((account) => {
+        if (!active) {
+          return;
+        }
+        setAccountId(account.account_id);
+        setLockedAccountName(account.name);
+      })
+      .catch(() => {
+        if (!active) {
+          return;
+        }
+        setAccountId('');
+        setLockedAccountName(null);
+      })
+      .finally(() => {
+        if (active) {
+          setSearchParams({}, { replace: true });
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [searchParams, setSearchParams]);
 
   function applyFilters() {
     setAppliedQ(draftQ.trim());
@@ -251,7 +303,15 @@ export function PeopleListPage() {
             />
           </div>
 
-          {editing === 'new' ? (
+          {editing === 'new' && lockedAccountName ? (
+            <div>
+              <p className={labelClass}>Empresa</p>
+              <p className="text-sm text-ink">
+                {lockedAccountName}{' '}
+                <span className="text-muted">(seleccionada)</span>
+              </p>
+            </div>
+          ) : editing === 'new' ? (
             <div className="space-y-2">
               <label className={labelClass} htmlFor="person-account-search">
                 Empresa (obligatoria)

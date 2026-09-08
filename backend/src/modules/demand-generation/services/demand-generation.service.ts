@@ -13,6 +13,8 @@ import {
   PaginatedCampaignsResponseDto,
 } from '../dtos/campaign-response.dto';
 import { ChecklistResponseDto } from '../dtos/checklist-response.dto';
+import { AssignLeadInfluenciaDto } from '../dtos/lead-contact.dto';
+import { LeadContactInfluenciaTipo } from '../models/enums/lead.enums';
 import { CommercialOptionDto } from '../dtos/commercial-option.dto';
 import { CreateCampaignDto } from '../dtos/create-campaign.dto';
 import { CreateInteractionDto } from '../dtos/create-interaction.dto';
@@ -106,6 +108,14 @@ export class DemandGenerationService {
     dto: UpdateLeadDto,
   ): Promise<LeadResponseDto> {
     return this.leadsService.update(leadId, dto);
+  }
+
+  async assignLeadInfluencia(
+    leadId: string,
+    tipo: LeadContactInfluenciaTipo,
+    dto: AssignLeadInfluenciaDto,
+  ): Promise<LeadResponseDto> {
+    return this.leadsService.assignInfluencia(leadId, tipo, dto);
   }
 
   async persistIcpScore(

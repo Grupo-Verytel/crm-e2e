@@ -27,7 +27,10 @@ import {
   DEMAND_GENERATION_ROLES,
 } from '../constants/demand-generation.constants';
 import { CreateLeadDto } from '../dtos/create-lead.dto';
-import { DirectChecklistDto } from '../dtos/lead-contact.dto';
+import {
+  AssignLeadInfluenciaDto,
+  DirectChecklistDto,
+} from '../dtos/lead-contact.dto';
 import {
   LeadResponseDto,
   LeadsQueryDto,
@@ -45,6 +48,7 @@ import { canRecycleLead } from '../lib/lead-state-machine';
 import { normalizePhoneToE164 } from '../lib/phone-normalize';
 import {
   CanalOrigen,
+  LeadContactInfluenciaTipo,
   LeadEstado,
   OrigenLead,
   TipoLead,
@@ -130,6 +134,7 @@ export class LeadsService {
     const contacts = dto.contacts.map((contact, index) => ({
       position: index + 1,
       personId: contact.person_id,
+      tipoInfluencia: contact.tipo_influencia ?? null,
     }));
 
     const peopleMap =
@@ -343,6 +348,89 @@ export class LeadsService {
 
       throw error;
     }
+  }
+
+  async assignInfluencia(
+    leadId: string,
+    tipo: LeadContactInfluenciaTipo,
+    dto: AssignLeadInfluenciaDto,
+  ): Promise<LeadResponseDto> {
+    const lead = await this.findLeadOrFail(leadId);
+
+    if (lead.estado === LeadEstado.MqlPending) {
+      throw new BadRequestException({
+        code: DEMAND_GENERATION_ERROR_CODES.LEAD_LOCKED,
+        message:
+          'A lead in MQL_PENDING is read-only until the Director decides (DG-10)',
+      });
+    }
+
+    const personId = dto.person_id ?? null;
+    const contacts = lead.contacts ?? [];
+
+    if (personId) {
+      const existingIds = contacts.map((row) => row.personId);
+      await this.accountsService.assertPeopleSameAccount([
+        personId,
+        ...existingIds,
+      ]);
+    }
+
+    await this.sequelize.transaction(async (transaction) => {
+      if (!personId) {
+        await Promise.all(
+          contacts
+            .filter((row) => row.tipoInfluencia === tipo)
+            .map((row) =>
+              row.update({ tipoInfluencia: null }, { transaction }),
+            ),
+        );
+        return;
+      }
+
+      let target = contacts.find((row) => row.personId === personId);
+      if (!target) {
+        const distinctPeople = new Set(contacts.map((row) => row.personId));
+        if (distinctPeople.size >= 3) {
+          throw new BadRequestException({
+            code: DEMAND_GENERATION_ERROR_CODES.VALIDATION_ERROR,
+            message: 'A lead can have at most 3 contacts',
+          });
+        }
+
+        const maxPosition = contacts.reduce(
+          (max, row) => Math.max(max, row.position),
+          0,
+        );
+        target = await this.leadContactModel.create(
+          {
+            leadId,
+            personId,
+            position: maxPosition + 1,
+            tipoInfluencia: tipo,
+          },
+          { transaction },
+        );
+      }
+
+      await Promise.all(
+        contacts
+          .filter(
+            (row) =>
+              row.contactId !== target.contactId &&
+              row.tipoInfluencia === tipo,
+          )
+          .map((row) =>
+            row.update({ tipoInfluencia: null }, { transaction }),
+          ),
+      );
+
+      if (target.tipoInfluencia !== tipo) {
+        await target.update({ tipoInfluencia: tipo }, { transaction });
+      }
+    });
+
+    return this.toResponseDto(await this.findLeadOrFail(leadId));
   }
 
   async recycle(leadId: string, dto: RecycleLeadDto): Promise<LeadResponseDto> {
@@ -772,6 +860,7 @@ export class LeadsService {
             account_id: enriched?.account_id ?? '',
             account_name: enriched?.account_name ?? '',
             account_tax_id: enriched?.account_tax_id ?? null,
+            tipo_influencia: contact.tipoInfluencia ?? null,
           };
         }) ?? [],
       business_referrer_id: lead.businessReferrerId,
@@ -800,7 +889,11 @@ export class LeadsService {
   private async createStandardLead(
     dto: CreateLeadDto,
     createdBy: string,
-    contacts: Array<{ position: number; personId: string }>,
+    contacts: Array<{
+      position: number;
+      personId: string;
+      tipoInfluencia: LeadContactInfluenciaTipo | null;
+    }>,
     businessReferrerId: string | null,
     nit: string | null,
   ): Promise<LeadResponseDto> {
@@ -864,7 +957,11 @@ export class LeadsService {
   private async createProductManagerLead(
     dto: CreateLeadDto,
     createdBy: string,
-    contacts: Array<{ position: number; personId: string }>,
+    contacts: Array<{
+      position: number;
+      personId: string;
+      tipoInfluencia: LeadContactInfluenciaTipo | null;
+    }>,
     businessReferrerId: string | null,
     nit: string | null,
   ): Promise<LeadResponseDto> {
@@ -959,7 +1056,11 @@ export class LeadsService {
   private async createEjecutivoComercialLead(
     dto: CreateLeadDto,
     createdBy: string,
-    contacts: Array<{ position: number; personId: string }>,
+    contacts: Array<{
+      position: number;
+      personId: string;
+      tipoInfluencia: LeadContactInfluenciaTipo | null;
+    }>,
     businessReferrerId: string | null,
     nit: string | null,
   ): Promise<LeadResponseDto> {
