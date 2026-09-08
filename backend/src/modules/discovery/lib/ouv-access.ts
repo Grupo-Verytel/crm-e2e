@@ -7,18 +7,15 @@ function compactRoleName(roleName: string): string {
   return roleName.replace(/[\s_-]/g, '').toLowerCase();
 }
 
-/** Roles that may list/view every OUV (not only own comercial_id). */
-const READ_ALL_OUV_ROLES = new Set([
-  'admin',
-  'soportecomercial',
-  'directormercadeo',
-  'gestormercadeo',
-  'preventa',
-  'pricing',
-]);
+/**
+ * Only pipeline owners are scoped to `comercial_id`.
+ * Any other role that already passed CASL `read Opportunity` sees every OUV
+ * (Gerente Comercial, Soporte, Preventa, custom follow-up roles, etc.).
+ */
+const OWN_PIPELINE_ROLES = new Set(['ejecutivocomercial']);
 
 export function canReadAllOuvs(roleName: string | undefined): boolean {
-  return !!roleName && READ_ALL_OUV_ROLES.has(compactRoleName(roleName));
+  return !!roleName && !OWN_PIPELINE_ROLES.has(compactRoleName(roleName));
 }
 
 export function canMutateOuvEnCurso(

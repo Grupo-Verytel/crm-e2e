@@ -213,9 +213,11 @@ function OuvsTray({ bandeja }: { bandeja: OuvBandejaKey }) {
   return (
     <AppLayout title="Oportunidades (OUV)">
       <DiscoveryNav showAdminTabs={false} />
-      {isSoporte ? (
+      {canListAll ? (
         <p className="mb-3 rounded border border-border bg-bg px-3 py-2 text-sm text-ink">
-          {ui.soporteHint}
+          {isSoporte
+            ? ui.soporteHint
+            : 'Ves todas las OUVs de esta bandeja. El avance y el cierre corresponden al Ejecutivo Comercial dueño.'}
         </p>
       ) : null}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">

@@ -12,15 +12,10 @@ export function canMutateOuvEnCurso(
   return comercialId === actorUserId;
 }
 
-/** Roles that may list/view every OUV (not only own comercial_id). */
+/**
+ * Only EjecutivoComercial is scoped to own `comercial_id`.
+ * Any other role that can open the board lists every OUV.
+ */
 export function canReadAllOuvs(roleName: string | undefined): boolean {
-  return isRoleName(
-    roleName,
-    'Admin',
-    'SoporteComercial',
-    'DirectorMercadeo',
-    'GestorMercadeo',
-    'Preventa',
-    'Pricing',
-  );
+  return !!roleName && !isRoleName(roleName, 'EjecutivoComercial');
 }

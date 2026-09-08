@@ -1,7 +1,7 @@
 import { canReadAllOuvs } from './ouv-access';
 
 describe('canReadAllOuvs', () => {
-  it('allows support, admin, marketing and presales/pricing follow-up', () => {
+  it('allows follow-up roles with Opportunity read to list every OUV', () => {
     expect(canReadAllOuvs('SoporteComercial')).toBe(true);
     expect(canReadAllOuvs('Admin')).toBe(true);
     expect(canReadAllOuvs('DirectorMercadeo')).toBe(true);
@@ -9,6 +9,8 @@ describe('canReadAllOuvs', () => {
     expect(canReadAllOuvs('GestorMercadeo')).toBe(true);
     expect(canReadAllOuvs('Preventa')).toBe(true);
     expect(canReadAllOuvs('Pricing')).toBe(true);
+    expect(canReadAllOuvs('Gerente Comercial')).toBe(true);
+    expect(canReadAllOuvs('GerenteComercial')).toBe(true);
   });
 
   it('scopes EjecutivoComercial to own pipeline', () => {
