@@ -8,6 +8,7 @@ import {
   SEGMENTO_LABEL,
 } from '../lib/ouv-detail-meta';
 import { SEGMENTOS, VERTICALES } from '../lib/ouv-vocab';
+import { ColombiaCitySearchField } from './ColombiaCitySearchField';
 import { GapBadge, ResultadoBadge } from './OuvBadges';
 import { OuvConfigMenu } from './OuvConfigMenu';
 import { cardClass, inputClass, labelClass } from './ui';
@@ -18,6 +19,8 @@ export type OuvHeaderDraft = {
   segmento: string;
   vertical: string;
   descripcion: string;
+  city: string;
+  region: string;
   extensions: OuvDetailExtensions;
 };
 
@@ -40,6 +43,8 @@ function draftFromOuv(ouv: Ouv, extensions: OuvDetailExtensions): OuvHeaderDraft
     segmento: ouv.segmento,
     vertical: ouv.vertical,
     descripcion: ouv.descripcion ?? '',
+    city: ouv.city?.trim() || extensions.ciudad?.trim() || '',
+    region: ouv.region?.trim() || extensions.region?.trim() || '',
     extensions: { ...extensions },
   };
 }
@@ -359,14 +364,17 @@ export function OuvDetailHeaderCard({
               <label className={labelClass} htmlFor="ouv-ciudad">
                 Ciudad
               </label>
-              <input
+              <ColombiaCitySearchField
                 id="ouv-ciudad"
-                className={inputClass}
-                value={draft.extensions.ciudad ?? ''}
-                onChange={(e) =>
-                  patchExtension({ ciudad: e.target.value || undefined })
+                value={draft.city}
+                departamento={draft.region}
+                onSelect={(row) =>
+                  patchDraft({
+                    city: row.municipio,
+                    region: row.departamento,
+                  })
                 }
-                maxLength={120}
+                onClear={() => patchDraft({ city: '', region: '' })}
               />
             </div>
             <div>
@@ -376,11 +384,9 @@ export function OuvDetailHeaderCard({
               <input
                 id="ouv-region"
                 className={inputClass}
-                value={draft.extensions.region ?? ''}
-                onChange={(e) =>
-                  patchExtension({ region: e.target.value || undefined })
-                }
-                maxLength={120}
+                value={draft.region}
+                readOnly
+                placeholder="Se completa al elegir la ciudad"
               />
             </div>
             <div>

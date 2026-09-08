@@ -21,6 +21,17 @@ export type OuvMetaField = {
   value: string;
 };
 
+function displayLoc(
+  persisted: string | null | undefined,
+  fallback?: string,
+): string {
+  const primary = persisted?.trim();
+  if (primary) return primary;
+  const secondary = fallback?.trim();
+  if (secondary) return secondary;
+  return '—';
+}
+
 /** Read-only metadata rows for the OUV detail header. */
 export function buildOuvMetaFields(
   ouv: Ouv,
@@ -50,8 +61,14 @@ export function buildOuvMetaFields(
         : '—',
     },
     { label: 'Probabilidad de cierre', value: probDisplay },
-    { label: 'Ciudad', value: extensions.ciudad ?? '—' },
-    { label: 'Región', value: extensions.region ?? '—' },
+    {
+      label: 'Ciudad',
+      value: displayLoc(ouv.city, extensions.ciudad),
+    },
+    {
+      label: 'Región',
+      value: displayLoc(ouv.region, extensions.region),
+    },
     { label: 'Etapa', value: 'Comercial' },
     {
       label: 'Estado OUV',

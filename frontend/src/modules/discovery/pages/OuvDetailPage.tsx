@@ -432,6 +432,8 @@ export function OuvDetailPage() {
         segmento: draft.segmento,
         vertical: draft.vertical,
         descripcion: draft.descripcion.trim(),
+        city: draft.city.trim() || null,
+        region: draft.region.trim() || null,
       });
       saveOuvExtensions(id, draft.extensions);
       setOuvExtensions(draft.extensions);
@@ -444,6 +446,8 @@ export function OuvDetailPage() {
               segmento: draft.segmento as Ouv['segmento'],
               vertical: draft.vertical,
               descripcion: draft.descripcion.trim() || null,
+              city: draft.city.trim() || null,
+              region: draft.region.trim() || null,
               updated_at: new Date().toISOString(),
             }
           : prev,

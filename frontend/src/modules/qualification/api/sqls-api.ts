@@ -36,6 +36,8 @@ export type SqlDetail = {
     segment_id?: string | null;
     subsegment_id?: string | null;
     segmento?: string;
+    city?: string | null;
+    region?: string | null;
     [key: string]: unknown;
   };
   interactions: unknown[];
@@ -110,6 +112,8 @@ export type ConvertirSqlPayload = {
   segment_id: string;
   subsegment_id?: string | null;
   vertical: string;
+  city?: string;
+  region?: string;
 };
 
 export type ConvertirSqlResponse = {

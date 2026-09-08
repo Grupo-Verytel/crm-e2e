@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { ApiError } from '../../auth/types';
 import { fetchSegments } from '../../demand-generation/api/segments-api';
 import type { Segment } from '../../demand-generation/types';
-import { ApiError } from '../../auth/types';
+import { ColombiaCitySearchField } from '../../discovery/components/ColombiaCitySearchField';
 import {
   convertirSqlEnOuv,
   type ConvertirSqlPayload,
@@ -51,6 +52,8 @@ export function ConvertirSqlEnOuvModal({ sql, onClose, onConverted }: Props) {
   );
   const [subsegmentId, setSubsegmentId] = useState<string>('');
   const [vertical, setVertical] = useState<string>(VERTICALES[0]);
+  const [city, setCity] = useState(String(sql.lead.city ?? ''));
+  const [region, setRegion] = useState(String(sql.lead.region ?? ''));
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [loadingSegments, setLoadingSegments] = useState(true);
@@ -113,6 +116,8 @@ export function ConvertirSqlEnOuvModal({ sql, onClose, onConverted }: Props) {
         segment_id: segmentId,
         ...(subsegmentId ? { subsegment_id: subsegmentId } : {}),
         vertical,
+        ...(city.trim() ? { city: city.trim() } : {}),
+        ...(region.trim() ? { region: region.trim() } : {}),
       });
       onConverted(result.ouv.ouv_id, result.ouv.consecutivo);
       onClose();
@@ -231,6 +236,38 @@ export function ConvertirSqlEnOuvModal({ sql, onClose, onConverted }: Props) {
                 </option>
               ))}
             </select>
+          </div>
+
+          <div>
+            <label className={labelClass} htmlFor="ouv-city">
+              Ciudad
+            </label>
+            <ColombiaCitySearchField
+              id="ouv-city"
+              value={city}
+              departamento={region}
+              onSelect={(row) => {
+                setCity(row.municipio);
+                setRegion(row.departamento);
+              }}
+              onClear={() => {
+                setCity('');
+                setRegion('');
+              }}
+            />
+          </div>
+
+          <div>
+            <label className={labelClass} htmlFor="ouv-region">
+              Región
+            </label>
+            <input
+              id="ouv-region"
+              className={inputClass}
+              value={region}
+              readOnly
+              placeholder="Se completa al elegir la ciudad"
+            />
           </div>
         </div>
 

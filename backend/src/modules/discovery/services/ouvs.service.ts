@@ -53,6 +53,16 @@ export type PaginatedOuvs = {
   limit: number;
 };
 
+function firstNonEmpty(
+  ...values: Array<string | null | undefined>
+): string | null {
+  for (const value of values) {
+    const trimmed = value?.trim();
+    if (trimmed) return trimmed;
+  }
+  return null;
+}
+
 @Injectable()
 export class OuvsService {
   constructor(
@@ -106,6 +116,8 @@ export class OuvsService {
     );
 
     const consecutivo = await this.nextOuvConsecutivo(transaction);
+    const city = firstNonEmpty(input.dto.city, lead.city);
+    const region = firstNonEmpty(input.dto.region, lead.region);
 
     const ouv = await this.ouvModel.create(
       {
@@ -116,8 +128,8 @@ export class OuvsService {
         accountId: person.account_id,
         titulo: input.dto.titulo.trim(),
         empresaNombre: person.account_name.trim(),
-        city: input.dto.city?.trim() || lead.city || null,
-        region: input.dto.region?.trim() || lead.region || null,
+        city,
+        region,
         descripcion: input.dto.descripcion?.trim() || null,
         segmento: input.dto.segmento,
         segmentId: input.dto.segment_id,
