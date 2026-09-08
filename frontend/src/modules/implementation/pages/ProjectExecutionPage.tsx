@@ -109,7 +109,7 @@ export function ProjectExecutionPage() {
                 >
                   {ouv?.consecutivo ?? ouvId}
                 </Link>
-                {ejecucion ? ` · Proyecto PMO #${ejecucion.projectId}` : ''}
+                {ejecucion ? ` · Proyecto PMO #${ejecucion.proyectoId}` : ''}
               </p>
             </div>
 

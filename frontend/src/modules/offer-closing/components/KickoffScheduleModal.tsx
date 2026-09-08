@@ -205,7 +205,6 @@ export function KickoffScheduleModal({
   const [inviteQuery, setInviteQuery] = useState('');
   const [inviteOpen, setInviteOpen] = useState(false);
   const [searchingUsers, setSearchingUsers] = useState(false);
-  const [organizerUpn, setOrganizerUpn] = useState('');
   const [graphStatus, setGraphStatus] = useState<GraphStatus | null>(null);
   const [schedules, setSchedules] = useState<GraphSchedule[]>([]);
   const [loadingAvailability, setLoadingAvailability] = useState(false);
@@ -241,7 +240,6 @@ export function KickoffScheduleModal({
     setUbicacionDetalle(kickoff.agenda?.ubicacionDetalle ?? '');
     setObservaciones(kickoff.agenda?.observacionesInvitados ?? '');
     setInvitados(kickoff.agenda?.invitados ?? []);
-    setOrganizerUpn(kickoff.agenda?.organizerUpn ?? '');
     setValidation(null);
     setSchedules([]);
     setAvailabilityError(null);
@@ -443,26 +441,20 @@ export function KickoffScheduleModal({
       .slice(0, 12);
   }, [candidates, inviteQuery, selectedIds]);
 
-  /** Personas del tenant (Verytel/Frisson): candidatas a organizar el evento. */
-  const directoryUsers = useMemo(
-    () => candidates.filter((c) => c.tipo === 'Interno'),
-    [candidates],
-  );
-
   /**
-   * Organizador por defecto: el usuario de la sesión si tiene buzón en el
-   * tenant; si no, el `GRAPH_ORGANIZER_UPN` configurado en el backend.
+   * El organizador no se elige: es el buzón que crea el evento y envía las
+   * invitaciones, y debe ser quien está agendando.
+   *
+   * Al reprogramar manda el organizador ya guardado, porque en Graph el
+   * organizador de un evento es inmutable: usar otro obligaría a cancelar y
+   * volver a crear la reunión. Si la sesión no trae correo, queda el
+   * `GRAPH_ORGANIZER_UPN` del backend como último recurso.
    */
-  const defaultOrganizer = useMemo(() => {
-    const sessionEmail = user?.email?.trim() ?? '';
-    const match = directoryUsers.find(
-      (c) => c.email.toLowerCase() === sessionEmail.toLowerCase(),
-    );
-    if (match) return match.email;
-    return graphStatus?.organizerUpn ?? '';
-  }, [directoryUsers, graphStatus, user]);
-
-  const effectiveOrganizer = organizerUpn || defaultOrganizer;
+  const effectiveOrganizer =
+    kickoff.agenda?.organizerUpn?.trim() ||
+    user?.email?.trim() ||
+    graphStatus?.organizerUpn ||
+    '';
 
   const graphTimeZone = graphStatus?.timeZone;
 
@@ -559,7 +551,7 @@ export function KickoffScheduleModal({
     }
     if (!effectiveOrganizer.trim()) {
       setError(
-        'Indique el organizador de la reunión (correo Verytel o Frisson).',
+        'Tu usuario no tiene un correo asociado, así que no se puede crear la reunión. Contacta al administrador.',
       );
       return;
     }
@@ -833,32 +825,14 @@ export function KickoffScheduleModal({
               </div>
 
               <div>
-                <label className={labelClass} htmlFor="ko-organizer">
-                  Organizador
-                </label>
-                <p className="mb-2 text-xs text-muted">
-                  Buzón de Microsoft 365 que crea el evento y envía las
-                  invitaciones. Debe tener licencia de Teams.
+                <span className={labelClass}>Organizador</span>
+                <p className="mt-1 text-sm text-ink">
+                  {effectiveOrganizer || '—'}
                 </p>
-                <input
-                  id="ko-organizer"
-                  className={inputClass}
-                  list="ko-organizer-options"
-                  value={effectiveOrganizer}
-                  placeholder="nombre@grupoverytel.com"
-                  autoComplete="off"
-                  onChange={(e) => {
-                    setOrganizerUpn(e.target.value);
-                    invalidateAvailability();
-                  }}
-                />
-                <datalist id="ko-organizer-options">
-                  {directoryUsers.map((c) => (
-                    <option key={c.email} value={c.email}>
-                      {c.nombre}
-                    </option>
-                  ))}
-                </datalist>
+                <p className="mt-1 text-xs text-muted">
+                  Buzón de Microsoft 365 que crea el evento y envía las
+                  invitaciones.
+                </p>
               </div>
 
               <div>

@@ -1,9 +1,4 @@
-import {
-  IsEnum,
-  IsOptional,
-  IsString,
-  IsUUID,
-} from 'class-validator';
+import { IsEnum, IsOptional, IsString, IsUUID } from 'class-validator';
 import { InfluenciaEstado } from '../models/enums/ouv.enums';
 
 export class ActualizarInfluenciaDto {

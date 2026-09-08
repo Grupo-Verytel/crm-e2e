@@ -1,6 +1,8 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import type { Transaction } from 'sequelize';
+import { assertCanReachOuvChild } from '../../discovery/lib/ouv-access';
+import { OuvsService } from '../../discovery/services/ouvs.service';
 import { GraphService } from '../../graph-integration/services/graph.service';
 import {
   KickoffApprovalResponseDto,
@@ -10,6 +12,7 @@ import {
   SaveKickoffDto,
 } from '../dtos/kickoff.dto';
 import { Kickoff, KickoffApproval, KickoffInvitee } from '../models';
+import type { OuvActor } from './won-sale.service';
 
 function toIso(value: Date | null | undefined): string | null {
   return value ? new Date(value).toISOString() : null;
@@ -39,9 +42,23 @@ export class KickoffService {
     @InjectModel(KickoffApproval)
     private readonly approvalModel: typeof KickoffApproval,
     private readonly graphService: GraphService,
+    private readonly ouvsService: OuvsService,
   ) {}
 
-  async getByOuv(ouvId: string): Promise<KickoffEnvelopeDto> {
+  /**
+   * El kickoff hereda el control de acceso de su OUV: el permiso CASL dice qué
+   * puede hacer un rol, no sobre qué oportunidad.
+   */
+  private async assertPuedeVerOuv(
+    ouvId: string,
+    actor: OuvActor,
+  ): Promise<void> {
+    const comercialId = await this.ouvsService.getComercialId(ouvId);
+    assertCanReachOuvChild(comercialId, actor.userId, actor.roleName);
+  }
+
+  async getByOuv(ouvId: string, actor: OuvActor): Promise<KickoffEnvelopeDto> {
+    await this.assertPuedeVerOuv(ouvId, actor);
     const kickoff = await this.findWithChildren(ouvId);
     return { kickoff: kickoff ? this.toResponse(kickoff) : null };
   }
@@ -49,8 +66,11 @@ export class KickoffService {
   async save(
     ouvId: string,
     dto: SaveKickoffDto,
-    userId: string | null,
+    actor: OuvActor,
   ): Promise<KickoffResponseDto> {
+    await this.assertPuedeVerOuv(ouvId, actor);
+    const userId = actor.userId;
+
     const saved = await this.kickoffModel.sequelize!.transaction(
       async (transaction) => {
         const existing = await this.kickoffModel.findOne({
@@ -109,7 +129,8 @@ export class KickoffService {
    * se borra igual y queda el aviso en el log — de lo contrario el usuario se
    * quedaría sin poder limpiar la pantalla.
    */
-  async remove(ouvId: string): Promise<void> {
+  async remove(ouvId: string, actor: OuvActor): Promise<void> {
+    await this.assertPuedeVerOuv(ouvId, actor);
     const kickoff = await this.kickoffModel.findOne({ where: { ouvId } });
     if (!kickoff) {
       throw new NotFoundException(`La OUV ${ouvId} no tiene kickoff agendado`);

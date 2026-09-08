@@ -5,7 +5,10 @@ import type {
 } from '../api/projects-api';
 import { badgeClass, cardClass } from './ui';
 
-const BLOQUES: { key: keyof Omit<ProyectoEjecucion, 'ouvId' | 'projectId'>; label: string }[] = [
+const BLOQUES: {
+  key: keyof Omit<ProyectoEjecucion, 'ouvId' | 'proyectoId'>;
+  label: string;
+}[] = [
   { key: 'billing', label: 'Facturación' },
   { key: 'costs', label: 'Costos' },
   { key: 'schedule', label: 'Tiempo' },
@@ -21,13 +24,23 @@ function formatPorcentaje(valor: number): string {
 }
 
 /**
- * Una desviación positiva no es "buena" ni "mala" por sí sola: en Costos significa
- * sobrecosto y en Facturación, adelanto. Por eso el tono depende del bloque.
+ * Margen dentro del cual un proyecto se considera en plan. Sin él, un
+ * sobrecosto del 0,8% se pintaba tan rojo como un desfase del 12%, y el
+ * tablero se leía como una emergencia aunque todo fuera bien.
+ */
+const TOLERANCIA_PCT = 5;
+
+/**
+ * Una desviación positiva no es "buena" ni "mala" por sí sola: en Costos
+ * significa sobrecosto y en Facturación, adelanto. Por eso el tono depende del
+ * bloque, y solo se enciende cuando la desviación supera la tolerancia.
  */
 function tonoDesviacion(key: string, deviation: number): string {
-  if (deviation === 0) return 'bg-border text-muted';
+  if (Math.abs(deviation) <= TOLERANCIA_PCT) return 'bg-border text-muted';
   const desfavorable = key === 'costs' ? deviation > 0 : deviation < 0;
-  return desfavorable ? 'bg-danger/15 text-danger' : 'bg-positive/15 text-positive';
+  return desfavorable
+    ? 'bg-danger/15 text-danger'
+    : 'bg-positive/15 text-positive';
 }
 
 function Bloque({

@@ -27,7 +27,10 @@ export class CatalogosOuvService {
 
   async listMotivosPerdida(): Promise<MotivoCatalogoResponseDto[]> {
     const rows = await this.motivoPerdidaModel.findAll({
-      order: [['orden', 'ASC'], ['nombre', 'ASC']],
+      order: [
+        ['orden', 'ASC'],
+        ['nombre', 'ASC'],
+      ],
     });
     return rows.map((r) => this.toMotivo(r));
   }
@@ -77,7 +80,10 @@ export class CatalogosOuvService {
 
   async listMotivosDescarte(): Promise<MotivoCatalogoResponseDto[]> {
     const rows = await this.motivoDescarteModel.findAll({
-      order: [['orden', 'ASC'], ['nombre', 'ASC']],
+      order: [
+        ['orden', 'ASC'],
+        ['nombre', 'ASC'],
+      ],
     });
     return rows.map((r) => this.toMotivo(r));
   }
@@ -127,7 +133,10 @@ export class CatalogosOuvService {
 
   async listTemplates(): Promise<ZonaChecklistTemplateResponseDto[]> {
     const rows = await this.templateModel.findAll({
-      order: [['zona', 'ASC'], ['orden', 'ASC']],
+      order: [
+        ['zona', 'ASC'],
+        ['orden', 'ASC'],
+      ],
     });
     return rows.map((r) => this.toTemplate(r));
   }

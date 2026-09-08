@@ -204,3 +204,40 @@ export class GraphStatusResponseDto {
   canCreateMeetings: boolean;
   rooms: GraphRoomDto[];
 }
+
+export class GraphAttendanceQueryDto {
+  /** Buzón que organizó la reunión; sin él Graph no expone el informe. */
+  @IsEmail()
+  organizerUpn: string;
+
+  /** Identificador de la reunión en línea. Alternativa a `joinUrl`. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(600)
+  meetingId?: string;
+
+  /** Enlace de Teams guardado en el kickoff; se resuelve a `meetingId`. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  joinUrl?: string;
+}
+
+export class GraphAttendeeRecordDto {
+  name: string | null;
+  email: string | null;
+  /** Minutos totales dentro de la reunión, sumando reingresos. */
+  totalAttendanceInSeconds: number;
+  role: string | null;
+  intervals: number;
+}
+
+export class GraphAttendanceResponseDto {
+  meetingId: string;
+  /** `null` cuando la reunión existe pero Teams aún no publicó el informe. */
+  reportId: string | null;
+  meetingStartDateTime: string | null;
+  meetingEndDateTime: string | null;
+  totalParticipantCount: number | null;
+  attendees: GraphAttendeeRecordDto[];
+}

@@ -22,6 +22,7 @@ const SUBJECTS = {
   pricing: ['Pricing'],
   'proposals/contracts': ['Proposal', 'Contract'],
   kickoffs: ['Kickoff'],
+  'won-sales': ['WonSale'],
   services: ['Service'],
   billing: ['Billing'],
   'post-sales': ['PostSale'],
@@ -45,12 +46,14 @@ const MATRIX = {
     billing: 'R',
     'post-sales': 'R',
     kickoffs: 'CRUD',
+    'won-sales': 'CRUD',
     'audit-log': 'R',
   },
   DirectorMercadeo: {
     'leads/campaigns': 'CRUA',
     opportunities: 'R',
     kickoffs: 'R',
+    'won-sales': 'R',
     accounts: 'CRU',
   },
   GestorMercadeo: {
@@ -67,6 +70,7 @@ const MATRIX = {
     'proposals/contracts': 'CRU',
     services: 'CR',
     kickoffs: 'CRU',
+    'won-sales': 'CRU',
     'post-sales': 'R',
   },
   ProductManager: {
@@ -88,6 +92,7 @@ const MATRIX = {
     services: 'R',
     billing: 'R',
     kickoffs: 'CRUD',
+    'won-sales': 'CRUD',
     'post-sales': 'CRU',
   },
   Preventa: {
@@ -96,6 +101,7 @@ const MATRIX = {
     presales: 'CRUA',
     pricing: 'R',
     kickoffs: 'R',
+    'won-sales': 'R',
     'proposals/contracts': 'R',
   },
   Pricing: {
@@ -104,12 +110,14 @@ const MATRIX = {
     presales: 'R',
     pricing: 'CRUA',
     kickoffs: 'R',
+    'won-sales': 'R',
     'proposals/contracts': 'R',
   },
   PMO: {
     accounts: 'CRU',
     services: 'CRUAX',
     kickoffs: 'R',
+    'won-sales': 'R',
     billing: 'R',
     'post-sales': 'R',
   },

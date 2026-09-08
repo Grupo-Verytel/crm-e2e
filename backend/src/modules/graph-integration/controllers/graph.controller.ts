@@ -12,6 +12,8 @@ import {
 } from '@nestjs/common';
 import {
   CreateGraphMeetingDto,
+  GraphAttendanceQueryDto,
+  GraphAttendanceResponseDto,
   GraphAvailabilityDto,
   GraphAvailabilityResponseDto,
   GraphMeetingResponseDto,
@@ -39,6 +41,14 @@ export class GraphController {
   @Get('users')
   users(@Query() query: GraphUsersQueryDto): Promise<GraphUsersResponseDto> {
     return this.graphService.listUsers(query);
+  }
+
+  /** Asistencia real a la reunión de Teams, para validar el Kickoff. */
+  @Get('meetings/attendance')
+  meetingAttendance(
+    @Query() query: GraphAttendanceQueryDto,
+  ): Promise<GraphAttendanceResponseDto> {
+    return this.graphService.getMeetingAttendance(query);
   }
 
   @Post('availability')

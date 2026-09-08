@@ -23,7 +23,7 @@ import type { CrearOuvDirectaDto } from '../dtos/crear-ouv-directa.dto';
 import type { CrearOuvDto } from '../dtos/crear-ouv.dto';
 import type { ListarOuvsQueryDto } from '../dtos/listar-ouvs-query.dto';
 import type { OuvResponseDto } from '../dtos/ouv-response.dto';
-import { assertCanMutateOuvEnCurso } from '../lib/ouv-access';
+import { assertCanMutateOuvEnCurso, assertCanReadOuv } from '../lib/ouv-access';
 import {
   computeOuvZonaDays,
   parseZonaValue,
@@ -799,11 +799,33 @@ export class OuvsService {
     if (!ouv) {
       throw new NotFoundException(`OUV ${ouvId} not found`);
     }
-    const canReadAll = roleName === 'SoporteComercial' || roleName === 'Admin';
-    if (!canReadAll && ouv.comercialId !== actorUserId) {
-      throw new ForbiddenException('Not allowed to view this OUV');
-    }
+    assertCanReadOuv(ouv.comercialId, actorUserId, roleName);
     return ouv;
+  }
+
+  /**
+   * Comercial dueño de una OUV. Lo consumen los módulos que cuelgan de una OUV
+   * —cierre de oferta, kickoff— para aplicar su propia regla de acceso sin
+   * consultar el modelo por su cuenta.
+   */
+  async getComercialId(ouvId: string): Promise<string> {
+    const ouv = await this.ouvModel.findByPk(ouvId, {
+      attributes: ['ouvId', 'comercialId'],
+    });
+    if (!ouv) {
+      throw new NotFoundException(`OUV ${ouvId} not found`);
+    }
+    return ouv.comercialId;
+  }
+
+  /** Igual que `getComercialId`, para varias OUV en una sola consulta. */
+  async getComercialIds(ouvIds: string[]): Promise<Map<string, string>> {
+    if (ouvIds.length === 0) return new Map();
+    const ouvs = await this.ouvModel.findAll({
+      where: { ouvId: { [Op.in]: ouvIds } },
+      attributes: ['ouvId', 'comercialId'],
+    });
+    return new Map(ouvs.map((ouv) => [ouv.ouvId, ouv.comercialId]));
   }
 
   toResponse(ouv: Ouv, diasPorZona?: OuvDiasPorZona): OuvResponseDto {

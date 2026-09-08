@@ -11,7 +11,12 @@ export type IndicadorEjecucion = {
 
 export type ProyectoEjecucion = {
   ouvId: string;
-  projectId: number;
+  /**
+   * `PRO_NCODE` del PMO. Ojo con el nombre: este endpoint lo devuelve como
+   * `proyectoId` (el backend reenvía el JSON del PMO tal cual), mientras que
+   * `state-history` lo llama `projectId`.
+   */
+  proyectoId: number;
   billing: IndicadorEjecucion;
   costs: IndicadorEjecucion;
   schedule: IndicadorEjecucion;

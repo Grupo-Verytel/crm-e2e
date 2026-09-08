@@ -7,10 +7,7 @@ import {
   IsUUID,
   MaxLength,
 } from 'class-validator';
-import {
-  OuvSegmento,
-  OuvVertical,
-} from '../models/enums/ouv.enums';
+import { OuvSegmento, OuvVertical } from '../models/enums/ouv.enums';
 
 /** Body for SQL→OUV conversion (qualification EARS-11 / 15–17). */
 export class CrearOuvDto {

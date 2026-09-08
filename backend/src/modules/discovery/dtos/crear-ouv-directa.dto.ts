@@ -7,10 +7,7 @@ import {
   IsUUID,
   MaxLength,
 } from 'class-validator';
-import {
-  OuvSegmento,
-  OuvVertical,
-} from '../models/enums/ouv.enums';
+import { OuvSegmento, OuvVertical } from '../models/enums/ouv.enums';
 
 /** Body for POST /discovery/ouvs (Vías 2/3/4). */
 export class CrearOuvDirectaDto {

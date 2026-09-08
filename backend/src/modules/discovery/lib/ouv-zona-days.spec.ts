@@ -31,7 +31,10 @@ describe('computeOuvZonaDays', () => {
       transitions: [
         { at: new Date('2026-08-15T14:37:00.000Z'), to: OuvZona.EncimaFunnel },
         { at: new Date('2026-08-22T14:37:00.000Z'), to: OuvZona.EnFunnel },
-        { at: new Date('2026-08-29T14:37:00.000Z'), to: OuvZona.MayorProbabilidad },
+        {
+          at: new Date('2026-08-29T14:37:00.000Z'),
+          to: OuvZona.MayorProbabilidad,
+        },
       ],
     });
 
@@ -49,7 +52,10 @@ describe('computeOuvZonaDays', () => {
       fechaCierre: new Date('2026-08-31T14:37:00.000Z'),
       now,
       transitions: [
-        { at: new Date('2026-08-29T14:37:00.000Z'), to: OuvZona.MayorProbabilidad },
+        {
+          at: new Date('2026-08-29T14:37:00.000Z'),
+          to: OuvZona.MayorProbabilidad,
+        },
       ],
     });
 
@@ -92,7 +98,9 @@ describe('computeOuvZonaDays', () => {
 describe('parseZonaValue', () => {
   it('parses JSON-serialized ENUM values from audit_log', () => {
     expect(parseZonaValue('"EN_FUNNEL"')).toBe(OuvZona.EnFunnel);
-    expect(parseZonaValue('MAYOR_PROBABILIDAD')).toBe(OuvZona.MayorProbabilidad);
+    expect(parseZonaValue('MAYOR_PROBABILIDAD')).toBe(
+      OuvZona.MayorProbabilidad,
+    );
     expect(parseZonaValue('nope')).toBeNull();
   });
 });

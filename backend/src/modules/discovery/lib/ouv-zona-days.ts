@@ -70,13 +70,11 @@ export function computeOuvZonaDays(input: OuvZonaDaysInput): OuvDiasPorZona {
     .sort((a, b) => a.at.getTime() - b.at.getTime());
 
   let cursor = input.createdAt;
-  let zona =
-    transitions.length === 0 ? input.zonaActual : OuvZona.Universo;
+  let zona = transitions.length === 0 ? input.zonaActual : OuvZona.Universo;
 
   for (const t of transitions) {
     if (t.at.getTime() > end.getTime()) break;
-    const at =
-      t.at.getTime() < cursor.getTime() ? cursor : t.at;
+    const at = t.at.getTime() < cursor.getTime() ? cursor : t.at;
     ms[zona] += Math.max(0, at.getTime() - cursor.getTime());
     cursor = at;
     zona = t.to;

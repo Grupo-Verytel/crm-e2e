@@ -144,3 +144,32 @@ export async function cancelGraphMeeting(
     { method: 'DELETE' },
   );
 }
+
+export type GraphAttendee = {
+  name: string | null;
+  email: string | null;
+  totalAttendanceInSeconds: number;
+  role: string | null;
+  intervals: number;
+};
+
+export type GraphAttendance = {
+  meetingId: string;
+  /** `null` mientras Teams no publique el informe (la reunión no ha cerrado). */
+  reportId: string | null;
+  meetingStartDateTime: string | null;
+  meetingEndDateTime: string | null;
+  totalParticipantCount: number | null;
+  attendees: GraphAttendee[];
+};
+
+/** Asistencia real a la reunión de Teams del Kickoff. */
+export async function fetchMeetingAttendance(params: {
+  organizerUpn: string;
+  meetingId?: string;
+  joinUrl?: string;
+}): Promise<GraphAttendance> {
+  return apiRequest<GraphAttendance>(
+    `/graph/meetings/attendance${buildQueryString(params)}`,
+  );
+}

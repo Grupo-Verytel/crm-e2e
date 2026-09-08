@@ -17,34 +17,61 @@ import {
 
 const EMPRESAS: EmpresaEjecutora[] = ['Frisson', 'Verytel', 'UT'];
 
-/** Razón social por defecto de cada botón. En UT el nombre lo escribe el usuario. */
-const NOMBRE_POR_EMPRESA: Record<EmpresaEjecutora, string> = {
-  Frisson: 'Frisson S.A.S.',
+const EMPRESA_NOMBRE: Record<EmpresaEjecutora, string> = {
+  Frisson: 'Frisson',
   Verytel: 'Verytel S.A.',
-  UT: '',
+  UT: 'Unión temporal',
 };
-
-/** Sólo las razones sociales propias son fijas; UT y socios externos se escriben. */
-function nombreEditable(miembro: MiembroEjecutor): boolean {
-  return miembro.empresa === 'UT' || miembro.empresa === null;
-}
 
 function nuevoId(): string {
   return `me-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
 /**
- * Reparte 100% en partes iguales y le deja el sobrante al primero, para que la
- * suma cierre exacta sin decimales (33/33/34, no 33.33 x3).
+ * Enciende o apaga una empresa: una fila por chip, nombres fijos, y reparte
+ * 100% si hay una sola o partes iguales si hay varias (33/33/34).
  */
-function repartirEquitativo(miembros: MiembroEjecutor[]): MiembroEjecutor[] {
-  if (miembros.length === 0) return miembros;
-  const base = Math.floor(100 / miembros.length);
-  const sobrante = 100 - base * miembros.length;
-  return miembros.map((m, i) => ({
-    ...m,
-    participacionPct: i === 0 ? base + sobrante : base,
-  }));
+function syncParticipaciones(
+  selected: EmpresaEjecutora[],
+  current: MiembroEjecutor[],
+): MiembroEjecutor[] {
+  if (selected.length === 0) return [];
+
+  const byEmpresa = new Map<EmpresaEjecutora, MiembroEjecutor>();
+  for (const row of current) {
+    if (row.empresa) byEmpresa.set(row.empresa, row);
+  }
+
+  if (selected.length === 1) {
+    const only = selected[0];
+    const prev = byEmpresa.get(only);
+    return [
+      {
+        id: prev?.id ?? nuevoId(),
+        nombre: EMPRESA_NOMBRE[only],
+        participacionPct: prev?.participacionPct ?? 100,
+        empresa: only,
+      },
+    ];
+  }
+
+  const equal = Math.floor(100 / selected.length);
+  let remainder = 100 - equal * selected.length;
+
+  return selected.map((emp, index) => {
+    const prev = byEmpresa.get(emp);
+    let pct = prev?.participacionPct ?? equal;
+    if (prev === undefined && remainder > 0 && index === 0) {
+      pct = equal + remainder;
+      remainder = 0;
+    }
+    return {
+      id: prev?.id ?? nuevoId(),
+      nombre: EMPRESA_NOMBRE[emp],
+      participacionPct: pct,
+      empresa: emp,
+    };
+  });
 }
 
 type Props = {
@@ -59,64 +86,40 @@ export function FormularioDatosProyecto({
   modo,
   onChange,
 }: Props) {
-  const pctSum = datos.unionesTemporales.reduce((s, u) => s + u.participacionPct, 0);
-  const pctOk = pctSum === 100;
+  const pctSum = datos.unionesTemporales.reduce(
+    (s, u) => s + u.participacionPct,
+    0,
+  );
+  const pctOk =
+    datos.empresasEjecutoras.length === 0 || pctSum === 100;
 
   function patch(partial: Partial<DatosBaseProyecto>) {
     onChange({ ...datos, ...partial });
   }
 
-  function nuevoMiembro(e: EmpresaEjecutora): MiembroEjecutor {
-    return {
-      id: nuevoId(),
-      nombre: NOMBRE_POR_EMPRESA[e],
-      participacionPct: 0,
-      empresa: e,
-    };
-  }
-
-  /** Los botones quedan encendidos según las filas que existen, no al revés. */
-  function empresasDe(miembros: MiembroEjecutor[]): EmpresaEjecutora[] {
-    return EMPRESAS.filter((e) => miembros.some((m) => m.empresa === e));
-  }
-
-  function aplicarMiembros(miembros: MiembroEjecutor[]) {
-    patch({
-      unionesTemporales: repartirEquitativo(miembros),
-      empresasEjecutoras: empresasDe(miembros),
-    });
-  }
-
-  /**
-   * El botón y su fila son la misma cosa. Frisson y Verytel son razones sociales
-   * propias: aparecen una vez y el botón alterna. `UT` no alterna — cada clic
-   * suma un miembro más de la unión temporal, con la razón social en blanco para
-   * que el usuario la escriba.
-   */
   function toggleEmpresa(e: EmpresaEjecutora) {
-    if (e === 'UT') {
-      aplicarMiembros([...datos.unionesTemporales, nuevoMiembro(e)]);
-      return;
-    }
-
-    const activa = datos.unionesTemporales.some((m) => m.empresa === e);
-    aplicarMiembros(
-      activa
-        ? datos.unionesTemporales.filter((m) => m.empresa !== e)
-        : [...datos.unionesTemporales, nuevoMiembro(e)],
-    );
-  }
-
-  function quitarMiembro(id: string) {
-    aplicarMiembros(datos.unionesTemporales.filter((m) => m.id !== id));
-  }
-
-  function actualizarMiembro(id: string, cambio: Partial<MiembroEjecutor>) {
+    const set = new Set(datos.empresasEjecutoras);
+    if (set.has(e)) set.delete(e);
+    else set.add(e);
+    const selected = EMPRESAS.filter((x) => set.has(x));
     patch({
-      unionesTemporales: datos.unionesTemporales.map((m) =>
-        m.id === id ? { ...m, ...cambio } : m,
+      empresasEjecutoras: selected,
+      unionesTemporales: syncParticipaciones(
+        selected,
+        datos.unionesTemporales,
       ),
     });
+  }
+
+  function setParticipacion(index: number, value: number) {
+    const next = [...datos.unionesTemporales];
+    const row = next[index];
+    if (!row) return;
+    next[index] = {
+      ...row,
+      participacionPct: Number.isFinite(value) ? value : 0,
+    };
+    patch({ unionesTemporales: next });
   }
 
   return (
@@ -238,70 +241,58 @@ export function FormularioDatosProyecto({
                   ? primaryButtonClass
                   : ghostButtonClass
               }
-              title={
-                e === 'UT'
-                  ? 'Agrega un miembro de la unión temporal'
-                  : `Ejecuta ${NOMBRE_POR_EMPRESA[e]}`
-              }
               onClick={() => toggleEmpresa(e)}
             >
-              {e === 'UT' ? 'UT +' : e}
+              {e}
             </button>
           ))}
         </div>
-        {datos.unionesTemporales.map((miembro) => (
-          <div
-            key={miembro.id}
-            className="mb-2 grid grid-cols-[1fr_100px_auto] items-center gap-2"
-          >
-            <input
-              className={inputClass}
-              value={miembro.nombre}
-              readOnly={!nombreEditable(miembro)}
-              placeholder={
-                miembro.empresa === 'UT'
-                  ? 'Nombre de la unión temporal'
-                  : 'Razón social del socio'
-              }
-              aria-label="Razón social"
-              onChange={(e) =>
-                actualizarMiembro(miembro.id, { nombre: e.target.value })
-              }
-            />
-            <input
-              type="number"
-              min={0}
-              max={100}
-              className={inputClass}
-              value={miembro.participacionPct}
-              aria-label={`Participación de ${miembro.nombre || 'la empresa'}`}
-              onChange={(e) =>
-                actualizarMiembro(miembro.id, {
-                  participacionPct: Number(e.target.value),
-                })
-              }
-            />
-            <button
-              type="button"
-              className="px-2 text-sm text-muted hover:text-danger"
-              aria-label={`Quitar ${miembro.nombre || 'empresa'}`}
-              onClick={() => quitarMiembro(miembro.id)}
-            >
-              Quitar
-            </button>
-          </div>
-        ))}
 
-        {datos.unionesTemporales.length === 0 ? (
-          <p className="mt-2 text-xs text-muted">
-            Selecciona la empresa ejecutora, o usa <strong>UT +</strong> para
-            armar una unión temporal miembro por miembro.
+        {datos.empresasEjecutoras.length === 0 ? (
+          <p className="text-xs text-muted">
+            Selecciona una o más empresas para asignar el % de ingresos.
           </p>
-        ) : !pctOk ? (
-          <p className="mt-2 text-xs font-bold text-accent">
-            La suma de participación debe ser 100% (actual: {pctSum}%)
-          </p>
-        ) : null}
+        ) : (
+          <>
+            <div className="mb-1 grid grid-cols-[1fr_7rem] gap-2 text-xs font-bold text-muted">
+              <span>Empresa</span>
+              <span className="text-right">% ingresos</span>
+            </div>
+            {datos.unionesTemporales.map((ut, i) => (
+              <div
+                key={ut.id}
+                className="mb-2 grid grid-cols-[1fr_7rem] items-center gap-2"
+              >
+                <input className={inputClass} value={ut.nombre} readOnly />
+                <div className="relative">
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    className={`${inputClass} pr-7 text-right`}
+                    value={ut.participacionPct}
+                    aria-label={`% ingresos ${ut.nombre}`}
+                    onChange={(e) =>
+                      setParticipacion(i, Number(e.target.value))
+                    }
+                  />
+                  <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted">
+                    %
+                  </span>
+                </div>
+              </div>
+            ))}
+            {!pctOk ? (
+              <p className="text-xs font-bold text-accent">
+                La suma de % de ingresos debe ser 100% (actual: {pctSum}%)
+              </p>
+            ) : (
+              <p className="text-xs text-muted">
+                Suma de participación: {pctSum}%
+              </p>
+            )}
+          </>
+        )}
       </section>
 
       <section className={`${cardClass} opacity-60`}>

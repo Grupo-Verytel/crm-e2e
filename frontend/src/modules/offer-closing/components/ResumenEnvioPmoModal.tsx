@@ -1,8 +1,13 @@
 import { useState } from 'react';
 import type { VentaGanadaRecord } from '../../shared/project/types';
+import { ApiError } from '../../auth/types';
+import {
+  crearProyectoPmo,
+  fetchProyectoEjecucion,
+} from '../../implementation/api/projects-api';
 import {
   checklistAvancePct,
-  mockEnviarAPmo,
+  registrarProyectoPmo,
   validateDatosBase,
 } from '../../shared/project/mock-store';
 import { CSATIndicator } from '../../shared/project/CSATIndicator';
@@ -15,7 +20,7 @@ type Props = {
   onSent: (updated: VentaGanadaRecord) => void;
 };
 
-/** HU-F03 — Resumen y confirmación de envío a PMO (mock Control de Proyectos). */
+/** HU-F03 — Resumen y confirmación: abre el proyecto real en Control de Proyectos. */
 export function ResumenEnvioPmoModal({ record, open, onClose, onSent }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -29,13 +34,42 @@ export function ResumenEnvioPmoModal({ record, open, onClose, onSent }: Props) {
   async function confirmar() {
     setLoading(true);
     setError(null);
+    const d = record.datosBase;
     try {
-      await new Promise((r) => setTimeout(r, 800));
-      const updated = mockEnviarAPmo(record.ouvId);
-      onSent(updated);
+      let projectId: number;
+      let yaExistia = false;
+
+      try {
+        const creado = await crearProyectoPmo(record.ouvId, {
+          nombreProyecto: d.nombreProyecto.trim() || undefined,
+          fechaInicio: d.fechaInicio,
+          fechaFin: d.fechaFin,
+          tipoProyecto: d.recurrente ? 'RECURRING' : 'NON_RECURRING',
+          valorContrato: d.valorFacturar || undefined,
+          costosEsperados: d.costoEstimado || undefined,
+        });
+        projectId = creado.projectId;
+      } catch (err) {
+        // El PMO indexa por OUV_ID: un segundo intento sobre la misma OUV es
+        // un 409, no un fallo. Se recupera el proyecto que ya existe en vez de
+        // dejar la pantalla sin consecutivo.
+        if (!(err instanceof ApiError) || err.code !== 'PMO_PROJECT_ALREADY_EXISTS') {
+          throw err;
+        }
+        yaExistia = true;
+        projectId = (await fetchProyectoEjecucion(record.ouvId)).proyectoId;
+      }
+
+      onSent(registrarProyectoPmo(record.ouvId, projectId, { yaExistia }));
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Error simulado de envío');
+      setError(
+        e instanceof ApiError
+          ? e.message
+          : e instanceof Error
+            ? e.message
+            : 'No se pudo crear el proyecto en Control de Proyectos.',
+      );
     } finally {
       setLoading(false);
     }

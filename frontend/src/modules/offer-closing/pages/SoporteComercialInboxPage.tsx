@@ -5,10 +5,7 @@ import { formatDateTime } from '../../../lib/format';
 import { useAuth } from '../../auth/hooks/useAuth';
 import { fetchOuvs } from '../../discovery/api/ouvs-api';
 import { createVentaFromOuvApi } from '../../shared/project/mock-data';
-import {
-  listVentasGanadas,
-  mergeApiVentas,
-} from '../../shared/project/mock-store';
+import { applyWonSale, fetchWonSales } from '../api/won-sale-api';
 import type { VentaGanadaRecord } from '../../shared/project/types';
 import { TIPO_VENTA_LABEL, VALIDACION_TIPOS } from '../../shared/project/types';
 import { ValidacionBadge } from '../components/ValidacionBadge';
@@ -37,24 +34,37 @@ export function SoporteComercialInboxPage() {
   const [applied, setApplied] = useState<DraftFilters>(EMPTY);
   const [items, setItems] = useState<VentaGanadaRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
+      // SoporteComercial y Admin ven todas las ventas ganadas; el resto, las
+      // de las OUV que les pertenecen. Antes solo se consultaba la API para
+      // los dos primeros roles, así que a un EjecutivoComercial la bandeja le
+      // salía de `localStorage` — vacía en un navegador nuevo.
       const canAll =
         user?.role_name === 'SoporteComercial' || user?.role_name === 'Admin';
-      if (canAll) {
-        try {
-          const res = await fetchOuvs({ resultado: 'Ganada', all: true, limit: 50 });
-          const fromApi = res.items.map((o) =>
-            createVentaFromOuvApi(o, user?.full_name ?? 'Comercial'),
-          );
-          mergeApiVentas(fromApi);
-        } catch {
-          /* API optional — demo mocks still work */
-        }
-      }
-      let list = listVentasGanadas().filter((v) => v.envioPmo.estado !== 'Enviado');
+      const res = await fetchOuvs({
+        resultado: 'Ganada',
+        all: canAll,
+        limit: 50,
+      });
+
+      const base = res.items.map((o) =>
+        createVentaFromOuvApi(o, user?.full_name ?? 'Comercial'),
+      );
+
+      // El expediente manda sobre el registro derivado de la OUV: trae lo que
+      // alguien ya diligenció, sin importar desde qué navegador lo hizo.
+      const expedientes = await fetchWonSales(base.map((v) => v.ouvId));
+      const conExpediente = base.map((v) => {
+        const dto = expedientes[v.ouvId];
+        return dto ? applyWonSale(v, dto) : v;
+      });
+
+      let list = conExpediente.filter((v) => v.envioPmo.estado !== 'Enviado');
       if (applied.q.trim()) {
         const q = applied.q.toLowerCase();
         list = list.filter(
@@ -71,6 +81,9 @@ export function SoporteComercialInboxPage() {
         list = list.filter((v) => v.estadoRevision === applied.estadoRevision);
       }
       setItems(list);
+    } catch {
+      setError('No se pudo cargar la bandeja de ventas ganadas.');
+      setItems([]);
     } finally {
       setLoading(false);
     }
@@ -167,10 +180,17 @@ export function SoporteComercialInboxPage() {
                   Cargando…
                 </td>
               </tr>
+            ) : error ? (
+              <tr>
+                <td colSpan={7} className="px-4 py-8 text-center text-danger">
+                  {error}
+                </td>
+              </tr>
             ) : items.length === 0 ? (
               <tr>
                 <td colSpan={7} className="px-4 py-8 text-center text-muted">
-                  No hay ventas ganadas pendientes. Usa las OUV demo o marca una OUV como Ganada en Oportunidades.
+                  No hay ventas ganadas pendientes. Marca una OUV como Ganada en
+                  Oportunidades para que aparezca aquí.
                 </td>
               </tr>
             ) : (

@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   GRAPH_AVAILABILITY_INTERVAL,
@@ -9,6 +14,8 @@ import {
 } from '../constants/graph.constants';
 import {
   CreateGraphMeetingDto,
+  GraphAttendanceQueryDto,
+  GraphAttendanceResponseDto,
   GraphAvailabilityDto,
   GraphAvailabilityResponseDto,
   GraphMeetingResponseDto,
@@ -39,6 +46,26 @@ type GraphScheduleInformation = {
     end?: { dateTime?: string };
   }[];
   error?: { message?: string; responseCode?: string } | null;
+};
+
+type GraphOnlineMeeting = {
+  id: string;
+  joinWebUrl?: string | null;
+};
+
+type GraphAttendanceReport = {
+  id: string;
+  meetingStartDateTime?: string | null;
+  meetingEndDateTime?: string | null;
+  totalParticipantCount?: number | null;
+};
+
+type GraphAttendanceRecord = {
+  emailAddress?: string | null;
+  totalAttendanceInSeconds?: number | null;
+  role?: string | null;
+  identity?: { displayName?: string | null } | null;
+  attendanceIntervals?: unknown[] | null;
 };
 
 type GraphEvent = {
@@ -376,6 +403,101 @@ export class GraphService {
       webLink: event.webLink ?? null,
       location: event.location?.displayName ?? draft.locationName,
     };
+  }
+
+  /**
+   * Asistencia real a la reunión de Teams del Kickoff.
+   *
+   * Teams publica el informe cuando la reunión termina, así que antes de eso
+   * la respuesta llega con `reportId: null` y sin asistentes: eso no es un
+   * error, es «todavía no hay informe». Cuando hay varios informes (la reunión
+   * se reabrió) se toma el último.
+   */
+  async getMeetingAttendance(
+    dto: GraphAttendanceQueryDto,
+  ): Promise<GraphAttendanceResponseDto> {
+    const organizerUpn = dto.organizerUpn.trim();
+    const joinUrl = dto.joinUrl?.trim();
+    const meetingIdInput = dto.meetingId?.trim();
+
+    if (!meetingIdInput && !joinUrl) {
+      throw new BadRequestException('Indique meetingId o joinUrl.');
+    }
+
+    // Con permisos de aplicación la API de onlineMeetings exige el object id
+    // del organizador, no su UPN.
+    const organizer = await this.client.request<GraphUser>(
+      'GET',
+      `/users/${encodeURIComponent(organizerUpn)}`,
+      { params: { $select: 'id' } },
+    );
+
+    const meetingId =
+      meetingIdInput ??
+      (await this.resolveOnlineMeetingId(organizer.id, joinUrl as string));
+
+    const basePath = `/users/${organizer.id}/onlineMeetings/${encodeURIComponent(
+      meetingId,
+    )}/attendanceReports`;
+
+    const reports = await this.client.request<{
+      value?: GraphAttendanceReport[];
+    }>('GET', basePath);
+
+    const reportList = reports.value ?? [];
+    if (reportList.length === 0) {
+      return {
+        meetingId,
+        reportId: null,
+        meetingStartDateTime: null,
+        meetingEndDateTime: null,
+        totalParticipantCount: null,
+        attendees: [],
+      };
+    }
+
+    const latest = reportList[reportList.length - 1];
+    const records = await this.client.request<{
+      value?: GraphAttendanceRecord[];
+    }>('GET', `${basePath}/${encodeURIComponent(latest.id)}/attendanceRecords`);
+
+    return {
+      meetingId,
+      reportId: latest.id,
+      meetingStartDateTime: latest.meetingStartDateTime ?? null,
+      meetingEndDateTime: latest.meetingEndDateTime ?? null,
+      totalParticipantCount: latest.totalParticipantCount ?? null,
+      attendees: (records.value ?? []).map((record) => ({
+        name: record.identity?.displayName ?? null,
+        email: record.emailAddress ?? null,
+        totalAttendanceInSeconds: record.totalAttendanceInSeconds ?? 0,
+        role: record.role ?? null,
+        intervals: record.attendanceIntervals?.length ?? 0,
+      })),
+    };
+  }
+
+  /** Traduce el enlace de Teams guardado en el kickoff a un `meetingId`. */
+  private async resolveOnlineMeetingId(
+    organizerId: string,
+    joinUrl: string,
+  ): Promise<string> {
+    // El filtro va entre comillas simples; una comilla en la URL rompería la
+    // consulta OData, así que se escapa duplicándola.
+    const filter = `JoinWebUrl eq '${joinUrl.replace(/'/g, "''")}'`;
+    const found = await this.client.request<{ value?: GraphOnlineMeeting[] }>(
+      'GET',
+      `/users/${organizerId}/onlineMeetings`,
+      { params: { $filter: filter } },
+    );
+
+    const meetingId = found.value?.[0]?.id;
+    if (!meetingId) {
+      throw new NotFoundException(
+        'No se encontró la reunión de Teams para ese organizador. Puede que el evento se haya creado sin reunión en línea.',
+      );
+    }
+    return meetingId;
   }
 
   /** Cancela (elimina) el evento creado para el Kickoff. */

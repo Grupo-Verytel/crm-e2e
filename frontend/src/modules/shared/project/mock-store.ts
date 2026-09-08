@@ -141,37 +141,46 @@ export function listProyectosEnImplementacion(): VentaGanadaRecord[] {
 }
 
 /** Simulated Control de Proyectos accept — returns CP + SER consecutivos. */
-export function mockEnviarAPmo(ouvId: string): VentaGanadaRecord {
+/**
+ * Deja constancia del proyecto que el PMO acaba de abrir para esta OUV.
+ *
+ * El `projectId` es el `PRO_NCODE` real que devuelve Control de Proyectos, no
+ * un consecutivo inventado: es la única llave con la que después se consultan
+ * indicadores e historial.
+ */
+export function registrarProyectoPmo(
+  ouvId: string,
+  projectId: number,
+  opciones?: { yaExistia?: boolean },
+): VentaGanadaRecord {
   const record = getVentaGanada(ouvId);
   if (!record) {
     throw new Error('Registro no encontrado');
   }
 
-  const seq = String(Math.floor(400 + Math.random() * 100)).padStart(3, '0');
-  const cpId = `CP-2026-${seq}`;
-  const serSlug = record.consecutivo.replace(/^OUV-\d+-/, '').slice(0, 24);
-  const serId = `SER-02${seq}-${serSlug}`;
+  const ahora = new Date().toISOString();
+  const cpId = `CP-${projectId}`;
+  const origen = 'Control de Proyectos';
 
   const updated: VentaGanadaRecord = {
     ...record,
     envioPmo: {
       estado: 'Enviado',
       consecutivoControlProyectos: cpId,
-      serConsecutivo: serId,
+      // El SER lo asigna el PMO en su propio flujo; hasta que lo publique por
+      // el webhook de estados, aquí no hay nada que mostrar.
+      serConsecutivo: record.envioPmo.serConsecutivo,
       motivo: null,
-      enviadoEn: new Date().toISOString(),
+      enviadoEn: record.envioPmo.enviadoEn ?? ahora,
     },
     historialEstados: [
       ...record.historialEstados,
       {
-        estado: 'Enviada a Control de Proyectos',
-        fecha: new Date().toISOString(),
-        origen: 'Control de Proyectos (mock)',
-      },
-      {
-        estado: `${serId} creado`,
-        fecha: new Date().toISOString(),
-        origen: 'Control de Proyectos (mock)',
+        estado: opciones?.yaExistia
+          ? `Proyecto ${cpId} ya existía en el PMO`
+          : `Proyecto ${cpId} creado en el PMO`,
+        fecha: ahora,
+        origen,
       },
     ],
     alertas: record.alertas.filter((a) => !a.descripcion.includes('bloqueado')),

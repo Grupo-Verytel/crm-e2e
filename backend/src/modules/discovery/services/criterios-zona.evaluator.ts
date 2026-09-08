@@ -4,10 +4,7 @@ import type { Transaction } from 'sequelize';
 import { EntityType } from '../../workflow-engine/enums/entity-type.enum';
 import { WorkflowEngineService } from '../../workflow-engine/workflow-engine.service';
 import { zonaRank } from '../lib/ouv-zona-order';
-import {
-  InfluenciaEstado,
-  OuvZona,
-} from '../models/enums/ouv.enums';
+import { InfluenciaEstado, OuvZona } from '../models/enums/ouv.enums';
 import { OuvInfluencia } from '../models/ouv-influencia.model';
 import { Ouv } from '../models/ouv.model';
 
@@ -42,10 +39,7 @@ export class CriteriosZonaEvaluator {
       return { tieneGap: false, criteriosFaltantes: [] };
     }
 
-    const criteriosFaltantes = await this.computeFaltantes(
-      locked,
-      transaction,
-    );
+    const criteriosFaltantes = await this.computeFaltantes(locked, transaction);
     const tieneGap = criteriosFaltantes.length > 0;
     const gapAnterior = locked.tieneGap;
 

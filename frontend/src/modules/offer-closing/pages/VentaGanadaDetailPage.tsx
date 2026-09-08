@@ -2,16 +2,18 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ExternalLink } from 'lucide-react';
 import { AppLayout } from '../../../layout/AppLayout';
+import { useAuth } from '../../auth/hooks/useAuth';
+import { ApiError } from '../../auth/types';
 import { fetchOuv, type Ouv } from '../../discovery/api/ouvs-api';
 import { OuvReadonlyHeaderCard } from '../../discovery/components/OuvReadonlyHeaderCard';
 import { loadOuvExtensions } from '../../discovery/lib/ouv-detail-extensions';
 import type { OuvDetailExtensions } from '../../discovery/lib/ouv-detail-extensions';
 import { AlertaBanner } from '../../shared/project/AlertaBadge';
+import { createVentaFromOuvApi } from '../../shared/project/mock-data';
 import {
   getVentaGanada,
   puedeEnviarAPmo,
   puedeEnviarKickoff,
-  upsertVentaGanada,
 } from '../../shared/project/mock-store';
 import type {
   ValidacionTipo,
@@ -22,6 +24,7 @@ import {
   VALIDACION_TIPOS,
 } from '../../shared/project/types';
 import { deleteKickoff, fetchKickoff, saveKickoff } from '../api/kickoff-api';
+import { applyWonSale, fetchWonSale, saveWonSale } from '../api/won-sale-api';
 import { FormularioDatosProyecto } from '../components/FormularioDatosProyecto';
 import { KickoffCard } from '../components/KickoffCard';
 import { ResumenEnvioPmoModal } from '../components/ResumenEnvioPmoModal';
@@ -75,9 +78,35 @@ function ouvFromVentaRecord(record: VentaGanadaRecord): Ouv {
   };
 }
 
+/**
+ * Traduce el fallo del `PUT` a algo que el usuario pueda usar.
+ *
+ * Un 400 aquí no es culpa de quien llena el formulario: la pantalla ya valida
+ * lo que el usuario escribe, así que un rechazo del backend significa que el
+ * front está enviando algo que el backend no acepta. Al usuario se le dice qué
+ * hacer; el detalle técnico va a la consola, que es donde sirve.
+ */
+function mensajeDeGuardado(error: unknown): string {
+  if (error instanceof ApiError) {
+    if (error.status === 403) {
+      return 'No tienes permiso para modificar este expediente.';
+    }
+    if (error.status === 400 || error.status === 422) {
+      console.error('Expediente rechazado por el backend:', error.message);
+      return 'No se pudo guardar: el sistema rechazó los datos. Los cambios siguen en pantalla; avisa al equipo técnico.';
+    }
+    if (error.status >= 500) {
+      return 'El servidor no pudo guardar los cambios. Inténtalo de nuevo en un momento.';
+    }
+    return `No se pudo guardar: ${error.message}`;
+  }
+  return 'No se pudo guardar. Revisa tu conexión e inténtalo de nuevo.';
+}
+
 /** Detalle de venta ganada — vista de página (mismo patrón que detalle OUV). */
 export function VentaGanadaDetailPage() {
   const { ouvId = '' } = useParams();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [record, setRecord] = useState<VentaGanadaRecord | null>(null);
   const [ouv, setOuv] = useState<Ouv | null>(null);
@@ -85,17 +114,53 @@ export function VentaGanadaDetailPage() {
   const [tab, setTab] = useState<Tab>('validaciones');
   const [showResumen, setShowResumen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [preview, setPreview] = useState<{
     title: string;
     url: string;
   } | null>(null);
 
+  // El registro base sale de la OUV (consecutivo, cliente, título); lo que se
+  // diligencia en pantalla llega del backend, encima de esa base.
+  //
+  // La OUV se consulta a la API cuando el navegador no la tiene en caché, de
+  // modo que el enlace directo a `/offers/:ouvId` funcione igual en un equipo
+  // que nunca abrió la bandeja.
   useEffect(() => {
-    setRecord(getVentaGanada(ouvId));
-  }, [ouvId]);
+    if (!ouvId) return;
+    let cancelled = false;
 
-  // El kickoff es la única parte del registro que ya vive en el backend: se
-  // carga aparte para que todos los usuarios vean el mismo estado.
+    async function cargar(): Promise<void> {
+      let base = getVentaGanada(ouvId);
+      if (!base) {
+        // La OUV no trae el nombre del comercial, solo su id; el vendedor se
+        // muestra a partir de quien esté en sesión.
+        const ouvApi = await fetchOuv(ouvId);
+        base = createVentaFromOuvApi(ouvApi, user?.full_name ?? 'Comercial');
+      }
+      if (cancelled) return;
+      setRecord(base);
+
+      const wonSale = await fetchWonSale(ouvId);
+      if (cancelled || !wonSale) return;
+      setRecord((prev) => (prev ? applyWonSale(prev, wonSale) : prev));
+    }
+
+    setLoadError(null);
+    void cargar().catch(() => {
+      if (cancelled) return;
+      setLoadError(
+        'No se pudo cargar esta venta. Comprueba que la OUV exista y que tengas permiso para verla.',
+      );
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [ouvId, user]);
+
+  // El kickoff vive en su propia tabla porque apunta a un evento de Microsoft
+  // 365; se carga aparte del resto del expediente.
   useEffect(() => {
     if (!ouvId) return;
     let cancelled = false;
@@ -126,16 +191,33 @@ export function VentaGanadaDetailPage() {
   if (!record) {
     return (
       <AppLayout title="Oferta & Cierre">
-        <p className="text-sm text-muted">Registro no encontrado.</p>
-        <Link to="/offers" className="mt-3 inline-block text-sm text-accent hover:underline">
+        <p className="text-sm text-muted">
+          {loadError ?? 'Cargando la venta…'}
+        </p>
+        <Link
+          to="/offers"
+          className="mt-3 inline-block text-sm text-accent hover:underline"
+        >
           ← Bandeja soporte comercial
         </Link>
       </AppLayout>
     );
   }
 
+  /**
+   * Guarda en el backend y deja el resultado en pantalla. El `setRecord`
+   * inmediato mantiene el formulario fluido; si el `PUT` falla se avisa y el
+   * usuario conserva lo escrito para reintentar.
+   */
   function save(next: VentaGanadaRecord) {
-    setRecord(upsertVentaGanada(next));
+    setRecord(next);
+    void saveWonSale(next)
+      .then((wonSale) => {
+        setRecord((prev) => (prev ? applyWonSale(prev, wonSale) : prev));
+      })
+      .catch((error: unknown) => {
+        setToast(mensajeDeGuardado(error));
+      });
   }
 
   /**
@@ -225,10 +307,12 @@ export function VentaGanadaDetailPage() {
       type="button"
       disabled={bloqueado}
       title={bloqueado ? (motivoBloqueo ?? undefined) : undefined}
-      className={`-mb-px border-b-2 px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-40 ${
-        tabActivo === t
-          ? 'border-accent font-bold text-accent'
-          : 'border-transparent text-muted enabled:hover:text-accent'
+      className={`-mb-px border-b-2 px-4 py-2 text-sm ${
+        bloqueado
+          ? 'cursor-not-allowed border-transparent text-muted/50'
+          : tabActivo === t
+            ? 'border-accent font-bold text-accent'
+            : 'border-transparent text-muted hover:text-accent'
       }`}
       onClick={() => setTab(t)}
     >
@@ -259,8 +343,10 @@ export function VentaGanadaDetailPage() {
         footer={
           record.envioPmo.estado === 'Enviado' ? (
             <div className={`${badgeClass} bg-positive/15 text-positive`}>
-              Enviado · {record.envioPmo.serConsecutivo} · CP{' '}
-              {record.envioPmo.consecutivoControlProyectos}
+              Enviado · {record.envioPmo.consecutivoControlProyectos}
+              {record.envioPmo.serConsecutivo
+                ? ` · ${record.envioPmo.serConsecutivo}`
+                : ''}
             </div>
           ) : null
         }
@@ -393,9 +479,11 @@ export function VentaGanadaDetailPage() {
         open={showResumen}
         onClose={() => setShowResumen(false)}
         onSent={(updated) => {
-          setRecord(updated);
+          // Por `save` y no `setRecord`: el consecutivo del PMO tiene que
+          // quedar en el backend, o el resto de usuarios no lo vería.
+          save(updated);
           setToast(
-            `Proyecto creado en Control de Proyectos: ${updated.envioPmo.serConsecutivo}`,
+            `Proyecto abierto en Control de Proyectos: ${updated.envioPmo.consecutivoControlProyectos}`,
           );
           navigate('/services');
         }}

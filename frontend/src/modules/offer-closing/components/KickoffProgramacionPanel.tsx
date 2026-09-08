@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import type { KickoffRecord } from '../../shared/project/types';
+import { fetchMeetingAttendance, type GraphAttendance } from '../api/graph-api';
 import { formatKickoffRange } from '../lib/kickoff-scheduling';
 import {
   badgeClass,
@@ -20,11 +22,95 @@ function formatSesionFecha(value: string): string {
   return `${d}/${m}/${y}`;
 }
 
+function formatDuracion(segundos: number): string {
+  const minutos = Math.round(segundos / 60);
+  if (minutos < 60) return `${minutos} min`;
+  return `${Math.floor(minutos / 60)} h ${String(minutos % 60).padStart(2, '0')} min`;
+}
+
+function formatMomento(iso: string | null): string {
+  if (!iso) return '—';
+  const fecha = new Date(iso);
+  return Number.isNaN(fecha.getTime()) ? iso : fecha.toLocaleString();
+}
+
+function errorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error && error.message ? error.message : fallback;
+}
+
+type CruceAsistencia = {
+  asistieron: { id: string; nombre: string; email: string }[];
+  faltaron: { id: string; nombre: string; email: string }[];
+} | null;
+
+/** Informe de Teams ya contrastado contra los invitados de la agenda. */
+function AttendanceReport({
+  attendance,
+  cruce,
+}: {
+  attendance: GraphAttendance;
+  cruce: CruceAsistencia;
+}) {
+  return (
+    <div className="space-y-3 rounded border border-border bg-bg p-3">
+      <div className="grid gap-1 text-xs text-muted sm:grid-cols-3">
+        <span>Inicio: {formatMomento(attendance.meetingStartDateTime)}</span>
+        <span>Fin: {formatMomento(attendance.meetingEndDateTime)}</span>
+        <span>Participantes: {attendance.totalParticipantCount ?? '—'}</span>
+      </div>
+
+      {cruce ? (
+        <div className="flex flex-wrap gap-2">
+          <span className={`${badgeClass} bg-positive/15 text-positive`}>
+            {cruce.asistieron.length} de{' '}
+            {cruce.asistieron.length + cruce.faltaron.length} invitados
+            asistieron
+          </span>
+          {cruce.faltaron.length > 0 ? (
+            <span className={`${badgeClass} bg-warning/20 text-ink`}>
+              No asistieron: {cruce.faltaron.map((i) => i.nombre).join(', ')}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+
+      <div>
+        <p className={labelClass}>Asistentes según Teams</p>
+        {attendance.attendees.length === 0 ? (
+          <p className="text-xs text-muted">
+            El informe no registra participantes.
+          </p>
+        ) : (
+          <ul className="mt-1 space-y-1 text-sm">
+            {attendance.attendees.map((a) => (
+              <li key={`${a.email ?? a.name}-${a.role ?? ''}`}>
+                <span className="text-ink">{a.name || a.email || '—'}</span>
+                {a.email ? (
+                  <span className="text-muted"> · {a.email}</span>
+                ) : null}
+                <span className="text-muted">
+                  {' '}
+                  · {formatDuracion(a.totalAttendanceInSeconds)}
+                  {a.intervals > 1 ? ` · ${a.intervals} conexiones` : ''}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /**
  * Etapa 3 — confirmación de la reunión agendada (campos solo lectura).
  * Etapa 4 — aprobaciones (solo tras reunión realizada + validación Teams).
  */
 export function KickoffProgramacionPanel({ kickoff, onChange }: Props) {
+  const [attendance, setAttendance] = useState<GraphAttendance | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [attendanceError, setAttendanceError] = useState<string | null>(null);
+
   const phase4Unlocked =
     kickoff.estado === 'Realizado' && kickoff.validadoTeams;
   const allAprobaciones =
@@ -43,6 +129,60 @@ export function KickoffProgramacionPanel({ kickoff, onChange }: Props) {
         a.id === id ? { ...a, completada: !a.completada } : a,
       ),
     });
+  }
+
+  const organizerUpn = kickoff.agenda?.organizerUpn?.trim() ?? '';
+  const joinUrl = kickoff.agenda?.joinUrl?.trim() || kickoff.enlace.trim();
+  const puedeValidar = Boolean(organizerUpn && joinUrl);
+
+  /**
+   * Contrasta el informe de Teams con los invitados de la agenda. El cruce es
+   * por correo porque el nombre en Teams no siempre coincide con el del CRM.
+   */
+  const cruce = (() => {
+    if (!attendance) return null;
+    const presentes = new Set(
+      attendance.attendees
+        .map((a) => a.email?.trim().toLowerCase())
+        .filter((email): email is string => Boolean(email)),
+    );
+    const invitados = kickoff.agenda?.invitados ?? [];
+    return {
+      asistieron: invitados.filter((inv) =>
+        presentes.has(inv.email.trim().toLowerCase()),
+      ),
+      faltaron: invitados.filter(
+        (inv) => !presentes.has(inv.email.trim().toLowerCase()),
+      ),
+    };
+  })();
+
+  async function validarAsistencia() {
+    if (!puedeValidar || checking) return;
+    setChecking(true);
+    setAttendanceError(null);
+    try {
+      const informe = await fetchMeetingAttendance({ organizerUpn, joinUrl });
+      setAttendance(informe);
+      // Sin `reportId` la reunión aún no ha cerrado en Teams: no hay nada que
+      // validar todavía, así que el kickoff no avanza de etapa.
+      if (informe.reportId) {
+        patch({ validadoTeams: true });
+      } else {
+        setAttendanceError(
+          'Teams todavía no publicó el informe de asistencia. Suele tardar unos minutos tras finalizar la reunión.',
+        );
+      }
+    } catch (error) {
+      setAttendanceError(
+        errorMessage(
+          error,
+          'No se pudo consultar la asistencia en Microsoft 365.',
+        ),
+      );
+    } finally {
+      setChecking(false);
+    }
   }
 
   const readOnlyClass = `${inputClass} cursor-default opacity-90`;
@@ -157,21 +297,40 @@ export function KickoffProgramacionPanel({ kickoff, onChange }: Props) {
             Validación de asistencia (Teams)
           </h3>
           <p className="text-sm text-muted">
-            La reunión ya figura como realizada. El sistema debe contrastar el
-            listado de asistentes en Teams con los invitados confirmados antes
-            de habilitar las aprobaciones del Kickoff.
-          </p>
-          <p className="text-sm">
-            Validación Teams:{' '}
-            <span className="text-muted">Pendiente de validación</span>
+            La reunión ya figura como realizada. Se consulta el informe de
+            asistencia de Microsoft 365 y se contrasta con los invitados de la
+            agenda antes de habilitar las aprobaciones del Kickoff.
           </p>
           <button
             type="button"
             className={primaryButtonClass}
-            onClick={() => patch({ validadoTeams: true })}
+            disabled={!puedeValidar || checking}
+            title={
+              puedeValidar
+                ? 'Consultar el informe de asistencia en Microsoft 365'
+                : 'La reunión no tiene enlace de Teams ni organizador registrado'
+            }
+            onClick={() => void validarAsistencia()}
           >
-            Validar asistencia Teams (mock)
+            {checking ? 'Consultando Teams…' : 'Validar asistencia en Teams'}
           </button>
+
+          {!puedeValidar ? (
+            <p className="text-xs text-muted">
+              Solo se puede validar automáticamente si la sesión se agendó con
+              reunión de Teams desde el CRM.
+            </p>
+          ) : null}
+
+          {attendanceError ? (
+            <p className="rounded border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-ink">
+              {attendanceError}
+            </p>
+          ) : null}
+
+          {attendance?.reportId ? (
+            <AttendanceReport attendance={attendance} cruce={cruce} />
+          ) : null}
         </section>
       ) : null}
 

@@ -8,7 +8,7 @@ const TONE_CLASS: Record<BusyBlock['tone'], string> = {
   busy: 'bg-muted/35 text-ink',
   provisional: 'border-l-2 border-dashed border-muted bg-bg text-muted',
   proposed: 'border border-accent bg-accent text-white',
-  room: 'bg-brand/20 text-brand',
+  room: 'bg-brand text-white',
 };
 
 type Props = {
@@ -232,7 +232,7 @@ export function KickoffAvailabilityGrid({
           Provisional
         </span>
         <span className="inline-flex items-center gap-1">
-          <span className="h-2 w-4 rounded bg-brand/20" /> Sala
+          <span className="h-2 w-4 rounded bg-brand" /> Sala
         </span>
         <span className="inline-flex items-center gap-1">
           <span className="h-2 w-4 rounded bg-accent" /> Tu espacio

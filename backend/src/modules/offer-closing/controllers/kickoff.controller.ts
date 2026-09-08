@@ -28,8 +28,9 @@ export class KickoffController {
   @CheckAbility({ action: 'read', subject: 'Kickoff' })
   get(
     @Param('ouvId', ParseUUIDPipe) ouvId: string,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<KickoffEnvelopeDto> {
-    return this.kickoffService.getByOuv(ouvId);
+    return this.kickoffService.getByOuv(ouvId, user);
   }
 
   @Put()
@@ -39,13 +40,16 @@ export class KickoffController {
     @Body() dto: SaveKickoffDto,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<KickoffResponseDto> {
-    return this.kickoffService.save(ouvId, dto, user?.userId ?? null);
+    return this.kickoffService.save(ouvId, dto, user);
   }
 
   @Delete()
   @HttpCode(HttpStatus.NO_CONTENT)
   @CheckAbility({ action: 'delete', subject: 'Kickoff' })
-  remove(@Param('ouvId', ParseUUIDPipe) ouvId: string): Promise<void> {
-    return this.kickoffService.remove(ouvId);
+  remove(
+    @Param('ouvId', ParseUUIDPipe) ouvId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<void> {
+    return this.kickoffService.remove(ouvId, user);
   }
 }

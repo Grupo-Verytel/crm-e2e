@@ -9,10 +9,7 @@ import {
   Min,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import {
-  OuvResultado,
-  OuvZona,
-} from '../models/enums/ouv.enums';
+import { OuvResultado, OuvZona } from '../models/enums/ouv.enums';
 
 export class ListarOuvsQueryDto {
   @IsOptional()
