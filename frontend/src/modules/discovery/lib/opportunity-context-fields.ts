@@ -15,12 +15,26 @@ export type RequestField = {
   spanFull?: boolean;
 };
 
+/**
+ * Misma regla que `nextInteractionRef` del backend: `int_<consecutivo>_<n>`.
+ * Vista previa de solo lectura en el modal; el POST sigue siendo autoridad.
+ */
+export function previewCrmInteractionRef(
+  opportunityRef: string,
+  existingCount: number,
+): string {
+  const slug = opportunityRef.toLowerCase().replace(/[^a-z0-9]+/g, '');
+  return `int_${slug}_${existingCount + 1}`;
+}
+
+/** Primera versión de origen de una solicitud nueva (el backend persiste `'1'`). */
+export const INITIAL_SOURCE_VERSION = '1';
+
 /** Campos visibles del formulario; `requested_services` se deriva del tipo. */
 export const SOLICITUD_PREVENTA_FIELDS: RequestField[] = [
   {
     key: 'crm_interaction_ref',
     label: 'Referencia de interacción CRM',
-    // Autoridad del CRM (§4): la asigna el backend al crear la solicitud.
     locked: true,
   },
   { key: 'crm_opportunity_ref', label: 'Referencia de oportunidad CRM', locked: true },

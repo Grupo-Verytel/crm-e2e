@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -21,10 +22,20 @@ import {
 } from '../models';
 import { CreatePresalesRequestDto } from './dtos/create-presales-request.dto';
 import {
+  DUPLICATE_ACTIVITY_TYPE_CODE,
+  DUPLICATE_ACTIVITY_TYPE_MESSAGE,
+  comboKey,
+  isSolicitudRechazada,
+} from './presales-combo-guard';
+import {
   PresalesRequestView,
   presentPresalesRequest,
 } from './presales-request.presenter';
-import { COMBO_TO_SERVICES, PRIORITY_TO_HORIZON } from './presales-vocabulary';
+import {
+  COMBO_TO_SERVICES,
+  PRIORITY_TO_HORIZON,
+  type RequestedServiceShape,
+} from './presales-vocabulary';
 
 /**
  * Solicitudes de preventa — §14 Fase 3 (T-301 … T-304).
@@ -112,6 +123,11 @@ export class PresalesRequestsService {
     const interaction = await this.sequelize.transaction(
       async (transaction) => {
         await this.mirrorOpportunity(ouv, transaction);
+        await this.assertComboDisponible(
+          ouv.consecutivo,
+          services,
+          transaction,
+        );
 
         // La referencia es autoridad del CRM y debe ser estable y única. El
         // UNIQUE de `crm_interaction_ref` es el árbitro: si dos solicitudes
@@ -239,6 +255,40 @@ export class PresalesRequestsService {
 
     const slug = opportunityRef.toLowerCase().replace(/[^a-z0-9]+/g, '');
     return `int_${slug}_${used + 1}`;
+  }
+
+  /**
+   * Un combo (tipo de actividad) no se puede repetir en la OUV salvo que
+   * todas las anteriores de ese combo estén rechazadas (acuse REJECTED o
+   * QUARANTINED y sin cierre comercial).
+   */
+  private async assertComboDisponible(
+    opportunityRef: string,
+    services: RequestedServiceShape[],
+    transaction: Transaction,
+  ): Promise<void> {
+    const existing = await this.interactionModel.findAll({
+      where: { crmOpportunityRef: opportunityRef },
+      include: [InteractionRequestedService],
+      lock: { level: transaction.LOCK.UPDATE, of: CommercialInteraction },
+      transaction,
+    });
+
+    const incoming = comboKey(services);
+
+    for (const row of existing) {
+      if (comboKey(row.requestedServices ?? []) !== incoming) {
+        continue;
+      }
+
+      const view = await this.project(row);
+      if (!isSolicitudRechazada(view)) {
+        throw new ConflictException({
+          codigo_error: DUPLICATE_ACTIVITY_TYPE_CODE,
+          detalle: DUPLICATE_ACTIVITY_TYPE_MESSAGE,
+        });
+      }
+    }
   }
 
   private async persist(
