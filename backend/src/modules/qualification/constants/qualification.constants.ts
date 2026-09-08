@@ -15,3 +15,19 @@ export const QUALIFICATION_ROLES = {
   EJECUTIVO_COMERCIAL: 'EjecutivoComercial',
   DIRECTOR_MERCADEO: 'DirectorMercadeo',
 } as const;
+
+function compactRoleName(roleName: string): string {
+  return roleName.replace(/[\s_-]/g, '').toLowerCase();
+}
+
+/** Compare Role.name ignoring spaces/underscores/hyphens and case. */
+export function isQualificationRole(
+  roleName: string | undefined,
+  ...canonical: string[]
+): boolean {
+  if (!roleName) {
+    return false;
+  }
+  const compact = compactRoleName(roleName);
+  return canonical.some((name) => compactRoleName(name) === compact);
+}

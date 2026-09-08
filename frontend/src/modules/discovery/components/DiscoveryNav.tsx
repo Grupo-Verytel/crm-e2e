@@ -1,4 +1,5 @@
 import { NavLink } from 'react-router-dom';
+import { isRoleName } from '../../../lib/roles';
 import { useAuth } from '../../auth/hooks/useAuth';
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
@@ -16,8 +17,7 @@ type DiscoveryNavProps = {
 
 export function DiscoveryNav({ showAdminTabs = true }: DiscoveryNavProps) {
   const { user } = useAuth();
-  const isSoporte =
-    user?.role_name === 'SoporteComercial' || user?.role_name === 'Admin';
+  const isSoporte = isRoleName(user?.role_name, 'SoporteComercial', 'Admin');
 
   return (
     <nav

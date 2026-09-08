@@ -1,4 +1,5 @@
 import { NavLink } from 'react-router-dom';
+import { isRoleName } from '../../../lib/roles';
 import { useAuth } from '../../auth/hooks/useAuth';
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
@@ -11,13 +12,19 @@ const linkClass = ({ isActive }: { isActive: boolean }) =>
 
 export function QualificationNav() {
   const { user } = useAuth();
-  const isInboxViewer =
-    user?.role_name === 'SoporteComercial' ||
-    user?.role_name === 'Admin' ||
-    user?.role_name === 'DirectorMercadeo';
-  const isEjecutivo =
-    user?.role_name === 'EjecutivoComercial' || user?.role_name === 'Admin';
-  const isDirector = user?.role_name === 'DirectorMercadeo';
+  const isInboxViewer = isRoleName(
+    user?.role_name,
+    'SoporteComercial',
+    'Admin',
+    'DirectorMercadeo',
+  );
+  const seesAllAssigned = isRoleName(
+    user?.role_name,
+    'DirectorMercadeo',
+    'SoporteComercial',
+    'Admin',
+    'GestorMercadeo',
+  );
 
   return (
     <nav
@@ -29,11 +36,9 @@ export function QualificationNav() {
           Enrutamiento
         </NavLink>
       ) : null}
-      {isEjecutivo || isDirector ? (
-        <NavLink to="/qualification/assigned" className={linkClass}>
-          {isDirector ? 'SQL asignados' : 'Mis SQL'}
-        </NavLink>
-      ) : null}
+      <NavLink to="/qualification/assigned" className={linkClass}>
+        {seesAllAssigned ? 'SQL asignados' : 'Mis SQL'}
+      </NavLink>
     </nav>
   );
 }

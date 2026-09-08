@@ -8,6 +8,8 @@ import {
   IN_APP_NOTIFICATION_EVENT,
   type InAppNotificationEventDetail,
 } from '../../../lib/notification-events';
+import { ApiError } from '../../auth/types';
+import { isRoleName } from '../../../lib/roles';
 import { useAuth } from '../../auth/hooks/useAuth';
 import { fetchOuvs, type Ouv } from '../api/ouvs-api';
 import { CrearOuvDirectaModal } from '../components/CrearOuvDirectaModal';
@@ -20,6 +22,7 @@ import {
   labelClass,
   primaryButtonClass,
 } from '../components/ui';
+import { canReadAllOuvs } from '../lib/ouv-access';
 import {
   bandejaFromPath,
   OUV_BANDEJA_UI,
@@ -62,10 +65,9 @@ export function OuvsBoardPage() {
 function OuvsTray({ bandeja }: { bandeja: OuvBandejaKey }) {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const isEjecutivo = user?.role_name === 'EjecutivoComercial';
-  const isSoporte = user?.role_name === 'SoporteComercial';
-  const canListAll =
-    user?.role_name === 'SoporteComercial' || user?.role_name === 'Admin';
+  const isEjecutivo = isRoleName(user?.role_name, 'EjecutivoComercial');
+  const isSoporte = isRoleName(user?.role_name, 'SoporteComercial', 'Admin');
+  const canListAll = canReadAllOuvs(user?.role_name);
   const isClosedTray = bandeja !== 'EnCurso';
   const ui = OUV_BANDEJA_UI[bandeja];
 
@@ -115,8 +117,12 @@ function OuvsTray({ bandeja }: { bandeja: OuvBandejaKey }) {
         });
         setItems(data.items);
         setTotal(data.total);
-      } catch {
-        setError(ui.error);
+      } catch (err) {
+        const message =
+          err instanceof ApiError && err.message
+            ? err.message
+            : ui.error;
+        setError(message);
       } finally {
         if (!opts?.silent) setIsLoading(false);
       }
@@ -150,8 +156,12 @@ function OuvsTray({ bandeja }: { bandeja: OuvBandejaKey }) {
           next[zona] = base.zona && base.zona !== zona ? [] : results[i].items;
         });
         setKanban(next);
-      } catch {
-        setError(ui.errorKanban);
+      } catch (err) {
+        const message =
+          err instanceof ApiError && err.message
+            ? err.message
+            : ui.errorKanban;
+        setError(message);
       } finally {
         if (!opts?.silent) setIsLoading(false);
       }

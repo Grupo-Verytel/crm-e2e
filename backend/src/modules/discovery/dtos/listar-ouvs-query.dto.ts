@@ -8,11 +8,24 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   OuvResultado,
   OuvZona,
 } from '../models/enums/ouv.enums';
+
+function queryBoolean({ value }: { value: unknown }): boolean | undefined {
+  if (value === undefined || value === null || value === '') {
+    return undefined;
+  }
+  if (value === true || value === 'true' || value === '1') {
+    return true;
+  }
+  if (value === false || value === 'false' || value === '0') {
+    return false;
+  }
+  return undefined;
+}
 
 export class ListarOuvsQueryDto {
   @IsOptional()
@@ -36,7 +49,7 @@ export class ListarOuvsQueryDto {
   resultado?: OuvResultado;
 
   @IsOptional()
-  @Type(() => Boolean)
+  @Transform(queryBoolean)
   @IsBoolean()
   tiene_gap?: boolean;
 
@@ -54,9 +67,9 @@ export class ListarOuvsQueryDto {
   @IsDateString()
   created_to?: string;
 
-  /** When true, list all OUVs (SoporteComercial). Default: only own. */
+  /** When true, list all OUVs for follow-up roles. Default: only own. */
   @IsOptional()
-  @Type(() => Boolean)
+  @Transform(queryBoolean)
   @IsBoolean()
   all?: boolean;
 }

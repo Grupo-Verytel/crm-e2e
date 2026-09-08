@@ -7,6 +7,7 @@ import {
   IN_APP_NOTIFICATION_EVENT,
   type InAppNotificationEventDetail,
 } from '../../../lib/notification-events';
+import { isRoleName } from '../../../lib/roles';
 import { useAuth } from '../../auth/hooks/useAuth';
 import { fetchAssignedSqls, type SqlDetail } from '../api/sqls-api';
 import { QualificationNav } from '../components/QualificationNav';
@@ -16,7 +17,13 @@ const PAGE_SIZE = 20;
 
 export function AssignedSqlsPage() {
   const { user } = useAuth();
-  const isDirector = user?.role_name === 'DirectorMercadeo';
+  const isDirector = isRoleName(
+    user?.role_name,
+    'DirectorMercadeo',
+    'SoporteComercial',
+    'Admin',
+    'GestorMercadeo',
+  );
   const [items, setItems] = useState<SqlDetail[]>([]);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);

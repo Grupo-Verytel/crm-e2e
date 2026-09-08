@@ -23,7 +23,7 @@ import type { CrearOuvDirectaDto } from '../dtos/crear-ouv-directa.dto';
 import type { CrearOuvDto } from '../dtos/crear-ouv.dto';
 import type { ListarOuvsQueryDto } from '../dtos/listar-ouvs-query.dto';
 import type { OuvResponseDto } from '../dtos/ouv-response.dto';
-import { canMutateOuvEnCurso } from '../lib/ouv-access';
+import { canMutateOuvEnCurso, canReadAllOuvs } from '../lib/ouv-access';
 import {
   computeOuvZonaDays,
   parseZonaValue,
@@ -793,7 +793,7 @@ export class OuvsService {
   }
 
   /**
-   * Detail with ownership: Ejecutivo owns; SoporteComercial/Admin can read all.
+   * Detail with ownership: Ejecutivo owns; follow-up roles can read all.
    */
   async getDetalle(
     ouvId: string,
@@ -804,8 +804,7 @@ export class OuvsService {
     if (!ouv) {
       throw new NotFoundException(`OUV ${ouvId} not found`);
     }
-    const canReadAll =
-      roleName === 'SoporteComercial' || roleName === 'Admin';
+    const canReadAll = canReadAllOuvs(roleName);
     if (!canReadAll && ouv.comercialId !== actorUserId) {
       throw new ForbiddenException('Not allowed to view this OUV');
     }
