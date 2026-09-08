@@ -58,7 +58,14 @@ export function SoporteComercialInboxPage() {
 
       // El expediente manda sobre el registro derivado de la OUV: trae lo que
       // alguien ya diligenció, sin importar desde qué navegador lo hizo.
-      const expedientes = await fetchWonSales(base.map((v) => v.ouvId));
+      // Si el API de cierre no está disponible, la bandeja sigue con las OUV
+      // ganadas — no se oculta toda la lista por un 404 de expediente.
+      let expedientes: Awaited<ReturnType<typeof fetchWonSales>> = {};
+      try {
+        expedientes = await fetchWonSales(base.map((v) => v.ouvId));
+      } catch {
+        expedientes = {};
+      }
       const conExpediente = base.map((v) => {
         const dto = expedientes[v.ouvId];
         return dto ? applyWonSale(v, dto) : v;

@@ -43,6 +43,12 @@ type Tab = 'validaciones' | 'kickoff' | 'datos';
 /** Rebote del guardado: suficiente para agrupar una ráfaga de tecleo. */
 const GUARDADO_DEBOUNCE_MS = 700;
 
+function isPersistedOuvId(id: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+    id,
+  );
+}
+
 function ouvFromVentaRecord(record: VentaGanadaRecord): Ouv {
   const now = new Date().toISOString();
   return {
@@ -180,7 +186,11 @@ export function VentaGanadaDetailPage() {
 
     async function cargar(): Promise<void> {
       let base = getVentaGanada(ouvId);
+      const persisted = isPersistedOuvId(ouvId);
       if (!base) {
+        if (!persisted) {
+          throw new Error('OUV de demostración sin expediente en el CRM');
+        }
         // La OUV no trae el nombre del comercial, solo su id; el vendedor se
         // muestra a partir de quien esté en sesión.
         const ouvApi = await fetchOuv(ouvId);
@@ -189,6 +199,7 @@ export function VentaGanadaDetailPage() {
       if (cancelled) return;
       setRecord(base);
 
+      if (!persisted) return;
       const wonSale = await fetchWonSale(ouvId);
       if (cancelled || !wonSale) return;
       setRecord((prev) => (prev ? applyWonSale(prev, wonSale) : prev));
@@ -210,7 +221,7 @@ export function VentaGanadaDetailPage() {
   // El kickoff vive en su propia tabla porque apunta a un evento de Microsoft
   // 365; se carga aparte del resto del expediente.
   useEffect(() => {
-    if (!ouvId) return;
+    if (!ouvId || !isPersistedOuvId(ouvId)) return;
     let cancelled = false;
     fetchKickoff(ouvId)
       .then((kickoff) => {
@@ -231,6 +242,10 @@ export function VentaGanadaDetailPage() {
       return;
     }
     setOuvExtensions(loadOuvExtensions(record.ouvId));
+    if (!isPersistedOuvId(record.ouvId)) {
+      setOuv(ouvFromVentaRecord(record));
+      return;
+    }
     void fetchOuv(record.ouvId)
       .then(setOuv)
       .catch(() => setOuv(ouvFromVentaRecord(record)));
