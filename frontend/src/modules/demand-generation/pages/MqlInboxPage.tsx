@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { AppLayout } from '../../../layout/AppLayout';
 import { Pagination } from '../../../components/Pagination';
 import { formatDateTime } from '../../../lib/format';
+import { useAuth } from '../../auth/hooks/useAuth';
 import { fetchLead } from '../api/leads-api';
 import { approveMql, fetchMqls, rejectMql } from '../api/mqls-api';
 import { DemandNav } from '../components/DemandNav';
@@ -10,7 +11,13 @@ import { MotivoModal } from '../components/MotivoModal';
 import { cardClass, ghostButtonClass, primaryButtonClass } from '../components/ui';
 import type { Lead, Mql } from '../types';
 
+/** Same role the workflow guard checks for lead.mql_aprobado. */
+const MQL_DECISION_ROLES = new Set(['DirectorMercadeo', 'Director Mercadeo']);
+
 export function MqlInboxPage() {
+  const { user } = useAuth();
+  const canDecideMql = !!user?.role_name && MQL_DECISION_ROLES.has(user.role_name);
+
   const [items, setItems] = useState<Mql[]>([]);
   const [leads, setLeads] = useState<Record<string, Lead>>({});
   const [page, setPage] = useState(1);
@@ -106,16 +113,32 @@ export function MqlInboxPage() {
                   <div className="flex shrink-0 gap-2">
                     <button
                       type="button"
-                      disabled={busyId === mql.mql_id}
-                      onClick={() => handleApprove(mql)}
+                      disabled={!canDecideMql || busyId === mql.mql_id}
+                      title={
+                        canDecideMql
+                          ? undefined
+                          : 'Solo el Director de Mercadeo puede aprobar un MQL'
+                      }
+                      onClick={() => {
+                        if (!canDecideMql) return;
+                        void handleApprove(mql);
+                      }}
                       className={primaryButtonClass}
                     >
                       Aprobar → SQL
                     </button>
                     <button
                       type="button"
-                      disabled={busyId === mql.mql_id}
-                      onClick={() => setRejecting(mql)}
+                      disabled={!canDecideMql || busyId === mql.mql_id}
+                      title={
+                        canDecideMql
+                          ? undefined
+                          : 'Solo el Director de Mercadeo puede rechazar un MQL'
+                      }
+                      onClick={() => {
+                        if (!canDecideMql) return;
+                        setRejecting(mql);
+                      }}
                       className={ghostButtonClass}
                     >
                       Rechazar
