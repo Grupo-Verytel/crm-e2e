@@ -121,6 +121,9 @@ export interface PresalesRequestView {
 
   /** Acuses técnicos, en pista separada de la narrativa (INV-12, INV-14). */
   pista_tecnica: PresalesReceiptView[];
+
+  /** Último `processing_status` del POST de receipts. `null` si aún no acusó. */
+  polling_status: ProcessingStatus | null;
 }
 
 export function presentPresalesRequest(
@@ -231,6 +234,8 @@ export function presentPresalesRequest(
         reason_code: receipt.reasonCode ?? null,
         observed_at: toRfc3339(receipt.observedAt),
       })),
+
+    polling_status: interaction.pollingStatus ?? null,
   };
 }
 

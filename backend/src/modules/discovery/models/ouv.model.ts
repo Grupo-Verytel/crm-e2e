@@ -81,6 +81,12 @@ export class Ouv extends Model {
   @Column({ type: DataType.STRING(200), allowNull: false })
   declare titulo: string;
 
+  @Column({ type: DataType.STRING(80), allowNull: true })
+  declare city: string | null;
+
+  @Column({ type: DataType.STRING(60), allowNull: true })
+  declare region: string | null;
+
   /** Snapshot of client name (from accounts.name in Vía 1, or captured by comercial). */
   @Column({
     type: DataType.STRING(200),

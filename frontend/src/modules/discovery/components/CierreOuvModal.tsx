@@ -1,4 +1,9 @@
 import { useEffect, useState, type FormEvent } from 'react';
+import {
+  formatAmountEsCo,
+  formatAmountInputEsCo,
+  parseAmountInputEsCo,
+} from '../../../lib/format';
 import { ApiError } from '../../auth/types';
 import {
   descartarOuv,
@@ -19,13 +24,34 @@ import {
   primaryButtonClass,
 } from './ui';
 
-type ResultadoCierre = 'Ganada' | 'Perdida' | 'Descartada';
+export type ResultadoCierre = 'Ganada' | 'Perdida' | 'Descartada';
+
+export type OuvClosedEvent = {
+  resultado: ResultadoCierre;
+  ouv: Ouv;
+};
 
 type Props = {
   ouv: Ouv;
   onClose: () => void;
-  onClosed: () => void;
+  onClosed: (event: OuvClosedEvent) => void;
 };
+
+function requireAmount(formatted: string, invalidMessage: string): number {
+  const monto = parseAmountInputEsCo(formatted);
+  if (monto === null || monto < 0) {
+    throw new Error(invalidMessage);
+  }
+  return monto;
+}
+
+function asMotivoList(value: MotivoCatalogo[] | unknown): MotivoCatalogo[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function presupuestoAmount(ouv: Ouv): string {
+  return formatAmountEsCo(ouv.presupuesto_monto) || '';
+}
 
 export function CierreOuvModal({ ouv, onClose, onClosed }: Props) {
   const [resultado, setResultado] = useState<ResultadoCierre>('Ganada');
@@ -35,22 +61,37 @@ export function CierreOuvModal({ ouv, onClose, onClosed }: Props) {
   );
   const [motivoId, setMotivoId] = useState('');
   const [motivoDetalle, setMotivoDetalle] = useState('');
-  const [montoFinal, setMontoFinal] = useState('');
-  const [monedaFinal, setMonedaFinal] = useState('COP');
-  const [montoPerdido, setMontoPerdido] = useState('');
+  const [montoFinal, setMontoFinal] = useState(() => presupuestoAmount(ouv));
+  const [monedaFinal, setMonedaFinal] = useState(
+    ouv.presupuesto_moneda ?? 'COP',
+  );
+  const [montoPerdido, setMontoPerdido] = useState(() =>
+    presupuestoAmount(ouv),
+  );
   const [competidor, setCompetidor] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
     void Promise.all([fetchMotivosPerdida(), fetchMotivosDescarte()])
       .then(([p, d]) => {
-        setMotivosPerdida(p);
-        setMotivosDescarte(d);
+        if (cancelled) return;
+        setMotivosPerdida(asMotivoList(p));
+        setMotivosDescarte(asMotivoList(d));
       })
-      .catch(() => {
-        /* empty catalogs ok for UX; submit will fail if required */
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setCatalogError(
+          err instanceof ApiError
+            ? err.message
+            : 'No se pudieron cargar los motivos parametrizados.',
+        );
       });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const motivos =
@@ -59,45 +100,51 @@ export function CierreOuvModal({ ouv, onClose, onClosed }: Props) {
   const needsCompetidor =
     resultado === 'Perdida' &&
     Boolean(selected?.nombre && /competidor/i.test(selected.nombre));
+  const observacionRequired =
+    resultado === 'Perdida' &&
+    (Boolean(selected?.requiere_detalle) || motivosPerdida.length === 0);
   const showDetalle =
-    Boolean(selected?.requiere_detalle) ||
-    (resultado === 'Ganada' && Boolean(motivoId));
+    resultado !== 'Perdida' &&
+    (Boolean(selected?.requiere_detalle) ||
+      (resultado === 'Ganada' && Boolean(motivoId)));
 
   async function confirm(e: FormEvent) {
     e.preventDefault();
     setSaving(true);
     setError(null);
     try {
+      let closed: Ouv;
       if (resultado === 'Ganada') {
         if (ouv.zona_actual !== 'MAYOR_PROBABILIDAD') {
           throw new Error(
             'Ganada solo desde zona Mayor Probabilidad (Wave 1).',
           );
         }
-        const monto = Number(montoFinal);
-        if (!Number.isFinite(monto) || monto < 0) {
-          throw new Error('Monto final inválido.');
-        }
-        await ganarOuv(ouv.ouv_id, {
+        const monto = requireAmount(montoFinal, 'Monto final inválido.');
+        closed = await ganarOuv(ouv.ouv_id, {
           motivo_id: motivoId || undefined,
           motivo_detalle: motivoDetalle.trim() || undefined,
           monto_final: monto,
           moneda_final: monedaFinal,
         });
       } else if (resultado === 'Perdida') {
-        if (!motivoId) throw new Error('Selecciona un motivo de pérdida.');
-        const monto = Number(montoPerdido);
-        if (!Number.isFinite(monto) || monto < 0) {
+        if (motivosPerdida.length > 0 && !motivoId) {
+          throw new Error('Selecciona un motivo de pérdida.');
+        }
+        if (observacionRequired && !motivoDetalle.trim()) {
+          throw new Error('Registra una observación de la pérdida.');
+        }
+        const montoFromField = parseAmountInputEsCo(montoPerdido);
+        const montoFromBudget = parseAmountInputEsCo(presupuestoAmount(ouv));
+        const monto = montoFromField ?? montoFromBudget;
+        if (monto === null || monto < 0) {
           throw new Error('Monto estimado perdido inválido.');
         }
         if (needsCompetidor && !competidor.trim()) {
           throw new Error('Indica el competidor ganador.');
         }
-        if (selected?.requiere_detalle && !motivoDetalle.trim()) {
-          throw new Error('El detalle del motivo es obligatorio.');
-        }
-        await perderOuv(ouv.ouv_id, {
-          motivo_id: motivoId,
+        closed = await perderOuv(ouv.ouv_id, {
+          motivo_id: motivoId || undefined,
           motivo_detalle: motivoDetalle.trim() || undefined,
           monto_estimado_perdido: monto,
           competidor_ganador: competidor.trim() || undefined,
@@ -107,12 +154,12 @@ export function CierreOuvModal({ ouv, onClose, onClosed }: Props) {
         if (selected?.requiere_detalle && !motivoDetalle.trim()) {
           throw new Error('El detalle del motivo es obligatorio.');
         }
-        await descartarOuv(ouv.ouv_id, {
+        closed = await descartarOuv(ouv.ouv_id, {
           motivo_id: motivoId,
           motivo_detalle: motivoDetalle.trim() || undefined,
         });
       }
-      onClosed();
+      onClosed({ resultado, ouv: closed });
       onClose();
     } catch (err) {
       setError(
@@ -144,6 +191,9 @@ export function CierreOuvModal({ ouv, onClose, onClosed }: Props) {
                   setMotivoId('');
                   setMotivoDetalle('');
                   setError(null);
+                  if (r === 'Perdida') {
+                    setMontoPerdido(presupuestoAmount(ouv));
+                  }
                 }}
               >
                 {r}
@@ -178,7 +228,11 @@ export function CierreOuvModal({ ouv, onClose, onClosed }: Props) {
                 <input
                   className={inputClass}
                   value={montoFinal}
-                  onChange={(e) => setMontoFinal(e.target.value)}
+                  inputMode="decimal"
+                  autoComplete="off"
+                  onChange={(e) =>
+                    setMontoFinal(formatAmountInputEsCo(e.target.value))
+                  }
                   required
                 />
               </div>
@@ -200,34 +254,67 @@ export function CierreOuvModal({ ouv, onClose, onClosed }: Props) {
         {resultado === 'Perdida' ? (
           <div className="space-y-3">
             <div>
-              <label className={labelClass}>Motivo</label>
+              <label className={labelClass} htmlFor="cierre-motivo-perdida">
+                Motivo
+              </label>
               <select
+                id="cierre-motivo-perdida"
                 className={inputClass}
                 value={motivoId}
                 onChange={(e) => setMotivoId(e.target.value)}
-                required
+                required={motivosPerdida.length > 0}
+                disabled={motivosPerdida.length === 0}
               >
-                <option value="">Selecciona…</option>
+                <option value="">
+                  {motivosPerdida.length === 0
+                    ? 'Sin motivos parametrizados'
+                    : 'Selecciona…'}
+                </option>
                 {motivosPerdida.map((m) => (
                   <option key={m.motivo_id} value={m.motivo_id}>
                     {m.nombre}
                   </option>
                 ))}
               </select>
+              {motivosPerdida.length === 0 ? (
+                <p className="mt-1 text-xs text-muted">
+                  No hay opciones en el catálogo. Completa la observación para
+                  cerrar.
+                </p>
+              ) : null}
             </div>
             <div>
-              <label className={labelClass}>Monto estimado perdido</label>
+              <label className={labelClass} htmlFor="cierre-monto-perdido">
+                Monto estimado perdido
+              </label>
               <input
+                id="cierre-monto-perdido"
                 className={inputClass}
                 value={montoPerdido}
-                onChange={(e) => setMontoPerdido(e.target.value)}
+                inputMode="decimal"
+                autoComplete="off"
+                onChange={(e) =>
+                  setMontoPerdido(formatAmountInputEsCo(e.target.value))
+                }
                 required
               />
+              {presupuestoAmount(ouv) ? (
+                <p className="mt-1 text-xs text-muted">
+                  Precargado desde Presupuesto
+                  {ouv.presupuesto_moneda
+                    ? ` (${ouv.presupuesto_moneda})`
+                    : ''}
+                  .
+                </p>
+              ) : null}
             </div>
             {needsCompetidor ? (
               <div>
-                <label className={labelClass}>Competidor ganador</label>
+                <label className={labelClass} htmlFor="cierre-competidor">
+                  Competidor ganador
+                </label>
                 <input
+                  id="cierre-competidor"
                   className={inputClass}
                   value={competidor}
                   onChange={(e) => setCompetidor(e.target.value)}
@@ -235,6 +322,19 @@ export function CierreOuvModal({ ouv, onClose, onClosed }: Props) {
                 />
               </div>
             ) : null}
+            <div>
+              <label className={labelClass} htmlFor="cierre-observacion">
+                Observación
+              </label>
+              <textarea
+                id="cierre-observacion"
+                className={`${inputClass} h-20 py-2`}
+                value={motivoDetalle}
+                onChange={(e) => setMotivoDetalle(e.target.value)}
+                required={observacionRequired}
+                placeholder="Contexto adicional de la pérdida"
+              />
+            </div>
           </div>
         ) : null}
 
@@ -269,6 +369,9 @@ export function CierreOuvModal({ ouv, onClose, onClosed }: Props) {
           </div>
         ) : null}
 
+        {catalogError ? (
+          <p className="mt-3 text-sm text-danger">{catalogError}</p>
+        ) : null}
         {error ? <p className="mt-3 text-sm text-danger">{error}</p> : null}
 
         <div className="mt-4 flex justify-end gap-2">

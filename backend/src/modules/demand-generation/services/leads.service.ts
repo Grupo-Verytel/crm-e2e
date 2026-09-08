@@ -27,7 +27,10 @@ import {
   DEMAND_GENERATION_ROLES,
 } from '../constants/demand-generation.constants';
 import { CreateLeadDto } from '../dtos/create-lead.dto';
-import { DirectChecklistDto } from '../dtos/lead-contact.dto';
+import {
+  AssignLeadInfluenciaDto,
+  DirectChecklistDto,
+} from '../dtos/lead-contact.dto';
 import {
   LeadResponseDto,
   LeadsQueryDto,
@@ -45,6 +48,7 @@ import { canRecycleLead } from '../lib/lead-state-machine';
 import { normalizePhoneToE164 } from '../lib/phone-normalize';
 import {
   CanalOrigen,
+  LeadContactInfluenciaTipo,
   LeadEstado,
   OrigenLead,
   TipoLead,
@@ -115,6 +119,7 @@ export class LeadsService {
 
     this.assertB2bIndustria(dto.segmento, dto.industria);
     await this.ensureUserExists(dto.responsable_id);
+    await this.assertLeadNameAvailable(dto.name);
 
     if (dto.campana_id) {
       await this.campaignsService.assertCampaignAcceptsLeads(dto.campana_id);
@@ -129,6 +134,7 @@ export class LeadsService {
     const contacts = dto.contacts.map((contact, index) => ({
       position: index + 1,
       personId: contact.person_id,
+      tipoInfluencia: contact.tipo_influencia ?? null,
     }));
 
     const peopleMap =
@@ -281,6 +287,10 @@ export class LeadsService {
 
     this.assertB2bIndustria(nextSegmento, nextIndustria);
 
+    if (dto.name !== undefined) {
+      await this.assertLeadNameAvailable(dto.name, leadId);
+    }
+
     if (dto.responsable_id) {
       await this.ensureUserExists(dto.responsable_id);
     }
@@ -297,12 +307,14 @@ export class LeadsService {
 
     try {
       await lead.update({
+        ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
         ...(dto.tipo_lead !== undefined ? { tipoLead: dto.tipo_lead } : {}),
         ...(dto.origen !== undefined ? { origen: dto.origen } : {}),
         ...(dto.sub_origen !== undefined ? { subOrigen: dto.sub_origen } : {}),
         ...(dto.campana_id !== undefined ? { campanaId: dto.campana_id } : {}),
         ...(dto.segmento !== undefined ? { segmento: dto.segmento } : {}),
         ...(dto.industria !== undefined ? { industria: dto.industria } : {}),
+        ...(dto.city !== undefined ? { city: dto.city } : {}),
         ...(dto.region !== undefined ? { region: dto.region } : {}),
         ...(dto.pais !== undefined ? { pais: dto.pais.toUpperCase() } : {}),
         ...(dto.nit !== undefined ? { nit: dto.nit } : {}),
@@ -336,6 +348,89 @@ export class LeadsService {
 
       throw error;
     }
+  }
+
+  async assignInfluencia(
+    leadId: string,
+    tipo: LeadContactInfluenciaTipo,
+    dto: AssignLeadInfluenciaDto,
+  ): Promise<LeadResponseDto> {
+    const lead = await this.findLeadOrFail(leadId);
+
+    if (lead.estado === LeadEstado.MqlPending) {
+      throw new BadRequestException({
+        code: DEMAND_GENERATION_ERROR_CODES.LEAD_LOCKED,
+        message:
+          'A lead in MQL_PENDING is read-only until the Director decides (DG-10)',
+      });
+    }
+
+    const personId = dto.person_id ?? null;
+    const contacts = lead.contacts ?? [];
+
+    if (personId) {
+      const existingIds = contacts.map((row) => row.personId);
+      await this.accountsService.assertPeopleSameAccount([
+        personId,
+        ...existingIds,
+      ]);
+    }
+
+    await this.sequelize.transaction(async (transaction) => {
+      if (!personId) {
+        await Promise.all(
+          contacts
+            .filter((row) => row.tipoInfluencia === tipo)
+            .map((row) =>
+              row.update({ tipoInfluencia: null }, { transaction }),
+            ),
+        );
+        return;
+      }
+
+      let target = contacts.find((row) => row.personId === personId);
+      if (!target) {
+        const distinctPeople = new Set(contacts.map((row) => row.personId));
+        if (distinctPeople.size >= 3) {
+          throw new BadRequestException({
+            code: DEMAND_GENERATION_ERROR_CODES.VALIDATION_ERROR,
+            message: 'A lead can have at most 3 contacts',
+          });
+        }
+
+        const maxPosition = contacts.reduce(
+          (max, row) => Math.max(max, row.position),
+          0,
+        );
+        target = await this.leadContactModel.create(
+          {
+            leadId,
+            personId,
+            position: maxPosition + 1,
+            tipoInfluencia: tipo,
+          },
+          { transaction },
+        );
+      }
+
+      await Promise.all(
+        contacts
+          .filter(
+            (row) =>
+              row.contactId !== target.contactId &&
+              row.tipoInfluencia === tipo,
+          )
+          .map((row) =>
+            row.update({ tipoInfluencia: null }, { transaction }),
+          ),
+      );
+
+      if (target.tipoInfluencia !== tipo) {
+        await target.update({ tipoInfluencia: tipo }, { transaction });
+      }
+    });
+
+    return this.toResponseDto(await this.findLeadOrFail(leadId));
   }
 
   async recycle(leadId: string, dto: RecycleLeadDto): Promise<LeadResponseDto> {
@@ -519,13 +614,19 @@ export class LeadsService {
       );
     }
 
-    if (!values.region || !values.pais || !accountName || !values.contacto_nombre) {
+    if (!values.region || !accountName || !values.contacto_nombre) {
       throw new BadRequestException('Missing required lead fields');
     }
 
     if (!values.email?.trim()) {
       throw new BadRequestException('Missing email');
     }
+
+    const name = values.name?.trim();
+    if (!name) {
+      throw new BadRequestException('Missing name');
+    }
+    await this.assertLeadNameAvailable(name);
 
     await this.ensureUserExists(values.responsable_id);
 
@@ -546,14 +647,16 @@ export class LeadsService {
     return this.sequelize.transaction(async (transaction) => {
       const lead = await this.leadModel.create(
         {
+          name,
           tipoLead: (values.tipo_lead as TipoLead) || TipoLead.Outbound,
           origen: (values.origen as OrigenLead) || OrigenLead.Email,
           canalOrigen,
           campanaId: values.campana_id || null,
           segmento,
           industria,
+          city: values.city?.trim() || null,
           region: values.region,
-          pais: values.pais.toUpperCase(),
+          pais: (values.pais || 'CO').toUpperCase(),
           nit: taxId,
           responsableId: values.responsable_id,
           estado: this.resolveInitialState(canalOrigen),
@@ -622,7 +725,51 @@ export class LeadsService {
     return this.leadModel.findByPk(rows[0].lead_id);
   }
 
+  async isNameAvailable(
+    name: string,
+    excludeLeadId?: string,
+  ): Promise<boolean> {
+    const trimmed = name.trim();
+    if (!trimmed) {
+      return false;
+    }
+
+    const existing = await this.leadModel.findOne({
+      where: {
+        [Op.and]: [
+          Sequelize.where(
+            Sequelize.fn('LOWER', Sequelize.col('name')),
+            trimmed.toLowerCase(),
+          ),
+          ...(excludeLeadId
+            ? [{ leadId: { [Op.ne]: excludeLeadId } }]
+            : []),
+        ],
+      },
+      attributes: ['leadId'],
+    });
+
+    return !existing;
+  }
+
+  private async assertLeadNameAvailable(
+    name: string,
+    excludeLeadId?: string,
+  ): Promise<void> {
+    const available = await this.isNameAvailable(name, excludeLeadId);
+    if (!available) {
+      throw new ConflictException({
+        code: DEMAND_GENERATION_ERROR_CODES.DUPLICATE_LEAD_NAME,
+        message: 'Ya existe un lead con ese nombre',
+      });
+    }
+  }
+
   async getLeadDisplayLabel(lead: Lead): Promise<string> {
+    if (lead.name?.trim()) {
+      return lead.name.trim();
+    }
+
     const primaryContact =
       lead.contacts?.find((contact) => contact.position === 1) ??
       lead.contacts?.[0];
@@ -682,6 +829,7 @@ export class LeadsService {
 
     return {
       lead_id: lead.leadId,
+      name: lead.name,
       tipo_lead: lead.tipoLead,
       origen: lead.origen,
       canal_origen: lead.canalOrigen,
@@ -689,6 +837,7 @@ export class LeadsService {
       campana_id: lead.campanaId,
       segmento: lead.segmento,
       industria: lead.industria,
+      city: lead.city,
       region: lead.region,
       pais: lead.pais,
       empresa_nombre: primaryEnriched?.account_name ?? '',
@@ -711,6 +860,7 @@ export class LeadsService {
             account_id: enriched?.account_id ?? '',
             account_name: enriched?.account_name ?? '',
             account_tax_id: enriched?.account_tax_id ?? null,
+            tipo_influencia: contact.tipoInfluencia ?? null,
           };
         }) ?? [],
       business_referrer_id: lead.businessReferrerId,
@@ -739,7 +889,11 @@ export class LeadsService {
   private async createStandardLead(
     dto: CreateLeadDto,
     createdBy: string,
-    contacts: Array<{ position: number; personId: string }>,
+    contacts: Array<{
+      position: number;
+      personId: string;
+      tipoInfluencia: LeadContactInfluenciaTipo | null;
+    }>,
     businessReferrerId: string | null,
     nit: string | null,
   ): Promise<LeadResponseDto> {
@@ -748,6 +902,7 @@ export class LeadsService {
     const leadId = await this.sequelize.transaction(async (transaction) => {
       const lead = await this.leadModel.create(
         {
+          name: dto.name.trim(),
           tipoLead: dto.tipo_lead,
           origen: dto.origen,
           canalOrigen: dto.canal_origen,
@@ -757,8 +912,9 @@ export class LeadsService {
           industria: dto.industria ?? null,
           segmentId: dto.segment_id ?? null,
           subsegmentId: dto.subsegment_id ?? null,
+          city: dto.city,
           region: dto.region,
-          pais: dto.pais.toUpperCase(),
+          pais: (dto.pais ?? 'CO').toUpperCase(),
           nit,
           businessReferrerId,
           responsableId: dto.responsable_id,
@@ -801,7 +957,11 @@ export class LeadsService {
   private async createProductManagerLead(
     dto: CreateLeadDto,
     createdBy: string,
-    contacts: Array<{ position: number; personId: string }>,
+    contacts: Array<{
+      position: number;
+      personId: string;
+      tipoInfluencia: LeadContactInfluenciaTipo | null;
+    }>,
     businessReferrerId: string | null,
     nit: string | null,
   ): Promise<LeadResponseDto> {
@@ -814,6 +974,7 @@ export class LeadsService {
     const leadId = await this.sequelize.transaction(async (transaction) => {
       const lead = await this.leadModel.create(
         {
+          name: dto.name.trim(),
           tipoLead: dto.tipo_lead,
           origen: dto.origen,
           canalOrigen: dto.canal_origen,
@@ -823,8 +984,9 @@ export class LeadsService {
           industria: dto.industria ?? null,
           segmentId: dto.segment_id ?? null,
           subsegmentId: dto.subsegment_id ?? null,
+          city: dto.city,
           region: dto.region,
-          pais: dto.pais.toUpperCase(),
+          pais: (dto.pais ?? 'CO').toUpperCase(),
           nit,
           businessReferrerId,
           responsableId: dto.responsable_id,
@@ -894,7 +1056,11 @@ export class LeadsService {
   private async createEjecutivoComercialLead(
     dto: CreateLeadDto,
     createdBy: string,
-    contacts: Array<{ position: number; personId: string }>,
+    contacts: Array<{
+      position: number;
+      personId: string;
+      tipoInfluencia: LeadContactInfluenciaTipo | null;
+    }>,
     businessReferrerId: string | null,
     nit: string | null,
   ): Promise<LeadResponseDto> {
@@ -908,6 +1074,7 @@ export class LeadsService {
     const leadId = await this.sequelize.transaction(async (transaction) => {
       const lead = await this.leadModel.create(
         {
+          name: dto.name.trim(),
           tipoLead: dto.tipo_lead,
           origen: dto.origen,
           canalOrigen: dto.canal_origen,
@@ -917,8 +1084,9 @@ export class LeadsService {
           industria: dto.industria ?? null,
           segmentId: dto.segment_id ?? null,
           subsegmentId: dto.subsegment_id ?? null,
+          city: dto.city,
           region: dto.region,
-          pais: dto.pais.toUpperCase(),
+          pais: (dto.pais ?? 'CO').toUpperCase(),
           nit,
           businessReferrerId,
           responsableId: dto.responsable_id,

@@ -36,7 +36,7 @@ export type TemplatePayload = {
 };
 
 export async function fetchMotivosPerdida(): Promise<MotivoCatalogo[]> {
-  return apiRequest('/admin/motivos-perdida');
+  return apiRequest('/discovery/motivos-perdida');
 }
 
 export async function createMotivoPerdida(
@@ -60,7 +60,7 @@ export async function deleteMotivoPerdida(id: string): Promise<void> {
 }
 
 export async function fetchMotivosDescarte(): Promise<MotivoCatalogo[]> {
-  return apiRequest('/admin/motivos-descarte');
+  return apiRequest('/discovery/motivos-descarte');
 }
 
 export async function createMotivoDescarte(

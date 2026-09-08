@@ -32,6 +32,7 @@ import {
   PaginatedOuvsResponseDto,
 } from '../dtos/ouv-response.dto';
 import { InfluenciaTipo, OuvZona } from '../models/enums/ouv.enums';
+import { canReadAllOuvs } from '../lib/ouv-access';
 import { OuvChecklistService } from '../services/ouv-checklist.service';
 import { OuvInfluenciasService } from '../services/ouv-influencias.service';
 import { OuvsService } from '../services/ouvs.service';
@@ -61,11 +62,10 @@ export class OuvsController {
     @Query() query: ListarOuvsQueryDto,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<PaginatedOuvsResponseDto> {
-    const canListAll =
-      user.roleName === 'SoporteComercial' || user.roleName === 'Admin';
+    const canListAll = canReadAllOuvs(user.roleName);
     const result = await this.ouvsService.listarPorComercial(user.userId, {
       ...query,
-      all: canListAll ? query.all === true : false,
+      all: canListAll && query.all === true,
     });
     return {
       items: result.items.map((o) => this.ouvsService.toResponse(o)),

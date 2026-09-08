@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { LayoutGrid, List } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { Filter, LayoutGrid, List, Plus, Recycle, Upload } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AppLayout } from '../../../layout/AppLayout';
 import { useAuth } from '../../auth/hooks/useAuth';
 import { fetchCampaigns } from '../api/campaigns-api';
@@ -11,19 +11,22 @@ import { LeadFormModal } from '../components/LeadFormModal';
 import { GlobalLeadFilters } from '../components/leads/GlobalLeadFilters';
 import {
   EMPTY_LEAD_FILTERS,
+  countActiveLeadFilters,
   type LeadFilterValues,
 } from '../lib/lead-filters';
+import { LeadBulkImportModal } from '../components/leads/LeadBulkImportModal';
 import { LeadsExceptionsView } from '../components/leads/LeadsExceptionsView';
 import { LeadsKanbanView } from '../components/leads/LeadsKanbanView';
 import { LeadsTableView } from '../components/leads/LeadsTableView';
 import { useLeadsViewPreference } from '../hooks/useLeadsViewPreference';
-import { primaryButtonClass } from '../components/ui';
 import type { Lead, LeadFormMode, LeadsQuery } from '../types';
 
 const LIST_LIMIT = 20;
 const PRODUCT_MANAGER_ROLE = 'ProductManager';
 const EJECUTIVO_ROLE = 'EjecutivoComercial';
 const TRADUCTOR_ROLE = 'TraductorDeNegocio';
+const DEVUELTAS_PARAM = 'bandeja';
+const DEVUELTAS_VALUE = 'devueltas';
 
 type CampaignOption = { campana_id: string; nombre: string };
 
@@ -63,6 +66,7 @@ function canCreateLead(roleName: string | undefined): boolean {
 
 export function LeadsPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
   const roleName = user?.role_name;
   const isTraductor = roleName === TRADUCTOR_ROLE;
@@ -70,15 +74,19 @@ export function LeadsPage() {
   const showCreateButton = canCreateLead(roleName);
 
   const [view, setView] = useLeadsViewPreference();
-  const [showExceptions, setShowExceptions] = useState(false);
+  const showExceptions =
+    !isTraductor && searchParams.get(DEVUELTAS_PARAM) === DEVUELTAS_VALUE;
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const [draft, setDraft] = useState<LeadFilterValues>(EMPTY_LEAD_FILTERS);
   const [applied, setApplied] = useState<LeadFilterValues>(EMPTY_LEAD_FILTERS);
   const appliedKey = JSON.stringify(applied);
+  const activeFilterCount = countActiveLeadFilters(applied);
 
   const [campaigns, setCampaigns] = useState<CampaignOption[]>([]);
   const [exceptionsCount, setExceptionsCount] = useState<number | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [showBulkImport, setShowBulkImport] = useState(false);
 
   const [items, setItems] = useState<Lead[]>([]);
   const [page, setPage] = useState(1);
@@ -90,10 +98,11 @@ export function LeadsPage() {
   const toastTimerRef = useRef<number | null>(null);
   const hasLoadedListRef = useRef(false);
 
-  const pageTitle = useMemo(
-    () => (isTraductor ? 'Mis referidos' : 'Leads'),
-    [isTraductor],
-  );
+  const pageTitle = useMemo(() => {
+    if (isTraductor) return 'Mis referidos';
+    if (showExceptions) return 'Leads devueltas';
+    return 'Bandeja Leads';
+  }, [isTraductor, showExceptions]);
 
   const loadLeads = useCallback(async () => {
     if (!hasLoadedListRef.current) {
@@ -182,9 +191,25 @@ export function LeadsPage() {
     setPage(1);
   }
 
+  function exitDevueltas() {
+    const next = new URLSearchParams(searchParams);
+    next.delete(DEVUELTAS_PARAM);
+    setSearchParams(next, { replace: true });
+  }
+
   function handleSelectView(next: typeof view) {
-    setShowExceptions(false);
+    exitDevueltas();
     setView(next);
+  }
+
+  function handleToggleDevueltas() {
+    if (showExceptions) {
+      exitDevueltas();
+      return;
+    }
+    const next = new URLSearchParams(searchParams);
+    next.set(DEVUELTAS_PARAM, DEVUELTAS_VALUE);
+    setSearchParams(next, { replace: true });
   }
 
   function showSuccessToast(message: string) {
@@ -217,95 +242,120 @@ export function LeadsPage() {
     }
   }
 
+  const viewToggleClass = (active: boolean) =>
+    [
+      'grid h-9 w-9 place-items-center rounded',
+      active ? 'btn-glow text-white' : 'btn-glow-outline',
+    ].join(' ');
+
   return (
     <AppLayout title="Leads">
-      <DemandNav
-        actions={
-          showCreateButton && user ? (
-            <button
-              type="button"
-              onClick={() => setShowCreate(true)}
-              className={primaryButtonClass}
-            >
-              {formMode === 'ejecutivo' ? 'Nuevo lead directo' : 'Nuevo lead'}
-            </button>
-          ) : null
-        }
-      />
+      <DemandNav />
 
-      <div className="mb-4 flex flex-wrap items-center gap-3">
+      {isTraductor ? (
+        <p className="mb-3 rounded border border-border bg-bg px-3 py-2 text-sm text-ink">
+          Mis referidos: tablero de seguimiento (solo lectura). No puedes cambiar
+          estados ni mover leads entre bandejas.
+        </p>
+      ) : null}
+
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-lg font-bold text-ink">{pageTitle}</h1>
 
-        {!isTraductor ? (
-          <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
-            <div
-              className="inline-flex rounded border border-border bg-surface p-0.5"
-              role="group"
-              aria-label="Cambiar vista de leads"
-            >
-              <button
-                type="button"
-                onClick={() => handleSelectView('list')}
-                aria-pressed={!showExceptions && view === 'list'}
-                className={[
-                  'inline-flex items-center gap-1.5 rounded-sm px-3 py-1.5 text-sm font-bold',
-                  !showExceptions && view === 'list'
-                    ? 'btn-glow'
-                    : 'btn-glow-outline border-transparent',
-                ].join(' ')}
-              >
-                <List size={15} strokeWidth={1.75} />
-                Lista
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSelectView('kanban')}
-                aria-pressed={!showExceptions && view === 'kanban'}
-                className={[
-                  'inline-flex items-center gap-1.5 rounded-sm px-3 py-1.5 text-sm font-bold',
-                  !showExceptions && view === 'kanban'
-                    ? 'btn-glow'
-                    : 'btn-glow-outline border-transparent',
-                ].join(' ')}
-              >
-                <LayoutGrid size={15} strokeWidth={1.75} />
-                Tablero
-              </button>
-            </div>
-
+        {isTraductor ? null : (
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
-              onClick={() => setShowExceptions(true)}
-              aria-pressed={showExceptions}
-              className={[
-                'rounded px-3 py-1.5 text-sm font-bold',
-                showExceptions ? 'btn-glow' : 'btn-glow-outline',
-              ].join(' ')}
+              className={viewToggleClass(!showExceptions && view === 'kanban')}
+              onClick={() => handleSelectView('kanban')}
+              aria-label="Vista Kanban"
+              aria-pressed={!showExceptions && view === 'kanban'}
+              title="Kanban"
             >
-              Excepciones
-              {exceptionsCount != null ? (
-                <span className="ml-1.5 text-xs font-normal">
-                  ({exceptionsCount})
+              <LayoutGrid size={18} strokeWidth={2} />
+            </button>
+            <button
+              type="button"
+              className={viewToggleClass(!showExceptions && view === 'list')}
+              onClick={() => handleSelectView('list')}
+              aria-label="Vista Lista"
+              aria-pressed={!showExceptions && view === 'list'}
+              title="Lista"
+            >
+              <List size={18} strokeWidth={2} />
+            </button>
+            <button
+              type="button"
+              className={[viewToggleClass(filtersOpen), 'relative'].join(' ')}
+              onClick={() => setFiltersOpen((open) => !open)}
+              aria-label="Mostrar filtros"
+              aria-expanded={filtersOpen}
+              aria-controls="leads-filters-panel"
+              title="Filtros"
+            >
+              <Filter size={18} strokeWidth={2} />
+              {activeFilterCount > 0 ? (
+                <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-accent px-0.5 text-[10px] font-bold text-white">
+                  {activeFilterCount}
                 </span>
               ) : null}
             </button>
+            <button
+              type="button"
+              className={[viewToggleClass(showExceptions), 'relative'].join(' ')}
+              onClick={handleToggleDevueltas}
+              aria-label="Leads devueltas: reciclaje y descartados"
+              aria-pressed={showExceptions}
+              title="Leads devueltas"
+            >
+              <Recycle size={18} strokeWidth={2} />
+              {exceptionsCount != null && exceptionsCount > 0 ? (
+                <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-accent px-0.5 text-[10px] font-bold text-white">
+                  {exceptionsCount}
+                </span>
+              ) : null}
+            </button>
+            {!showExceptions ? (
+              <button
+                type="button"
+                className={viewToggleClass(false)}
+                onClick={() => setShowBulkImport(true)}
+                aria-label="Carga masiva de leads"
+                title="Carga masiva"
+              >
+                <Upload size={18} strokeWidth={2} />
+              </button>
+            ) : null}
+            {showCreateButton && user ? (
+              <button
+                type="button"
+                className={viewToggleClass(false)}
+                onClick={() => setShowCreate(true)}
+                aria-label={
+                  formMode === 'ejecutivo' ? 'Nuevo lead directo' : 'Nuevo lead'
+                }
+                title={
+                  formMode === 'ejecutivo' ? 'Nuevo lead directo' : 'Nuevo lead'
+                }
+              >
+                <Plus size={18} strokeWidth={2} />
+              </button>
+            ) : null}
           </div>
-        ) : null}
+        )}
       </div>
 
-      {isTraductor ? (
-        <p className="mb-4 text-sm text-muted">
-          Vista de solo lectura de los leads que referiste.
-        </p>
-      ) : (
-        <GlobalLeadFilters
-          draft={draft}
-          onChange={setDraft}
-          onApply={handleApply}
-          onClear={handleClear}
-          campaigns={campaigns}
-        />
-      )}
+      {!isTraductor && filtersOpen ? (
+        <div id="leads-filters-panel">
+          <GlobalLeadFilters
+            draft={draft}
+            onChange={setDraft}
+            onApply={handleApply}
+            onClear={handleClear}
+            campaigns={campaigns}
+          />
+        </div>
+      ) : null}
 
       {showExceptions && !isTraductor ? (
         <LeadsExceptionsView
@@ -334,6 +384,17 @@ export function LeadsPage() {
           responsableId={user.user_id}
           onCreated={handleLeadCreated}
           onClose={() => setShowCreate(false)}
+        />
+      ) : null}
+
+      {showBulkImport ? (
+        <LeadBulkImportModal
+          onClose={() => setShowBulkImport(false)}
+          onDone={() => {
+            setRefreshNonce((current) => current + 1);
+            void loadLeads();
+            void refreshExceptionsCount();
+          }}
         />
       ) : null}
 

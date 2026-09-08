@@ -4,6 +4,7 @@ import type { Account } from '../../accounts/types';
 import { ApiError } from '../../auth/types';
 import { crearOuvDirecta } from '../api/ouvs-api';
 import { SEGMENTOS, VERTICALES } from '../lib/ouv-vocab';
+import { ColombiaCitySearchField } from './ColombiaCitySearchField';
 import {
   ghostButtonClass,
   inputClass,
@@ -22,6 +23,8 @@ export function CrearOuvDirectaModal({ onClose, onCreated }: Props) {
   const [segmento, setSegmento] = useState<string>(SEGMENTOS[3]);
   const [vertical, setVertical] = useState<string>(VERTICALES[0]);
   const [descripcion, setDescripcion] = useState('');
+  const [city, setCity] = useState('');
+  const [region, setRegion] = useState('');
   const [accountQuery, setAccountQuery] = useState('');
   const [accountHits, setAccountHits] = useState<Account[]>([]);
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
@@ -60,6 +63,8 @@ export function CrearOuvDirectaModal({ onClose, onCreated }: Props) {
         ...(selectedAccount
           ? { account_id: selectedAccount.account_id }
           : {}),
+        ...(city.trim() ? { city: city.trim() } : {}),
+        ...(region.trim() ? { region: region.trim() } : {}),
       });
       onCreated(ouv.ouv_id, ouv.consecutivo);
     } catch (err) {
@@ -197,6 +202,36 @@ export function CrearOuvDirectaModal({ onClose, onCreated }: Props) {
                 ))}
               </select>
             </div>
+          </div>
+          <div>
+            <label className={labelClass} htmlFor="create-ouv-city">
+              Ciudad
+            </label>
+            <ColombiaCitySearchField
+              id="create-ouv-city"
+              value={city}
+              departamento={region}
+              onSelect={(row) => {
+                setCity(row.municipio);
+                setRegion(row.departamento);
+              }}
+              onClear={() => {
+                setCity('');
+                setRegion('');
+              }}
+            />
+          </div>
+          <div>
+            <label className={labelClass} htmlFor="create-ouv-region">
+              Región
+            </label>
+            <input
+              id="create-ouv-region"
+              className={inputClass}
+              value={region}
+              readOnly
+              placeholder="Se completa al elegir la ciudad"
+            />
           </div>
           <div>
             <label className={labelClass} htmlFor="ouv-desc">

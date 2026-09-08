@@ -8,11 +8,17 @@ import {
 } from '../api/solicitudes-preventa-api';
 import {
   ACTIVITY_PRIORITY_OPTIONS,
+  INITIAL_SOURCE_VERSION,
   SERVICE_COMBOS,
   SOLICITUD_PREVENTA_FIELDS,
+  previewCrmInteractionRef,
   type ActivityPriority,
   type ServiceComboId,
 } from '../lib/opportunity-context-fields';
+import {
+  DUPLICATE_COMBO_MESSAGE,
+  comboTieneSolicitudActiva,
+} from '../lib/solicitud-preventa-rules';
 import { ModalShell } from './ModalShell';
 import {
   ghostButtonClass,
@@ -24,6 +30,8 @@ import {
 type Props = {
   ouv: Ouv;
   commercialOwnerName?: string;
+  /** Solicitudes ya persistidas de esta OUV; define el sufijo y el bloqueo de combo. */
+  existingSolicitudes?: SolicitudPreventa[];
   onClose: () => void;
   onResult: (result: {
     ok: boolean;
@@ -43,16 +51,21 @@ const PRIORITY_ICONS: Record<ActivityPriority, LucideIcon> = {
 /**
  * Valores del formulario.
  *
- * `crm_interaction_ref`, `source_version` y `etag` son autoridad del CRM (§4,
- * P-01): se muestran vacíos y de solo lectura hasta que el backend los asigna
- * al crear la solicitud. El diseño los derivaba en el browser con
- * `mockInteractionRef()`, lo que rompería la identidad de correlación del
- * contrato.
+ * `crm_interaction_ref` y `source_version` se previsualizan al inicializar
+ * (ASAP/Sombra) con la misma regla del backend. Siguen en solo lectura: el
+ * POST es autoridad (§4, P-01). `etag` lo emite el CRM al persistir.
  */
-function buildValues(ouv: Ouv, priority: ActivityPriority | null): FormValues {
+function buildValues(
+  ouv: Ouv,
+  priority: ActivityPriority | null,
+  existingCount: number,
+): FormValues {
   const meta = ACTIVITY_PRIORITY_OPTIONS.find((o) => o.id === priority);
   return {
-    crm_interaction_ref: '',
+    crm_interaction_ref: previewCrmInteractionRef(
+      ouv.consecutivo,
+      existingCount,
+    ),
     crm_opportunity_ref: ouv.consecutivo,
     activity_type: meta?.activityType ?? '',
     service_horizon: meta?.horizon ?? '',
@@ -60,18 +73,27 @@ function buildValues(ouv: Ouv, priority: ActivityPriority | null): FormValues {
     source_content: '',
     sharepoint_document_url: '',
     source_created_at: new Date().toISOString().slice(0, 16),
-    source_version: '',
+    source_version: INITIAL_SOURCE_VERSION,
     etag: '',
   };
 }
 
 /** Modal por fases: prioridad → tipo → campos → envío. */
-export function SolicitudPreventaModal({ ouv, onClose, onResult }: Props) {
+export function SolicitudPreventaModal({
+  ouv,
+  existingSolicitudes = [],
+  onClose,
+  onResult,
+}: Props) {
+  const existingCount = existingSolicitudes.length;
   const [step, setStep] = useState<Step>(1);
   const [priority, setPriority] = useState<ActivityPriority | null>(null);
   const [comboId, setComboId] = useState<ServiceComboId | ''>('');
-  const [values, setValues] = useState<FormValues>(() => buildValues(ouv, null));
+  const [values, setValues] = useState<FormValues>(() =>
+    buildValues(ouv, null, existingCount),
+  );
   const [sending, setSending] = useState(false);
+  const [comboError, setComboError] = useState<string | null>(null);
 
   // Reset al cambiar de OUV. Se hace en render, no en un efecto: React
   // recomienda este patrón para derivar estado de un prop y evita el
@@ -82,8 +104,9 @@ export function SolicitudPreventaModal({ ouv, onClose, onResult }: Props) {
     setStep(1);
     setPriority(null);
     setComboId('');
-    setValues(buildValues(ouv, null));
+    setValues(buildValues(ouv, null, existingCount));
     setSending(false);
+    setComboError(null);
   }
 
   const combo = SERVICE_COMBOS.find((c) => c.id === comboId) ?? null;
@@ -104,6 +127,10 @@ export function SolicitudPreventaModal({ ouv, onClose, onResult }: Props) {
 
   async function handleSend() {
     if (!priority || !combo) return;
+    if (comboTieneSolicitudActiva(existingSolicitudes, combo.id)) {
+      onResult({ ok: false, message: DUPLICATE_COMBO_MESSAGE });
+      return;
+    }
     setSending(true);
 
     try {
@@ -113,7 +140,7 @@ export function SolicitudPreventaModal({ ouv, onClose, onResult }: Props) {
         subject: values.subject || undefined,
         // Sin trim: el contenido original se preserva sin alteración (P-07).
         source_content: values.source_content,
-        sharepoint_document_url: values.sharepoint_document_url || undefined,
+        // SharePoint lo publica Preventa en la respuesta, no el comercial al crear.
       });
       onResult({
         ok: true,
@@ -220,15 +247,28 @@ export function SolicitudPreventaModal({ ouv, onClose, onResult }: Props) {
             id="modal-solicitud-tipo"
             className={`${inputClass} max-w-md`}
             value={comboId}
-            onChange={(e) => setComboId(e.target.value as ServiceComboId | '')}
+            onChange={(e) => {
+              const next = e.target.value as ServiceComboId | '';
+              setComboId(next);
+              setComboError(null);
+            }}
           >
             <option value="">Seleccionar…</option>
-            {SERVICE_COMBOS.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
+            {SERVICE_COMBOS.map((c) => {
+              const blocked = comboTieneSolicitudActiva(
+                existingSolicitudes,
+                c.id,
+              );
+              return (
+                <option key={c.id} value={c.id} disabled={blocked}>
+                  {blocked ? `${c.name} (ya existe una activa o aprobada)` : c.name}
+                </option>
+              );
+            })}
           </select>
+          {comboError ? (
+            <p className="mt-3 text-sm text-danger">{comboError}</p>
+          ) : null}
           <div className="mt-6 flex justify-between gap-2">
             <button
               type="button"
@@ -241,7 +281,17 @@ export function SolicitudPreventaModal({ ouv, onClose, onResult }: Props) {
               type="button"
               className={primaryButtonClass}
               disabled={!comboId}
-              onClick={() => setStep(3)}
+              onClick={() => {
+                if (
+                  comboId &&
+                  comboTieneSolicitudActiva(existingSolicitudes, comboId)
+                ) {
+                  setComboError(DUPLICATE_COMBO_MESSAGE);
+                  return;
+                }
+                setComboError(null);
+                setStep(3);
+              }}
             >
               Continuar
             </button>
@@ -279,23 +329,6 @@ export function SolicitudPreventaModal({ ouv, onClose, onResult }: Props) {
               </ul>
             </div>
           ) : null}
-
-          <div className="mb-3">
-            <label className={labelClass} htmlFor="modal-sol-sharepoint">
-              Link de SharePoint
-            </label>
-            <input
-              id="modal-sol-sharepoint"
-              type="url"
-              className={inputClass}
-              value={values.sharepoint_document_url ?? ''}
-              placeholder="https://verytel.sharepoint.com/sites/preventa/Shared Documents/…"
-              onChange={(e) => patch('sharepoint_document_url', e.target.value)}
-            />
-            <p className="mt-1 text-xs text-muted">
-              URL HTTPS de SharePoint Documents. No uses un registro de Lista.
-            </p>
-          </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
             {SOLICITUD_PREVENTA_FIELDS.map((field) => {

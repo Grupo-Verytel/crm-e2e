@@ -19,6 +19,29 @@ export function leadEstadoLabel(estado: string): string {
   return LEAD_ESTADO_LABEL[estado as LeadEstado] ?? estado;
 }
 
+/** Prefer lead.name; fall back to empresa for legacy rows without name. */
+export function leadDisplayName(lead: {
+  name?: string | null;
+  empresa_nombre: string;
+}): string {
+  const name = lead.name?.trim();
+  return name || lead.empresa_nombre;
+}
+
+export const LEAD_INFLUENCIA_SLOTS = [
+  { key: 'Economica', label: 'Económica' },
+  { key: 'Tecnica', label: 'Técnica' },
+  { key: 'Fabrica', label: 'Fábrica' },
+] as const;
+
+export type LeadInfluenciaKey = (typeof LEAD_INFLUENCIA_SLOTS)[number]['key'];
+
+export const LEAD_CONTACT_INFLUENCIA_LABEL: Record<LeadInfluenciaKey, string> = {
+  Economica: 'Económica',
+  Tecnica: 'Técnica',
+  Fabrica: 'Fábrica',
+};
+
 export const CANAL_ORIGEN_LABEL: Record<CanalOrigen, string> = {
   CAMPANA_DIGITAL: 'Marketing Digital',
   BTL: 'BTL',
@@ -49,6 +72,14 @@ export type KanbanEstado = Extract<
   LeadEstado,
   'TOFU' | 'MOFU' | 'MQL_PENDING' | 'SQL'
 >;
+
+/** Short labels for the lead funnel ribbon (uppercase, OUV-style). */
+export const LEAD_ESTADO_RIBBON_LABEL: Record<KanbanEstado, string> = {
+  TOFU: 'TOFU',
+  MOFU: 'MOFU',
+  MQL_PENDING: 'BOFU',
+  SQL: 'SQL',
+};
 
 export type KanbanColumn = {
   estado: KanbanEstado;

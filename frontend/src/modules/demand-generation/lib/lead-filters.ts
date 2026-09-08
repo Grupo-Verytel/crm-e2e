@@ -18,3 +18,14 @@ export const EMPTY_LEAD_FILTERS: LeadFilterValues = {
   from: '',
   to: '',
 };
+
+export function countActiveLeadFilters(filters: LeadFilterValues): number {
+  let count = 0;
+  if (filters.canal_origen) count += 1;
+  if (filters.segmento) count += 1;
+  if (filters.campana_id) count += 1;
+  if (filters.responsable_id) count += 1;
+  if (filters.from) count += 1;
+  if (filters.to) count += 1;
+  return count;
+}

@@ -8,6 +8,8 @@ import type { Transaction } from 'sequelize';
 import { EntityType } from '../../workflow-engine/enums/entity-type.enum';
 import { WorkflowEngineService } from '../../workflow-engine/workflow-engine.service';
 import type { ActualizarInfluenciaDto } from '../dtos/actualizar-influencia.dto';
+import { assertCanMutateOuvEnCurso } from '../lib/ouv-access';
+import { verdeWithAssignedContactWhere } from '../lib/ouv-influencia-verde';
 import {
   InfluenciaEstado,
   InfluenciaTipo,
@@ -17,7 +19,6 @@ import { OuvContacto } from '../models/ouv-contacto.model';
 import { OuvInfluencia } from '../models/ouv-influencia.model';
 import { Ouv } from '../models/ouv.model';
 import { CriteriosZonaEvaluator } from './criterios-zona.evaluator';
-import { assertCanMutateOuvEnCurso } from '../lib/ouv-access';
 
 @Injectable()
 export class OuvInfluenciasService {
@@ -60,7 +61,7 @@ export class OuvInfluenciasService {
 
   async countVerde(ouvId: string, transaction?: Transaction): Promise<number> {
     return this.influenciaModel.count({
-      where: { ouvId, estado: InfluenciaEstado.Verde },
+      where: verdeWithAssignedContactWhere(ouvId),
       transaction,
     });
   }

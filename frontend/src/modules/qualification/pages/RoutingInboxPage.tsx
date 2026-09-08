@@ -7,6 +7,7 @@ import {
   IN_APP_NOTIFICATION_EVENT,
   type InAppNotificationEventDetail,
 } from '../../../lib/notification-events';
+import { isRoleName } from '../../../lib/roles';
 import { useAuth } from '../../auth/hooks/useAuth';
 import { fetchSqlInbox } from '../api/sqls-api';
 import { AssignSqlModal } from '../components/AssignSqlModal';
@@ -18,8 +19,7 @@ const PAGE_SIZE = 20;
 
 export function RoutingInboxPage() {
   const { user } = useAuth();
-  const canAssign =
-    user?.role_name === 'SoporteComercial' || user?.role_name === 'Admin';
+  const canAssign = isRoleName(user?.role_name, 'SoporteComercial', 'Admin');
   const [items, setItems] = useState<SqlDetail[]>([]);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);

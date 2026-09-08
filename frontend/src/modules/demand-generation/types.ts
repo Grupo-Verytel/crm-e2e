@@ -132,18 +132,62 @@ export const INTERACTION_TIPOS: InteractionTipo[] = [
 export type InteractionCanal =
   | 'Email'
   | 'Telefono'
+  | 'WhatsApp'
   | 'LinkedIn'
   | 'Presencial'
+  | 'Teams'
+  | 'GoogleMeet'
+  | 'Zoom'
   | 'Web'
   | 'Otro';
 export const INTERACTION_CANALES: InteractionCanal[] = [
   'Email',
   'Telefono',
+  'WhatsApp',
   'LinkedIn',
   'Presencial',
+  'Teams',
+  'GoogleMeet',
+  'Zoom',
   'Web',
   'Otro',
 ];
+
+/** Canal options allowed for each communication type. */
+export const CANALES_POR_TIPO: Record<InteractionTipo, InteractionCanal[]> = {
+  Email: ['Email', 'LinkedIn'],
+  Llamada: ['Telefono', 'WhatsApp'],
+  Reunion: ['Presencial', 'Teams', 'GoogleMeet', 'Zoom'],
+  Webinar: ['Web'],
+  Descarga: ['Web'],
+  VisitaWeb: ['Web'],
+};
+
+export const INTERACTION_TIPO_LABEL: Record<InteractionTipo, string> = {
+  Email: 'Email',
+  Llamada: 'Llamada',
+  Reunion: 'Reunión',
+  Webinar: 'Webinar',
+  Descarga: 'Descarga',
+  VisitaWeb: 'Visita web',
+};
+
+export const INTERACTION_CANAL_LABEL: Record<InteractionCanal, string> = {
+  Email: 'Email',
+  Telefono: 'Teléfono',
+  WhatsApp: 'WhatsApp',
+  LinkedIn: 'LinkedIn',
+  Presencial: 'Presencial',
+  Teams: 'Microsoft Teams',
+  GoogleMeet: 'Google Meet',
+  Zoom: 'Zoom',
+  Web: 'Web',
+  Otro: 'Otro',
+};
+
+export function canalesForTipo(tipo: InteractionTipo): InteractionCanal[] {
+  return CANALES_POR_TIPO[tipo] ?? [];
+}
 
 export type InteractionResultado =
   | 'Positivo'
@@ -157,6 +201,8 @@ export const INTERACTION_RESULTADOS: InteractionResultado[] = [
   'SinRespuesta',
 ];
 
+export type LeadInfluenciaTipo = 'Economica' | 'Tecnica' | 'Fabrica';
+
 export type LeadContact = {
   contact_id: string;
   position: number;
@@ -168,6 +214,7 @@ export type LeadContact = {
   account_id: string;
   account_name: string;
   account_tax_id: string | null;
+  tipo_influencia?: LeadInfluenciaTipo | null;
   /** Legacy API fields — use fallbacks when reading older payloads */
   nombre?: string;
   cargo?: string | null;
@@ -177,6 +224,7 @@ export type LeadContact = {
 
 export type LeadContactInput = {
   person_id: string;
+  tipo_influencia?: LeadInfluenciaTipo;
 };
 
 export type Subsegment = {
@@ -201,6 +249,7 @@ export type LeadFormMode = 'standard' | 'product_manager' | 'ejecutivo';
 
 export type Lead = {
   lead_id: string;
+  name: string | null;
   tipo_lead: string;
   origen: string;
   canal_origen: CanalOrigen;
@@ -208,6 +257,7 @@ export type Lead = {
   campana_id: string | null;
   segmento: string;
   industria: string | null;
+  city: string | null;
   region: string;
   pais: string;
   empresa_nombre: string;
@@ -259,6 +309,7 @@ export type LeadsQuery = {
 };
 
 export type CreateLeadPayload = {
+  name: string;
   tipo_lead: TipoLead;
   origen: OrigenLead;
   canal_origen: CanalOrigen;
@@ -266,8 +317,9 @@ export type CreateLeadPayload = {
   segment_id?: string;
   subsegment_id?: string;
   industria?: string;
+  city: string;
   region: string;
-  pais: string;
+  pais?: string;
   nit?: string;
   contacts: LeadContactInput[];
   responsable_id: string;

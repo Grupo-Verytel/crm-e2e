@@ -6,6 +6,22 @@ import { ForbiddenException } from '@nestjs/common';
  * da `R` a Admin y `CRUX` al ejecutivo). Por eso el rol no abre excepciones acá:
  * ser Admin no habilita a mover la OUV de otro.
  */
+
+function compactRoleName(roleName: string): string {
+  return roleName.replace(/[\s_-]/g, '').toLowerCase();
+}
+
+/**
+ * Only pipeline owners are scoped to `comercial_id`.
+ * Any other role that already passed CASL `read Opportunity` sees every OUV
+ * (Gerente Comercial, Soporte, Preventa, custom follow-up roles, etc.).
+ */
+const OWN_PIPELINE_ROLES = new Set(['ejecutivocomercial']);
+
+export function canReadAllOuvs(roleName: string | undefined): boolean {
+  return !!roleName && !OWN_PIPELINE_ROLES.has(compactRoleName(roleName));
+}
+
 export function canMutateOuvEnCurso(
   comercialId: string,
   actorUserId: string,

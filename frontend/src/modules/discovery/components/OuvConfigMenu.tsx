@@ -11,7 +11,7 @@ import {
 type Props = {
   editingOuv?: boolean;
   onEditar?: () => void;
-  /** Opcional: Fase 2 no expone contactos desde la cabecera. */
+  /** Opcional: el detalle PMO gestiona contactos desde cada influencia. */
   onContactos?: () => void;
   onAvanzar: () => void;
   onRetroceder: () => void;

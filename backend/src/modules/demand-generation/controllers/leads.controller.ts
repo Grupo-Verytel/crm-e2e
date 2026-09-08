@@ -5,6 +5,8 @@ import {
   Get,
   HttpCode,
   Param,
+  ParseEnumPipe,
+  Patch,
   Post,
   Put,
   Query,
@@ -25,6 +27,7 @@ import { CommercialOptionDto } from '../dtos/commercial-option.dto';
 import { CreateInteractionDto } from '../dtos/create-interaction.dto';
 import { CreateLeadDto } from '../dtos/create-lead.dto';
 import { DiscardLeadDto } from '../dtos/discard-lead.dto';
+import { AssignLeadInfluenciaDto } from '../dtos/lead-contact.dto';
 import { InteractionResponseDto } from '../dtos/interaction-response.dto';
 import {
   LeadResponseDto,
@@ -36,6 +39,7 @@ import { RegisterAppointmentDto } from '../dtos/register-appointment.dto';
 import { TransitionToMqlDto } from '../dtos/transition-mql.dto';
 import { UpdateChecklistDto } from '../dtos/update-checklist.dto';
 import { UpdateLeadDto } from '../dtos/update-lead.dto';
+import { LeadContactInfluenciaTipo } from '../models/enums/lead.enums';
 import { DemandGenerationService } from '../services/demand-generation.service';
 
 @Controller('leads')
@@ -97,6 +101,24 @@ export class LeadsController {
     );
   }
 
+  @Get('name-available')
+  @CheckAbility({ action: 'read', subject: 'Lead' })
+  nameAvailable(
+    @Query('name') name: string | undefined,
+    @Query('exclude_lead_id') excludeLeadId?: string,
+  ): Promise<{ available: boolean }> {
+    if (!name?.trim()) {
+      throw new BadRequestException({
+        code: DEMAND_GENERATION_ERROR_CODES.VALIDATION_ERROR,
+        message: 'name is required',
+      });
+    }
+    return this.demandGenerationService.isLeadNameAvailable(
+      name,
+      excludeLeadId,
+    );
+  }
+
   @Get('appointment-commercials')
   @CheckAbility({ action: 'read', subject: 'Lead' })
   listAppointmentCommercials(): Promise<CommercialOptionDto[]> {
@@ -123,6 +145,17 @@ export class LeadsController {
     @Body() dto: UpdateLeadDto,
   ): Promise<LeadResponseDto> {
     return this.demandGenerationService.updateLead(id, dto);
+  }
+
+  @Patch(':id/influencias/:tipo')
+  @CheckAbility({ action: 'update', subject: 'Lead' })
+  assignInfluencia(
+    @Param('id') id: string,
+    @Param('tipo', new ParseEnumPipe(LeadContactInfluenciaTipo))
+    tipo: LeadContactInfluenciaTipo,
+    @Body() dto: AssignLeadInfluenciaDto,
+  ): Promise<LeadResponseDto> {
+    return this.demandGenerationService.assignLeadInfluencia(id, tipo, dto);
   }
 
   @Post(':id/recycle')

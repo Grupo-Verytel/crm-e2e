@@ -22,10 +22,9 @@ import { MepWriteContext, MepWriteResult } from './write-result.interface';
  *
  * INV-12: es un hecho de transporte. **No** sustituye al hito comercial
  * `INTERACTION_RECEIVED` y el CRM no los trata como el mismo estado.
- * INV-13: la operación escribe exclusivamente en `processing_receipt` y en la
- * bitácora. `commercial_interaction` solo se **lee**, para resolver la
- * identidad y contrastar el `If-Match`: ni `status`, ni `stage`, ni notas
- * comerciales se tocan por esta ruta.
+ * INV-13: no muta campos comerciales de la interacción (`source_content`,
+ * `etag`, horizonte, subject). Sí actualiza `polling_status` como caché del
+ * último `processing_status` del acuse, en la misma transacción.
  */
 @Injectable()
 export class ProcessingReceiptService {
@@ -164,6 +163,11 @@ export class ProcessingReceiptService {
           );
 
           const persisted = presentProcessingReceipt(created);
+
+          await this.interactionModel.update(
+            { pollingStatus: payload.processing_status },
+            { where: { id: interaction.id }, transaction },
+          );
 
           // INV-32: la auditoría va en la misma transacción que la mutación.
           await this.audit.record(

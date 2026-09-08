@@ -1,4 +1,5 @@
 import { NavLink } from 'react-router-dom';
+import { isRoleName } from '../../../lib/roles';
 import { useAuth } from '../../auth/hooks/useAuth';
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
@@ -16,8 +17,7 @@ type DiscoveryNavProps = {
 
 export function DiscoveryNav({ showAdminTabs = true }: DiscoveryNavProps) {
   const { user } = useAuth();
-  const isSoporte =
-    user?.role_name === 'SoporteComercial' || user?.role_name === 'Admin';
+  const isSoporte = isRoleName(user?.role_name, 'SoporteComercial', 'Admin');
 
   return (
     <nav
@@ -26,6 +26,15 @@ export function DiscoveryNav({ showAdminTabs = true }: DiscoveryNavProps) {
     >
       <NavLink to="/opportunities" end className={linkClass}>
         Bandeja OUV
+      </NavLink>
+      <NavLink to="/opportunities/ganadas" end className={linkClass}>
+        Oportunidades ganadas
+      </NavLink>
+      <NavLink to="/opportunities/perdidas" end className={linkClass}>
+        Oportunidades perdidas
+      </NavLink>
+      <NavLink to="/opportunities/descartadas" end className={linkClass}>
+        Oportunidades descartadas
       </NavLink>
       {showAdminTabs && isSoporte ? (
         <>

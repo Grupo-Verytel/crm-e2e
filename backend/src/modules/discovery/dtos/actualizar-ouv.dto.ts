@@ -71,4 +71,16 @@ export class ActualizarOuvDto {
   @IsOptional()
   @IsUUID()
   comercial_id?: string;
+
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null)
+  @IsString()
+  @MaxLength(80)
+  city?: string | null;
+
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null)
+  @IsString()
+  @MaxLength(60)
+  region?: string | null;
 }

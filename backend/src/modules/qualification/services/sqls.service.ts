@@ -20,6 +20,7 @@ import { WorkflowEngineService } from '../../workflow-engine/workflow-engine.ser
 import {
   QUALIFICATION_ERROR_CODES,
   QUALIFICATION_ROLES,
+  isQualificationRole,
 } from '../constants/qualification.constants';
 import {
   AssignSqlDto,
@@ -465,8 +466,11 @@ export class SqlsService {
 
   private assertSoporteOrAdmin(roleName?: string): void {
     if (
-      roleName === QUALIFICATION_ROLES.SOPORTE_COMERCIAL ||
-      roleName === 'Admin'
+      isQualificationRole(
+        roleName,
+        QUALIFICATION_ROLES.SOPORTE_COMERCIAL,
+        'Admin',
+      )
     ) {
       return;
     }
@@ -478,9 +482,12 @@ export class SqlsService {
 
   private assertCanAccessInbox(roleName?: string): void {
     if (
-      roleName === QUALIFICATION_ROLES.SOPORTE_COMERCIAL ||
-      roleName === QUALIFICATION_ROLES.DIRECTOR_MERCADEO ||
-      roleName === 'Admin'
+      isQualificationRole(
+        roleName,
+        QUALIFICATION_ROLES.SOPORTE_COMERCIAL,
+        QUALIFICATION_ROLES.DIRECTOR_MERCADEO,
+        'Admin',
+      )
     ) {
       return;
     }
@@ -491,7 +498,13 @@ export class SqlsService {
   }
 
   private canViewAllAssignedSqls(roleName?: string): boolean {
-    return roleName === QUALIFICATION_ROLES.DIRECTOR_MERCADEO;
+    return isQualificationRole(
+      roleName,
+      QUALIFICATION_ROLES.DIRECTOR_MERCADEO,
+      QUALIFICATION_ROLES.SOPORTE_COMERCIAL,
+      'Admin',
+      'GestorMercadeo',
+    );
   }
 
   private assertCanViewSql(
@@ -499,13 +512,15 @@ export class SqlsService {
     viewerUserId: string,
     viewerRoleName?: string,
   ): void {
-    if (viewerRoleName === QUALIFICATION_ROLES.SOPORTE_COMERCIAL) {
-      return;
-    }
-    if (viewerRoleName === QUALIFICATION_ROLES.DIRECTOR_MERCADEO) {
-      return;
-    }
-    if (viewerRoleName === 'Admin') {
+    if (
+      isQualificationRole(
+        viewerRoleName,
+        QUALIFICATION_ROLES.SOPORTE_COMERCIAL,
+        QUALIFICATION_ROLES.DIRECTOR_MERCADEO,
+        'Admin',
+        'GestorMercadeo',
+      )
+    ) {
       return;
     }
     if (

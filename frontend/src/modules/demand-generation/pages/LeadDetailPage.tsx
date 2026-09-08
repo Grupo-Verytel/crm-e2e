@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { AppLayout } from '../../../layout/AppLayout';
 import { formatDateTime } from '../../../lib/format';
+import { ColombiaCitySearchField } from '../../discovery/components/ColombiaCitySearchField';
 import { useAuth } from '../../auth/hooks/useAuth';
 import {
   discardLead,
@@ -10,25 +11,31 @@ import {
   recycleLead,
   transitionLeadToMofu,
   transitionLeadToMql,
+  updateLead,
 } from '../api/leads-api';
 import { ChecklistPanel } from '../components/ChecklistPanel';
 import { DemandNav } from '../components/DemandNav';
 import { InteractionTimeline } from '../components/InteractionTimeline';
+import {
+  LeadDetailNav,
+  type LeadDetailTab,
+} from '../components/LeadDetailNav';
 import { MotivoModal } from '../components/MotivoModal';
-import { StatusBadge } from '../components/StatusBadge';
-import { cardClass, ghostButtonClass, primaryButtonClass } from '../components/ui';
+import {
+  cardClass,
+  ghostButtonClass,
+  inputClass,
+  labelClass,
+} from '../components/ui';
 import { ExpectedRoute } from '../components/leads/ExpectedRoute';
+import { LeadConfigMenu } from '../components/leads/LeadConfigMenu';
 import { ChecklistModal } from '../components/leads/ChecklistModal';
 import { RegisterAppointmentModal } from '../components/leads/RegisterAppointmentModal';
-import { CANAL_ORIGEN_LABEL } from '../lib/lead-vocab';
-import {
-  contactAccountName,
-  contactEmail,
-  contactJobTitle,
-  contactPersonName,
-  contactPhone,
-} from '../lib/contact-display';
-import type { Checklist, Lead } from '../types';
+import { LeadInfluenciasPanel } from '../components/leads/LeadInfluenciasPanel';
+import { CANAL_ORIGEN_LABEL, leadDisplayName } from '../lib/lead-vocab';
+import { contactAccountName } from '../lib/contact-display';
+import type { Checklist, Lead, OrigenLead, Segmento } from '../types';
+import { ORIGENES_LEAD, SEGMENTOS } from '../types';
 
 function isChecklistComplete(checklist: Checklist | null): boolean {
   return (
@@ -39,8 +46,30 @@ function isChecklistComplete(checklist: Checklist | null): boolean {
     checklist.criterio_presupuesto_indicios
   );
 }
+
+type LeadEditDraft = {
+  segmento: Segmento;
+  industria: string;
+  city: string;
+  region: string;
+  origen: OrigenLead;
+  nit: string;
+};
+
+function draftFromLead(lead: Lead): LeadEditDraft {
+  return {
+    segmento: lead.segmento as Segmento,
+    industria: lead.industria ?? '',
+    city: lead.city ?? '',
+    region: lead.region,
+    origen: lead.origen as OrigenLead,
+    nit: lead.nit ?? '',
+  };
+}
+
 export function LeadDetailPage() {
   const { id = '' } = useParams();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const isTraductor = user?.role_name === 'TraductorDeNegocio';
   const [lead, setLead] = useState<Lead | null>(null);
@@ -50,6 +79,10 @@ export function LeadDetailPage() {
   const [showDiscard, setShowDiscard] = useState(false);
   const [showAppointment, setShowAppointment] = useState(false);
   const [showChecklist, setShowChecklist] = useState(false);
+  const [detailTab, setDetailTab] = useState<LeadDetailTab>('detalle');
+  const [editMode, setEditMode] = useState(false);
+  const [draft, setDraft] = useState<LeadEditDraft | null>(null);
+  const [saving, setSaving] = useState(false);
 
   const loadLead = useCallback(async () => {
     setIsLoading(true);
@@ -67,6 +100,12 @@ export function LeadDetailPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetch on mount/param change
     void loadLead();
   }, [loadLead]);
+
+  useEffect(() => {
+    if (lead && editMode) {
+      setDraft(draftFromLead(lead));
+    }
+  }, [lead, editMode]);
 
   async function runAction(action: () => Promise<Lead>) {
     setActionError(null);
@@ -94,6 +133,66 @@ export function LeadDetailPage() {
     }
   }
 
+  function advanceZone() {
+    if (!lead) return;
+    if (lead.estado === 'TOFU' && lead.canal_origen !== 'FABRICA') {
+      void runAction(() => transitionLeadToMofu(lead.lead_id));
+      return;
+    }
+    if (
+      (lead.estado === 'MOFU' &&
+        lead.canal_origen !== 'GENERACION_DEMANDA_AGENCIA') ||
+      (lead.estado === 'TOFU' && lead.canal_origen === 'FABRICA')
+    ) {
+      void advanceToBofu();
+      return;
+    }
+    if (
+      lead.estado === 'MOFU' &&
+      lead.canal_origen === 'GENERACION_DEMANDA_AGENCIA'
+    ) {
+      setShowAppointment(true);
+    }
+  }
+
+  async function toggleEditMode() {
+    if (!lead) return;
+
+    if (!editMode) {
+      setDraft(draftFromLead(lead));
+      setEditMode(true);
+      return;
+    }
+
+    if (!draft) {
+      setEditMode(false);
+      return;
+    }
+
+    setSaving(true);
+    setActionError(null);
+    try {
+      const updated = await updateLead(lead.lead_id, {
+        segmento: draft.segmento,
+        industria: draft.industria.trim() || undefined,
+        city: draft.city.trim() || undefined,
+        region: draft.region,
+        origen: draft.origen,
+        nit: draft.nit.trim() || undefined,
+        pais: 'CO',
+      });
+      setLead(updated);
+      setEditMode(false);
+      setDraft(null);
+    } catch (err) {
+      setActionError(
+        err instanceof Error ? err.message : 'No se pudo guardar el lead.',
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
   if (isLoading) {
     return (
       <AppLayout title="Lead">
@@ -115,7 +214,18 @@ export function LeadDetailPage() {
   }
 
   const canDiscard =
-    lead.estado !== 'SQL' && lead.estado !== 'Descartado';
+    !isTraductor &&
+    lead.estado !== 'SQL' &&
+    lead.estado !== 'Descartado';
+
+  const canEdit =
+    !isTraductor &&
+    lead.estado !== 'Descartado' &&
+    lead.estado !== 'MQL_PENDING' &&
+    lead.estado !== 'SQL';
+
+  const canPassToMofu =
+    lead.estado === 'TOFU' && lead.canal_origen !== 'FABRICA';
 
   const isAgencyMofu =
     lead.estado === 'MOFU' &&
@@ -132,109 +242,224 @@ export function LeadDetailPage() {
       user?.role_name === 'GestorMercadeo' ||
       user?.role_name === 'Admin');
 
+  const canAvanzar =
+    !isTraductor &&
+    (canPassToMofu || canAdvanceViaChecklist || canRegisterAppointment);
+
   const primaryContact = lead.contacts[0];
   const headerCompany =
     primaryContact != null
       ? contactAccountName(primaryContact, lead.empresa_nombre)
       : lead.empresa_nombre;
+  const headerTitle = leadDisplayName(lead);
 
   return (
-    <AppLayout title={headerCompany}>
+    <AppLayout title={headerTitle}>
       <DemandNav />
 
       <Link to="/demand" className="mb-3 inline-block text-sm text-muted hover:text-ink">
         ← Volver a leads
       </Link>
 
-      <div className={`${cardClass} mb-4 p-5`}>
-        <div className="mb-4 flex items-start justify-between">
-          <div>
-            <h1 className="text-lg font-bold text-ink">{headerCompany}</h1>
+      <ExpectedRoute
+        canalOrigen={lead.canal_origen}
+        currentState={lead.estado}
+        stageSince={lead.fecha_ultima_interaccion ?? lead.fecha_captura}
+      />
+
+      <LeadDetailNav active={detailTab} onChange={setDetailTab} />
+
+      {detailTab === 'interacciones' ? (
+        <InteractionTimeline
+          leadId={lead.lead_id}
+          leadName={headerTitle}
+          onRegistered={loadLead}
+          readOnly={isTraductor}
+        />
+      ) : (
+        <>
+      <div
+        className={[
+          cardClass,
+          'mb-4 p-5 transition-[box-shadow,border-color] duration-300',
+          editMode ? 'ring-1 ring-accent/40' : '',
+        ].join(' ')}
+      >
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-lg font-bold text-ink">{headerTitle}</h1>
             <p className="text-sm text-muted">
-              {lead.contacto_nombre} · {lead.email}
+              {headerCompany}
+              {lead.contacto_nombre ? ` · ${lead.contacto_nombre}` : ''}
+              {lead.email ? ` · ${lead.email}` : ''}
             </p>
+            {editMode ? (
+              <p className="mt-1 text-xs font-bold text-muted">
+                {saving ? 'Guardando…' : 'Edición activa'}
+              </p>
+            ) : null}
           </div>
-          <StatusBadge value={lead.estado} />
+          <div className="flex shrink-0 items-center gap-2">
+            {!isTraductor ? (
+              <LeadConfigMenu
+                canEdit={canEdit}
+                canAvanzar={canAvanzar}
+                canDelete={canDiscard}
+                onEditar={() => void toggleEditMode()}
+                onAvanzar={advanceZone}
+                onEliminar={() => setShowDiscard(true)}
+              />
+            ) : null}
+          </div>
         </div>
 
-        <dl className="grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
-          <Detail label="Segmento" value={lead.segmento} />
-          <Detail label="Industria" value={lead.industria ?? '—'} />
-          <Detail label="Región" value={lead.region} />
-          <Detail label="Origen" value={lead.origen} />
-          <Detail
-            label="Canal de origen"
-            value={CANAL_ORIGEN_LABEL[lead.canal_origen]}
-          />
-          <Detail label="Teléfono" value={lead.telefono ?? '—'} />
-          <Detail label="NIT" value={lead.nit ?? '—'} />
-          <Detail label="Captura" value={formatDateTime(lead.fecha_captura)} />
-          <Detail
-            label="Última interacción"
-            value={formatDateTime(lead.fecha_ultima_interaccion)}
-          />
-        </dl>
-
-        <section className="mt-5 border-t border-border pt-4">
-          <h2 className="mb-3 text-sm font-bold text-ink">
-            Contactos ({lead.contacts.length})
-          </h2>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {lead.contacts.map((contact) => {
-              const personName = contactPersonName(contact);
-              const jobTitle = contactJobTitle(contact);
-              const accountName = contactAccountName(contact, lead.empresa_nombre);
-              const email = contactEmail(contact);
-              const phone = contactPhone(contact);
-
-              return (
-              <div
-                key={contact.contact_id}
-                className="rounded border border-border bg-bg p-3 text-sm"
+        {editMode && draft ? (
+          <div className="grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
+            <div>
+              <label className={labelClass} htmlFor="lead-segmento">
+                Segmento
+              </label>
+              <select
+                id="lead-segmento"
+                className={inputClass}
+                value={draft.segmento}
+                onChange={(e) =>
+                  setDraft({ ...draft, segmento: e.target.value as Segmento })
+                }
               >
-                <div className="mb-2 flex items-start justify-between gap-2">
-                  <div>
-                    <p className="font-bold text-ink">{personName}</p>
-                    <p className="text-xs text-muted">
-                      {jobTitle ?? 'Sin cargo'} · {accountName}
-                    </p>
-                  </div>
-                  {contact.position === 1 ? (
-                    <span className="rounded-full border border-border px-2 py-0.5 text-[11px] font-bold text-muted">
-                      Principal
-                    </span>
-                  ) : null}
-                </div>
-                {email ? (
-                  <a
-                    href={`mailto:${email}`}
-                    className="block truncate text-accent hover:text-accent-700"
-                  >
-                    {email}
-                  </a>
-                ) : (
-                  <p className="text-xs text-muted">Sin correo</p>
-                )}
-                {phone ? (
-                  <a
-                    href={`tel:${phone}`}
-                    className="mt-1 block text-ink hover:text-accent"
-                  >
-                    {phone}
-                  </a>
-                ) : null}
-              </div>
-              );
-            })}
+                {SEGMENTOS.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="lead-industria">
+                Industria
+              </label>
+              <input
+                id="lead-industria"
+                className={inputClass}
+                value={draft.industria}
+                onChange={(e) =>
+                  setDraft({ ...draft, industria: e.target.value })
+                }
+              />
+            </div>
+            <div className="col-span-2 md:col-span-1">
+              <label className={labelClass} htmlFor="lead-ciudad">
+                Ciudad
+              </label>
+              <ColombiaCitySearchField
+                id="lead-ciudad"
+                value={draft.city}
+                departamento={draft.region}
+                onSelect={(row) =>
+                  setDraft({
+                    ...draft,
+                    city: row.municipio,
+                    region: row.departamento,
+                  })
+                }
+                onClear={() =>
+                  setDraft({ ...draft, city: '', region: draft.region })
+                }
+              />
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="lead-region">
+                Región
+              </label>
+              <input
+                id="lead-region"
+                className={inputClass}
+                value={draft.region}
+                readOnly
+              />
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="lead-origen">
+                Origen
+              </label>
+              <select
+                id="lead-origen"
+                className={inputClass}
+                value={draft.origen}
+                onChange={(e) =>
+                  setDraft({ ...draft, origen: e.target.value as OrigenLead })
+                }
+              >
+                {ORIGENES_LEAD.map((o) => (
+                  <option key={o} value={o}>
+                    {o}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <span className={labelClass}>Canal de origen</span>
+              <p className="flex h-9 items-center text-ink">
+                {CANAL_ORIGEN_LABEL[lead.canal_origen]}
+              </p>
+            </div>
+            <div>
+              <span className={labelClass}>Teléfono</span>
+              <p className="flex h-9 items-center text-ink">
+                {lead.telefono ?? '—'}
+              </p>
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="lead-nit">
+                NIT
+              </label>
+              <input
+                id="lead-nit"
+                className={inputClass}
+                value={draft.nit}
+                onChange={(e) => setDraft({ ...draft, nit: e.target.value })}
+              />
+            </div>
+            <div>
+              <span className={labelClass}>Captura</span>
+              <p className="flex h-9 items-center text-ink">
+                {formatDateTime(lead.fecha_captura)}
+              </p>
+            </div>
+            <div>
+              <span className={labelClass}>Última interacción</span>
+              <p className="flex h-9 items-center text-ink">
+                {formatDateTime(lead.fecha_ultima_interaccion)}
+              </p>
+            </div>
           </div>
-        </section>
+        ) : (
+          <dl className="grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
+            <Detail label="Segmento" value={lead.segmento} />
+            <Detail label="Industria" value={lead.industria ?? '—'} />
+            <Detail label="Ciudad" value={lead.city ?? '—'} />
+            <Detail label="Región" value={lead.region} />
+            <Detail label="Origen" value={lead.origen} />
+            <Detail
+              label="Canal de origen"
+              value={CANAL_ORIGEN_LABEL[lead.canal_origen]}
+            />
+            <Detail label="Teléfono" value={lead.telefono ?? '—'} />
+            <Detail label="NIT" value={lead.nit ?? '—'} />
+            <Detail label="Captura" value={formatDateTime(lead.fecha_captura)} />
+            <Detail
+              label="Última interacción"
+              value={formatDateTime(lead.fecha_ultima_interaccion)}
+            />
+          </dl>
+        )}
 
-        <div className="mt-4">
-          <ExpectedRoute
-            canalOrigen={lead.canal_origen}
-            currentState={lead.estado}
-          />
-        </div>
+        <LeadInfluenciasPanel
+          lead={lead}
+          canEdit={canEdit}
+          onLeadChange={setLead}
+          onError={setActionError}
+        />
 
         {lead.motivo_descarte ? (
           <p className="mt-3 text-sm text-danger">
@@ -244,36 +469,6 @@ export function LeadDetailPage() {
 
         {!isTraductor ? (
         <div className="mt-5 flex flex-wrap gap-2">
-          {lead.estado === 'TOFU' && lead.canal_origen !== 'FABRICA' ? (
-            <button
-              type="button"
-              onClick={() => runAction(() => transitionLeadToMofu(lead.lead_id))}
-              className={primaryButtonClass}
-            >
-              Pasar a MOFU
-            </button>
-          ) : null}
-
-          {canAdvanceViaChecklist ? (
-            <button
-              type="button"
-              onClick={() => void advanceToBofu()}
-              className={primaryButtonClass}
-            >
-              Avanzar a BOFU
-            </button>
-          ) : null}
-
-          {canRegisterAppointment ? (
-            <button
-              type="button"
-              onClick={() => setShowAppointment(true)}
-              className={primaryButtonClass}
-            >
-              Registrar cita (avanzar a BOFU)
-            </button>
-          ) : null}
-
           {isAgencyMofu && !canRegisterAppointment ? (
             <p className="w-full text-sm text-muted">
               Este lead de agencia avanza a BOFU registrando una cita (Gestor de
@@ -294,16 +489,6 @@ export function LeadDetailPage() {
               Reciclar a MOFU
             </button>
           ) : null}
-
-          {canDiscard ? (
-            <button
-              type="button"
-              onClick={() => setShowDiscard(true)}
-              className={ghostButtonClass}
-            >
-              Descartar
-            </button>
-          ) : null}
         </div>
         ) : (
           <p className="mt-5 text-sm text-muted">
@@ -322,30 +507,26 @@ export function LeadDetailPage() {
         ) : null}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <ChecklistPanel
-          key={`checklist-${lead.estado}`}
-          leadId={lead.lead_id}
-          editable={
-            !isTraductor &&
-            (lead.estado === 'MOFU' ||
-              (lead.estado === 'TOFU' && lead.canal_origen === 'FABRICA'))
-          }
-          onSaved={loadLead}
-        />
-        <InteractionTimeline
-          leadId={lead.lead_id}
-          onRegistered={loadLead}
-          readOnly={isTraductor}
-        />
-      </div>
+      <ChecklistPanel
+        key={`checklist-${lead.estado}`}
+        leadId={lead.lead_id}
+        editable={
+          !isTraductor &&
+          (lead.estado === 'MOFU' ||
+            (lead.estado === 'TOFU' && lead.canal_origen === 'FABRICA'))
+        }
+        onSaved={loadLead}
+      />
+        </>
+      )}
 
       {showDiscard ? (
         <MotivoModal
-          title="Descartar lead"
-          confirmLabel="Descartar"
+          title="Eliminar lead"
+          confirmLabel="Eliminar"
           onConfirm={async (motivo) => {
-            setLead(await discardLead(lead.lead_id, motivo));
+            await discardLead(lead.lead_id, motivo);
+            navigate('/demand');
           }}
           onClose={() => setShowDiscard(false)}
         />
@@ -365,7 +546,7 @@ export function LeadDetailPage() {
       {showChecklist ? (
         <ChecklistModal
           leadId={lead.lead_id}
-          leadName={lead.empresa_nombre}
+          leadName={leadDisplayName(lead)}
           onQualified={async () => {
             await loadLead();
           }}

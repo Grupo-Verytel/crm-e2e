@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { AppLayout } from '../../../layout/AppLayout';
-import { formatDateTime } from '../../../lib/format';
+import {
+  formatAmountEsCo,
+  formatAmountInputEsCo,
+  formatDateTime,
+  parseAmountInputEsCo,
+} from '../../../lib/format';
 import {
   IN_APP_NOTIFICATION_EVENT,
   type InAppNotificationEventDetail,
@@ -24,12 +29,18 @@ import {
 } from '../api/ouvs-api';
 import { X } from 'lucide-react';
 import { AvanceZonaModal } from '../components/AvanceZonaModal';
-import { CierreOuvModal } from '../components/CierreOuvModal';
+import {
+  CierreOuvModal,
+  type OuvClosedEvent,
+} from '../components/CierreOuvModal';
 import { ContactoFormModal } from '../components/ContactoFormModal';
+import { DiscoveryNav } from '../components/DiscoveryNav';
+import { FloatingToast } from '../components/FloatingToast';
 import {
   OuvDetailHeaderCard,
   type OuvHeaderDraft,
 } from '../components/OuvDetailHeaderCard';
+import { WonCelebration } from '../components/WonCelebration';
 import { OuvFunnelRibbon } from '../components/OuvFunnelRibbon';
 import {
   OuvDetailNav,
@@ -44,6 +55,7 @@ import {
   labelClass,
   primaryButtonClass,
 } from '../components/ui';
+import { backLinkForResultado } from '../lib/ouv-bandejas';
 import {
   INFLUENCIA_ESTADO_CARD,
   INFLUENCIA_ESTADO_DOT,
@@ -114,6 +126,8 @@ export function OuvDetailPage() {
   const [ouvEditMode, setOuvEditMode] = useState(false);
   const [detailTab, setDetailTab] = useState<OuvDetailTab>('detalle');
   const [ouvExtensions, setOuvExtensions] = useState<OuvDetailExtensions>({});
+  const [closeToast, setCloseToast] = useState<string | null>(null);
+  const [celebrateWin, setCelebrateWin] = useState(false);
 
   const [presupuestoConfirmado, setPresupuestoConfirmado] = useState(false);
   const [presupuestoMonto, setPresupuestoMonto] = useState('');
@@ -133,7 +147,7 @@ export function OuvDetailPage() {
         const detail = await fetchOuv(id);
         setOuv(detail);
         setPresupuestoConfirmado(detail.presupuesto_confirmado);
-        setPresupuestoMonto(detail.presupuesto_monto ?? '');
+        setPresupuestoMonto(formatAmountEsCo(detail.presupuesto_monto));
         setPresupuestoMoneda(detail.presupuesto_moneda ?? 'COP');
         setPresupuestoFuente(detail.presupuesto_fuente ?? 'cliente_declaro');
 
@@ -183,6 +197,12 @@ export function OuvDetailPage() {
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (!closeToast) return;
+    const timer = window.setTimeout(() => setCloseToast(null), 4500);
+    return () => window.clearTimeout(timer);
+  }, [closeToast]);
 
   function flashInfluencia(tipo: InfluenciaTipo) {
     setInfluenciaFlash(tipo);
@@ -372,13 +392,13 @@ export function OuvDetailPage() {
     setActionSuccess(null);
     setSavingPresupuesto(true);
     try {
-      const monto = presupuestoMonto.trim();
-      if (monto && Number.isNaN(Number(monto))) {
+      const parsedMonto = parseAmountInputEsCo(presupuestoMonto);
+      if (presupuestoMonto.trim() && parsedMonto === null) {
         throw new Error('El monto debe ser un número válido.');
       }
       await updateOuvPresupuesto(id, {
         presupuesto_confirmado: presupuestoConfirmado,
-        presupuesto_monto: monto ? Number(monto) : null,
+        presupuesto_monto: parsedMonto,
         presupuesto_moneda: presupuestoMoneda,
         presupuesto_fuente: presupuestoFuente,
         presupuesto_fecha_captura: new Date().toISOString(),
@@ -436,6 +456,31 @@ export function OuvDetailPage() {
     }
   }
 
+  function handleOuvClosed({ resultado, ouv: updated }: OuvClosedEvent) {
+    setOuv((prev) =>
+      prev
+        ? {
+            ...prev,
+            ...updated,
+            dias_por_zona: updated.dias_por_zona ?? prev.dias_por_zona,
+          }
+        : updated,
+    );
+    setShowCierre(false);
+    setActionError(null);
+    const message =
+      resultado === 'Ganada'
+        ? 'La OUV se cerró correctamente como Ganada.'
+        : resultado === 'Perdida'
+          ? 'La OUV se cerró como Perdida. Queda disponible en Oportunidades perdidas.'
+          : `La OUV se cerró correctamente como ${resultado}.`;
+    setCloseToast(message);
+    setActionSuccess(message);
+    setCelebrateWin(resultado === 'Ganada');
+    void load({ silent: true });
+  }
+  }
+
   if (loading) {
     return (
       <AppLayout title="OUV">
@@ -449,21 +494,22 @@ export function OuvDetailPage() {
       <AppLayout title="OUV">
         <p className="text-sm text-danger">{error ?? 'OUV no encontrada'}</p>
         <Link to="/opportunities" className="mt-3 inline-block text-accent">
-          Volver a bandeja
+          Volver a Bandeja OUV
         </Link>
       </AppLayout>
     );
   }
 
   const editable =
-    ouv.resultado === 'EnCurso' &&
-    user?.user_id === ouv.comercial_id;
+    ouv.resultado === 'EnCurso' && user?.user_id === ouv.comercial_id;
+  const backLink = backLinkForResultado(ouv.resultado);
 
   return (
     <AppLayout title={ouv.consecutivo}>
-      <div className="mb-3">
-        <Link to="/opportunities" className="text-sm text-accent hover:underline">
-          ← Bandeja OUV
+      <DiscoveryNav />
+      <div className="mb-4">
+        <Link to={backLink.to} className="text-sm text-accent hover:underline">
+          {backLink.label}
         </Link>
       </div>
       <OuvFunnelRibbon ouv={ouv} />
@@ -525,7 +571,8 @@ export function OuvDetailPage() {
         <p className="mb-3 text-xs text-muted">
           Estado y contacto se guardan al instante (sin bloquear la tarjeta).
           Notas se guardan medio segundo después de dejar de escribir. Los
-          contactos se gestionan desde cada influencia.
+          contactos se gestionan desde cada influencia. Una influencia en Verde
+          solo cuenta para avanzar si tiene contacto asignado.
         </p>
         <div className="grid gap-3 md:grid-cols-3">
           {INFLUENCIA_TIPOS.map((tipo) => {
@@ -535,8 +582,12 @@ export function OuvDetailPage() {
             );
             const estado =
               (inf?.estado as InfluenciaEstado | undefined) ?? 'SinEvaluar';
-            const cardTone =
-              INFLUENCIA_ESTADO_CARD[estado] ?? INFLUENCIA_ESTADO_CARD.SinEvaluar;
+            const missingContactForVerde =
+              estado === 'Verde' && !inf?.contacto_ouv_id;
+            const cardTone = missingContactForVerde
+              ? 'border-warning/70 bg-warning/15 text-ink'
+              : INFLUENCIA_ESTADO_CARD[estado] ??
+                INFLUENCIA_ESTADO_CARD.SinEvaluar;
             const isUnassigned = !assignedContact;
             const isSaving = Boolean(savingTipos[tipo]);
             const justSaved = influenciaFlash === tipo;
@@ -545,9 +596,11 @@ export function OuvDetailPage() {
                 key={tipo}
                 className={[
                   'rounded border p-3 transition-[border-color,box-shadow,opacity] duration-300',
-                  isUnassigned
-                    ? 'border-border bg-bg/80 opacity-75'
-                    : cardTone,
+                  missingContactForVerde
+                    ? cardTone
+                    : isUnassigned
+                      ? 'border-border bg-bg/80 opacity-75'
+                      : cardTone,
                   justSaved
                     ? 'border-positive shadow-[0_0_0_1px_var(--positive)]'
                     : isSaving
@@ -669,7 +722,12 @@ export function OuvDetailPage() {
                     ))}
                   </select>
                 </div>
-
+                {missingContactForVerde ? (
+                  <p className="mt-1 text-xs text-warning" role="status">
+                    Asigna un contacto para que esta influencia cuente al
+                    avanzar.
+                  </p>
+                ) : null}
                 <label className={`${labelClass} mt-2`}>Notas</label>
                 <textarea
                   className={`${inputClass} h-16 py-2`}
@@ -729,8 +787,10 @@ export function OuvDetailPage() {
               className={inputClass}
               value={presupuestoMonto}
               disabled={!editable}
+              inputMode="decimal"
+              autoComplete="off"
               onChange={(e) => {
-                setPresupuestoMonto(e.target.value);
+                setPresupuestoMonto(formatAmountInputEsCo(e.target.value));
                 setActionSuccess(null);
               }}
             />
@@ -812,9 +872,9 @@ export function OuvDetailPage() {
               <dt className="text-muted">Monto</dt>
               <dd className="text-ink">
                 {ouv.monto_final
-                  ? `${ouv.monto_final} ${ouv.moneda_final ?? ''}`
+                  ? `${formatAmountEsCo(ouv.monto_final)} ${ouv.moneda_final ?? ''}`.trim()
                   : ouv.monto_estimado_perdido
-                    ? `${ouv.monto_estimado_perdido} (estimado)`
+                    ? `${formatAmountEsCo(ouv.monto_estimado_perdido)} (estimado)`
                     : '—'}
               </dd>
             </div>
@@ -824,7 +884,23 @@ export function OuvDetailPage() {
                 <dd className="text-ink">{ouv.competidor_ganador}</dd>
               </div>
             ) : null}
+            {ouv.motivo_detalle ? (
+              <div className="md:col-span-2">
+                <dt className="text-muted">Observación</dt>
+                <dd className="text-ink">{ouv.motivo_detalle}</dd>
+              </div>
+            ) : null}
           </dl>
+          {ouv.resultado === 'Perdida' ? (
+            <p className="mt-3 text-sm">
+              <Link
+                to="/opportunities/perdidas"
+                className="font-bold text-accent hover:underline"
+              >
+                Ver bandeja de oportunidades perdidas
+              </Link>
+            </p>
+          ) : null}
         </section>
       ) : null}
         </>
@@ -842,6 +918,7 @@ export function OuvDetailPage() {
       {showAvance ? (
         <AvanceZonaModal
           ouv={ouv}
+          influencias={influencias}
           onClose={() => setShowAvance(false)}
           onAdvanced={() => void load({ silent: true })}
         />
@@ -857,8 +934,18 @@ export function OuvDetailPage() {
         <CierreOuvModal
           ouv={ouv}
           onClose={() => setShowCierre(false)}
-          onClosed={() => void load({ silent: true })}
+          onClosed={handleOuvClosed}
         />
+      ) : null}
+      {closeToast ? (
+        <FloatingToast
+          message={closeToast}
+          tone="success"
+          onDismiss={() => setCloseToast(null)}
+        />
+      ) : null}
+      {celebrateWin ? (
+        <WonCelebration onDone={() => setCelebrateWin(false)} />
       ) : null}
     </AppLayout>
   );

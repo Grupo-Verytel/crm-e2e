@@ -20,11 +20,17 @@ import {
 
 type Props = {
   editing: Person | 'new';
+  presetAccount?: { account_id: string; name: string } | null;
   onClose: () => void;
   onSaved: () => void;
 };
 
-export function PersonFormModal({ editing, onClose, onSaved }: Props) {
+export function PersonFormModal({
+  editing,
+  presetAccount = null,
+  onClose,
+  onSaved,
+}: Props) {
   const isNew = editing === 'new';
 
   const [name, setName] = useState(isNew ? '' : editing.name);
@@ -34,11 +40,15 @@ export function PersonFormModal({ editing, onClose, onSaved }: Props) {
   const [influenciaTipo, setInfluenciaTipo] = useState<
     PersonInfluenciaTipo | ''
   >('');
-  const [accountId, setAccountId] = useState(isNew ? '' : editing.account_id);
+  const [accountId, setAccountId] = useState(
+    isNew ? (presetAccount?.account_id ?? '') : editing.account_id,
+  );
   const [accountSearch, setAccountSearch] = useState('');
   const [accountOptions, setAccountOptions] = useState<Account[]>([]);
   const [lockedAccountName] = useState<string | null>(
-    isNew ? null : (editing.account_name ?? editing.account_id),
+    isNew
+      ? (presetAccount?.name ?? null)
+      : (editing.account_name ?? editing.account_id),
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -193,7 +203,15 @@ export function PersonFormModal({ editing, onClose, onSaved }: Props) {
           </select>
         </div>
 
-        {isNew ? (
+        {isNew && lockedAccountName ? (
+          <div>
+            <p className={labelClass}>Empresa</p>
+            <p className="text-sm text-ink">
+              {lockedAccountName}{' '}
+              <span className="text-muted">(seleccionada)</span>
+            </p>
+          </div>
+        ) : isNew ? (
           <div className="space-y-2">
             <label className={labelClass} htmlFor="person-account-search">
               Empresa (obligatoria)

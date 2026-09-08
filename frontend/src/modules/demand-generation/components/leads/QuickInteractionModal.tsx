@@ -1,37 +1,59 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { registerInteraction } from '../../api/leads-api';
 import {
-  INTERACTION_CANALES,
+  INTERACTION_CANAL_LABEL,
+  INTERACTION_TIPO_LABEL,
   INTERACTION_TIPOS,
+  canalesForTipo,
   type InteractionCanal,
   type InteractionTipo,
 } from '../../types';
 import { ModalShell } from '../ModalShell';
 import { ghostButtonClass, inputClass, labelClass, primaryButtonClass } from '../ui';
 
+type Props = {
+  leadId: string;
+  leadName: string;
+  onRegistered: () => void | Promise<void>;
+  onClose: () => void;
+  /** Override intro copy under the title. */
+  subtitle?: string;
+  submitLabel?: string;
+  /** When true, empty description blocks submit. */
+  descriptionRequired?: boolean;
+};
+
 /**
- * Fast interaction capture. Opened when a card is dropped into "En nutrición"
- * without any interaction yet: the gate (DG-12) becomes the action that resolves
- * it, instead of a mute rejection.
+ * Interaction capture modal — used from the kanban nutrition gate and the
+ * lead detail Interacciones tab.
  */
 export function QuickInteractionModal({
   leadId,
   leadName,
   onRegistered,
   onClose,
-}: {
-  leadId: string;
-  leadName: string;
-  onRegistered: () => void | Promise<void>;
-  onClose: () => void;
-}) {
+  subtitle,
+  submitLabel = 'Registrar y mover a nutrición',
+  descriptionRequired = false,
+}: Props) {
   const [tipo, setTipo] = useState<InteractionTipo>('Llamada');
-  const [canal, setCanal] = useState<InteractionCanal>('Telefono');
+  const canales = useMemo(() => canalesForTipo(tipo), [tipo]);
+  const [canal, setCanal] = useState<InteractionCanal>(canales[0] ?? 'Telefono');
   const [descripcion, setDescripcion] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (!canales.includes(canal)) {
+      setCanal(canales[0] ?? 'Telefono');
+    }
+  }, [canales, canal]);
+
   async function handleSubmit() {
+    if (descriptionRequired && !descripcion.trim()) {
+      setError('La descripción es obligatoria.');
+      return;
+    }
     setIsSaving(true);
     setError(null);
     try {
@@ -57,14 +79,14 @@ export function QuickInteractionModal({
     <ModalShell title="Registrar interacción" onClose={onClose}>
       <div className="space-y-4">
         <p className="text-sm text-muted">
-          {leadName} aún no tiene ninguna interacción. Registra la primera para
-          moverlo a nutrición.
+          {subtitle ??
+            `${leadName} aún no tiene ninguna interacción. Registra la primera para moverlo a nutrición.`}
         </p>
 
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label htmlFor="qi-tipo" className={labelClass}>
-              Tipo
+              Tipo de comunicación
             </label>
             <select
               id="qi-tipo"
@@ -74,7 +96,7 @@ export function QuickInteractionModal({
             >
               {INTERACTION_TIPOS.map((value) => (
                 <option key={value} value={value}>
-                  {value}
+                  {INTERACTION_TIPO_LABEL[value]}
                 </option>
               ))}
             </select>
@@ -86,12 +108,14 @@ export function QuickInteractionModal({
             <select
               id="qi-canal"
               value={canal}
-              onChange={(event) => setCanal(event.target.value as InteractionCanal)}
+              onChange={(event) =>
+                setCanal(event.target.value as InteractionCanal)
+              }
               className={inputClass}
             >
-              {INTERACTION_CANALES.map((value) => (
+              {canales.map((value) => (
                 <option key={value} value={value}>
-                  {value}
+                  {INTERACTION_CANAL_LABEL[value]}
                 </option>
               ))}
             </select>
@@ -100,7 +124,7 @@ export function QuickInteractionModal({
 
         <div>
           <label htmlFor="qi-desc" className={labelClass}>
-            Descripción (opcional)
+            Descripción{descriptionRequired ? '' : ' (opcional)'}
           </label>
           <textarea
             id="qi-desc"
@@ -109,6 +133,7 @@ export function QuickInteractionModal({
             rows={3}
             placeholder="Ej. Llamada inicial: interesado en el portafolio de conectividad."
             className={`${inputClass} h-auto py-2`}
+            required={descriptionRequired}
           />
         </div>
 
@@ -120,11 +145,11 @@ export function QuickInteractionModal({
           </button>
           <button
             type="button"
-            onClick={handleSubmit}
+            onClick={() => void handleSubmit()}
             disabled={isSaving}
             className={primaryButtonClass}
           >
-            Registrar y mover a nutrición
+            {isSaving ? 'Guardando…' : submitLabel}
           </button>
         </div>
       </div>

@@ -198,3 +198,23 @@ body {
 *::-webkit-scrollbar-corner {
   background: transparent;
 }
+
+@keyframes won-confetti-fall {
+  0% {
+    opacity: 1;
+    transform: translate3d(0, -8vh, 0) rotate(0deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(var(--won-drift, 24px), 108vh, 0) rotate(720deg);
+  }
+}
+
+.won-confetti-piece {
+  position: absolute;
+  top: -12px;
+  border-radius: 1px;
+  animation-name: won-confetti-fall;
+  animation-timing-function: cubic-bezier(0.22, 0.61, 0.36, 1);
+  animation-fill-mode: forwards;
+}

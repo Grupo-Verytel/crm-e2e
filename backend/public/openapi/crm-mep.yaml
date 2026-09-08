@@ -1,0 +1,833 @@
+openapi: 3.1.0
+
+# SPEC-CRM-MEPLEAN-001 — contrato v0.2.0-draft.
+# P-12 (contract-first): este archivo es artefacto versionado; el código se
+# valida contra él en CI. Si código y spec discrepan, gana el spec.
+
+info:
+  title: CRM Frisson ↔ MEP-LEAN
+  version: 0.2.0-draft
+  summary: Seis operaciones del CRM Frisson como servidor de la integración con MEP-LEAN.
+  description: |
+    El CRM Frisson conserva la autoridad comercial (P-01) y expone toda la
+    superficie física del contrato (P-02, pull + write-back). MEP-LEAN es
+    cliente: consulta el intake, lee contexto de OUV, acusa recepción técnica
+    y publica respuestas comerciales versionadas.
+
+    Transporte: HTTPS obligatorio (TLS 1.2+). HTTP → 426.
+    Fechas: UTC, RFC 3339, sufijo `Z`.
+    ETags: fuertes, opacos y entrecomillados (nunca `W/`).
+
+servers:
+  - url: https://sandbox.api.frisson.crm
+    description: Sandbox (cuotas = 1/4 de producción)
+  - url: https://staging.api.frisson.crm
+    description: Staging
+  - url: https://api.frisson.crm
+    description: Producción
+
+security:
+  - apiKeyAuth: []
+
+tags:
+  - name: Intake
+    description: Pull paginado y relectura de interacciones comerciales.
+  - name: Opportunity
+    description: Contexto puntual de oportunidad (OUV).
+  - name: Processing
+    description: Acuse técnico idempotente.
+  - name: Response
+    description: Respuesta comercial agregada y versionada.
+
+paths:
+  /v1/commercial-interactions:
+    get:
+      tags: [Intake]
+      operationId: listCommercialInteractions
+      summary: Pull paginado de interacciones elegibles
+      description: |
+        Orden total, repetible y estable: `ORDER BY source_created_at ASC, id ASC`
+        (INV-03). El cursor codifica esa clave y va firmado; es **exclusivo**
+        (la página siguiente no repite el último elemento) y su retención
+        declarada es de 7 días. Se prohíbe `OFFSET`.
+
+        INV-05: releer con el mismo cursor devuelve exactamente los mismos
+        ítems, en el mismo orden. No se filtra por "ya entregado".
+        INV-06: la respuesta nunca incluye `interaction_type`.
+      security:
+        - apiKeyAuth: [interactions:read]
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+        - name: cursor
+          in: query
+          required: false
+          description: Cursor opaco firmado. Expirado → 400 `CURSOR_EXPIRED`.
+          schema: { type: string }
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+        - name: service_horizon
+          in: query
+          required: false
+          schema: { $ref: '#/components/schemas/ServiceHorizon' }
+      responses:
+        '200':
+          description: Página de intake
+          headers:
+            X-Correlation-ID: { $ref: '#/components/headers/XCorrelationId' }
+            RateLimit-Limit: { $ref: '#/components/headers/RateLimitLimit' }
+            RateLimit-Remaining: { $ref: '#/components/headers/RateLimitRemaining' }
+            RateLimit-Reset: { $ref: '#/components/headers/RateLimitReset' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IntakePage' }
+              examples:
+                pagina-del-brief:
+                  $ref: '#/components/examples/IntakePageSingleItem'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+
+  /v1/commercial-interactions/{interaction_ref}:
+    get:
+      tags: [Intake]
+      operationId: getCommercialInteraction
+      summary: Relectura y reconciliación de una interacción
+      description: |
+        INV-08: el `etag` del cuerpo y el header `ETag` son idénticos. Cambian
+        si y solo si cambia algún campo del recurso, y `source_version` avanza
+        con ellos.
+      security:
+        - apiKeyAuth: [interactions:read]
+      parameters:
+        - $ref: '#/components/parameters/InteractionRef'
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          description: Interacción comercial
+          headers:
+            ETag: { $ref: '#/components/headers/ETag' }
+            X-Correlation-ID: { $ref: '#/components/headers/XCorrelationId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CommercialInteraction' }
+        '304': { $ref: '#/components/responses/NotModified' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+
+  /v1/commercial-opportunities/{opportunity_ref}:
+    get:
+      tags: [Opportunity]
+      operationId: getCommercialOpportunity
+      summary: Contexto puntual de oportunidad (OUV)
+      description: |
+        INV-09: los nulos se preservan. Un campo sin valor se serializa como
+        `null`; nunca se omite ni se sustituye por `""`, `0` o un placeholder.
+        INV-11: `commercial_archetype` es autoridad del CRM. MEP puede usarlo
+        para su proyección operativa interna, pero no lo devuelve ni lo
+        sobrescribe por este contrato, y no se equipara automáticamente con el
+        carril operativo `Archetype_Lane`.
+
+        Solo lectura: no existe ninguna operación de escritura sobre la OUV.
+      security:
+        - apiKeyAuth: [opportunities:read]
+      parameters:
+        - $ref: '#/components/parameters/OpportunityRef'
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          description: Contexto de la OUV
+          headers:
+            ETag: { $ref: '#/components/headers/ETag' }
+            X-Correlation-ID: { $ref: '#/components/headers/XCorrelationId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CommercialOpportunity' }
+              examples:
+                ouv-del-brief:
+                  $ref: '#/components/examples/OpportunityFull'
+                ouv-con-nulos:
+                  $ref: '#/components/examples/OpportunityNulls'
+        '304': { $ref: '#/components/responses/NotModified' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+
+  /v1/commercial-interactions/{interaction_ref}/processing-receipts:
+    post:
+      tags: [Processing]
+      operationId: createProcessingReceipt
+      summary: Acuse técnico idempotente de recepción/procesamiento
+      description: |
+        INV-12: el acuse es un hecho de transporte. **No** sustituye al hito
+        comercial `INTERACTION_RECEIVED`; el CRM no los trata como el mismo
+        estado ni duplica notas por ambos hechos.
+        INV-13: no muta ninguna columna de la interacción comercial. Solo
+        escribe en `processing_receipt` y en la bitácora.
+      security:
+        - apiKeyAuth: [receipts:write]
+      parameters:
+        - $ref: '#/components/parameters/InteractionRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/CorrelationIdRequired'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProcessingReceipt' }
+            examples:
+              acuse-del-brief:
+                $ref: '#/components/examples/ReceiptAccepted'
+      responses:
+        '201':
+          description: Acuse nuevo persistido
+          headers:
+            Location:
+              description: Recurso creado
+              schema: { type: string }
+            ETag: { $ref: '#/components/headers/ETag' }
+            X-Correlation-ID: { $ref: '#/components/headers/XCorrelationId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProcessingReceipt' }
+        '200':
+          description: |
+            Replay idempotente: mismo `Idempotency-Key` y mismo payload.
+            Devuelve la representación ya persistida, sin efectos secundarios.
+          headers:
+            ETag: { $ref: '#/components/headers/ETag' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProcessingReceipt' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '422': { $ref: '#/components/responses/UnprocessableContent' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+
+  /v1/commercial-interactions/{interaction_ref}/responses/{response_id}:
+    put:
+      tags: [Response]
+      operationId: publishMepResponse
+      summary: Publica una respuesta MEP agregada, versionada e idempotente
+      description: |
+        Único canal por el que MEP publica hechos comerciales.
+
+        INV-16: la máquina de hitos no admite retroceso; repetir el mismo hito
+        en una nueva `response_version` sí está permitido.
+        INV-17: `response_id`, `response_version` y `route_capacity.version`
+        son tres relojes independientes; ninguno se deriva de otro.
+        INV-29: un retry no incrementa `response_version`.
+        §7.4: toda propiedad no declarada se rechaza con 422.
+      security:
+        - apiKeyAuth: [responses:write]
+      parameters:
+        - $ref: '#/components/parameters/InteractionRef'
+        - $ref: '#/components/parameters/ResponseId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/CorrelationIdRequired'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MepResponse' }
+            examples:
+              v1-interaction-received:
+                $ref: '#/components/examples/ResponseV1'
+              v3-route-capacity-registered:
+                $ref: '#/components/examples/ResponseV3'
+              v5-interaction-completed:
+                $ref: '#/components/examples/ResponseV5'
+      responses:
+        '200':
+          description: |
+            Versión persistida — creación de una nueva `response_version` o
+            replay idempotente. El cuerpo es la representación persistida
+            completa.
+          headers:
+            ETag: { $ref: '#/components/headers/ETag' }
+            X-Correlation-ID: { $ref: '#/components/headers/XCorrelationId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MepResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '422': { $ref: '#/components/responses/UnprocessableContent' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+
+    get:
+      tags: [Response]
+      operationId: getMepResponse
+      summary: Verifica el resultado persistido después del write
+      description: |
+        INV-15: devuelve exactamente la misma representación persistida que el
+        `PUT` — mismo `ETag`, mismos campos, mismo orden semántico de
+        `service_results[]`.
+
+        Sin `version` devuelve la última publicada; con `?version=n` devuelve
+        esa versión concreta del histórico inmutable (404 si no existe).
+      security:
+        - apiKeyAuth: [responses:read]
+      parameters:
+        - $ref: '#/components/parameters/InteractionRef'
+        - $ref: '#/components/parameters/ResponseId'
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/IfNoneMatch'
+        - name: version
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1 }
+      responses:
+        '200':
+          description: Representación persistida
+          headers:
+            ETag: { $ref: '#/components/headers/ETag' }
+            X-Correlation-ID: { $ref: '#/components/headers/XCorrelationId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MepResponse' }
+        '304': { $ref: '#/components/responses/NotModified' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+
+components:
+  securitySchemes:
+    apiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: |
+        Credencial no humana, por ambiente, fuera de payloads, logs y Git.
+        Admite rotación y revocación. 401 = ausente o inválida;
+        403 = identidad válida sin permiso para la operación solicitada.
+
+  parameters:
+    InteractionRef:
+      name: interaction_ref
+      in: path
+      required: true
+      schema: { type: string, maxLength: 64 }
+    OpportunityRef:
+      name: opportunity_ref
+      in: path
+      required: true
+      schema: { type: string, maxLength: 64 }
+    ResponseId:
+      name: response_id
+      in: path
+      required: true
+      schema: { type: string, maxLength: 128 }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: 8–256 caracteres. Mismo key con payload distinto → 409.
+      schema:
+        type: string
+        pattern: '^[A-Za-z0-9._:-]{8,256}$'
+    CorrelationId:
+      name: X-Correlation-ID
+      in: header
+      required: false
+      schema: { type: string, maxLength: 128 }
+    CorrelationIdRequired:
+      name: X-Correlation-ID
+      in: header
+      required: true
+      schema: { type: string, maxLength: 128 }
+    IfMatch:
+      name: If-Match
+      in: header
+      required: false
+      description: ETag leído previamente; desactualizado → 412.
+      schema: { type: string }
+    IfNoneMatch:
+      name: If-None-Match
+      in: header
+      required: false
+      schema: { type: string }
+
+  headers:
+    ETag:
+      description: Versión opaca fuerte y entrecomillada del recurso.
+      schema: { type: string }
+    XCorrelationId:
+      description: Eco del `X-Correlation-ID` recibido, o uno generado.
+      schema: { type: string }
+    RateLimitLimit:
+      schema: { type: integer }
+    RateLimitRemaining:
+      schema: { type: integer }
+    RateLimitReset:
+      schema: { type: integer }
+    RetryAfter:
+      description: Segundos hasta poder reintentar.
+      schema: { type: integer }
+
+  schemas:
+    ServiceHorizon:
+      type: string
+      enum: [IMMEDIATE, DEFERRED, UNSPECIFIED]
+    ServiceName:
+      type: string
+      enum: [TECHNICAL_DESIGN, FINANCIAL_DESIGN]
+    ServiceDependency:
+      type: string
+      enum: [NONE, TECHNICAL_DESIGN, FINANCIAL_DESIGN]
+    ProcessingStatus:
+      type: string
+      enum: [ACCEPTED, DUPLICATE, QUARANTINED, REJECTED]
+    BusinessMilestone:
+      type: string
+      enum:
+        - INTERACTION_RECEIVED
+        - ENGINEER_ASSIGNED
+        - ROUTE_CAPACITY_REGISTERED
+        - INTERACTION_COMPLETED
+    ResponseStatus:
+      type: string
+      enum: [RECEIVED, IN_PROGRESS, COMPLETED]
+    ServiceResultStatus:
+      type: string
+      enum: [RECEIVED, IN_PROGRESS, COMPLETED, CANCELLED]
+    ServiceOutcome:
+      type: [string, 'null']
+      enum: [VIABLE, NOT_VIABLE, PARTIAL, null]
+    RouteStatus:
+      type: string
+      enum: [VIABLE, NOT_VIABLE, CONDITIONED]
+    CapacityStatus:
+      type: string
+      enum: [PLANNED, NOT_PLANNED, CONDITIONED]
+    OpportunityStatus:
+      type: [string, 'null']
+      enum: [OPEN, WON, LOST, CANCELLED, null]
+
+    SemanticFingerprint:
+      description: |
+        Opaco para el CRM. Se persiste solo como dato técnico; no se expone
+        como campo comercial ni participa en lógica de negocio (INV-25).
+      type: string
+      pattern: '^[0-9a-f]{64}$'
+
+    ActorRef:
+      type: object
+      additionalProperties: false
+      required: [ref, display_name]
+      properties:
+        ref: { type: string, maxLength: 64 }
+        display_name: { type: string, maxLength: 256 }
+
+    RequestedService:
+      type: object
+      additionalProperties: false
+      required: [service, dependency]
+      properties:
+        service: { $ref: '#/components/schemas/ServiceName' }
+        dependency: { $ref: '#/components/schemas/ServiceDependency' }
+
+    CommercialInteraction:
+      type: object
+      additionalProperties: false
+      required:
+        - crm_interaction_ref
+        - crm_opportunity_ref
+        - service_horizon
+        - requested_services
+        - source_content
+        - source_created_at
+        - source_version
+        - etag
+      properties:
+        crm_interaction_ref: { type: string, maxLength: 64 }
+        crm_opportunity_ref: { type: [string, 'null'], maxLength: 64 }
+        service_horizon: { $ref: '#/components/schemas/ServiceHorizon' }
+        requested_services:
+          type: array
+          minItems: 1
+          maxItems: 2
+          items: { $ref: '#/components/schemas/RequestedService' }
+        subject: { type: [string, 'null'], maxLength: 512 }
+        source_content:
+          description: Contenido humano original, preservado sin alteración (P-07).
+          type: string
+        source_created_at: { type: string, format: date-time }
+        source_version: { type: string, maxLength: 32 }
+        etag: { type: string, maxLength: 96 }
+
+    IntakePage:
+      type: object
+      additionalProperties: false
+      required: [items, has_more, next_cursor, page_observed_at, high_watermark]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/CommercialInteraction' }
+        has_more: { type: boolean }
+        next_cursor:
+          description: '`null` cuando `has_more = false`, y viceversa (INV-04).'
+          type: [string, 'null']
+        page_observed_at: { type: string, format: date-time }
+        high_watermark:
+          description: Mayor `source_created_at` de la página; `null` si va vacía.
+          type: [string, 'null']
+          format: date-time
+
+    CommercialOpportunity:
+      type: object
+      additionalProperties: false
+      required:
+        - crm_opportunity_ref
+        - title
+        - organization
+        - commercial_value
+        - stage
+        - status
+        - expected_close_date
+        - commercial_owner
+        - commercial_archetype
+        - context_observed_at
+        - source_version
+        - etag
+      properties:
+        crm_opportunity_ref: { type: string, maxLength: 64 }
+        title: { type: [string, 'null'], maxLength: 512 }
+        organization:
+          type: [object, 'null']
+          additionalProperties: false
+          required: [ref, name]
+          properties:
+            ref: { type: string, maxLength: 64 }
+            name: { type: [string, 'null'], maxLength: 512 }
+        commercial_value:
+          type: [object, 'null']
+          additionalProperties: false
+          required: [amount, currency]
+          properties:
+            amount:
+              description: Entero en la unidad menor no fraccionada (COP sin decimales).
+              type: integer
+            currency: { type: [string, 'null'], minLength: 3, maxLength: 3 }
+        stage:
+          type: [object, 'null']
+          additionalProperties: false
+          required: [ref, name]
+          properties:
+            ref: { type: string, maxLength: 64 }
+            name: { type: [string, 'null'], maxLength: 256 }
+        status: { $ref: '#/components/schemas/OpportunityStatus' }
+        expected_close_date: { type: [string, 'null'], format: date }
+        commercial_owner:
+          type: [object, 'null']
+          additionalProperties: false
+          required: [ref, display_name]
+          properties:
+            ref: { type: string, maxLength: 64 }
+            display_name: { type: [string, 'null'], maxLength: 256 }
+        commercial_archetype:
+          description: Autoridad CRM. Referencia y nombre estables o `null` (INV-10/INV-11).
+          type: [object, 'null']
+          additionalProperties: false
+          required: [ref, name]
+          properties:
+            ref: { type: string, maxLength: 64 }
+            name: { type: [string, 'null'], maxLength: 256 }
+        context_observed_at: { type: string, format: date-time }
+        source_version: { type: string, maxLength: 32 }
+        etag: { type: string, maxLength: 96 }
+
+    ProcessingReceipt:
+      type: object
+      additionalProperties: false
+      required:
+        - receipt_id
+        - receipt_version
+        - processing_status
+        - correlation_id
+        - observed_at
+        - adapter_version
+        - reason_code
+        - semantic_fingerprint
+      properties:
+        receipt_id: { type: string, maxLength: 128 }
+        receipt_version: { type: integer, minimum: 1 }
+        processing_status: { $ref: '#/components/schemas/ProcessingStatus' }
+        correlation_id: { type: string, maxLength: 128 }
+        observed_at: { type: string, format: date-time }
+        adapter_version: { type: string, maxLength: 32 }
+        reason_code:
+          description: |
+            Obligatorio no nulo cuando `processing_status` es QUARANTINED o
+            REJECTED; si no, 422.
+          type: [string, 'null']
+          maxLength: 64
+        semantic_fingerprint: { $ref: '#/components/schemas/SemanticFingerprint' }
+
+    Deliverable:
+      type: object
+      additionalProperties: false
+      required: [url]
+      properties:
+        url:
+          description: URL HTTPS de SharePoint **Documents** (INV-23).
+          type: string
+          format: uri
+          maxLength: 1024
+        label: { type: [string, 'null'], maxLength: 256 }
+        published_at: { type: [string, 'null'], format: date-time }
+
+    ServiceResult:
+      type: object
+      additionalProperties: false
+      required: [service, status, outcome, dependency, summary, reason_code, deliverables]
+      properties:
+        service: { $ref: '#/components/schemas/ServiceName' }
+        status: { $ref: '#/components/schemas/ServiceResultStatus' }
+        outcome: { $ref: '#/components/schemas/ServiceOutcome' }
+        dependency: { $ref: '#/components/schemas/ServiceDependency' }
+        summary: { type: [string, 'null'] }
+        reason_code:
+          description: |
+            Obligatorio cuando `outcome` es NOT_VIABLE o PARTIAL, o cuando
+            `status` es CANCELLED.
+          type: [string, 'null']
+          maxLength: 64
+        deliverables:
+          type: array
+          items: { $ref: '#/components/schemas/Deliverable' }
+
+    RouteCapacity:
+      description: |
+        Reloj de negocio independiente de `response_version` (INV-17): puede
+        permanecer en `V2` mientras una publicación posterior informa el cierre.
+      type: object
+      additionalProperties: false
+      required: [version, route_status, capacity_status, registered_at, registered_by]
+      properties:
+        version: { type: string, pattern: '^V[1-9]\d*$' }
+        route_status: { $ref: '#/components/schemas/RouteStatus' }
+        capacity_status: { $ref: '#/components/schemas/CapacityStatus' }
+        summary: { type: [string, 'null'] }
+        registered_at: { type: string, format: date-time }
+        registered_by: { $ref: '#/components/schemas/ActorRef' }
+
+    OperationalLinks:
+      type: object
+      additionalProperties: false
+      properties:
+        planner_interaction_url:
+          description: Obligatorio desde `ENGINEER_ASSIGNED`. Una interacción = una tarea Planner (P-11).
+          type: string
+          format: uri
+          maxLength: 1024
+        route_capacity_register_url:
+          description: |
+            Obligatorio desde `ROUTE_CAPACITY_REGISTERED`. Es el registro de
+            SharePoint List de ruta/capacidad; **nunca** un entregable (INV-23).
+          type: string
+          format: uri
+          maxLength: 1024
+
+    MepResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - response_id
+        - response_version
+        - business_milestone
+        - response_status
+        - responded_at
+        - responded_by
+        - service_results
+        - narrative_note
+        - delivered_interaction_type
+        - semantic_fingerprint
+      properties:
+        response_id:
+          description: Debe coincidir con el `{response_id}` de la ruta; si no, 422 (INV-26).
+          type: string
+          maxLength: 128
+        response_version:
+          description: Monotónico estricto por `response_id`. Un retry no lo incrementa (INV-29).
+          type: integer
+          minimum: 1
+        business_milestone: { $ref: '#/components/schemas/BusinessMilestone' }
+        response_status: { $ref: '#/components/schemas/ResponseStatus' }
+        eta_date:
+          description: Un único ETA global por interacción. Obligatorio desde `ROUTE_CAPACITY_REGISTERED`.
+          type: [string, 'null']
+          format: date
+        next_milestone: { type: [string, 'null'], maxLength: 512 }
+        responded_at: { type: string, format: date-time }
+        responded_by: { $ref: '#/components/schemas/ActorRef' }
+        assignment:
+          description: Obligatorio desde `ENGINEER_ASSIGNED`; no puede volver a `null`.
+          type: [object, 'null']
+          additionalProperties: false
+          required: [engineer, assigned_at]
+          properties:
+            engineer: { $ref: '#/components/schemas/ActorRef' }
+            assigned_at: { type: string, format: date-time }
+        route_capacity:
+          oneOf:
+            - $ref: '#/components/schemas/RouteCapacity'
+            - type: 'null'
+        service_results:
+          description: Fuente de verdad; el CRM deriva de aquí sus campos de presentación.
+          type: array
+          minItems: 1
+          maxItems: 2
+          items: { $ref: '#/components/schemas/ServiceResult' }
+        operational_links: { $ref: '#/components/schemas/OperationalLinks' }
+        narrative_note:
+          description: Solo el texto de esta `response_version`, nunca la historia acumulada (P-08).
+          type: [string, 'null']
+        delivered_interaction_type:
+          description: |
+            `null` obligatorio antes del cierre (P-03, INV-20). En
+            `INTERACTION_COMPLETED` nunca `TIPO-POR-ESPECIFICAR` ni una
+            inferencia desde `requested_services[]`.
+          type: [string, 'null']
+          maxLength: 128
+        semantic_fingerprint: { $ref: '#/components/schemas/SemanticFingerprint' }
+
+    Problem:
+      description: RFC 7807. Nunca incluye `source_content`, `X-API-Key` ni IDs internos de MEP (INV-02).
+      type: object
+      required: [type, title, status, code]
+      properties:
+        type: { type: string, format: uri }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        instance: { type: string }
+        code: { type: string }
+        correlation_id: { type: string }
+        errors:
+          type: array
+          items:
+            type: object
+            required: [pointer, code]
+            properties:
+              pointer: { type: string }
+              code: { type: string }
+
+  responses:
+    NotModified:
+      description: Sin cambios respecto del `If-None-Match` enviado.
+      headers:
+        ETag: { $ref: '#/components/headers/ETag' }
+    BadRequest:
+      description: 'ERR-400 — solicitud mal formada.'
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Unauthorized:
+      description: 'ERR-401 — clave ausente, inválida, revocada o expirada. Cuerpo genérico.'
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Forbidden:
+      description: 'ERR-403 — identidad válida sin el scope requerido.'
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    NotFound:
+      description: 'ERR-404 — recurso inexistente o no visible para la identidad.'
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Conflict:
+      description: |
+        ERR-409 — `Idempotency-Key` reutilizado con contenido diferente, o
+        misma `(response_id, response_version)` / `(receipt_id, receipt_version)`
+        con contenido distinto.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    PreconditionFailed:
+      description: 'ERR-412 — ETag o versión desactualizada; sin mutación.'
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    PayloadTooLarge:
+      description: Cuerpo mayor a 256 KB (§10.3).
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    UnsupportedMediaType:
+      description: '`Content-Type` distinto de `application/json` (§10.3).'
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    UnprocessableContent:
+      description: 'ERR-422 — sintácticamente válido, semánticamente inválido.'
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    TooManyRequests:
+      description: 'ERR-429 — cuota temporal excedida.'
+      headers:
+        Retry-After: { $ref: '#/components/headers/RetryAfter' }
+        RateLimit-Remaining: { $ref: '#/components/headers/RateLimitRemaining' }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    ServiceUnavailable:
+      description: 'ERR-503 — error transitorio del CRM.'
+      headers:
+        Retry-After: { $ref: '#/components/headers/RetryAfter' }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+
+  examples:
+    IntakePageSingleItem:
+      summary: Página de intake — C-4 (técnico seguido de financiero)
+      externalValue: ../backend/test/fixtures/intake/page-single-item.json
+    OpportunityFull:
+      summary: OUV completa (ouv_9101)
+      externalValue: ../backend/test/fixtures/opportunity/ouv-9101-full.json
+    OpportunityNulls:
+      summary: OUV con todos los opcionales en null
+      externalValue: ../backend/test/fixtures/opportunity/ouv-9102-nulls.json
+    ReceiptAccepted:
+      summary: Acuse técnico ACCEPTED
+      externalValue: ../backend/test/fixtures/receipts/receipt-accepted.json
+    ResponseV1:
+      summary: V1 — INTERACTION_RECEIVED
+      externalValue: ../backend/test/fixtures/responses/response-v1.json
+    ResponseV3:
+      summary: V3 — ROUTE_CAPACITY_REGISTERED, route_capacity V1
+      externalValue: ../backend/test/fixtures/responses/response-v3.json
+    ResponseV5:
+      summary: V5 — INTERACTION_COMPLETED, route_capacity sigue en V2
+      externalValue: ../backend/test/fixtures/responses/response-v5.json

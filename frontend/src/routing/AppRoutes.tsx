@@ -119,6 +119,30 @@ export function AppRoutes() {
       ),
     },
     {
+      path: '/opportunities/ganadas',
+      element: (
+        <ProtectedRoute>
+          <OuvsBoardPage />
+        </ProtectedRoute>
+      ),
+    },
+    {
+      path: '/opportunities/perdidas',
+      element: (
+        <ProtectedRoute>
+          <OuvsBoardPage />
+        </ProtectedRoute>
+      ),
+    },
+    {
+      path: '/opportunities/descartadas',
+      element: (
+        <ProtectedRoute>
+          <OuvsBoardPage />
+        </ProtectedRoute>
+      ),
+    },
+    {
       path: '/opportunities/admin/motivos-perdida',
       element: (
         <ProtectedRoute>
@@ -226,9 +250,7 @@ export function AppRoutes() {
       path: '/qualification/assigned',
       element: (
         <ProtectedRoute>
-          <RoleRoute roles={['EjecutivoComercial', 'DirectorMercadeo']}>
-            <AssignedSqlsPage />
-          </RoleRoute>
+          <AssignedSqlsPage />
         </ProtectedRoute>
       ),
     },

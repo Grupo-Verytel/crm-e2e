@@ -2,7 +2,6 @@ import type { ReactNode } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../auth/hooks/useAuth';
 
-const DIRECTOR_ROLE = 'DirectorMercadeo';
 const SUPPORT_ROLE = 'SoporteComercial';
 const GESTOR_ROLE = 'GestorMercadeo';
 const PRODUCT_MANAGER_ROLE = 'ProductManager';
@@ -15,16 +14,13 @@ type NavItem = {
   to: string;
   label: string;
   end: boolean;
-  directorOnly?: boolean;
   agendaOnly?: boolean;
 };
 
 const LINKS: NavItem[] = [
   { to: '/demand', label: 'Leads', end: true },
   { to: '/demand/campaigns', label: 'Campañas', end: false },
-  // The Bandeja MQL is the Director's approval queue (business decision, not a
-  // board drag), so it stays hidden from the Gestor de Mercadeo.
-  { to: '/demand/mqls', label: 'Bandeja MQL', end: false, directorOnly: true },
+  { to: '/demand/mqls', label: 'Bandeja MQL', end: false },
   {
     to: '/demand/agenda',
     label: 'Bandeja de Agenda',
@@ -41,7 +37,6 @@ type DemandNavProps = {
 export function DemandNav({ actions }: DemandNavProps) {
   const { user } = useAuth();
   const roleName = user?.role_name;
-  const isDirector = roleName === DIRECTOR_ROLE;
   const isTraductor = roleName === TRADUCTOR_ROLE;
   const isProductManager = roleName === PRODUCT_MANAGER_ROLE;
   const canUseAgenda = !!roleName && AGENDA_ROLES.has(roleName);
@@ -52,11 +47,7 @@ export function DemandNav({ actions }: DemandNavProps) {
   } else if (isProductManager) {
     links = [{ to: '/demand', label: 'Leads', end: true }];
   } else {
-    links = LINKS.filter(
-      (link) =>
-        (!link.directorOnly || isDirector) &&
-        (!link.agendaOnly || canUseAgenda),
-    );
+    links = LINKS.filter((link) => !link.agendaOnly || canUseAgenda);
   }
 
   return (

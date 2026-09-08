@@ -5,6 +5,7 @@ import {
   CANAL_ORIGEN_LABEL,
   CHANNEL_ROUTES,
   KANBAN_COLUMNS,
+  leadDisplayName,
 } from '../../lib/lead-vocab';
 import type { Lead } from '../../types';
 import { ChecklistProgress } from './ChecklistProgress';
@@ -52,9 +53,12 @@ export function LeadCard({
         onClick={(event) => event.stopPropagation()}
         className="block text-sm font-bold text-ink hover:text-accent"
       >
-        {lead.empresa_nombre}
+        {leadDisplayName(lead)}
       </Link>
-      <p className="truncate text-xs text-muted">{lead.contacto_nombre}</p>
+      <p className="truncate text-xs text-muted">
+        {lead.empresa_nombre}
+        {lead.contacto_nombre ? ` · ${lead.contacto_nombre}` : ''}
+      </p>
 
       {showRoute ? (
         <div className="mt-2" title={CANAL_ORIGEN_LABEL[lead.canal_origen]}>

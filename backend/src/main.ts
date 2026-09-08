@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { RequestMethod } from '@nestjs/common';
@@ -15,7 +17,37 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   const configService = app.get(ConfigService);
 
+  const corsOrigins = (configService.get<string>('CORS_ORIGIN') ?? '')
+    .split(',')
+    .map((origin) => origin.trim().replace(/^["']|["']$/g, ''))
+    .filter(Boolean);
+
+  if (corsOrigins.length > 0) {
+    app.enableCors({
+      origin: corsOrigins,
+      methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+      maxAge: 86_400,
+    });
+  }
+
   app.useWebSocketAdapter(new IoAdapter(app));
+
+  const yamlHeaders = {
+    setHeaders: (res: { setHeader: (name: string, value: string) => void }, filePath: string) => {
+      if (filePath.endsWith('.yaml') || filePath.endsWith('.yml')) {
+        res.setHeader('Content-Type', 'application/yaml; charset=utf-8');
+      }
+    },
+  };
+
+  app.useStaticAssets(join(__dirname, '..', 'public'), yamlHeaders);
+
+  const repoOpenApiDir = join(__dirname, '..', '..', 'openapi');
+  if (existsSync(join(repoOpenApiDir, 'crm-mep.yaml'))) {
+    app.useStaticAssets(repoOpenApiDir, { prefix: '/openapi', ...yamlHeaders });
+  }
+
 
   // §10.3 — el contrato CRM ↔ MEP-LEAN admite cuerpos de hasta 256 KB. Su
   // parser se monta solo sobre `/v1` y antes que el de Nest, que a partir de

@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Pencil } from 'lucide-react';
+import { Pencil, Trash2 } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import { AppLayout } from '../../../layout/AppLayout';
 import { Pagination } from '../../../components/Pagination';
-import { fetchPeople } from '../api/accounts-api';
+import { useAuth } from '../../auth/hooks/useAuth';
+import { ApiError } from '../../auth/types';
+import { deletePerson, fetchAccount, fetchPeople } from '../api/accounts-api';
 import { PersonFormModal } from '../components/PersonFormModal';
 import type { Person } from '../types';
 import { loadPersonInfluenciaTipo } from '../lib/person-influencia-extensions';
@@ -16,6 +19,14 @@ import {
 const LIMIT = 20;
 
 export function PeopleListPage() {
+  const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const canDelete = Boolean(
+    user?.permissions?.some(
+      (p) => p.action === 'delete' && p.subject === 'Person',
+    ),
+  );
+
   const [draftQ, setDraftQ] = useState('');
   const [appliedQ, setAppliedQ] = useState('');
   const [page, setPage] = useState(1);
@@ -24,6 +35,10 @@ export function PeopleListPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<Person | null | 'new'>(null);
+  const [presetAccount, setPresetAccount] = useState<{
+    account_id: string;
+    name: string;
+  } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -47,9 +62,70 @@ export function PeopleListPage() {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    const shouldCreate = searchParams.get('new') === '1';
+    const accountIdParam = searchParams.get('account_id');
+    if (!shouldCreate) {
+      return;
+    }
+
+    let active = true;
+
+    if (!accountIdParam) {
+      setPresetAccount(null);
+      setEditing('new');
+      setSearchParams({}, { replace: true });
+      return;
+    }
+
+    void fetchAccount(accountIdParam)
+      .then((account) => {
+        if (!active) {
+          return;
+        }
+        setPresetAccount({
+          account_id: account.account_id,
+          name: account.name,
+        });
+        setEditing('new');
+      })
+      .catch(() => {
+        if (!active) {
+          return;
+        }
+        setPresetAccount(null);
+        setEditing('new');
+      })
+      .finally(() => {
+        if (active) {
+          setSearchParams({}, { replace: true });
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [searchParams, setSearchParams]);
+
   function applyFilters() {
     setAppliedQ(draftQ.trim());
     setPage(1);
+  }
+
+  function closeEditor() {
+    setEditing(null);
+    setPresetAccount(null);
+  }
+
+  async function onDelete(row: Person) {
+    if (!window.confirm(`¿Eliminar el contacto "${row.name}"?`)) return;
+    setError(null);
+    try {
+      await deletePerson(row.person_id);
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'No se pudo eliminar.');
+    }
   }
 
   return (
@@ -71,7 +147,14 @@ export function PeopleListPage() {
           <button type="button" className={primaryButtonClass} onClick={applyFilters}>
             Aplicar
           </button>
-          <button type="button" className={primaryButtonClass} onClick={() => setEditing('new')}>
+          <button
+            type="button"
+            className={primaryButtonClass}
+            onClick={() => {
+              setPresetAccount(null);
+              setEditing('new');
+            }}
+          >
             Nuevo contacto
           </button>
         </div>
@@ -114,14 +197,29 @@ export function PeopleListPage() {
                     <td className="px-4 py-3 text-muted">{row.email ?? '—'}</td>
                     <td className="px-4 py-3 text-muted">{row.phone ?? '—'}</td>
                     <td className="px-4 py-3">
-                      <button
-                        type="button"
-                        className="icon-btn grid h-9 w-9 place-items-center rounded"
-                        aria-label={`Editar ${row.name}`}
-                        onClick={() => setEditing(row)}
-                      >
-                        <Pencil size={16} strokeWidth={2} />
-                      </button>
+                      <div className="flex flex-wrap items-center gap-1">
+                        <button
+                          type="button"
+                          className="icon-btn grid h-9 w-9 place-items-center rounded"
+                          aria-label={`Editar ${row.name}`}
+                          onClick={() => {
+                            setPresetAccount(null);
+                            setEditing(row);
+                          }}
+                        >
+                          <Pencil size={16} strokeWidth={2} />
+                        </button>
+                        {canDelete ? (
+                          <button
+                            type="button"
+                            className="icon-btn grid h-9 w-9 place-items-center rounded text-danger"
+                            aria-label={`Eliminar ${row.name}`}
+                            onClick={() => void onDelete(row)}
+                          >
+                            <Trash2 size={16} strokeWidth={2} />
+                          </button>
+                        ) : null}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -141,7 +239,8 @@ export function PeopleListPage() {
       {editing ? (
         <PersonFormModal
           editing={editing}
-          onClose={() => setEditing(null)}
+          presetAccount={presetAccount}
+          onClose={closeEditor}
           onSaved={() => void load()}
         />
       ) : null}

@@ -23,7 +23,7 @@ import type { CrearOuvDirectaDto } from '../dtos/crear-ouv-directa.dto';
 import type { CrearOuvDto } from '../dtos/crear-ouv.dto';
 import type { ListarOuvsQueryDto } from '../dtos/listar-ouvs-query.dto';
 import type { OuvResponseDto } from '../dtos/ouv-response.dto';
-import { assertCanMutateOuvEnCurso, assertCanReadOuv } from '../lib/ouv-access';
+import { assertCanMutateOuvEnCurso, canReadAllOuvs } from '../lib/ouv-access';
 import {
   computeOuvZonaDays,
   parseZonaValue,
@@ -116,6 +116,8 @@ export class OuvsService {
         accountId: person.account_id,
         titulo: input.dto.titulo.trim(),
         empresaNombre: person.account_name.trim(),
+        city: input.dto.city?.trim() || lead.city || null,
+        region: input.dto.region?.trim() || lead.region || null,
         descripcion: input.dto.descripcion?.trim() || null,
         segmento: input.dto.segmento,
         segmentId: input.dto.segment_id,
@@ -181,6 +183,8 @@ export class OuvsService {
           accountId,
           titulo: dto.titulo.trim(),
           empresaNombre,
+          city: dto.city?.trim() || null,
+          region: dto.region?.trim() || null,
           descripcion: dto.descripcion.trim(),
           segmento: dto.segmento,
           segmentId: dto.segment_id ?? null,
@@ -448,17 +452,8 @@ export class OuvsService {
         transaction,
       );
 
-      const motivo = await this.motivoPerdidaModel.findByPk(dto.motivo_id, {
-        transaction,
-      });
-      if (!motivo) {
-        throw new BadRequestException(`motivo_id ${dto.motivo_id} not found`);
-      }
-      if (motivo.requiereDetalle && !dto.motivo_detalle?.trim()) {
-        throw new BadRequestException(
-          'motivo_detalle is required for this motivo',
-        );
-      }
+      const motivo = await this.resolveMotivoPerdida(dto, transaction);
+      const montoEstimadoPerdido = this.resolveMontoEstimadoPerdido(ouv, dto);
 
       const needsCompetidor = /competidor/i.test(motivo.nombre);
       if (needsCompetidor && !dto.competidor_ganador?.trim()) {
@@ -474,7 +469,7 @@ export class OuvsService {
           motivoId: motivo.motivoId,
           motivoSnapshot: motivo.nombre,
           motivoDetalle: dto.motivo_detalle?.trim() || null,
-          montoEstimadoPerdido: String(dto.monto_estimado_perdido),
+          montoEstimadoPerdido,
           competidorGanador: dto.competidor_ganador?.trim() || null,
           fechaCierre: new Date(),
         },
@@ -610,6 +605,12 @@ export class OuvsService {
       if (dto.vertical !== undefined) patch.vertical = dto.vertical;
       if (dto.descripcion !== undefined) {
         patch.descripcion = dto.descripcion.trim() || null;
+      }
+      if (dto.city !== undefined) {
+        patch.city = dto.city?.trim() || null;
+      }
+      if (dto.region !== undefined) {
+        patch.region = dto.region?.trim() || null;
       }
 
       // Vincular / desvincular la account. Si vincula, alinea empresa_nombre
@@ -788,7 +789,7 @@ export class OuvsService {
   }
 
   /**
-   * Detail with ownership: Ejecutivo owns; SoporteComercial/Admin can read all.
+   * Detail with ownership: Ejecutivo owns; follow-up roles can read all.
    */
   async getDetalle(
     ouvId: string,
@@ -799,7 +800,10 @@ export class OuvsService {
     if (!ouv) {
       throw new NotFoundException(`OUV ${ouvId} not found`);
     }
-    assertCanReadOuv(ouv.comercialId, actorUserId, roleName);
+    const canReadAll = canReadAllOuvs(roleName);
+    if (!canReadAll && ouv.comercialId !== actorUserId) {
+      throw new ForbiddenException('Not allowed to view this OUV');
+    }
     return ouv;
   }
 
@@ -828,6 +832,60 @@ export class OuvsService {
     return new Map(ouvs.map((ouv) => [ouv.ouvId, ouv.comercialId]));
   }
 
+  private async resolveMotivoPerdida(
+    dto: PerderOuvDto,
+    transaction: Transaction,
+  ): Promise<{
+    motivoId: string | null;
+    nombre: string;
+    requiereDetalle: boolean;
+  }> {
+    if (dto.motivo_id) {
+      const motivo = await this.motivoPerdidaModel.findByPk(dto.motivo_id, {
+        transaction,
+      });
+      if (!motivo) {
+        throw new BadRequestException(`motivo_id ${dto.motivo_id} not found`);
+      }
+      if (motivo.requiereDetalle && !dto.motivo_detalle?.trim()) {
+        throw new BadRequestException(
+          'motivo_detalle is required for this motivo',
+        );
+      }
+      return {
+        motivoId: motivo.motivoId,
+        nombre: motivo.nombre,
+        requiereDetalle: motivo.requiereDetalle,
+      };
+    }
+
+    const catalogCount = await this.motivoPerdidaModel.count({ transaction });
+    if (catalogCount > 0) {
+      throw new BadRequestException('motivo_id is required');
+    }
+    if (!dto.motivo_detalle?.trim()) {
+      throw new BadRequestException(
+        'motivo_detalle is required when motivos_perdida is empty',
+      );
+    }
+    return { motivoId: null, nombre: 'Otro', requiereDetalle: true };
+  }
+
+  private resolveMontoEstimadoPerdido(ouv: Ouv, dto: PerderOuvDto): string {
+    if (
+      dto.monto_estimado_perdido !== undefined &&
+      dto.monto_estimado_perdido !== null
+    ) {
+      return String(dto.monto_estimado_perdido);
+    }
+    if (ouv.presupuestoMonto != null && String(ouv.presupuestoMonto) !== '') {
+      return String(ouv.presupuestoMonto);
+    }
+    throw new BadRequestException(
+      'monto_estimado_perdido is required when the OUV has no presupuesto_monto',
+    );
+  }
+
   toResponse(ouv: Ouv, diasPorZona?: OuvDiasPorZona): OuvResponseDto {
     return {
       ouv_id: ouv.ouvId,
@@ -838,6 +896,8 @@ export class OuvsService {
       account_id: ouv.accountId ?? null,
       titulo: ouv.titulo,
       empresa_nombre: ouv.empresaNombre,
+      city: ouv.city ?? null,
+      region: ouv.region ?? null,
       descripcion: ouv.descripcion,
       segmento: ouv.segmento,
       segment_id: ouv.segmentId ?? null,
@@ -934,7 +994,7 @@ export class OuvsService {
       );
       if (verdes < 2) {
         throw new BadRequestException(
-          'At least 2 influencias in Verde are required to advance',
+          'At least 2 influencias in Verde with an assigned contact are required to advance',
         );
       }
     }

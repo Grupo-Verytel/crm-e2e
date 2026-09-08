@@ -58,6 +58,7 @@ const MATRIX = {
   },
   GestorMercadeo: {
     'leads/campaigns': 'CRU',
+    opportunities: 'R',
     accounts: 'CRU',
   },
   EjecutivoComercial: {

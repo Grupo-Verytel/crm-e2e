@@ -29,18 +29,21 @@ export class GanarOuvDto {
 }
 
 export class PerderOuvDto {
+  @IsOptional()
   @IsString()
   @IsNotEmpty()
-  motivo_id!: string;
+  motivo_id?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(4000)
   motivo_detalle?: string;
 
+  @IsOptional()
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
-  monto_estimado_perdido!: number;
+  monto_estimado_perdido?: number;
 
   @IsOptional()
   @IsString()

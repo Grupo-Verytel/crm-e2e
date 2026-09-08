@@ -16,7 +16,8 @@ import { CommercialInteraction } from './commercial-interaction.model';
  * §8 `processing_receipt` — acuse técnico de MEP (pista técnica).
  *
  * INV-12: no sustituye al hito comercial `INTERACTION_RECEIVED`.
- * INV-13: el acuse no muta ninguna columna de la interacción comercial.
+ * INV-13: el acuse no muta campos comerciales de la interacción. La caché
+ * `commercial_interaction.polling_status` sí se actualiza con este status.
  * Append-only: sin UPDATE ni DELETE (también por permisos de BD, §8).
  * `semantic_fingerprint` es opaco: dato técnico, jamás campo comercial.
  */
