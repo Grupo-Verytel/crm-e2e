@@ -3,14 +3,11 @@ import {
   createAccount,
   createPerson,
   fetchAccounts,
-  fetchPeople,
 } from '../../accounts/api/accounts-api';
-import type { Account, Person } from '../../accounts/types';
+import type { Account } from '../../accounts/types';
 import { ApiError } from '../../auth/types';
 import type { ContactoPayload, OuvContacto } from '../api/ouvs-api';
 import {
-  PERSON_INFLUENCIA_TIPOS,
-  loadPersonInfluenciaTipo,
   savePersonInfluenciaTipo,
   type PersonInfluenciaTipo,
 } from '../../accounts/lib/person-influencia-extensions';
@@ -44,9 +41,6 @@ export function ContactoFormModal({
   const isEdit = Boolean(initial);
 
   const [notas, setNotas] = useState(initial?.notas ?? '');
-  const [personQuery, setPersonQuery] = useState('');
-  const [personHits, setPersonHits] = useState<Person[]>([]);
-  const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
   const [accountQuery, setAccountQuery] = useState('');
   const [accountHits, setAccountHits] = useState<Account[]>([]);
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
@@ -59,44 +53,12 @@ export function ContactoFormModal({
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [searching, setSearching] = useState(false);
-  const [influenciaTipoDraft, setInfluenciaTipoDraft] = useState<
-    PersonInfluenciaTipo | ''
-  >((influenciaTipo as PersonInfluenciaTipo | undefined) ?? '');
+  const assignedInfluenciaTipo =
+    (influenciaTipo as PersonInfluenciaTipo | undefined) || null;
 
   useEffect(() => {
     setNotas(initial?.notas ?? '');
-    setSelectedPerson(null);
-    setPersonHits([]);
-    setPersonQuery('');
-    const fromContext =
-      (influenciaTipo as PersonInfluenciaTipo | undefined) ?? '';
-    const fromPerson =
-      initial?.person_id != null
-        ? loadPersonInfluenciaTipo(initial.person_id)
-        : null;
-    setInfluenciaTipoDraft(fromContext || fromPerson || '');
-  }, [initial, influenciaTipo]);
-
-  async function searchPeople() {
-    const q = personQuery.trim();
-    if (!q) return;
-    setSearching(true);
-    setError(null);
-    try {
-      const data = await fetchPeople({
-        q,
-        account_id: lockAccountId || selectedAccount?.account_id || undefined,
-        limit: 10,
-      });
-      setPersonHits(data.items);
-    } catch (err) {
-      setError(
-        err instanceof ApiError ? err.message : 'No se pudo buscar contactos.',
-      );
-    } finally {
-      setSearching(false);
-    }
-  }
+  }, [initial]);
 
   async function searchAccounts() {
     const q = accountQuery.trim();
@@ -121,57 +83,46 @@ export function ContactoFormModal({
     setError(null);
     try {
       if (isEdit) {
-        if (initial?.person_id) {
-          savePersonInfluenciaTipo(
-            initial.person_id,
-            influenciaTipoDraft || null,
-          );
-        }
         await onSave(
           { notas: notas.trim() || null },
-          { influenciaTipo: influenciaTipoDraft || null },
+          { influenciaTipo: assignedInfluenciaTipo },
         );
         onClose();
         return;
       }
 
-      let personId = selectedPerson?.person_id ?? null;
-      if (!personId) {
-        let accountId = lockAccountId || selectedAccount?.account_id || null;
-        if (!accountId) {
-          if (!newAccountName.trim()) {
-            throw new Error(
-              'Selecciona o crea una empresa, o elige un contacto existente.',
-            );
-          }
-          const account = await createAccount({
-            name: newAccountName.trim(),
-            tax_id: newAccountTaxId.trim() || null,
-          });
-          accountId = account.account_id;
+      let accountId = lockAccountId || selectedAccount?.account_id || null;
+      if (!accountId) {
+        if (!newAccountName.trim()) {
+          throw new Error('Selecciona o crea una empresa.');
         }
-        if (!newPersonName.trim()) {
-          throw new Error('Indica el nombre del contacto nuevo.');
-        }
-        const person = await createPerson({
-          name: newPersonName.trim(),
-          email: newPersonEmail.trim() || null,
-          job_title: newPersonJob.trim() || null,
-          phone: newPersonPhone.trim() || null,
-          account_id: accountId,
+        const account = await createAccount({
+          name: newAccountName.trim(),
+          tax_id: newAccountTaxId.trim() || null,
         });
-        personId = person.person_id;
+        accountId = account.account_id;
       }
+      if (!newPersonName.trim()) {
+        throw new Error('Indica el nombre del contacto nuevo.');
+      }
+      const person = await createPerson({
+        name: newPersonName.trim(),
+        email: newPersonEmail.trim() || null,
+        job_title: newPersonJob.trim() || null,
+        phone: newPersonPhone.trim() || null,
+        account_id: accountId,
+      });
+      const personId = person.person_id;
 
       await onSave(
         {
           person_id: personId,
           notas: notas.trim() || undefined,
         },
-        { influenciaTipo: influenciaTipoDraft || null },
+        { influenciaTipo: assignedInfluenciaTipo },
       );
-      if (personId && influenciaTipoDraft) {
-        savePersonInfluenciaTipo(personId, influenciaTipoDraft);
+      if (personId && assignedInfluenciaTipo) {
+        savePersonInfluenciaTipo(personId, assignedInfluenciaTipo);
       }
       onClose();
     } catch (err) {
@@ -194,28 +145,6 @@ export function ContactoFormModal({
           {isEdit ? 'Editar notas del contacto' : 'Agregar contacto'}
         </h2>
         <form className="space-y-3" onSubmit={onSubmit}>
-          <div>
-            <label className={labelClass} htmlFor="c-influencia-tipo">
-              Tipo de influencia
-            </label>
-            <select
-              id="c-influencia-tipo"
-              className={inputClass}
-              value={influenciaTipoDraft}
-              onChange={(e) =>
-                setInfluenciaTipoDraft(
-                  e.target.value as PersonInfluenciaTipo | '',
-                )
-              }
-            >
-              <option value="">Sin definir</option>
-              {PERSON_INFLUENCIA_TIPOS.map((tipo) => (
-                <option key={tipo} value={tipo}>
-                  {tipo}
-                </option>
-              ))}
-            </select>
-          </div>
           {isEdit ? (
             <div className="rounded bg-bg p-3 text-sm text-ink">
               <p className="font-bold">{initial?.name}</p>
@@ -229,76 +158,7 @@ export function ContactoFormModal({
               </p>
             </div>
           ) : (
-            <>
-              <div>
-                <label className={labelClass} htmlFor="c-person-q">
-                  Buscar contacto existente
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    id="c-person-q"
-                    className={inputClass}
-                    value={personQuery}
-                    onChange={(e) => setPersonQuery(e.target.value)}
-                    placeholder="Nombre o email"
-                  />
-                  <button
-                    type="button"
-                    className={ghostButtonClass}
-                    onClick={() => void searchPeople()}
-                    disabled={searching}
-                  >
-                    Buscar
-                  </button>
-                </div>
-                {personHits.length > 0 ? (
-                  <ul className="mt-2 max-h-36 overflow-y-auto rounded border border-border">
-                    {personHits.map((person) => (
-                      <li key={person.person_id}>
-                        <button
-                          type="button"
-                          className={`w-full px-3 py-2 text-left text-sm hover:bg-bg ${
-                            selectedPerson?.person_id === person.person_id
-                              ? 'bg-accent/10'
-                              : ''
-                          }`}
-                          onClick={() => {
-                            setSelectedPerson(person);
-                            setNewPersonName('');
-                            const stored = loadPersonInfluenciaTipo(
-                              person.person_id,
-                            );
-                            if (stored) setInfluenciaTipoDraft(stored);
-                          }}
-                        >
-                          <span className="font-bold text-ink">
-                            {person.name}
-                          </span>
-                          <span className="block text-xs text-muted">
-                            {[person.email, person.account_name]
-                              .filter(Boolean)
-                              .join(' · ')}
-                          </span>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
-                {selectedPerson ? (
-                  <p className="mt-2 text-xs text-muted">
-                    Seleccionado:{' '}
-                    <span className="font-bold text-ink">
-                      {selectedPerson.name}
-                    </span>
-                  </p>
-                ) : null}
-              </div>
-
-              {!selectedPerson ? (
-                <div className="space-y-3 border-t border-border pt-3">
-                  <p className="text-xs font-bold text-muted">
-                    O crear contacto nuevo
-                  </p>
+            <div className="space-y-3">
                   {!lockAccountId ? (
                     <>
                       <div>
@@ -407,9 +267,7 @@ export function ContactoFormModal({
                     value={newPersonPhone}
                     onChange={(e) => setNewPersonPhone(e.target.value)}
                   />
-                </div>
-              ) : null}
-            </>
+            </div>
           )}
 
           <div>

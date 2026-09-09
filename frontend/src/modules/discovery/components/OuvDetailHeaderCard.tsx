@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Users } from 'lucide-react';
 import { formatDateTime } from '../../../lib/format';
 import type { Ouv } from '../api/ouvs-api';
 import type { OuvDetailExtensions } from '../lib/ouv-detail-extensions';
@@ -33,6 +34,8 @@ type Props = {
   onRetroceder: () => void;
   onCerrar: () => void;
   onPersist: (draft: OuvHeaderDraft) => Promise<void>;
+  contactosCount: number;
+  onOpenContactos: () => void;
 };
 
 function draftFromOuv(ouv: Ouv, extensions: OuvDetailExtensions): OuvHeaderDraft {
@@ -58,6 +61,8 @@ export function OuvDetailHeaderCard({
   onRetroceder,
   onCerrar,
   onPersist,
+  contactosCount,
+  onOpenContactos,
 }: Props) {
   const [draft, setDraft] = useState<OuvHeaderDraft>(() =>
     draftFromOuv(ouv, extensions),
@@ -200,15 +205,32 @@ export function OuvDetailHeaderCard({
             ) : null}
           </div>
         </div>
-        {editable ? (
-          <OuvConfigMenu
-            editingOuv={editMode}
-            onEditar={onToggleEditMode}
-            onAvanzar={onAvanzar}
-            onRetroceder={onRetroceder}
-            onCerrar={onCerrar}
-          />
-        ) : null}
+        <div className="flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            className="icon-btn relative grid h-9 w-9 place-items-center rounded"
+            onClick={onOpenContactos}
+            aria-label={`Contactos (${contactosCount})`}
+            title="Contactos"
+          >
+            <Users size={18} strokeWidth={1.75} />
+            {contactosCount > 0 ? (
+              <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-accent px-0.5 text-[10px] font-bold text-white">
+                {contactosCount}
+              </span>
+            ) : null}
+          </button>
+          {editable ? (
+            <OuvConfigMenu
+              editingOuv={editMode}
+              onEditar={onToggleEditMode}
+              onContactos={onOpenContactos}
+              onAvanzar={onAvanzar}
+              onRetroceder={onRetroceder}
+              onCerrar={onCerrar}
+            />
+          ) : null}
+        </div>
       </div>
 
       {editMode ? (

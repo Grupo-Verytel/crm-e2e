@@ -15,6 +15,7 @@ import { ApiError } from '../../auth/types';
 import { useAuth } from '../../auth/hooks/useAuth';
 import {
   createOuvContacto,
+  deleteOuvContacto,
   fetchOuv,
   fetchOuvContactos,
   fetchOuvInfluencias,
@@ -34,6 +35,7 @@ import {
   type OuvClosedEvent,
 } from '../components/CierreOuvModal';
 import { ContactoFormModal } from '../components/ContactoFormModal';
+import { ContactosSidePanel } from '../components/ContactosSidePanel';
 import { DiscoveryNav } from '../components/DiscoveryNav';
 import { FloatingToast } from '../components/FloatingToast';
 import {
@@ -60,6 +62,7 @@ import {
   INFLUENCIA_ESTADO_CARD,
   INFLUENCIA_ESTADO_DOT,
   INFLUENCIA_ESTADOS,
+  INFLUENCIA_TIPO_LABEL,
   INFLUENCIA_TIPOS,
   isOuvNotificationEvent,
   type InfluenciaEstado,
@@ -120,6 +123,7 @@ export function OuvDetailPage() {
   );
   const [contactoModalContext, setContactoModalContext] =
     useState<InfluenciaTipo | null>(null);
+  const [showContactos, setShowContactos] = useState(false);
   const [showAvance, setShowAvance] = useState(false);
   const [showRetroceso, setShowRetroceso] = useState(false);
   const [showCierre, setShowCierre] = useState(false);
@@ -386,6 +390,25 @@ export function OuvDetailPage() {
     setContactoModalContext(null);
   }
 
+  async function handleDeleteContacto(contacto: OuvContacto) {
+    if (!id) return;
+    const confirmed = window.confirm(
+      `¿Eliminar el contacto ${contacto.name}? Esta acción no se puede deshacer.`,
+    );
+    if (!confirmed) return;
+    setActionError(null);
+    try {
+      await deleteOuvContacto(id, contacto.contacto_ouv_id);
+      await load({ silent: true });
+    } catch (err) {
+      setActionError(
+        err instanceof ApiError
+          ? err.message
+          : 'No se pudo eliminar el contacto.',
+      );
+    }
+  }
+
   async function handleSavePresupuesto() {
     if (!id) return;
     setActionError(null);
@@ -506,6 +529,15 @@ export function OuvDetailPage() {
   const editable =
     ouv.resultado === 'EnCurso' && user?.user_id === ouv.comercial_id;
   const backLink = backLinkForResultado(ouv.resultado);
+  const influenciaByContacto = new Map<string, string[]>();
+  for (const inf of influencias) {
+    if (!inf.contacto_ouv_id) continue;
+    const label =
+      INFLUENCIA_TIPO_LABEL[inf.tipo as InfluenciaTipo] ?? inf.tipo;
+    const list = influenciaByContacto.get(inf.contacto_ouv_id) ?? [];
+    list.push(label);
+    influenciaByContacto.set(inf.contacto_ouv_id, list);
+  }
 
   return (
     <AppLayout title={ouv.consecutivo}>
@@ -530,6 +562,8 @@ export function OuvDetailPage() {
             onRetroceder={() => setShowRetroceso(true)}
             onCerrar={() => setShowCierre(true)}
             onPersist={persistOuvHeader}
+            contactosCount={contactos.length}
+            onOpenContactos={() => setShowContactos(true)}
           />
         </>
       ) : null}
@@ -918,6 +952,16 @@ export function OuvDetailPage() {
           onSave={handleSaveContacto}
         />
       ) : null}
+      <ContactosSidePanel
+        open={showContactos}
+        contactos={contactos}
+        influenciaByContacto={influenciaByContacto}
+        editable={editable}
+        onClose={() => setShowContactos(false)}
+        onAdd={() => openContactoModal('new')}
+        onEdit={(contacto) => openContactoModal(contacto)}
+        onDelete={(contacto) => void handleDeleteContacto(contacto)}
+      />
       {showAvance ? (
         <AvanceZonaModal
           ouv={ouv}
