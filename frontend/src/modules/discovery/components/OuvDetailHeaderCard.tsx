@@ -4,12 +4,11 @@ import type { Ouv } from '../api/ouvs-api';
 import type { OuvDetailExtensions } from '../lib/ouv-detail-extensions';
 import {
   buildOuvMetaFields,
-  RESULTADO_LABEL,
   SEGMENTO_LABEL,
 } from '../lib/ouv-detail-meta';
 import { SEGMENTOS, VERTICALES } from '../lib/ouv-vocab';
 import { ColombiaCitySearchField } from './ColombiaCitySearchField';
-import { GapBadge, ResultadoBadge } from './OuvBadges';
+import { GapBadge } from './OuvBadges';
 import { OuvConfigMenu } from './OuvConfigMenu';
 import { cardClass, inputClass, labelClass } from './ui';
 
@@ -193,10 +192,6 @@ export function OuvDetailHeaderCard({
             <h1 className="text-xl font-bold text-ink">{ouv.titulo}</h1>
           )}
           <div className="mt-2 flex flex-wrap items-center gap-2">
-            <ResultadoBadge resultado={ouv.resultado} />
-            <span className="rounded bg-bg px-2 py-0.5 text-xs font-bold text-ink">
-              {ouv.origen_via === 'directa' ? 'Directa' : 'Desde SQL'}
-            </span>
             {ouv.tiene_gap ? <GapBadge /> : null}
             {editMode ? (
               <span className="text-xs font-bold text-muted">
@@ -242,24 +237,6 @@ export function OuvDetailHeaderCard({
       <dl className="mt-4 grid gap-x-4 gap-y-3 border-t border-border pt-4 text-sm sm:grid-cols-2 lg:grid-cols-3">
         {editMode ? (
           <>
-            <div>
-              <dt className="text-xs font-bold text-muted">OUV ID</dt>
-              <dd className="mt-0.5 break-words font-medium text-ink">
-                {ouv.ouv_id}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs font-bold text-muted">Consecutivo</dt>
-              <dd className="mt-0.5 break-words font-medium text-ink">
-                {ouv.consecutivo} · {draft.titulo}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs font-bold text-muted">SQL ID</dt>
-              <dd className="mt-0.5 font-medium text-ink">
-                {ouv.sql_id_origen ?? '—'}
-              </dd>
-            </div>
             <div>
               <label className={labelClass} htmlFor="ouv-org">
                 Organización
@@ -392,12 +369,6 @@ export function OuvDetailHeaderCard({
             <div>
               <dt className="text-xs font-bold text-muted">Etapa</dt>
               <dd className="mt-0.5 font-medium text-ink">Comercial</dd>
-            </div>
-            <div>
-              <dt className="text-xs font-bold text-muted">Estado OUV</dt>
-              <dd className="mt-0.5 font-medium text-ink">
-                {RESULTADO_LABEL[ouv.resultado] ?? ouv.resultado}
-              </dd>
             </div>
             <div>
               <dt className="text-xs font-bold text-muted">Fecha creación</dt>

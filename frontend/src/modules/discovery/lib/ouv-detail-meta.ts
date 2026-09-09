@@ -44,12 +44,6 @@ export function buildOuvMetaFields(
   const probDisplay = prob ? (prob.endsWith('%') ? prob : `${prob}%`) : '—';
 
   return [
-    { label: 'OUV ID', value: ouv.ouv_id },
-    {
-      label: 'Consecutivo',
-      value: `${ouv.consecutivo} · ${ouv.titulo}`,
-    },
-    { label: 'SQL ID', value: ouv.sql_id_origen ?? '—' },
     { label: 'Organización', value: ouv.empresa_nombre },
     { label: 'Segmento', value: segmento },
     { label: 'Vertical', value: ouv.vertical || '—' },
@@ -70,10 +64,6 @@ export function buildOuvMetaFields(
       value: displayLoc(ouv.region, extensions.region),
     },
     { label: 'Etapa', value: 'Comercial' },
-    {
-      label: 'Estado OUV',
-      value: RESULTADO_LABEL[ouv.resultado] ?? ouv.resultado,
-    },
     { label: 'Fecha creación', value: formatDateTime(ouv.created_at) },
     { label: 'Fecha actualización', value: formatDateTime(ouv.updated_at) },
   ];

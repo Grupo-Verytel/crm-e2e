@@ -3,7 +3,7 @@ import { ChevronDown, ChevronUp } from 'lucide-react';
 import type { Ouv } from '../api/ouvs-api';
 import type { OuvDetailExtensions } from '../lib/ouv-detail-extensions';
 import { buildOuvMetaFields } from '../lib/ouv-detail-meta';
-import { GapBadge, ResultadoBadge } from './OuvBadges';
+import { GapBadge } from './OuvBadges';
 import { cardClass } from './ui';
 
 type Props = {
@@ -35,13 +35,11 @@ export function OuvReadonlyHeaderCard({
       >
         <div className="min-w-0 flex-1">
           <h1 className="text-xl font-bold text-ink">{ouv.titulo}</h1>
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            <ResultadoBadge resultado={ouv.resultado} />
-            <span className="rounded bg-bg px-2 py-0.5 text-xs font-bold text-ink">
-              {ouv.origen_via === 'directa' ? 'Directa' : 'Desde SQL'}
-            </span>
-            {ouv.tiene_gap ? <GapBadge /> : null}
-          </div>
+          {ouv.tiene_gap ? (
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <GapBadge />
+            </div>
+          ) : null}
           {ouv.descripcion ? (
             <p className="mt-3 text-sm text-muted">{ouv.descripcion}</p>
           ) : null}

@@ -1,10 +1,6 @@
 import { Users } from 'lucide-react';
 import { formatDateTime } from '../../../lib/format';
 import type { Ouv } from '../api/ouvs-api';
-import {
-  OUV_RESULTADO_LABEL,
-  type OuvResultado,
-} from '../lib/ouv-vocab';
 import { OuvConfigMenu } from './OuvConfigMenu';
 import { cardClass } from './ui';
 
@@ -38,33 +34,12 @@ export function OuvDetailHeader({
   onRetroceder: () => void;
   onCerrar: () => void;
 }) {
-  const resultado = ouv.resultado as OuvResultado;
-  const origenLabel =
-    ouv.origen_via === 'directa' ? 'Directa' : 'Desde SQL';
-
   return (
     <header className={`${cardClass} mb-4 border border-border p-4`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-xl font-bold text-ink">{ouv.titulo}</h1>
-            <span
-              className={[
-                'inline-flex items-center rounded px-2 py-0.5 text-xs font-bold',
-                resultado === 'EnCurso'
-                  ? 'bg-turquoise/25 text-ink'
-                  : resultado === 'Ganada'
-                    ? 'bg-positive/20 text-ink'
-                    : resultado === 'Perdida'
-                      ? 'bg-danger/15 text-danger'
-                      : 'bg-warning/20 text-ink',
-              ].join(' ')}
-            >
-              {OUV_RESULTADO_LABEL[resultado] ?? ouv.resultado}
-            </span>
-            <span className="inline-flex items-center rounded px-2 py-0.5 text-xs font-bold bg-bg text-muted">
-              {origenLabel}
-            </span>
           </div>
           {ouv.descripcion ? (
             <p className="mt-1 text-sm text-muted">{ouv.descripcion}</p>
@@ -98,20 +73,11 @@ export function OuvDetailHeader({
 
       <dl className="mt-4 grid gap-x-8 gap-y-3 md:grid-cols-3">
         <div className="space-y-3">
-          <DetailField label="OUV ID" value={ouv.ouv_id} />
           <DetailField label="Organización" value={display(ouv.empresa_nombre)} />
           <DetailField label="Proyecto" value="—" />
           <DetailField label="Ciudad" value={display(ouv.city)} />
-          <DetailField
-            label="Estado OUV"
-            value={OUV_RESULTADO_LABEL[resultado] ?? ouv.resultado}
-          />
         </div>
         <div className="space-y-3">
-          <DetailField
-            label="Consecutivo"
-            value={`${ouv.consecutivo} ${ouv.titulo}`.trim()}
-          />
           <DetailField label="Segmento" value={display(ouv.segmento)} />
           <DetailField label="Plazo ejecución" value="—" />
           <DetailField label="Región" value={display(ouv.region)} />
@@ -121,7 +87,6 @@ export function OuvDetailHeader({
           />
         </div>
         <div className="space-y-3">
-          <DetailField label="SQL ID" value={display(ouv.sql_id_origen)} />
           <DetailField label="Vertical" value={display(ouv.vertical)} />
           <DetailField label="Probabilidad de cierre" value="—" />
           <DetailField label="Etapa" value="Comercial" />
