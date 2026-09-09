@@ -10,6 +10,7 @@ import { DemandNav } from '../components/DemandNav';
 import { MotivoModal } from '../components/MotivoModal';
 import { RegisterAppointmentModal } from '../components/leads/RegisterAppointmentModal';
 import { cardClass, ghostButtonClass, primaryButtonClass } from '../components/ui';
+import { leadDisplayName } from '../lib/lead-vocab';
 import type { Lead, Mql } from '../types';
 
 /** Same role the workflow guard checks for lead.mql_aprobado. */
@@ -120,15 +121,19 @@ export function MqlInboxPage() {
                           to={`/demand/leads/${lead.lead_id}`}
                           className="hover:text-accent"
                         >
-                          {lead.empresa_nombre}
+                          {leadDisplayName(lead)}
                         </Link>
                       ) : (
                         mql.lead_id
                       )}
                     </p>
                     <p className="text-sm text-muted">
-                      {lead ? `${lead.contacto_nombre} · ${lead.segmento}` : '—'} ·
-                      calificado {formatDateTime(mql.fecha_calificacion)}
+                      {lead
+                        ? [lead.empresa_nombre, lead.contacto_nombre, lead.segmento]
+                            .filter(Boolean)
+                            .join(' · ')
+                        : '—'}{' '}
+                      · calificado {formatDateTime(mql.fecha_calificacion)}
                     </p>
                   </div>
                   <div className="flex shrink-0 gap-2">
