@@ -575,6 +575,7 @@ export class SqlsService {
         subject: `Cita SQL — ${params.leadLabel}`,
         startTime,
         endTime,
+        timeZone: this.graphService.timeZone,
         attendees,
         location: params.dto.lugar,
         body: params.dto.descripcion ?? undefined,
@@ -615,6 +616,7 @@ export class SqlsService {
         subject: `Cita SQL — ${sql.sqlId}`,
         startTime,
         endTime,
+        timeZone: this.graphService.timeZone,
         attendees: contactos
           .filter((contacto) => contacto.email.includes('@'))
           .map((contacto) => ({

@@ -22,11 +22,14 @@ import {
   type CitaContactoInput,
 } from '../lib/cita-contactos';
 import {
+  CITA_TIMEZONE,
   buildAvailabilityBlocks,
   combineFechaHora,
+  formatBogota,
   slotConflicts,
   toGraphLocalDateTime,
   weekWindow,
+  zonedBogotaDate,
 } from '../lib/cita-scheduling';
 import { CitaAvailabilityGrid } from './CitaAvailabilityGrid';
 import { CitaContactosFields } from './CitaContactosFields';
@@ -46,10 +49,6 @@ type Props = {
 function leadText(lead: SqlDetail['lead'], key: string): string {
   const value = lead[key];
   return typeof value === 'string' ? value : '';
-}
-
-function pad(value: number): string {
-  return String(value).padStart(2, '0');
 }
 
 export function AssignSqlModal({ sql, onClose, onAssigned }: Props) {
@@ -91,8 +90,9 @@ export function AssignSqlModal({ sql, onClose, onAssigned }: Props) {
 
   const [now] = useState(() => new Date());
   const proposed = combineFechaHora(fecha, hora, durationMinutes);
-  const weekAnchor = proposed?.start ?? (fecha ? new Date(`${fecha}T00:00:00`) : now);
-  const weekKey = `${weekAnchor.getFullYear()}-${weekAnchor.getMonth()}-${weekAnchor.getDate()}`;
+  const weekAnchor =
+    proposed?.start ?? (fecha ? zonedBogotaDate(fecha, '00:00') : now);
+  const weekKey = formatBogota(weekAnchor).fecha;
 
   useEffect(() => {
     void fetchCommercials()
@@ -113,7 +113,7 @@ export function AssignSqlModal({ sql, onClose, onAssigned }: Props) {
           schedules: [email],
           startTime: toGraphLocalDateTime(start),
           endTime: toGraphLocalDateTime(end),
-          timeZone: graphStatus?.timeZone,
+          timeZone: graphStatus?.timeZone ?? CITA_TIMEZONE,
           organizerUpn,
         });
         setSchedules(data.schedules);
@@ -174,10 +174,9 @@ export function AssignSqlModal({ sql, onClose, onAssigned }: Props) {
       : [];
 
   function handleSelectSlot(start: Date, end: Date) {
-    setFecha(
-      `${start.getFullYear()}-${pad(start.getMonth() + 1)}-${pad(start.getDate())}`,
-    );
-    setHora(`${pad(start.getHours())}:${pad(start.getMinutes())}`);
+    const startParts = formatBogota(start);
+    setFecha(startParts.fecha);
+    setHora(startParts.hora);
     const minutes = Math.max(
       15,
       Math.round((end.getTime() - start.getTime()) / 60_000),

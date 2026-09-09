@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef } from 'react';
 import {
   weekDayLabels,
+  bogotaSlotFromGrid,
+  formatBogota,
   type BusyBlock,
 } from '../lib/cita-scheduling';
 import { cardClass } from './ui';
@@ -23,15 +25,23 @@ type Props = {
   onSelectSlot?: (start: Date, end: Date) => void;
 };
 
+function bogotaHour(date: Date): number {
+  return Number(formatBogota(date).hora.slice(0, 2));
+}
+
+function bogotaMinute(date: Date): number {
+  return Number(formatBogota(date).hora.slice(3, 5));
+}
+
 function hoursCovering(proposedStart: Date | null, proposedEnd: Date | null): number[] {
   let minH = 8;
   let maxH = 18;
-  if (proposedStart) minH = Math.min(minH, proposedStart.getHours());
+  if (proposedStart) minH = Math.min(minH, bogotaHour(proposedStart));
   if (proposedEnd) {
     const endH =
-      proposedEnd.getMinutes() > 0
-        ? proposedEnd.getHours()
-        : Math.max(proposedEnd.getHours() - 1, proposedStart?.getHours() ?? 8);
+      bogotaMinute(proposedEnd) > 0
+        ? bogotaHour(proposedEnd)
+        : Math.max(bogotaHour(proposedEnd) - 1, proposedStart ? bogotaHour(proposedStart) : 8);
     maxH = Math.max(maxH, endH);
   }
   const hours: number[] = [];
@@ -89,33 +99,35 @@ export function CitaAvailabilityGrid({
 
   function handleCellClick(dayIndex: number, hour: number) {
     if (!onSelectSlot) return;
-    const monday = new Date(weekAnchor);
-    const day = monday.getDay();
-    const diff = day === 0 ? -6 : 1 - day;
-    monday.setDate(monday.getDate() + diff);
-    monday.setHours(0, 0, 0, 0);
-
-    const start = new Date(monday);
-    start.setDate(monday.getDate() + dayIndex);
-    start.setHours(hour, 0, 0, 0);
-
-    const durationMs =
+    const durationMinutes =
       proposedStart && proposedEnd
-        ? Math.max(proposedEnd.getTime() - proposedStart.getTime(), 30 * 60_000)
-        : 60 * 60_000;
-    const end = new Date(start.getTime() + durationMs);
+        ? Math.max(
+            Math.round(
+              (proposedEnd.getTime() - proposedStart.getTime()) / 60_000,
+            ),
+            30,
+          )
+        : 60;
+    const { start, end } = bogotaSlotFromGrid(
+      weekAnchor,
+      dayIndex,
+      hour,
+      durationMinutes,
+    );
     onSelectSlot(start, end);
   }
 
   const proposedLabel =
     proposedStart && proposedEnd
       ? `${proposedStart.toLocaleString('es-CO', {
+          timeZone: 'America/Bogota',
           weekday: 'short',
           day: 'numeric',
           month: 'short',
           hour: '2-digit',
           minute: '2-digit',
         })} – ${proposedEnd.toLocaleTimeString('es-CO', {
+          timeZone: 'America/Bogota',
           hour: '2-digit',
           minute: '2-digit',
         })}`

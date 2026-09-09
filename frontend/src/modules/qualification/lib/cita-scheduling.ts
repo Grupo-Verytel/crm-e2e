@@ -1,5 +1,8 @@
 import type { GraphSchedule } from '../api/graph-api';
 
+/** Wall-clock timezone for SQL citas (Colombia, no DST). */
+export const CITA_TIMEZONE = 'America/Bogota';
+
 export type CitaResource = {
   id: string;
   email: string;
@@ -18,53 +21,117 @@ export type BusyBlock = {
 
 const DAY_LABELS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie'] as const;
 
+function pad(value: number): string {
+  return String(value).padStart(2, '0');
+}
+
+function bogotaParts(date: Date): {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+} {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: CITA_TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(date);
+  const get = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value ?? '0';
+  return {
+    year: Number(get('year')),
+    month: Number(get('month')),
+    day: Number(get('day')),
+    hour: Number(get('hour')),
+    minute: Number(get('minute')),
+  };
+}
+
+export function formatBogota(date: Date): { fecha: string; hora: string } {
+  const p = bogotaParts(date);
+  return {
+    fecha: `${p.year}-${pad(p.month)}-${pad(p.day)}`,
+    hora: `${pad(p.hour)}:${pad(p.minute)}`,
+  };
+}
+
+/** Interpret YYYY-MM-DD + HH:mm as America/Bogota (UTC-5). */
+export function zonedBogotaDate(fecha: string, hora: string): Date {
+  const time = hora.length === 5 ? `${hora}:00` : hora.slice(0, 8);
+  return new Date(`${fecha.slice(0, 10)}T${time}-05:00`);
+}
+
 export function startOfWeek(date: Date): Date {
-  const d = new Date(date);
-  const day = d.getDay();
+  const { fecha } = formatBogota(date);
+  const midnight = zonedBogotaDate(fecha, '00:00');
+  const day = midnight.getUTCDay();
   const diff = day === 0 ? -6 : 1 - day;
-  d.setDate(d.getDate() + diff);
-  d.setHours(0, 0, 0, 0);
-  return d;
+  const [year, month, dayNum] = fecha.split('-').map(Number);
+  const monday = new Date(Date.UTC(year, month - 1, dayNum + diff));
+  const mondayFecha = `${monday.getUTCFullYear()}-${pad(monday.getUTCMonth() + 1)}-${pad(monday.getUTCDate())}`;
+  return zonedBogotaDate(mondayFecha, '00:00');
 }
 
 export function weekDayLabels(anchor: Date): string[] {
   const monday = startOfWeek(anchor);
   return DAY_LABELS.map((label, i) => {
-    const d = new Date(monday);
-    d.setDate(monday.getDate() + i);
-    return `${d.getDate()} ${label}`;
+    const { fecha } = formatBogota(monday);
+    const [year, month, day] = fecha.split('-').map(Number);
+    const d = new Date(Date.UTC(year, month - 1, day + i));
+    return `${d.getUTCDate()} ${label}`;
   });
 }
 
 export function toGraphLocalDateTime(date: Date): string {
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return (
-    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
-    `T${pad(date.getHours())}:${pad(date.getMinutes())}`
-  );
+  const { fecha, hora } = formatBogota(date);
+  return `${fecha}T${hora}`;
 }
 
 export function weekWindow(anchor: Date): { start: Date; end: Date } {
   const start = startOfWeek(anchor);
-  const end = new Date(start);
-  end.setDate(start.getDate() + 5);
+  const end = new Date(start.getTime() + 5 * 24 * 60 * 60 * 1000);
   return { start, end };
 }
 
+/**
+ * Graph `getSchedule` returns UTC instants (`13:00` for 08:00 Bogotá).
+ * The availability API converts them to America/Bogota wall-clock before
+ * the frontend sees them. Naive values are therefore Bogotá; ISO with Z or
+ * an offset is parsed as an absolute instant.
+ */
 export function parseGraphDateTime(value: string): Date | null {
+  const raw = (value ?? '').trim();
+  if (!raw) return null;
+  if (/[zZ]$/.test(raw) || /[+-]\d{2}:\d{2}/.test(raw)) {
+    const parsed = new Date(raw);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
   const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?/.exec(
-    value ?? '',
+    raw,
   );
   if (!match) return null;
-  const [, y, mo, d, h, mi, s] = match;
-  return new Date(
-    Number(y),
-    Number(mo) - 1,
-    Number(d),
-    Number(h),
-    Number(mi),
-    Number(s ?? '0'),
-  );
+  const [, y, mo, d, h, mi] = match;
+  return zonedBogotaDate(`${y}-${mo}-${d}`, `${h}:${mi}`);
+}
+
+export function bogotaSlotFromGrid(
+  weekAnchor: Date,
+  dayIndex: number,
+  hour: number,
+  durationMinutes: number,
+): { start: Date; end: Date } {
+  const { fecha } = formatBogota(startOfWeek(weekAnchor));
+  const [year, month, day] = fecha.split('-').map(Number);
+  const target = new Date(Date.UTC(year, month - 1, day + dayIndex));
+  const targetFecha = `${target.getUTCFullYear()}-${pad(target.getUTCMonth() + 1)}-${pad(target.getUTCDate())}`;
+  const start = zonedBogotaDate(targetFecha, `${pad(hour)}:00`);
+  const end = new Date(start.getTime() + durationMinutes * 60_000);
+  return { start, end };
 }
 
 const BUSY_STATUS = new Set(['busy', 'oof', 'workingElsewhere']);
@@ -115,7 +182,7 @@ export function buildAvailabilityBlocks(params: {
       blocks.push({
         id: 'proposed',
         resourceId: 'proposed',
-        label: `Cita ${padTime(params.proposedStart)}–${padTime(params.proposedEnd)}`,
+        label: `Cita ${formatBogota(params.proposedStart).hora}–${formatBogota(params.proposedEnd).hora}`,
         dayIndex,
         startHour,
         endHour: Math.max(endHour, startHour + 0.25),
@@ -147,7 +214,7 @@ export function slotConflicts(params: {
     if (!start || !end) continue;
     if (params.start.getTime() < end.getTime() && start.getTime() < params.end.getTime()) {
       conflicts.push(
-        `${item.subject?.trim() || 'Ocupado'} ${padTime(start)}–${padTime(end)}`,
+        `${item.subject?.trim() || 'Ocupado'} ${formatBogota(start).hora}–${formatBogota(end).hora}`,
       );
     }
   }
@@ -160,37 +227,27 @@ export function combineFechaHora(
   durationMinutes: number,
 ): { start: Date; end: Date } | null {
   if (!fecha || !hora) return null;
-  const [year, month, day] = fecha.split('-').map(Number);
-  const [hours, minutes] = hora.split(':').map(Number);
-  if (!year || !month || !day || Number.isNaN(hours) || Number.isNaN(minutes)) {
-    return null;
-  }
-  const start = new Date(year, month - 1, day, hours, minutes, 0, 0);
+  const start = zonedBogotaDate(fecha, hora);
+  if (Number.isNaN(start.getTime())) return null;
   const end = new Date(start.getTime() + durationMinutes * 60_000);
   return { start, end };
 }
 
 function dayIndexFrom(monday: Date, date: Date): number {
-  const day = new Date(
-    date.getFullYear(),
-    date.getMonth(),
-    date.getDate(),
-  ).getTime();
-  return Math.round((day - monday.getTime()) / 86_400_000);
+  const a = formatBogota(monday).fecha;
+  const b = formatBogota(date).fecha;
+  const [ay, am, ad] = a.split('-').map(Number);
+  const [by, bm, bd] = b.split('-').map(Number);
+  const start = Date.UTC(ay, am - 1, ad);
+  const other = Date.UTC(by, bm - 1, bd);
+  return Math.round((other - start) / 86_400_000);
 }
 
 function sameDay(a: Date, b: Date): boolean {
-  return (
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
-  );
+  return formatBogota(a).fecha === formatBogota(b).fecha;
 }
 
 function toHourFloat(d: Date): number {
-  return d.getHours() + d.getMinutes() / 60;
-}
-
-function padTime(d: Date): string {
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  const p = bogotaParts(d);
+  return p.hour + p.minute / 60;
 }
