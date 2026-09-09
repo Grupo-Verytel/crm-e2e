@@ -182,6 +182,13 @@ export class Lead extends Model {
   })
   declare citaContactoTelefono: string | null;
 
+  @Column({ type: DataType.JSON, field: 'cita_contactos', allowNull: true })
+  declare citaContactos: Array<{
+    nombre: string;
+    email: string;
+    telefono: string;
+  }> | null;
+
   @ForeignKey(() => User)
   @Column({
     type: DataType.CHAR(36),

@@ -10,6 +10,11 @@ export type SqlCita = {
   contacto_nombre: string;
   contacto_email: string | null;
   contacto_telefono: string | null;
+  contactos?: Array<{
+    nombre: string;
+    email: string;
+    telefono: string;
+  }>;
   contacto_cargo: string | null;
   descripcion: string | null;
   agendada_por: string;
@@ -43,6 +48,11 @@ export type SqlDetail = {
     cita_contacto_nombre?: string | null;
     cita_contacto_email?: string | null;
     cita_contacto_telefono?: string | null;
+    cita_contactos?: Array<{
+      nombre: string;
+      email: string;
+      telefono: string;
+    }> | null;
     comercial_asignado_id?: string | null;
     segment_id?: string | null;
     subsegment_id?: string | null;
@@ -71,6 +81,11 @@ export type AssignSqlPayload = {
     contacto_nombre: string;
     contacto_email?: string;
     contacto_telefono?: string;
+    contactos?: Array<{
+      nombre: string;
+      email: string;
+      telefono: string;
+    }>;
     contacto_cargo?: string;
     descripcion?: string;
   };

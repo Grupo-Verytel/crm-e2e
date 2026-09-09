@@ -280,6 +280,11 @@ export type Lead = {
   cita_contacto_nombre: string | null;
   cita_contacto_email: string | null;
   cita_contacto_telefono: string | null;
+  cita_contactos?: Array<{
+    nombre: string;
+    email: string;
+    telefono: string;
+  }> | null;
   comercial_asignado_id: string | null;
   motivo_descarte: string | null;
   utm_source: string | null;
@@ -334,6 +339,11 @@ export type CreateLeadPayload = {
 
 export type ApproveAgencyMqlPayload = {
   fecha_cita: string;
+  cita_contactos: Array<{
+    nombre: string;
+    email: string;
+    telefono: string;
+  }>;
   cita_contacto_nombre: string;
   cita_contacto_email: string;
   cita_contacto_telefono: string;

@@ -17,6 +17,10 @@ import {
   DEMAND_GENERATION_ROLES,
 } from '../constants/demand-generation.constants';
 import {
+  isCompleteCitaContacto,
+  normalizeCitaContactos,
+} from '../lib/cita-contactos';
+import {
   allChecklistCriteriaMet,
   missingChecklistCriteria,
 } from '../lib/checklist-result';
@@ -440,19 +444,38 @@ export class LeadStateMachineService {
     citaContactoNombre: string;
     citaContactoEmail: string;
     citaContactoTelefono: string;
+    citaContactos: Array<{
+      nombre: string;
+      email: string;
+      telefono: string;
+    }>;
   } | null> {
     if (lead.canalOrigen !== CanalOrigen.GeneracionDemandaAgencia) {
       return null;
     }
 
-    const nombre = dto.cita_contacto_nombre?.trim();
-    const email = dto.cita_contacto_email?.trim();
-    const telefono = dto.cita_contacto_telefono?.trim();
-    if (!dto.fecha_cita || !nombre || !email || !telefono) {
+    const contactos = normalizeCitaContactos(
+      dto.cita_contactos ??
+        (dto.cita_contacto_nombre
+          ? [
+              {
+                nombre: dto.cita_contacto_nombre,
+                email: dto.cita_contacto_email ?? '',
+                telefono: dto.cita_contacto_telefono ?? '',
+              },
+            ]
+          : []),
+    );
+    const principal = contactos[0];
+    if (
+      !dto.fecha_cita ||
+      !principal ||
+      !contactos.every(isCompleteCitaContacto)
+    ) {
       throw new BadRequestException({
         code: DEMAND_GENERATION_ERROR_CODES.VALIDATION_ERROR,
         message:
-          'fecha_cita, cita_contacto_nombre, cita_contacto_email and cita_contacto_telefono are required to approve an agency MQL',
+          'fecha_cita and at least one complete cita contact (nombre, email, telefono) are required to approve an agency MQL',
       });
     }
 
@@ -460,9 +483,10 @@ export class LeadStateMachineService {
       citaAgendada: true,
       fechaCita: new Date(dto.fecha_cita),
       citaLugar: dto.cita_lugar?.trim() || null,
-      citaContactoNombre: nombre,
-      citaContactoEmail: email,
-      citaContactoTelefono: telefono,
+      citaContactoNombre: principal.nombre,
+      citaContactoEmail: principal.email,
+      citaContactoTelefono: principal.telefono,
+      citaContactos: contactos,
     };
   }
 

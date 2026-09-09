@@ -46,6 +46,7 @@ import {
 } from '../lib/checklist-result';
 import { canRecycleLead } from '../lib/lead-state-machine';
 import { normalizePhoneToE164 } from '../lib/phone-normalize';
+import { normalizeCitaContactos } from '../lib/cita-contactos';
 import {
   CanalOrigen,
   LeadContactInfluenciaTipo,
@@ -766,6 +767,19 @@ export class LeadsService {
     const primaryEnriched = primaryContact
       ? map.get(primaryContact.personId)
       : undefined;
+    const fromJson = normalizeCitaContactos(lead.citaContactos);
+    const citaContactos =
+      fromJson.length > 0
+        ? fromJson
+        : lead.citaContactoNombre
+          ? [
+              {
+                nombre: lead.citaContactoNombre,
+                email: lead.citaContactoEmail ?? '',
+                telefono: lead.citaContactoTelefono ?? '',
+              },
+            ]
+          : [];
 
     return {
       lead_id: lead.leadId,
@@ -817,6 +831,7 @@ export class LeadsService {
       cita_contacto_nombre: lead.citaContactoNombre,
       cita_contacto_email: lead.citaContactoEmail,
       cita_contacto_telefono: lead.citaContactoTelefono,
+      cita_contactos: citaContactos,
       comercial_asignado_id: lead.comercialAsignadoId,
       motivo_descarte: lead.motivoDescarte,
       utm_source: lead.utmSource,

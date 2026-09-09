@@ -12,6 +12,11 @@ import {
   sqlLeadName,
 } from '../lib/agency-cita';
 import {
+  citaContactosFromLead,
+  type CitaContactoInput,
+} from '../lib/cita-contactos';
+import { CitaContactosFields } from './CitaContactosFields';
+import {
   ghostButtonClass,
   inputClass,
   labelClass,
@@ -40,16 +45,8 @@ export function AssignSqlModal({ sql, onClose, onAssigned }: Props) {
   const [lugar, setLugar] = useState(leadText(sql.lead, 'cita_lugar'));
   const [fecha, setFecha] = useState(suggested?.fecha ?? '');
   const [hora, setHora] = useState(suggested?.hora ?? '09:00');
-  const [contactoNombre, setContactoNombre] = useState(
-    leadText(sql.lead, 'cita_contacto_nombre') ||
-      leadText(sql.lead, 'contacto_nombre'),
-  );
-  const [contactoEmail, setContactoEmail] = useState(
-    leadText(sql.lead, 'cita_contacto_email') || leadText(sql.lead, 'email'),
-  );
-  const [contactoTelefono, setContactoTelefono] = useState(
-    leadText(sql.lead, 'cita_contacto_telefono') ||
-      leadText(sql.lead, 'telefono'),
+  const [contactos, setContactos] = useState<CitaContactoInput[]>(() =>
+    citaContactosFromLead(sql.lead),
   );
   const [contactoCargo, setContactoCargo] = useState('');
   const [descripcion, setDescripcion] = useState('');
@@ -72,24 +69,31 @@ export function AssignSqlModal({ sql, onClose, onAssigned }: Props) {
       setError('Este SQL de agencia requiere generar la cita al asignar.');
       return;
     }
+    const trimmed = contactos.map((contacto) => ({
+      nombre: contacto.nombre.trim(),
+      email: contacto.email.trim(),
+      telefono: contacto.telefono.trim(),
+    }));
+    const principal = trimmed[0];
+    if (withCita && !principal) {
+      setError('Agrega al menos un contacto para la cita.');
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
       await assignSql(sql.sql_id, {
         comercial_asignado_id: comercialId,
-        ...(withCita
+        ...(withCita && principal
           ? {
               cita: {
                 lugar,
                 fecha,
                 hora,
-                contacto_nombre: contactoNombre,
-                ...(contactoEmail.trim()
-                  ? { contacto_email: contactoEmail.trim() }
-                  : {}),
-                ...(contactoTelefono.trim()
-                  ? { contacto_telefono: contactoTelefono.trim() }
-                  : {}),
+                contacto_nombre: principal.nombre,
+                contacto_email: principal.email,
+                contacto_telefono: principal.telefono,
+                contactos: trimmed,
                 ...(contactoCargo ? { contacto_cargo: contactoCargo } : {}),
                 ...(descripcion ? { descripcion } : {}),
               },
@@ -109,7 +113,7 @@ export function AssignSqlModal({ sql, onClose, onAssigned }: Props) {
     <div className="fixed inset-0 z-50 grid place-items-center bg-ink/40 p-4">
       <form
         onSubmit={(e) => void handleSubmit(e)}
-        className="w-full max-w-lg rounded bg-surface p-5 shadow-card"
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded bg-surface p-5 shadow-card"
       >
         <h2 className="text-base font-bold text-ink">Asignar SQL</h2>
         <p className="mt-1 text-sm text-muted">
@@ -189,33 +193,7 @@ export function AssignSqlModal({ sql, onClose, onAssigned }: Props) {
                 required={withCita}
               />
             </label>
-            <label className={labelClass}>
-              Contacto
-              <input
-                className={inputClass}
-                value={contactoNombre}
-                onChange={(e) => setContactoNombre(e.target.value)}
-                required={withCita}
-              />
-            </label>
-            <label className={labelClass}>
-              Correo
-              <input
-                type="email"
-                className={inputClass}
-                value={contactoEmail}
-                onChange={(e) => setContactoEmail(e.target.value)}
-              />
-            </label>
-            <label className={labelClass}>
-              Teléfono
-              <input
-                type="tel"
-                className={inputClass}
-                value={contactoTelefono}
-                onChange={(e) => setContactoTelefono(e.target.value)}
-              />
-            </label>
+            <CitaContactosFields contacts={contactos} onChange={setContactos} />
             <label className={`${labelClass} sm:col-span-2`}>
               Cargo (opcional)
               <input
@@ -235,7 +213,7 @@ export function AssignSqlModal({ sql, onClose, onAssigned }: Props) {
           </div>
         ) : null}
 
-        {error ? <p className="mt-3 text-sm text-red-600">{error}</p> : null}
+        {error ? <p className="mt-3 text-sm text-danger">{error}</p> : null}
 
         <div className="mt-5 flex justify-end gap-2">
           <button type="button" className={ghostButtonClass} onClick={onClose}>

@@ -12,6 +12,7 @@ import {
   primaryButtonClass,
 } from '../components/ui';
 import { needsAgencyCitaGeneration, sqlLeadName } from '../lib/agency-cita';
+import { citaContactosFromLead } from '../lib/cita-contactos';
 
 export function SqlDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -160,17 +161,44 @@ export function SqlDetailPage() {
                   </dd>
                 </div>
                 <div className="flex justify-between gap-4">
-                  <dt className="text-muted">Contacto</dt>
-                  <dd className="text-ink">{sql.cita.contacto_nombre}</dd>
+                  <dt className="text-muted">Contactos</dt>
+                  <dd className="text-right text-ink">
+                    {(
+                      sql.cita.contactos ?? [
+                        {
+                          nombre: sql.cita.contacto_nombre,
+                          email: sql.cita.contacto_email ?? '',
+                          telefono: sql.cita.contacto_telefono ?? '',
+                        },
+                      ]
+                    ).map((contacto) => (
+                      <p key={`${contacto.nombre}-${contacto.email}`}>
+                        {contacto.nombre}
+                        {contacto.email ? ` · ${contacto.email}` : ''}
+                        {contacto.telefono ? ` · ${contacto.telefono}` : ''}
+                      </p>
+                    ))}
+                  </dd>
                 </div>
               </dl>
             ) : needsAgencyCitaGeneration(sql) ? (
-              <p className="mt-3 text-sm text-ink">
-                Pendiente de generar en la bandeja de enrutamiento.
-                {sql.lead.fecha_cita
-                  ? ` Indicada al aprobar el MQL: ${formatDateTime(String(sql.lead.fecha_cita))}.`
-                  : ''}
-              </p>
+              <div className="mt-3 space-y-2 text-sm text-ink">
+                <p>
+                  Pendiente de generar en la bandeja de enrutamiento.
+                  {sql.lead.fecha_cita
+                    ? ` Indicada al aprobar el MQL: ${formatDateTime(String(sql.lead.fecha_cita))}.`
+                    : ''}
+                </p>
+                <ul className="space-y-1">
+                  {citaContactosFromLead(sql.lead).map((contacto) => (
+                    <li key={`${contacto.nombre}-${contacto.email}`}>
+                      {contacto.nombre}
+                      {contacto.email ? ` · ${contacto.email}` : ''}
+                      {contacto.telefono ? ` · ${contacto.telefono}` : ''}
+                    </li>
+                  ))}
+                </ul>
+              </div>
             ) : (
               <p className="mt-3 text-sm text-muted">Sin cita agendada.</p>
             )}

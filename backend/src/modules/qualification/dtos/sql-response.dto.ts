@@ -25,6 +25,11 @@ export class SqlCitaResponseDto {
   contacto_nombre: string;
   contacto_email: string | null;
   contacto_telefono: string | null;
+  contactos: Array<{
+    nombre: string;
+    email: string;
+    telefono: string;
+  }>;
   contacto_cargo: string | null;
   descripcion: string | null;
   agendada_por: string;

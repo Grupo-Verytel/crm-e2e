@@ -17,6 +17,10 @@ import {
   needsAgencyCitaGeneration,
   sqlLeadName,
 } from '../lib/agency-cita';
+import {
+  citaContactosFromLead,
+  formatCitaContactosLabel,
+} from '../lib/cita-contactos';
 import type { SqlDetail } from '../api/sqls-api';
 
 const PAGE_SIZE = 20;
@@ -111,6 +115,9 @@ export function RoutingInboxPage() {
             <tbody>
               {items.map((sql) => {
                 const pendingCita = needsAgencyCitaGeneration(sql);
+                const contactosLabel = formatCitaContactosLabel(
+                  citaContactosFromLead(sql.lead),
+                );
                 return (
                 <tr key={sql.sql_id} className="border-b border-border">
                   <td className="px-4 py-3">
@@ -126,8 +133,21 @@ export function RoutingInboxPage() {
                   </td>
                   <td className="px-4 py-3">
                     {sql.cita ? (
-                      <span className="text-sm text-ink">
-                        Agendada · {sql.cita.fecha} {sql.cita.hora.slice(0, 5)}
+                      <span className="inline-flex flex-col gap-0.5">
+                        <span className="text-sm text-ink">
+                          Agendada · {sql.cita.fecha} {sql.cita.hora.slice(0, 5)}
+                        </span>
+                        <span className="text-xs text-muted">
+                          {formatCitaContactosLabel(
+                            sql.cita.contactos ?? [
+                              {
+                                nombre: sql.cita.contacto_nombre,
+                                email: sql.cita.contacto_email ?? '',
+                                telefono: sql.cita.contacto_telefono ?? '',
+                              },
+                            ],
+                          )}
+                        </span>
                       </span>
                     ) : pendingCita ? (
                       <span className="inline-flex flex-col gap-0.5">
@@ -141,6 +161,11 @@ export function RoutingInboxPage() {
                               : null,
                           )}
                         </span>
+                        {contactosLabel ? (
+                          <span className="text-xs text-ink">
+                            {contactosLabel}
+                          </span>
+                        ) : null}
                       </span>
                     ) : (
                       <span className="text-sm text-muted">—</span>

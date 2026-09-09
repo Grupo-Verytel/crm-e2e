@@ -1,5 +1,8 @@
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  IsArray,
   IsDateString,
   IsEmail,
   IsNotEmpty,
@@ -10,6 +13,22 @@ import {
   MaxLength,
   ValidateNested,
 } from 'class-validator';
+
+export class CitaContactoDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(120)
+  nombre!: string;
+
+  @IsEmail()
+  @MaxLength(160)
+  email!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(40)
+  telefono!: string;
+}
 
 export class CreateSqlCitaDto {
   @IsString()
@@ -24,6 +43,14 @@ export class CreateSqlCitaDto {
   @IsString()
   @Matches(/^\d{2}:\d{2}(:\d{2})?$/)
   hora!: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(8)
+  @ValidateNested({ each: true })
+  @Type(() => CitaContactoDto)
+  contactos?: CitaContactoDto[];
 
   @IsString()
   @IsNotEmpty()

@@ -74,9 +74,13 @@ export function MqlInboxPage() {
       await approveMql(mql.mql_id, appointment);
       setApproving(null);
       await loadMqls();
-    } catch {
-      setError('No se pudo aprobar el MQL.');
-      throw new Error('No se pudo aprobar el MQL.');
+    } catch (err) {
+      const message =
+        err instanceof Error && err.message
+          ? err.message
+          : 'No se pudo aprobar el MQL.';
+      setError(message);
+      throw err instanceof Error ? err : new Error(message);
     } finally {
       setBusyId(null);
     }

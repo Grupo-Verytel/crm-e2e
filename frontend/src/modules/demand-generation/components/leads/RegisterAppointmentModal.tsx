@@ -1,4 +1,8 @@
 import { useState, type FormEvent } from 'react';
+import {
+  parseCitaContactos,
+  type CitaContactoInput,
+} from '../../lib/cita-contactos';
 import type { ApproveAgencyMqlPayload, Lead } from '../../types';
 import { ModalShell } from '../ModalShell';
 import {
@@ -7,8 +11,23 @@ import {
   labelClass,
   primaryButtonClass,
 } from '../ui';
+import { CitaContactosFields } from './CitaContactosFields';
 
 export type { ApproveAgencyMqlPayload };
+
+function initialContactos(lead: Lead): CitaContactoInput[] {
+  const fromJson = parseCitaContactos(lead.cita_contactos);
+  if (fromJson.length > 0) {
+    return fromJson;
+  }
+  return [
+    {
+      nombre: lead.cita_contacto_nombre || lead.contacto_nombre || '',
+      email: lead.cita_contacto_email || lead.email || '',
+      telefono: lead.cita_contacto_telefono || lead.telefono || '',
+    },
+  ];
+}
 
 export function RegisterAppointmentModal({
   lead,
@@ -24,23 +43,33 @@ export function RegisterAppointmentModal({
   onClose: () => void;
 }) {
   const [fechaCita, setFechaCita] = useState('');
-  const [contactoNombre, setContactoNombre] = useState(lead.contacto_nombre ?? '');
-  const [contactoEmail, setContactoEmail] = useState(lead.email ?? '');
-  const [contactoTelefono, setContactoTelefono] = useState(lead.telefono ?? '');
-  const [lugar, setLugar] = useState('');
+  const [contactos, setContactos] = useState<CitaContactoInput[]>(() =>
+    initialContactos(lead),
+  );
+  const [lugar, setLugar] = useState(lead.cita_lugar ?? '');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const principal = contactos[0];
+    if (!principal) {
+      setError('Agrega al menos un contacto para la cita.');
+      return;
+    }
     setIsSubmitting(true);
     setError(null);
     try {
       const payload: ApproveAgencyMqlPayload = {
         fecha_cita: new Date(fechaCita).toISOString(),
-        cita_contacto_nombre: contactoNombre.trim(),
-        cita_contacto_email: contactoEmail.trim(),
-        cita_contacto_telefono: contactoTelefono.trim(),
+        cita_contactos: contactos.map((contacto) => ({
+          nombre: contacto.nombre.trim(),
+          email: contacto.email.trim(),
+          telefono: contacto.telefono.trim(),
+        })),
+        cita_contacto_nombre: principal.nombre.trim(),
+        cita_contacto_email: principal.email.trim(),
+        cita_contacto_telefono: principal.telefono.trim(),
         ...(lugar.trim() ? { cita_lugar: lugar.trim() } : {}),
       };
       await onConfirm(payload);
@@ -77,47 +106,7 @@ export function RegisterAppointmentModal({
           />
         </div>
 
-        <fieldset className="space-y-3">
-          <legend className={labelClass}>Contacto principal</legend>
-          <div>
-            <label htmlFor="cita-contacto-nombre" className={labelClass}>
-              Nombre
-            </label>
-            <input
-              id="cita-contacto-nombre"
-              value={contactoNombre}
-              onChange={(event) => setContactoNombre(event.target.value)}
-              className={inputClass}
-              required
-            />
-          </div>
-          <div>
-            <label htmlFor="cita-contacto-email" className={labelClass}>
-              Correo
-            </label>
-            <input
-              id="cita-contacto-email"
-              type="email"
-              value={contactoEmail}
-              onChange={(event) => setContactoEmail(event.target.value)}
-              className={inputClass}
-              required
-            />
-          </div>
-          <div>
-            <label htmlFor="cita-contacto-telefono" className={labelClass}>
-              Teléfono
-            </label>
-            <input
-              id="cita-contacto-telefono"
-              type="tel"
-              value={contactoTelefono}
-              onChange={(event) => setContactoTelefono(event.target.value)}
-              className={inputClass}
-              required
-            />
-          </div>
-        </fieldset>
+        <CitaContactosFields contacts={contactos} onChange={setContactos} />
 
         <div>
           <label htmlFor="cita-lugar" className={labelClass}>

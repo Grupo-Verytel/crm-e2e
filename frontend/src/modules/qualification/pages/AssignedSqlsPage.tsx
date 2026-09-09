@@ -12,6 +12,7 @@ import { useAuth } from '../../auth/hooks/useAuth';
 import { fetchAssignedSqls, type SqlDetail } from '../api/sqls-api';
 import { QualificationNav } from '../components/QualificationNav';
 import { cardClass } from '../components/ui';
+import { sqlLeadName } from '../lib/agency-cita';
 
 const PAGE_SIZE = 20;
 
@@ -88,6 +89,7 @@ export function AssignedSqlsPage() {
           <table className="w-full text-left text-sm">
             <thead className="border-b border-border text-xs text-muted">
               <tr>
+                <th className="px-4 py-3 font-bold">Lead</th>
                 <th className="px-4 py-3 font-bold">Empresa</th>
                 <th className="px-4 py-3 font-bold">Estado</th>
                 <th className="px-4 py-3 font-bold">Origen</th>
@@ -102,8 +104,11 @@ export function AssignedSqlsPage() {
                       to={`/qualification/sqls/${sql.sql_id}`}
                       className="font-bold text-accent hover:underline"
                     >
-                      {String(sql.lead.empresa_nombre ?? '—')}
+                      {sqlLeadName(sql.lead)}
                     </Link>
+                  </td>
+                  <td className="px-4 py-3 text-ink">
+                    {String(sql.lead.empresa_nombre ?? '—')}
                   </td>
                   <td className="px-4 py-3 text-ink">{sql.estado}</td>
                   <td className="px-4 py-3">
