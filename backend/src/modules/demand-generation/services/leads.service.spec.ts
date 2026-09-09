@@ -1,4 +1,3 @@
-import { ConflictException } from '@nestjs/common';
 import { Sequelize } from 'sequelize';
 import { AccountsService } from '../../accounts/services/accounts.service';
 import { User } from '../../auth/models/user.model';
@@ -63,12 +62,12 @@ describe('LeadsService channel flows', () => {
     );
   });
 
-  it('keeps TRADUCTOR_NEGOCIO blocked on standard create path', () => {
+  it('resolves TRADUCTOR_NEGOCIO to TOFU on standard create', () => {
     const service = createService();
 
-    expect(() =>
-      service.resolveInitialState(CanalOrigen.TraductorNegocio),
-    ).toThrow(ConflictException);
+    expect(service.resolveInitialState(CanalOrigen.TraductorNegocio)).toBe(
+      LeadEstado.TOFU,
+    );
   });
 
   it('EARS-21: registers an agency appointment and moves the lead to MQL_PENDING', async () => {

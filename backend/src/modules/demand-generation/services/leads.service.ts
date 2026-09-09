@@ -801,14 +801,6 @@ export class LeadsService {
       return LeadEstado.MOFU;
     }
 
-    if (canalOrigen === CanalOrigen.TraductorNegocio) {
-      throw new ConflictException({
-        code: DEMAND_GENERATION_ERROR_CODES.INVALID_TRANSITION,
-        message:
-          'TRADUCTOR_NEGOCIO flow requires EjecutivoComercial direct creation',
-      });
-    }
-
     return LeadEstado.TOFU;
   }
 

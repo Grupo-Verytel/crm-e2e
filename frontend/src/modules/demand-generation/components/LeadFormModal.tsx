@@ -10,7 +10,6 @@ import type { Account, Person } from '../../accounts/types';
 import { createLead, checkLeadNameAvailable } from '../api/leads-api';
 import { fetchSegments } from '../api/segments-api';
 import { fetchTraductorReferrers } from '../api/traductores-api';
-import type { User } from '../../auth/types';
 import { ColombiaCitySearchField } from '../../discovery/components/ColombiaCitySearchField';
 import {
   CANALES_ORIGEN,
@@ -18,6 +17,7 @@ import {
   SEGMENTOS,
   TIPOS_LEAD,
   type CanalOrigen,
+  type CommercialOption,
   type CreateLeadChecklistInput,
   type CreateLeadPayload,
   type Lead,
@@ -162,7 +162,7 @@ export function LeadFormModal({
     canal_origen: defaultCanalForMode(mode),
   }));
   const [segments, setSegments] = useState<Segment[]>([]);
-  const [traductores, setTraductores] = useState<User[]>([]);
+  const [traductores, setTraductores] = useState<CommercialOption[]>([]);
   const [checklist, setChecklist] = useState<CreateLeadChecklistInput>(emptyChecklist);
 
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
@@ -191,8 +191,7 @@ export function LeadFormModal({
   const canalOptions = canalOptionsForMode(mode);
   const selectedSegment = segments.find((segment) => segment.id === form.segment_id);
   const requiresChecklist = mode === 'product_manager' || mode === 'ejecutivo';
-  const showTraductorSelect =
-    mode === 'ejecutivo' && form.canal_origen === 'TRADUCTOR_NEGOCIO';
+  const showTraductorSelect = form.canal_origen === 'TRADUCTOR_NEGOCIO';
 
   const takenPersonIds = useMemo(
     () =>
@@ -691,9 +690,17 @@ export function LeadFormModal({
             <Field label="Canal de origen">
               <select
                 value={form.canal_origen}
-                onChange={(event) =>
-                  update('canal_origen', event.target.value as CanalOrigen)
-                }
+                onChange={(event) => {
+                  const canal = event.target.value as CanalOrigen;
+                  setForm((prev) => ({
+                    ...prev,
+                    canal_origen: canal,
+                    business_referrer_id:
+                      canal === 'TRADUCTOR_NEGOCIO'
+                        ? prev.business_referrer_id
+                        : '',
+                  }));
+                }}
                 className={inputClass}
                 required
               >

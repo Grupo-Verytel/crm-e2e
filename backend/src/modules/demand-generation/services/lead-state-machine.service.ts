@@ -93,13 +93,6 @@ export class LeadStateMachineService {
   async transitionToMofu(leadId: string, _userId: string): Promise<Lead> {
     const lead = await this.findLeadOrFail(leadId);
 
-    if (lead.canalOrigen === CanalOrigen.Fabrica) {
-      throw new BadRequestException({
-        code: DEMAND_GENERATION_ERROR_CODES.INVALID_TRANSITION,
-        message: 'FABRICA leads skip MOFU and are evaluated directly in TOFU',
-      });
-    }
-
     assertValidLeadTransition(lead.estado, LeadEstado.MOFU);
 
     const missing: string[] = [];

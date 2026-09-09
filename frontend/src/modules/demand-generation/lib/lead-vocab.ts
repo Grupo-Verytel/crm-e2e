@@ -126,8 +126,9 @@ export const KANBAN_COLUMNS: KanbanColumn[] = [
 export const CHANNEL_ROUTES: Partial<Record<CanalOrigen, KanbanEstado[]>> = {
   CAMPANA_DIGITAL: ['TOFU', 'MOFU', 'MQL_PENDING', 'SQL'],
   BTL: ['TOFU', 'MOFU', 'MQL_PENDING', 'SQL'],
-  FABRICA: ['TOFU', 'MQL_PENDING', 'SQL'],
+  FABRICA: ['TOFU', 'MOFU', 'MQL_PENDING', 'SQL'],
   GENERACION_DEMANDA_AGENCIA: ['MOFU', 'MQL_PENDING', 'SQL'],
+  TRADUCTOR_NEGOCIO: ['TOFU', 'MOFU', 'MQL_PENDING', 'SQL'],
   EVENTOS: ['TOFU', 'MOFU', 'MQL_PENDING', 'SQL'],
 };
 

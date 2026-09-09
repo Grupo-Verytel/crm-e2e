@@ -171,7 +171,7 @@ export function LeadsKanbanView({
       }
 
       if (dragged.canal_origen === 'FABRICA' && column.estado === 'MQL_PENDING') {
-        return dragged.estado === 'TOFU';
+        return dragged.estado === 'TOFU' || dragged.estado === 'MOFU';
       }
 
       if (
@@ -392,7 +392,7 @@ export function LeadsKanbanView({
           onQualified={() => reloadAll()}
           onSaved={() =>
             loadColumn(
-              checklistFor.canal_origen === 'FABRICA' ? 'TOFU' : 'MOFU',
+              checklistFor.estado === 'TOFU' ? 'TOFU' : 'MOFU',
               1,
               false,
             )

@@ -125,6 +125,12 @@ export class LeadsController {
     return this.demandGenerationService.listAppointmentCommercials();
   }
 
+  @Get('traductor-referrers')
+  @CheckAbility({ action: 'read', subject: 'Lead' })
+  listTraductorReferrers(): Promise<CommercialOptionDto[]> {
+    return this.demandGenerationService.listTraductorReferrers();
+  }
+
   @Get(':id')
   @CheckAbility({ action: 'read', subject: 'Lead' })
   findOne(
