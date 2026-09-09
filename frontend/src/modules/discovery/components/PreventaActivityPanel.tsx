@@ -10,13 +10,13 @@ import {
   SOLICITUD_PREVENTA_FIELDS,
   SERVICE_LABELS,
 } from '../lib/opportunity-context-fields';
+import { sharePointDocumentName } from '../lib/sharepoint-document';
 import {
   derivarMepStatus,
   type MepSolicitudStatus,
 } from '../lib/solicitud-preventa-rules';
 import { FloatingToast } from './FloatingToast';
 import { ModalShell } from './ModalShell';
-import { SharePointDocumentLink } from './SharePointDocumentLink';
 import { SolicitudPreventaModal } from './SolicitudPreventaModal';
 import { badgeClass, cardClass, ghostButtonClass, labelClass } from './ui';
 
@@ -29,6 +29,7 @@ export type { MepSolicitudStatus };
 
 const MEP_STATUS_CLASS: Record<MepSolicitudStatus, string> = {
   Aceptado: 'bg-accent text-white',
+  'En progreso': 'bg-brand text-white',
   Aprobado: 'bg-success text-white',
   Rechazado: 'bg-danger text-white',
   Pendiente: 'bg-border text-muted',
@@ -127,6 +128,36 @@ function formatFieldValue(key: string, value: string): string {
   return value;
 }
 
+function formatFechaEntrega(etaDate: string | null): string {
+  if (!etaDate) {
+    return '—';
+  }
+  const parsed = new Date(
+    etaDate.includes('T') ? etaDate : `${etaDate}T00:00:00`,
+  );
+  return Number.isNaN(parsed.getTime())
+    ? etaDate
+    : parsed.toLocaleDateString('es-CO');
+}
+
+/** Link que Preventa publicó; si aún no hay respuesta, el adjunto de creación. */
+function linkSharePoint(
+  solicitud: SolicitudPreventa,
+  resultado: SolicitudServicio | undefined,
+): string | null {
+  const delServicio = resultado?.entregables[0]?.url;
+  if (delServicio) {
+    return delServicio;
+  }
+  for (const servicio of solicitud.servicios) {
+    const url = servicio.entregables[0]?.url;
+    if (url) {
+      return url;
+    }
+  }
+  return solicitud.sharepoint_document_url;
+}
+
 function ServiceCard({
   card,
   mepStatus,
@@ -191,6 +222,7 @@ function SolicitudDetailModal({
   const resultado = solicitud.servicios.find(
     (s) => s.service === service.service,
   );
+  const sharePointUrl = linkSharePoint(solicitud, resultado);
 
   return (
     <ModalShell
@@ -225,12 +257,6 @@ function SolicitudDetailModal({
         ) : null}
       </div>
 
-      {solicitud.sharepoint_document_url ? (
-        <div className="mb-4">
-          <SharePointDocumentLink url={solicitud.sharepoint_document_url} />
-        </div>
-      ) : null}
-
       <div className="grid gap-3 sm:grid-cols-2">
         {SOLICITUD_PREVENTA_FIELDS.map((field) => (
           <div
@@ -243,6 +269,27 @@ function SolicitudDetailModal({
             </p>
           </div>
         ))}
+        <div>
+          <p className={labelClass}>Link de SharePoint</p>
+          {sharePointUrl ? (
+            <a
+              href={sharePointUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="break-all text-sm font-bold text-accent hover:underline"
+            >
+              {sharePointDocumentName(sharePointUrl)}
+            </a>
+          ) : (
+            <p className="text-sm text-ink">—</p>
+          )}
+        </div>
+        <div>
+          <p className={labelClass}>Fecha de entrega</p>
+          <p className="text-sm text-ink">
+            {formatFechaEntrega(solicitud.estado.eta_date)}
+          </p>
+        </div>
       </div>
 
       {resultado ? (
@@ -310,10 +357,6 @@ function SolicitudDetailModal({
               </li>
             ))}
           </ul>
-          <p className="mt-2 text-xs text-muted">
-            Confirma que la fábrica recibió la solicitud. No es un hito
-            comercial.
-          </p>
         </details>
       ) : null}
 

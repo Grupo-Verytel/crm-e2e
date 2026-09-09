@@ -261,7 +261,7 @@ export function SolicitudPreventaModal({
               );
               return (
                 <option key={c.id} value={c.id} disabled={blocked}>
-                  {blocked ? `${c.name} (ya existe una activa o aprobada)` : c.name}
+                  {blocked ? `${c.name} (solicitud en curso)` : c.name}
                 </option>
               );
             })}
