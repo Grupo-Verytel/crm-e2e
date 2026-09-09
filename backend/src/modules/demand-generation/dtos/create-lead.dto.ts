@@ -1,4 +1,4 @@
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 import {
   ArrayMaxSize,
   ArrayMinSize,
@@ -95,6 +95,7 @@ export class CreateLeadDto {
   @IsUUID('4')
   responsable_id: string;
 
+  @Transform(({ value }) => (value === '' ? undefined : value))
   @ValidateIf(
     (dto: CreateLeadDto) => dto.canal_origen === CanalOrigen.TraductorNegocio,
   )

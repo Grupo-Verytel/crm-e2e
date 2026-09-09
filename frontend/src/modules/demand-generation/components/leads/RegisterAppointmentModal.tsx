@@ -1,9 +1,9 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import {
-  fetchAppointmentCommercials,
-  registerLeadAppointment,
-} from '../../api/leads-api';
-import type { CommercialOption, Lead } from '../../types';
+  parseCitaContactos,
+  type CitaContactoInput,
+} from '../../lib/cita-contactos';
+import type { ApproveAgencyMqlPayload, Lead } from '../../types';
 import { ModalShell } from '../ModalShell';
 import {
   ghostButtonClass,
@@ -11,58 +11,68 @@ import {
   labelClass,
   primaryButtonClass,
 } from '../ui';
+import { CitaContactosFields } from './CitaContactosFields';
+
+export type { ApproveAgencyMqlPayload };
+
+function initialContactos(lead: Lead): CitaContactoInput[] {
+  const fromJson = parseCitaContactos(lead.cita_contactos);
+  if (fromJson.length > 0) {
+    return fromJson;
+  }
+  return [
+    {
+      nombre: lead.cita_contacto_nombre || lead.contacto_nombre || '',
+      email: lead.cita_contacto_email || lead.email || '',
+      telefono: lead.cita_contacto_telefono || lead.telefono || '',
+    },
+  ];
+}
 
 export function RegisterAppointmentModal({
   lead,
-  onRegistered,
+  title = 'Cita para aprobar SQL',
+  submitLabel = 'Aprobar → SQL',
+  onConfirm,
   onClose,
 }: {
   lead: Lead;
-  onRegistered: (lead: Lead) => void;
+  title?: string;
+  submitLabel?: string;
+  onConfirm: (payload: ApproveAgencyMqlPayload) => Promise<void>;
   onClose: () => void;
 }) {
-  const [commercials, setCommercials] = useState<CommercialOption[]>([]);
   const [fechaCita, setFechaCita] = useState('');
-  const [commercialId, setCommercialId] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
+  const [contactos, setContactos] = useState<CitaContactoInput[]>(() =>
+    initialContactos(lead),
+  );
+  const [lugar, setLugar] = useState(lead.cita_lugar ?? '');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let active = true;
-    void fetchAppointmentCommercials()
-      .then((items) => {
-        if (active) {
-          setCommercials(items);
-          setCommercialId(items[0]?.user_id ?? '');
-        }
-      })
-      .catch(() => {
-        if (active) {
-          setError('No se pudieron cargar los comerciales.');
-        }
-      })
-      .finally(() => {
-        if (active) {
-          setIsLoading(false);
-        }
-      });
-
-    return () => {
-      active = false;
-    };
-  }, []);
-
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const principal = contactos[0];
+    if (!principal) {
+      setError('Agrega al menos un contacto para la cita.');
+      return;
+    }
     setIsSubmitting(true);
     setError(null);
     try {
-      const updated = await registerLeadAppointment(lead.lead_id, {
-        fecha_cita: fechaCita,
-        comercial_asignado_id: commercialId,
-      });
-      onRegistered(updated);
+      const payload: ApproveAgencyMqlPayload = {
+        fecha_cita: new Date(fechaCita).toISOString(),
+        cita_contactos: contactos.map((contacto) => ({
+          nombre: contacto.nombre.trim(),
+          email: contacto.email.trim(),
+          telefono: contacto.telefono.trim(),
+        })),
+        cita_contacto_nombre: principal.nombre.trim(),
+        cita_contacto_email: principal.email.trim(),
+        cita_contacto_telefono: principal.telefono.trim(),
+        ...(lugar.trim() ? { cita_lugar: lugar.trim() } : {}),
+      };
+      await onConfirm(payload);
       onClose();
     } catch (submitError) {
       setError(
@@ -76,7 +86,7 @@ export function RegisterAppointmentModal({
   }
 
   return (
-    <ModalShell title="Registrar cita agendada" onClose={onClose}>
+    <ModalShell title={title} onClose={onClose}>
       <form className="space-y-4" onSubmit={handleSubmit}>
         <p className="text-sm text-muted">
           {lead.contacto_nombre} · {lead.empresa_nombre}
@@ -84,7 +94,7 @@ export function RegisterAppointmentModal({
 
         <div>
           <label htmlFor="appointment-date" className={labelClass}>
-            Fecha de la cita
+            Fecha de la cita y hora
           </label>
           <input
             id="appointment-date"
@@ -96,27 +106,18 @@ export function RegisterAppointmentModal({
           />
         </div>
 
+        <CitaContactosFields contacts={contactos} onChange={setContactos} />
+
         <div>
-          <label htmlFor="appointment-commercial" className={labelClass}>
-            Comercial asignado
+          <label htmlFor="cita-lugar" className={labelClass}>
+            Lugar de la cita (opcional)
           </label>
-          <select
-            id="appointment-commercial"
-            value={commercialId}
-            onChange={(event) => setCommercialId(event.target.value)}
+          <input
+            id="cita-lugar"
+            value={lugar}
+            onChange={(event) => setLugar(event.target.value)}
             className={inputClass}
-            disabled={isLoading}
-            required
-          >
-            {commercials.length === 0 ? (
-              <option value="">No hay comerciales disponibles</option>
-            ) : null}
-            {commercials.map((commercial) => (
-              <option key={commercial.user_id} value={commercial.user_id}>
-                {commercial.full_name}
-              </option>
-            ))}
-          </select>
+          />
         </div>
 
         {error ? <p className="text-sm text-danger">{error}</p> : null}
@@ -127,10 +128,10 @@ export function RegisterAppointmentModal({
           </button>
           <button
             type="submit"
-            disabled={isSubmitting || isLoading || !commercialId}
+            disabled={isSubmitting}
             className={primaryButtonClass}
           >
-            Registrar cita
+            {isSubmitting ? 'Guardando…' : submitLabel}
           </button>
         </div>
       </form>

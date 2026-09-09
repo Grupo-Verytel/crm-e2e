@@ -1,10 +1,21 @@
 import { useEffect, useState, type FormEvent } from 'react';
+import { formatDateTime } from '../../../lib/format';
 import {
   assignSql,
   fetchCommercials,
   type CommercialOption,
   type SqlDetail,
 } from '../api/sqls-api';
+import {
+  needsAgencyCitaGeneration,
+  splitCitaDateTime,
+  sqlLeadName,
+} from '../lib/agency-cita';
+import {
+  citaContactosFromLead,
+  type CitaContactoInput,
+} from '../lib/cita-contactos';
+import { CitaContactosFields } from './CitaContactosFields';
 import {
   ghostButtonClass,
   inputClass,
@@ -18,15 +29,24 @@ type Props = {
   onAssigned: () => void;
 };
 
+function leadText(lead: SqlDetail['lead'], key: string): string {
+  const value = lead[key];
+  return typeof value === 'string' ? value : '';
+}
+
 export function AssignSqlModal({ sql, onClose, onAssigned }: Props) {
+  const pendingAgencyCita = needsAgencyCitaGeneration(sql);
+  const suggested = splitCitaDateTime(
+    typeof sql.lead.fecha_cita === 'string' ? sql.lead.fecha_cita : null,
+  );
   const [commercials, setCommercials] = useState<CommercialOption[]>([]);
   const [comercialId, setComercialId] = useState('');
-  const [withCita, setWithCita] = useState(false);
-  const [lugar, setLugar] = useState('');
-  const [fecha, setFecha] = useState('');
-  const [hora, setHora] = useState('09:00');
-  const [contactoNombre, setContactoNombre] = useState(
-    String(sql.lead.contacto_nombre ?? ''),
+  const [withCita, setWithCita] = useState(pendingAgencyCita);
+  const [lugar, setLugar] = useState(leadText(sql.lead, 'cita_lugar'));
+  const [fecha, setFecha] = useState(suggested?.fecha ?? '');
+  const [hora, setHora] = useState(suggested?.hora ?? '09:00');
+  const [contactos, setContactos] = useState<CitaContactoInput[]>(() =>
+    citaContactosFromLead(sql.lead),
   );
   const [contactoCargo, setContactoCargo] = useState('');
   const [descripcion, setDescripcion] = useState('');
@@ -45,18 +65,35 @@ export function AssignSqlModal({ sql, onClose, onAssigned }: Props) {
       setError('Selecciona un Ejecutivo Comercial.');
       return;
     }
+    if (pendingAgencyCita && !withCita) {
+      setError('Este SQL de agencia requiere generar la cita al asignar.');
+      return;
+    }
+    const trimmed = contactos.map((contacto) => ({
+      nombre: contacto.nombre.trim(),
+      email: contacto.email.trim(),
+      telefono: contacto.telefono.trim(),
+    }));
+    const principal = trimmed[0];
+    if (withCita && !principal) {
+      setError('Agrega al menos un contacto para la cita.');
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
       await assignSql(sql.sql_id, {
         comercial_asignado_id: comercialId,
-        ...(withCita
+        ...(withCita && principal
           ? {
               cita: {
                 lugar,
                 fecha,
                 hora,
-                contacto_nombre: contactoNombre,
+                contacto_nombre: principal.nombre,
+                contacto_email: principal.email,
+                contacto_telefono: principal.telefono,
+                contactos: trimmed,
                 ...(contactoCargo ? { contacto_cargo: contactoCargo } : {}),
                 ...(descripcion ? { descripcion } : {}),
               },
@@ -76,12 +113,25 @@ export function AssignSqlModal({ sql, onClose, onAssigned }: Props) {
     <div className="fixed inset-0 z-50 grid place-items-center bg-ink/40 p-4">
       <form
         onSubmit={(e) => void handleSubmit(e)}
-        className="w-full max-w-lg rounded bg-surface p-5 shadow-card"
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded bg-surface p-5 shadow-card"
       >
         <h2 className="text-base font-bold text-ink">Asignar SQL</h2>
         <p className="mt-1 text-sm text-muted">
-          {String(sql.lead.empresa_nombre ?? sql.sql_id)}
+          {sqlLeadName(sql.lead)}
+          {sql.lead.empresa_nombre
+            ? ` · ${String(sql.lead.empresa_nombre)}`
+            : ''}
         </p>
+        {pendingAgencyCita ? (
+          <p className="mt-2 rounded bg-accent/10 px-3 py-2 text-sm text-ink">
+            Canal agencia: al asignar debes generar la cita indicada al aprobar
+            el MQL
+            {sql.lead.fecha_cita
+              ? ` (${formatDateTime(String(sql.lead.fecha_cita))})`
+              : ''}
+            .
+          </p>
+        ) : null}
 
         <label className={`${labelClass} mt-4`}>
           Ejecutivo Comercial
@@ -105,8 +155,11 @@ export function AssignSqlModal({ sql, onClose, onAssigned }: Props) {
             type="checkbox"
             checked={withCita}
             onChange={(e) => setWithCita(e.target.checked)}
+            required={pendingAgencyCita}
           />
-          Agendar cita ahora (opcional)
+          {pendingAgencyCita
+            ? 'Generar cita ahora'
+            : 'Agendar cita ahora (opcional)'}
         </label>
 
         {withCita ? (
@@ -140,15 +193,7 @@ export function AssignSqlModal({ sql, onClose, onAssigned }: Props) {
                 required={withCita}
               />
             </label>
-            <label className={labelClass}>
-              Contacto
-              <input
-                className={inputClass}
-                value={contactoNombre}
-                onChange={(e) => setContactoNombre(e.target.value)}
-                required={withCita}
-              />
-            </label>
+            <CitaContactosFields contacts={contactos} onChange={setContactos} />
             <label className={`${labelClass} sm:col-span-2`}>
               Cargo (opcional)
               <input
@@ -168,7 +213,7 @@ export function AssignSqlModal({ sql, onClose, onAssigned }: Props) {
           </div>
         ) : null}
 
-        {error ? <p className="mt-3 text-sm text-red-600">{error}</p> : null}
+        {error ? <p className="mt-3 text-sm text-danger">{error}</p> : null}
 
         <div className="mt-5 flex justify-end gap-2">
           <button type="button" className={ghostButtonClass} onClick={onClose}>

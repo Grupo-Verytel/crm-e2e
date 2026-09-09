@@ -36,6 +36,10 @@ import {
   SqlsQueryDto,
 } from '../dtos/sql-response.dto';
 import { SqlCita } from '../models/sql-cita.model';
+import {
+  isCompleteCitaContacto,
+  normalizeCitaContactos,
+} from '../lib/cita-contactos';
 
 @Injectable()
 export class SqlsService {
@@ -435,19 +439,57 @@ export class SqlsService {
       });
     }
 
+    const contactos = this.resolveCitaContactos(dto);
+    const principal = contactos[0];
+    if (!principal) {
+      throw new BadRequestException({
+        code: QUALIFICATION_ERROR_CODES.VALIDATION_ERROR,
+        message:
+          'At least one complete cita contact (nombre, email, telefono) is required',
+      });
+    }
+
     return this.sqlCitaModel.create(
       {
         sqlId,
         lugar: dto.lugar,
         fecha: dto.fecha,
         hora: this.normalizeHora(dto.hora),
-        contactoNombre: dto.contacto_nombre,
+        contactoNombre: principal.nombre,
+        contactoEmail: principal.email || null,
+        contactoTelefono: principal.telefono || null,
+        contactos,
         contactoCargo: dto.contacto_cargo ?? null,
         descripcion: dto.descripcion ?? null,
         agendadaPor,
       },
       { transaction },
     );
+  }
+
+  private resolveCitaContactos(dto: CreateSqlCitaDto): Array<{
+    nombre: string;
+    email: string;
+    telefono: string;
+  }> {
+    const contactos = normalizeCitaContactos(
+      dto.contactos ??
+        [
+          {
+            nombre: dto.contacto_nombre,
+            email: dto.contacto_email ?? '',
+            telefono: dto.contacto_telefono ?? '',
+          },
+        ],
+    );
+    if (!contactos.length || !contactos.every(isCompleteCitaContacto)) {
+      throw new BadRequestException({
+        code: QUALIFICATION_ERROR_CODES.VALIDATION_ERROR,
+        message:
+          'At least one complete cita contact (nombre, email, telefono) is required',
+      });
+    }
+    return contactos;
   }
 
   private async assertActiveEjecutivo(userId: string): Promise<void> {
@@ -553,6 +595,15 @@ export class SqlsService {
   }
 
   private toCitaResponse(cita: SqlCita): SqlCitaResponseDto {
+    const contactos = normalizeCitaContactos(
+      cita.contactos ?? [
+        {
+          nombre: cita.contactoNombre,
+          email: cita.contactoEmail ?? '',
+          telefono: cita.contactoTelefono ?? '',
+        },
+      ],
+    );
     return {
       cita_id: cita.citaId,
       sql_id: cita.sqlId,
@@ -560,6 +611,9 @@ export class SqlsService {
       fecha: cita.fecha,
       hora: String(cita.hora).slice(0, 8),
       contacto_nombre: cita.contactoNombre,
+      contacto_email: cita.contactoEmail,
+      contacto_telefono: cita.contactoTelefono,
+      contactos,
       contacto_cargo: cita.contactoCargo,
       descripcion: cita.descripcion,
       agendada_por: cita.agendadaPor,

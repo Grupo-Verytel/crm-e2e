@@ -54,6 +54,27 @@ export class SqlCita extends Model {
   declare contactoNombre: string;
 
   @Column({
+    type: DataType.STRING(160),
+    field: 'contacto_email',
+    allowNull: true,
+  })
+  declare contactoEmail: string | null;
+
+  @Column({
+    type: DataType.STRING(40),
+    field: 'contacto_telefono',
+    allowNull: true,
+  })
+  declare contactoTelefono: string | null;
+
+  @Column({ type: DataType.JSON, allowNull: true })
+  declare contactos: Array<{
+    nombre: string;
+    email: string;
+    telefono: string;
+  }> | null;
+
+  @Column({
     type: DataType.STRING(100),
     field: 'contacto_cargo',
     allowNull: true,

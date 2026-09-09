@@ -158,6 +158,37 @@ export class Lead extends Model {
   @Column({ type: DataType.DATE, field: 'fecha_cita', allowNull: true })
   declare fechaCita: Date | null;
 
+  @Column({ type: DataType.STRING(200), field: 'cita_lugar', allowNull: true })
+  declare citaLugar: string | null;
+
+  @Column({
+    type: DataType.STRING(120),
+    field: 'cita_contacto_nombre',
+    allowNull: true,
+  })
+  declare citaContactoNombre: string | null;
+
+  @Column({
+    type: DataType.STRING(160),
+    field: 'cita_contacto_email',
+    allowNull: true,
+  })
+  declare citaContactoEmail: string | null;
+
+  @Column({
+    type: DataType.STRING(40),
+    field: 'cita_contacto_telefono',
+    allowNull: true,
+  })
+  declare citaContactoTelefono: string | null;
+
+  @Column({ type: DataType.JSON, field: 'cita_contactos', allowNull: true })
+  declare citaContactos: Array<{
+    nombre: string;
+    email: string;
+    telefono: string;
+  }> | null;
+
   @ForeignKey(() => User)
   @Column({
     type: DataType.CHAR(36),

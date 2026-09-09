@@ -276,6 +276,15 @@ export type Lead = {
   responsable_nombre: string | null;
   cita_agendada: boolean;
   fecha_cita: string | null;
+  cita_lugar: string | null;
+  cita_contacto_nombre: string | null;
+  cita_contacto_email: string | null;
+  cita_contacto_telefono: string | null;
+  cita_contactos?: Array<{
+    nombre: string;
+    email: string;
+    telefono: string;
+  }> | null;
   comercial_asignado_id: string | null;
   motivo_descarte: string | null;
   utm_source: string | null;
@@ -326,6 +335,19 @@ export type CreateLeadPayload = {
   sub_origen?: string;
   business_referrer_id?: string;
   checklist?: CreateLeadChecklistInput;
+};
+
+export type ApproveAgencyMqlPayload = {
+  fecha_cita: string;
+  cita_contactos: Array<{
+    nombre: string;
+    email: string;
+    telefono: string;
+  }>;
+  cita_contacto_nombre: string;
+  cita_contacto_email: string;
+  cita_contacto_telefono: string;
+  cita_lugar?: string;
 };
 
 export type RegisterAppointmentPayload = {

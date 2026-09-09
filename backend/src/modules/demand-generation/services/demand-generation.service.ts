@@ -159,6 +159,17 @@ export class DemandGenerationService {
     }));
   }
 
+  async listTraductorReferrers(): Promise<CommercialOptionDto[]> {
+    const users = await this.usersService.findActiveByRoleName(
+      DEMAND_GENERATION_ROLES.TRADUCTOR_DE_NEGOCIO,
+    );
+
+    return users.map((user) => ({
+      user_id: user.user_id,
+      full_name: user.full_name,
+    }));
+  }
+
   // ----- Bulk import (async) -----
 
   enqueueLeadImport(

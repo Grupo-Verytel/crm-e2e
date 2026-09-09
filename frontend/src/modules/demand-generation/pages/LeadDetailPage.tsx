@@ -30,7 +30,6 @@ import {
 import { ExpectedRoute } from '../components/leads/ExpectedRoute';
 import { LeadConfigMenu } from '../components/leads/LeadConfigMenu';
 import { ChecklistModal } from '../components/leads/ChecklistModal';
-import { RegisterAppointmentModal } from '../components/leads/RegisterAppointmentModal';
 import { LeadInfluenciasPanel } from '../components/leads/LeadInfluenciasPanel';
 import { CANAL_ORIGEN_LABEL, leadDisplayName } from '../lib/lead-vocab';
 import { contactAccountName } from '../lib/contact-display';
@@ -77,7 +76,6 @@ export function LeadDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [showDiscard, setShowDiscard] = useState(false);
-  const [showAppointment, setShowAppointment] = useState(false);
   const [showChecklist, setShowChecklist] = useState(false);
   const [detailTab, setDetailTab] = useState<LeadDetailTab>('detalle');
   const [editMode, setEditMode] = useState(false);
@@ -120,7 +118,7 @@ export function LeadDetailPage() {
   async function advanceToBofu() {
     setActionError(null);
     try {
-      const checklist = await fetchChecklist(lead!.lead_id);
+      const checklist = (await fetchChecklist(lead!.lead_id)) ?? null;
       if (isChecklistComplete(checklist)) {
         setLead(await transitionLeadToMql(lead!.lead_id));
         return;
@@ -139,19 +137,12 @@ export function LeadDetailPage() {
       void runAction(() => transitionLeadToMofu(lead.lead_id));
       return;
     }
-    if (
-      (lead.estado === 'MOFU' &&
-        lead.canal_origen !== 'GENERACION_DEMANDA_AGENCIA') ||
-      (lead.estado === 'TOFU' && lead.canal_origen === 'FABRICA')
-    ) {
+    if (lead.estado === 'MOFU') {
       void advanceToBofu();
       return;
     }
-    if (
-      lead.estado === 'MOFU' &&
-      lead.canal_origen === 'GENERACION_DEMANDA_AGENCIA'
-    ) {
-      setShowAppointment(true);
+    if (lead.estado === 'TOFU' && lead.canal_origen === 'FABRICA') {
+      void advanceToBofu();
     }
   }
 
@@ -227,24 +218,12 @@ export function LeadDetailPage() {
   const canPassToMofu =
     lead.estado === 'TOFU' && lead.canal_origen !== 'FABRICA';
 
-  const isAgencyMofu =
-    lead.estado === 'MOFU' &&
-    lead.canal_origen === 'GENERACION_DEMANDA_AGENCIA';
-
   const canAdvanceViaChecklist =
-    (lead.estado === 'MOFU' &&
-      lead.canal_origen !== 'GENERACION_DEMANDA_AGENCIA') ||
+    lead.estado === 'MOFU' ||
     (lead.estado === 'TOFU' && lead.canal_origen === 'FABRICA');
 
-  const canRegisterAppointment =
-    isAgencyMofu &&
-    (user?.role_name === 'SoporteComercial' ||
-      user?.role_name === 'GestorMercadeo' ||
-      user?.role_name === 'Admin');
-
   const canAvanzar =
-    !isTraductor &&
-    (canPassToMofu || canAdvanceViaChecklist || canRegisterAppointment);
+    !isTraductor && (canPassToMofu || canAdvanceViaChecklist);
 
   const primaryContact = lead.contacts[0];
   const headerCompany =
@@ -469,17 +448,6 @@ export function LeadDetailPage() {
 
         {!isTraductor ? (
         <div className="mt-5 flex flex-wrap gap-2">
-          {isAgencyMofu && !canRegisterAppointment ? (
-            <p className="w-full text-sm text-muted">
-              Este lead de agencia avanza a BOFU registrando una cita (Gestor de
-              Mercadeo o Soporte Comercial) desde el detalle o la{' '}
-              <Link to="/demand/agenda" className="font-bold text-accent hover:underline">
-                Bandeja de Agenda
-              </Link>
-              .
-            </p>
-          ) : null}
-
           {(lead.estado === 'Descartado' || lead.estado === 'Reciclaje') && user ? (
             <button
               type="button"
@@ -529,17 +497,6 @@ export function LeadDetailPage() {
             navigate('/demand');
           }}
           onClose={() => setShowDiscard(false)}
-        />
-      ) : null}
-
-      {showAppointment ? (
-        <RegisterAppointmentModal
-          lead={lead}
-          onRegistered={(updated) => {
-            setLead(updated);
-            setShowAppointment(false);
-          }}
-          onClose={() => setShowAppointment(false)}
         />
       ) : null}
 

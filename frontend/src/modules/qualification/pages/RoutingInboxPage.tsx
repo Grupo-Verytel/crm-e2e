@@ -13,6 +13,14 @@ import { fetchSqlInbox } from '../api/sqls-api';
 import { AssignSqlModal } from '../components/AssignSqlModal';
 import { QualificationNav } from '../components/QualificationNav';
 import { cardClass, primaryButtonClass } from '../components/ui';
+import {
+  needsAgencyCitaGeneration,
+  sqlLeadName,
+} from '../lib/agency-cita';
+import {
+  citaContactosFromLead,
+  formatCitaContactosLabel,
+} from '../lib/cita-contactos';
 import type { SqlDetail } from '../api/sqls-api';
 
 const PAGE_SIZE = 20;
@@ -95,8 +103,9 @@ export function RoutingInboxPage() {
           <table className="w-full text-left text-sm">
             <thead className="border-b border-border text-xs text-muted">
               <tr>
+                <th className="px-4 py-3 font-bold">Lead</th>
                 <th className="px-4 py-3 font-bold">Empresa</th>
-                <th className="px-4 py-3 font-bold">Contacto</th>
+                <th className="px-4 py-3 font-bold">Cita</th>
                 <th className="px-4 py-3 font-bold">Creado</th>
                 {canAssign ? (
                   <th className="px-4 py-3 font-bold">Acción</th>
@@ -104,18 +113,63 @@ export function RoutingInboxPage() {
               </tr>
             </thead>
             <tbody>
-              {items.map((sql) => (
+              {items.map((sql) => {
+                const pendingCita = needsAgencyCitaGeneration(sql);
+                const contactosLabel = formatCitaContactosLabel(
+                  citaContactosFromLead(sql.lead),
+                );
+                return (
                 <tr key={sql.sql_id} className="border-b border-border">
                   <td className="px-4 py-3">
                     <Link
                       to={`/qualification/sqls/${sql.sql_id}`}
                       className="font-bold text-accent hover:underline"
                     >
-                      {String(sql.lead.empresa_nombre ?? '—')}
+                      {sqlLeadName(sql.lead)}
                     </Link>
                   </td>
                   <td className="px-4 py-3 text-ink">
-                    {String(sql.lead.contacto_nombre ?? '—')}
+                    {String(sql.lead.empresa_nombre ?? '—')}
+                  </td>
+                  <td className="px-4 py-3">
+                    {sql.cita ? (
+                      <span className="inline-flex flex-col gap-0.5">
+                        <span className="text-sm text-ink">
+                          Agendada · {sql.cita.fecha} {sql.cita.hora.slice(0, 5)}
+                        </span>
+                        <span className="text-xs text-muted">
+                          {formatCitaContactosLabel(
+                            sql.cita.contactos ?? [
+                              {
+                                nombre: sql.cita.contacto_nombre,
+                                email: sql.cita.contacto_email ?? '',
+                                telefono: sql.cita.contacto_telefono ?? '',
+                              },
+                            ],
+                          )}
+                        </span>
+                      </span>
+                    ) : pendingCita ? (
+                      <span className="inline-flex flex-col gap-0.5">
+                        <span className="rounded bg-accent/10 px-1.5 py-0.5 text-xs font-bold text-accent">
+                          Generar cita
+                        </span>
+                        <span className="text-xs text-muted">
+                          {formatDateTime(
+                            typeof sql.lead.fecha_cita === 'string'
+                              ? sql.lead.fecha_cita
+                              : null,
+                          )}
+                        </span>
+                        {contactosLabel ? (
+                          <span className="text-xs text-ink">
+                            {contactosLabel}
+                          </span>
+                        ) : null}
+                      </span>
+                    ) : (
+                      <span className="text-sm text-muted">—</span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-muted">
                     {formatDateTime(sql.fecha_creacion)}
@@ -132,7 +186,8 @@ export function RoutingInboxPage() {
                     </td>
                   ) : null}
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         )}

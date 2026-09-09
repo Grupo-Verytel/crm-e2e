@@ -46,6 +46,7 @@ import {
 } from '../lib/checklist-result';
 import { canRecycleLead } from '../lib/lead-state-machine';
 import { normalizePhoneToE164 } from '../lib/phone-normalize';
+import { normalizeCitaContactos } from '../lib/cita-contactos';
 import {
   CanalOrigen,
   LeadContactInfluenciaTipo,
@@ -466,7 +467,7 @@ export class LeadsService {
   async registerAppointment(
     leadId: string,
     dto: RegisterAppointmentDto,
-    userId: string,
+    _userId: string,
     roleName?: string,
   ): Promise<LeadResponseDto> {
     if (
@@ -512,62 +513,10 @@ export class LeadsService {
       });
     }
 
-    await this.sequelize.transaction(async (transaction) => {
-      const existingMql = await this.mqlModel.findOne({
-        where: { leadId },
-        transaction,
-      });
-
-      if (existingMql) {
-        await existingMql.update(
-          {
-            checklistId: null,
-            calificadoPor: userId,
-            fechaCalificacion: new Date(),
-            estado: MqlEstado.Activo,
-          },
-          { transaction },
-        );
-      } else {
-        await this.mqlModel.create(
-          {
-            leadId,
-            checklistId: null,
-            calificadoPor: userId,
-            fechaCalificacion: new Date(),
-            estado: MqlEstado.Activo,
-          },
-          { transaction },
-        );
-      }
-
-      await lead.update(
-        {
-          citaAgendada: true,
-          fechaCita: new Date(dto.fecha_cita),
-          comercialAsignadoId: dto.comercial_asignado_id,
-          estado: LeadEstado.MqlPending,
-        },
-        { transaction },
-      );
-      await this.statusHistory.record({
-        entityType: EntityType.LEAD,
-        entityId: lead.leadId,
-        rootLeadId: lead.leadId,
-        fromEstado: LeadEstado.MOFU,
-        toEstado: LeadEstado.MqlPending,
-        trigger: StatusHistoryTrigger.Advance,
-        changedBy: userId,
-        transaction,
-      });
-    });
-
-    const label = await this.getLeadDisplayLabel(lead);
-    await this.notifications.notify({
-      event: NotificationEvent.AppointmentScheduled,
-      recipientUserId: dto.comercial_asignado_id,
-      message: `Appointment scheduled for lead ${label}`,
-      metadata: { leadId: lead.leadId, fechaCita: dto.fecha_cita },
+    await lead.update({
+      citaAgendada: true,
+      fechaCita: new Date(dto.fecha_cita),
+      comercialAsignadoId: dto.comercial_asignado_id,
     });
 
     return this.toResponseDto(lead);
@@ -801,14 +750,6 @@ export class LeadsService {
       return LeadEstado.MOFU;
     }
 
-    if (canalOrigen === CanalOrigen.TraductorNegocio) {
-      throw new ConflictException({
-        code: DEMAND_GENERATION_ERROR_CODES.INVALID_TRANSITION,
-        message:
-          'TRADUCTOR_NEGOCIO flow requires EjecutivoComercial direct creation',
-      });
-    }
-
     return LeadEstado.TOFU;
   }
 
@@ -826,6 +767,19 @@ export class LeadsService {
     const primaryEnriched = primaryContact
       ? map.get(primaryContact.personId)
       : undefined;
+    const fromJson = normalizeCitaContactos(lead.citaContactos);
+    const citaContactos =
+      fromJson.length > 0
+        ? fromJson
+        : lead.citaContactoNombre
+          ? [
+              {
+                nombre: lead.citaContactoNombre,
+                email: lead.citaContactoEmail ?? '',
+                telefono: lead.citaContactoTelefono ?? '',
+              },
+            ]
+          : [];
 
     return {
       lead_id: lead.leadId,
@@ -873,6 +827,11 @@ export class LeadsService {
       responsable_nombre: lead.responsable?.fullName ?? null,
       cita_agendada: lead.citaAgendada,
       fecha_cita: lead.fechaCita,
+      cita_lugar: lead.citaLugar,
+      cita_contacto_nombre: lead.citaContactoNombre,
+      cita_contacto_email: lead.citaContactoEmail,
+      cita_contacto_telefono: lead.citaContactoTelefono,
+      cita_contactos: citaContactos,
       comercial_asignado_id: lead.comercialAsignadoId,
       motivo_descarte: lead.motivoDescarte,
       utm_source: lead.utmSource,

@@ -87,6 +87,15 @@ export class LeadResponseDto {
   responsable_nombre: string | null;
   cita_agendada: boolean;
   fecha_cita: Date | null;
+  cita_lugar: string | null;
+  cita_contacto_nombre: string | null;
+  cita_contacto_email: string | null;
+  cita_contacto_telefono: string | null;
+  cita_contactos: Array<{
+    nombre: string;
+    email: string;
+    telefono: string;
+  }> | null;
   comercial_asignado_id: string | null;
   motivo_descarte: string | null;
   utm_source: string | null;
