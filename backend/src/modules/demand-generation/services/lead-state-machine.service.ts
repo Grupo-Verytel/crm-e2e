@@ -7,10 +7,12 @@ import {
 import { InjectConnection, InjectModel } from '@nestjs/sequelize';
 import { Sequelize } from 'sequelize';
 import { AccountsService } from '../../accounts/services/accounts.service';
+import { UsersService } from '../../auth/services/users.service';
 import { EntityType } from '../../workflow-engine/enums/entity-type.enum';
 import { StatusHistoryTrigger } from '../../workflow-engine/lib/status-history-trigger';
 import { StatusHistoryService } from '../../workflow-engine/services/status-history.service';
 import { WorkflowEngineService } from '../../workflow-engine/workflow-engine.service';
+import { ApproveMqlDto } from '../dtos/approve-mql.dto';
 import {
   DEMAND_GENERATION_ERROR_CODES,
   DEMAND_GENERATION_ROLES,
@@ -57,6 +59,7 @@ export class LeadStateMachineService {
     private readonly workflowEngine: WorkflowEngineService,
     private readonly statusHistory: StatusHistoryService,
     private readonly accountsService: AccountsService,
+    private readonly usersService: UsersService,
     @Inject(NOTIFICATION_PORT)
     private readonly notifications: NotificationPort,
   ) {}
@@ -209,21 +212,25 @@ export class LeadStateMachineService {
   async approveMql(
     mqlId: string,
     userId: string,
-    comentario?: string,
+    dto: ApproveMqlDto = {},
   ): Promise<{ mql: Mql; sql: Sql; lead: Lead }> {
     const mql = await this.findMqlOrFail(mqlId);
     this.assertMqlActive(mql);
 
     const lead = await this.findLeadOrFail(mql.leadId);
     const leadEstadoAnterior = lead.estado;
+    const agencyAppointment = await this.resolveAgencyAppointment(lead, dto);
 
-    return this.sequelize.transaction(async (transaction) => {
+    const result = await this.sequelize.transaction(async (transaction) => {
       const sql = await this.sqlModel.create(
         {
           mqlId: mql.mqlId,
           estado: SqlEstado.PendienteAsignacion,
           enBacklog: true,
           origenCreacion: SqlOrigenCreacion.EnrutamientoNormal,
+          ...(agencyAppointment
+            ? { comercialAsignadoId: agencyAppointment.comercialAsignadoId }
+            : {}),
         },
         { transaction },
       );
@@ -231,18 +238,24 @@ export class LeadStateMachineService {
       await mql.update(
         {
           estado: MqlEstado.ConvertidoSQL,
-          ...(comentario ? { motivoCalificacion: comentario } : {}),
+          ...(dto.comentario ? { motivoCalificacion: dto.comentario } : {}),
         },
         { transaction },
       );
-      await lead.update({ estado: LeadEstado.SQL }, { transaction });
+      await lead.update(
+        {
+          estado: LeadEstado.SQL,
+          ...(agencyAppointment ?? {}),
+        },
+        { transaction },
+      );
 
       const entityLabel = await this.getLeadDisplayLabel(lead);
       const payload = {
         leadId: lead.leadId,
         mqlId: mql.mqlId,
         sqlId: sql.sqlId,
-        ...(comentario ? { comentario } : {}),
+        ...(dto.comentario ? { comentario: dto.comentario } : {}),
       };
 
       await this.workflowEngine.transition(
@@ -276,6 +289,18 @@ export class LeadStateMachineService {
 
       return { mql, sql, lead };
     });
+
+    if (agencyAppointment) {
+      const entityLabel = await this.getLeadDisplayLabel(lead);
+      await this.notifications.notify({
+        event: NotificationEvent.AppointmentScheduled,
+        recipientUserId: agencyAppointment.comercialAsignadoId,
+        message: `Appointment scheduled for lead ${entityLabel}`,
+        metadata: { leadId: lead.leadId, mqlId: mql.mqlId },
+      });
+    }
+
+    return result;
   }
 
   /**
@@ -418,6 +443,45 @@ export class LeadStateMachineService {
         message: `MQL is not in Activo state (current: ${mql.estado})`,
       });
     }
+  }
+
+  private async resolveAgencyAppointment(
+    lead: Lead,
+    dto: ApproveMqlDto,
+  ): Promise<{
+    citaAgendada: true;
+    fechaCita: Date;
+    comercialAsignadoId: string;
+  } | null> {
+    if (lead.canalOrigen !== CanalOrigen.GeneracionDemandaAgencia) {
+      return null;
+    }
+
+    if (!dto.fecha_cita || !dto.comercial_asignado_id) {
+      throw new BadRequestException({
+        code: DEMAND_GENERATION_ERROR_CODES.VALIDATION_ERROR,
+        message:
+          'fecha_cita and comercial_asignado_id are required to approve an agency MQL',
+      });
+    }
+
+    const isEligibleCommercial = await this.usersService.isActiveWithRole(
+      dto.comercial_asignado_id,
+      DEMAND_GENERATION_ROLES.EJECUTIVO_COMERCIAL,
+    );
+    if (!isEligibleCommercial) {
+      throw new BadRequestException({
+        code: DEMAND_GENERATION_ERROR_CODES.VALIDATION_ERROR,
+        message:
+          'comercial_asignado_id must reference an active EjecutivoComercial',
+      });
+    }
+
+    return {
+      citaAgendada: true,
+      fechaCita: new Date(dto.fecha_cita),
+      comercialAsignadoId: dto.comercial_asignado_id,
+    };
   }
 
   private async getLeadDisplayLabel(lead: Lead): Promise<string> {

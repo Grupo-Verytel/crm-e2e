@@ -3,7 +3,7 @@ import {
   fetchAppointmentCommercials,
   registerLeadAppointment,
 } from '../../api/leads-api';
-import type { CommercialOption, Lead } from '../../types';
+import type { CommercialOption, Lead, RegisterAppointmentPayload } from '../../types';
 import { ModalShell } from '../ModalShell';
 import {
   ghostButtonClass,
@@ -14,11 +14,17 @@ import {
 
 export function RegisterAppointmentModal({
   lead,
+  title = 'Registrar cita agendada',
+  submitLabel = 'Registrar cita',
   onRegistered,
+  onConfirm,
   onClose,
 }: {
   lead: Lead;
-  onRegistered: (lead: Lead) => void;
+  title?: string;
+  submitLabel?: string;
+  onRegistered?: (lead: Lead) => void;
+  onConfirm?: (payload: RegisterAppointmentPayload) => Promise<void>;
   onClose: () => void;
 }) {
   const [commercials, setCommercials] = useState<CommercialOption[]>([]);
@@ -58,11 +64,16 @@ export function RegisterAppointmentModal({
     setIsSubmitting(true);
     setError(null);
     try {
-      const updated = await registerLeadAppointment(lead.lead_id, {
-        fecha_cita: fechaCita,
+      const payload: RegisterAppointmentPayload = {
+        fecha_cita: new Date(fechaCita).toISOString(),
         comercial_asignado_id: commercialId,
-      });
-      onRegistered(updated);
+      };
+      if (onConfirm) {
+        await onConfirm(payload);
+      } else if (onRegistered) {
+        const updated = await registerLeadAppointment(lead.lead_id, payload);
+        onRegistered(updated);
+      }
       onClose();
     } catch (submitError) {
       setError(
@@ -76,7 +87,7 @@ export function RegisterAppointmentModal({
   }
 
   return (
-    <ModalShell title="Registrar cita agendada" onClose={onClose}>
+    <ModalShell title={title} onClose={onClose}>
       <form className="space-y-4" onSubmit={handleSubmit}>
         <p className="text-sm text-muted">
           {lead.contacto_nombre} · {lead.empresa_nombre}
@@ -130,7 +141,7 @@ export function RegisterAppointmentModal({
             disabled={isSubmitting || isLoading || !commercialId}
             className={primaryButtonClass}
           >
-            Registrar cita
+            {isSubmitting ? 'Guardando…' : submitLabel}
           </button>
         </div>
       </form>

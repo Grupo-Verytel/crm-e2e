@@ -10,10 +10,12 @@ import {
   Post,
   Put,
   Query,
+  Res,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import type { Response } from 'express';
 import { CheckAbility } from '../../auth/casl/check-ability.decorator';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../../auth/interfaces/authenticated-user.interface';
@@ -221,8 +223,16 @@ export class LeadsController {
 
   @Get(':id/checklist')
   @CheckAbility({ action: 'read', subject: 'Lead' })
-  getChecklist(@Param('id') id: string): Promise<ChecklistResponseDto | null> {
-    return this.demandGenerationService.getChecklist(id);
+  async getChecklist(
+    @Param('id') id: string,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<ChecklistResponseDto | void> {
+    const checklist = await this.demandGenerationService.getChecklist(id);
+    if (!checklist) {
+      res.status(204);
+      return;
+    }
+    return checklist;
   }
 
   @Post(':id/transition-to-mofu')

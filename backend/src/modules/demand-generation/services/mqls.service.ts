@@ -54,7 +54,7 @@ export class MqlsService {
     const { mql, sql } = await this.stateMachine.approveMql(
       mqlId,
       userId,
-      dto.comentario,
+      dto,
     );
 
     return {

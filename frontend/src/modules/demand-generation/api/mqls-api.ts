@@ -8,11 +8,15 @@ export async function fetchMqls(query: MqlsQuery = {}): Promise<PaginatedMqls> {
 
 export async function approveMql(
   mqlId: string,
-  comentario?: string,
+  payload?: {
+    comentario?: string;
+    fecha_cita?: string;
+    comercial_asignado_id?: string;
+  },
 ): Promise<unknown> {
   return apiRequest(`/mqls/${mqlId}/approve`, {
     method: 'POST',
-    body: comentario ? { comentario } : {},
+    body: payload ?? {},
   });
 }
 

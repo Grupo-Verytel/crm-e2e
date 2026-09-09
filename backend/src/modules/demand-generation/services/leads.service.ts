@@ -466,7 +466,7 @@ export class LeadsService {
   async registerAppointment(
     leadId: string,
     dto: RegisterAppointmentDto,
-    userId: string,
+    _userId: string,
     roleName?: string,
   ): Promise<LeadResponseDto> {
     if (
@@ -512,62 +512,10 @@ export class LeadsService {
       });
     }
 
-    await this.sequelize.transaction(async (transaction) => {
-      const existingMql = await this.mqlModel.findOne({
-        where: { leadId },
-        transaction,
-      });
-
-      if (existingMql) {
-        await existingMql.update(
-          {
-            checklistId: null,
-            calificadoPor: userId,
-            fechaCalificacion: new Date(),
-            estado: MqlEstado.Activo,
-          },
-          { transaction },
-        );
-      } else {
-        await this.mqlModel.create(
-          {
-            leadId,
-            checklistId: null,
-            calificadoPor: userId,
-            fechaCalificacion: new Date(),
-            estado: MqlEstado.Activo,
-          },
-          { transaction },
-        );
-      }
-
-      await lead.update(
-        {
-          citaAgendada: true,
-          fechaCita: new Date(dto.fecha_cita),
-          comercialAsignadoId: dto.comercial_asignado_id,
-          estado: LeadEstado.MqlPending,
-        },
-        { transaction },
-      );
-      await this.statusHistory.record({
-        entityType: EntityType.LEAD,
-        entityId: lead.leadId,
-        rootLeadId: lead.leadId,
-        fromEstado: LeadEstado.MOFU,
-        toEstado: LeadEstado.MqlPending,
-        trigger: StatusHistoryTrigger.Advance,
-        changedBy: userId,
-        transaction,
-      });
-    });
-
-    const label = await this.getLeadDisplayLabel(lead);
-    await this.notifications.notify({
-      event: NotificationEvent.AppointmentScheduled,
-      recipientUserId: dto.comercial_asignado_id,
-      message: `Appointment scheduled for lead ${label}`,
-      metadata: { leadId: lead.leadId, fechaCita: dto.fecha_cita },
+    await lead.update({
+      citaAgendada: true,
+      fechaCita: new Date(dto.fecha_cita),
+      comercialAsignadoId: dto.comercial_asignado_id,
     });
 
     return this.toResponseDto(lead);

@@ -57,7 +57,7 @@
 |---|---|
 | Director de Mercadeo | Crea/aprueba campañas, revisa y aprueba/rechaza MQL, ve KPIs |
 | Gestor de Mercadeo | Captura y gestiona leads, registra interacciones, aplica checklist, transiciona TOFU→MOFU→BOFU |
-| **SoporteComercial** *(UI: “Profesional Soporte Comercial”)* | Registra citas del canal `GENERACION_DEMANDA_AGENCIA` y recibe el SQL en bandeja comercial |
+| **SoporteComercial** *(UI: “Profesional Soporte Comercial”)* | Recibe el SQL en bandeja comercial. La cita del canal `GENERACION_DEMANDA_AGENCIA` la registra el Director de Mercadeo al aprobar el MQL |
 | **ProductManager** *(nuevo v2.3; UI: “Product Manager”)* | Crea leads manualmente con checklist ya diligenciado; nacen directo en BOFU (`MQL_PENDING`), canal limitado a `BTL`/`FABRICA` |
 | **EjecutivoComercial (KAM)** *(nuevo v2.3, solo esta ruta)* | Crea leads manualmente con checklist ya diligenciado; nacen directo en `SQL`, auto-asignados a sí mismo. Canal `BTL`/`FABRICA`/`TRADUCTOR_NEGOCIO` |
 | **TraductorDeNegocio** *(v2.4)* | Seleccionable en `business_referrer_id`. Login + solo lectura de leads donde es el referente. Sin create/update de leads ni campañas |
@@ -138,7 +138,7 @@ Sin cambios respecto a v2.2.
 |---|---|---|---|
 | mql_id | UUID | Sí | PK |
 | lead_id | UUID | Sí | FK leads, UNIQUE |
-| checklist_id | UUID | Condicional | FK lead_checklist (evidencia de calificación). Nullable cuando el gate es una cita agendada de `GENERACION_DEMANDA_AGENCIA` |
+| checklist_id | UUID | Sí | FK lead_checklist (evidencia de calificación). También aplica a `GENERACION_DEMANDA_AGENCIA` (MOFU → BOFU por checklist) |
 | calificado_por | UUID | Sí | FK users |
 | fecha_calificacion | TIMESTAMPTZ | Sí | |
 | motivo_calificacion | TEXT | No | |
@@ -181,7 +181,7 @@ Sin cambios respecto a v2.2 para el flujo estándar. Ver sección 4.1 para las d
 | CAMPANA_DIGITAL | TOFU | TOFU → MOFU → BOFU → SQL | Ninguna (checklist estándar) |
 | BTL | TOFU | TOFU → MOFU → BOFU → SQL | Ninguna (checklist estándar). **Excepción:** si lo crea `ProductManager` o `EjecutivoComercial`, aplica su ruta directa (ver abajo) |
 | FABRICA | TOFU | TOFU → BOFU → SQL | Omite MOFU. **Excepción:** igual que BTL, ruta directa si aplica |
-| GENERACION_DEMANDA_AGENCIA | MOFU | MOFU → BOFU → SQL | MOFU → BOFU por evento manual (`cita_agendada=true`), no por checklist |
+| GENERACION_DEMANDA_AGENCIA | MOFU | MOFU → BOFU → SQL | MOFU → BOFU por checklist (igual que BTL). La cita (`fecha_cita` + `comercial_asignado_id`) se registra en Bandeja MQL al aprobar → SQL |
 | **TRADUCTOR_NEGOCIO** *(resuelto v2.3)* | **SQL** | **SQL directo** | **Solo puede originarse por la ruta EjecutivoComercial (nunca por captura estándar) — ver sección 5. Ya no es TBD.** |
 | — Ruta `ProductManager` (BTL/FABRICA) | MQL_PENDING | MQL_PENDING → SQL (enrutamiento normal) | Checklist ya viene diligenciado al crear |
 | — Ruta EjecutivoComercial (BTL/FABRICA/TRADUCTOR_NEGOCIO) | SQL | SQL (ya resuelto, sin enrutamiento) | Checklist ya viene diligenciado al crear; auto-asignado |
@@ -200,7 +200,7 @@ Sin cambios respecto a v2.2 para el flujo estándar. Ver sección 4.1 para las d
 - DG-03: CUANDO se registra un lead vía formulario web, import CSV o integración de aliado, el sistema DEBE crearlo en estado `Nuevo` y transicionarlo automáticamente a `TOFU`.
 - DG-04: CUANDO el Gestor de Mercadeo registra una interacción, el sistema DEBE actualizar `fecha_ultima_interaccion` del lead asociado.
 - DG-05: CUANDO se completa el `lead_checklist` con los 4 criterios en `true`, el sistema DEBE transicionar el lead a `MQL_PENDING` y crear el registro `mqls` en estado `Activo`, notificando al Director de Mercadeo.
-- DG-06: CUANDO el Director de Mercadeo aprueba un MQL, el sistema DEBE crear el registro `sqls` con `en_backlog = true`, `origen_creacion = enrutamiento_normal`, actualizar `lead.estado = SQL`, y notificar a Soporte Comercial.
+- DG-06: CUANDO el Director de Mercadeo aprueba un MQL, el sistema DEBE crear el registro `sqls` con `en_backlog = true`, `origen_creacion = enrutamiento_normal`, actualizar `lead.estado = SQL`, y notificar a Soporte Comercial. SI el lead es `GENERACION_DEMANDA_AGENCIA`, además DEBE exigir y persistir la cita (EARS-21).
 - DG-07: CUANDO el Director de Mercadeo rechaza un MQL, el sistema DEBE exigir motivo, actualizar `lead.estado = Reciclaje` y notificar al Gestor de Mercadeo responsable.
 - DG-08: CUANDO se importa un CSV de campaña outbound, el sistema DEBE validar duplicados antes de crear cada fila: si vienen informados email (contacto/`people`) y NIT (`accounts.tax_id`) y ya existe un lead activo con ese mismo par vía `lead_contacts` → `people` → `accounts`, ENTONCES **rechaza esa fila** y continúa con el resto del lote. Si email o NIT vienen vacíos, ese eje no participa del match.
 
@@ -227,7 +227,7 @@ Sin cambios respecto a v2.2 para el flujo estándar. Ver sección 4.1 para las d
 **Reglas por canal de origen**
 - EARS-19: CUANDO se crea un lead con `canal_origen=FABRICA` (captura estándar, no ruta directa), el sistema DEBERÁ asignar `estado_inicial=TOFU` y omitir la transición a MOFU.
 - EARS-20: CUANDO se crea un lead con `canal_origen=GENERACION_DEMANDA_AGENCIA`, el sistema DEBERÁ asignar `estado_inicial=MOFU` sin pasar por TOFU.
-- EARS-21: CUANDO un usuario con rol `SoporteComercial` registra `cita_agendada=true` sobre un lead en MOFU con `canal_origen=GENERACION_DEMANDA_AGENCIA`, el sistema DEBERÁ transicionar el lead a BOFU (`MQL_PENDING`), crear un MQL activo sin `checklist_id` y notificar a `comercial_asignado_id`.
+- EARS-21: CUANDO el Director de Mercadeo aprueba un MQL cuyo lead tiene `canal_origen=GENERACION_DEMANDA_AGENCIA`, el sistema DEBERÁ exigir `fecha_cita` y `comercial_asignado_id` (EjecutivoComercial activo), persistir `cita_agendada=true` en el lead, asignar el comercial al SQL y notificar a `comercial_asignado_id`. El paso MOFU → BOFU de este canal DEBE usar el mismo checklist que los demás canales (DG-05 / DG-13).
 - EARS-22: SI un lead tiene `canal_origen=FABRICA` o `canal_origen=GENERACION_DEMANDA_AGENCIA`, ENTONCES el Kanban DEBERÁ ocultar o atenuar visualmente las columnas no aplicables.
 - EARS-23: CUANDO se filtra el Kanban o la Lista por un `canal_origen` específico, el sistema DEBERÁ mostrar únicamente los leads de ese canal y ajustar las columnas visibles.
 
@@ -269,7 +269,7 @@ Sin cambios respecto a v2.2 para el flujo estándar. Ver sección 4.1 para las d
 **Director de Mercadeo**
 - Módulo Campañas: crear / listar / importar CSV
 - Dashboard Marketing: KPIs (Leads/mes, % leads calificados, CPL, MQLs pendientes)
-- Bandeja MQL: aprobar / rechazar con motivo
+- Bandeja MQL: aprobar / rechazar con motivo. En `GENERACION_DEMANDA_AGENCIA`, Aprobar abre el formulario de cita (fecha + comercial) antes de crear el SQL
 
 **Gestor de Mercadeo**
 - Leads / Lista y Kanban (filtros: canal de origen, estado, segmento, campaña, responsable)
@@ -277,7 +277,7 @@ Sin cambios respecto a v2.2 para el flujo estándar. Ver sección 4.1 para las d
 - Registrar interacción (modal rápido)
 
 **SoporteComercial** *(UI: “Profesional Soporte Comercial”)*
-- Bandeja de Agenda: leads `GENERACION_DEMANDA_AGENCIA` en MOFU, registro de cita y asignación de comercial
+- Bandeja de Agenda: listado de leads `GENERACION_DEMANDA_AGENCIA` en MOFU (la cita ya no es el gate a BOFU; se registra en Bandeja MQL al aprobar)
 
 **ProductManager** *(nuevo v2.3; UI: “Product Manager”)*
 - Modal "Nuevo Lead" simplificado: checklist + datos básicos, sin las pantallas de Kanban/nutrición
