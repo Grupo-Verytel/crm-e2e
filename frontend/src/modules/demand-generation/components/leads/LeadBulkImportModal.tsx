@@ -15,7 +15,7 @@ export const LEAD_CSV_FIELDS: {
   { key: 'name', label: 'Nombre del lead', required: true, hint: 'Único; no se puede repetir' },
   { key: 'tipo_lead', label: 'Tipo de lead', required: true, hint: 'Inbound, Outbound, Referido, Aliado, Licitacion' },
   { key: 'origen', label: 'Origen', required: true, hint: 'Web, Email, LinkedIn, Evento, SECOP, Aliado, Otro, Referido' },
-  { key: 'canal_origen', label: 'Canal de origen', required: true, hint: 'CAMPANA_DIGITAL, BTL, FABRICA, EVENTOS, …' },
+  { key: 'canal_origen', label: 'Canal de origen', required: true, hint: 'CAMPANA_DIGITAL, BTL, FABRICA, …' },
   { key: 'segmento', label: 'Segmento', required: true, hint: 'Gobierno, D&S, ProyectosEspeciales, B2B' },
   { key: 'industria', label: 'Industria', required: false, hint: 'Obligatoria si segmento = B2B' },
   { key: 'city', label: 'Ciudad', required: true, hint: 'Municipio Colombia' },
