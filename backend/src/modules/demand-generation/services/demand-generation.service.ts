@@ -156,6 +156,7 @@ export class DemandGenerationService {
     return users.map((user) => ({
       user_id: user.user_id,
       full_name: user.full_name,
+      email: user.email,
     }));
   }
 
@@ -167,6 +168,7 @@ export class DemandGenerationService {
     return users.map((user) => ({
       user_id: user.user_id,
       full_name: user.full_name,
+      email: user.email,
     }));
   }
 

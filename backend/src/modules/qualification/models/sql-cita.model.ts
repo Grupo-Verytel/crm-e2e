@@ -95,6 +95,31 @@ export class SqlCita extends Model {
   @BelongsTo(() => User, { foreignKey: 'agendadaPor', as: 'agendador' })
   declare agendador: User;
 
+  @Column({
+    type: DataType.STRING(512),
+    field: 'graph_event_id',
+    allowNull: true,
+  })
+  declare graphEventId: string | null;
+
+  @Column({
+    type: DataType.STRING(255),
+    field: 'graph_organizer_upn',
+    allowNull: true,
+  })
+  declare graphOrganizerUpn: string | null;
+
+  @Column({ type: DataType.TEXT, field: 'teams_join_url', allowNull: true })
+  declare teamsJoinUrl: string | null;
+
+  @Default(60)
+  @Column({
+    type: DataType.INTEGER,
+    field: 'duration_minutes',
+    allowNull: false,
+  })
+  declare durationMinutes: number;
+
   @CreatedAt
   @Column({ type: DataType.DATE, field: 'created_at' })
   declare createdAt: Date;

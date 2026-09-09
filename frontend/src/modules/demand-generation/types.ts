@@ -358,6 +358,7 @@ export type RegisterAppointmentPayload = {
 export type CommercialOption = {
   user_id: string;
   full_name: string;
+  email: string;
 };
 
 export type Interaction = {

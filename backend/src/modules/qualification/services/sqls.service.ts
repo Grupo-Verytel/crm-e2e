@@ -7,6 +7,7 @@ import {
 import { InjectConnection, InjectModel } from '@nestjs/sequelize';
 import { Op, Sequelize, type WhereOptions } from 'sequelize';
 import { UsersService } from '../../auth/services/users.service';
+import type { UserResponseDto } from '../../auth/dtos/user-response.dto';
 import { DemandGenerationService } from '../../demand-generation/services/demand-generation.service';
 import { Lead } from '../../demand-generation/models/lead.model';
 import { Mql } from '../../demand-generation/models/mql.model';
@@ -15,6 +16,7 @@ import { SqlEstado } from '../../demand-generation/models/enums/sql.enums';
 import type { CrearOuvDto } from '../../discovery/dtos/crear-ouv.dto';
 import { OuvZona } from '../../discovery/models/enums/ouv.enums';
 import { OuvsService } from '../../discovery/services/ouvs.service';
+import { GraphService } from '../../graph-integration/services/graph.service';
 import { EntityType } from '../../workflow-engine/enums/entity-type.enum';
 import { WorkflowEngineService } from '../../workflow-engine/workflow-engine.service';
 import {
@@ -51,6 +53,7 @@ export class SqlsService {
     private readonly usersService: UsersService,
     private readonly workflowEngine: WorkflowEngineService,
     private readonly ouvsService: OuvsService,
+    private readonly graphService: GraphService,
   ) {}
 
   /** EARS-02 — Soporte bandeja de enrutamiento. DirectorMercadeo: lectura. */
@@ -164,7 +167,9 @@ export class SqlsService {
         });
       }
 
-      await this.assertActiveEjecutivo(dto.comercial_asignado_id);
+      const comercial = await this.requireActiveEjecutivo(
+        dto.comercial_asignado_id,
+      );
 
       const estadoAnterior = sql.estado;
       const assignedAt = new Date();
@@ -191,6 +196,29 @@ export class SqlsService {
       const lead = await this.demandGenerationService.findLeadById(sql.mql.leadId);
       const interactions =
         await this.demandGenerationService.listInteractions(sql.mql.leadId);
+
+      if (cita && dto.cita) {
+        const meeting = await this.createTeamsMeetingForCita({
+          comercial,
+          leadLabel: String(
+            (lead as { name?: string; empresa_nombre?: string }).name ??
+              (lead as { empresa_nombre?: string }).empresa_nombre ??
+              sql.sqlId,
+          ),
+          dto: dto.cita,
+          contactos: this.resolveCitaContactos(dto.cita),
+        });
+        await cita.update(
+          {
+            graphEventId: meeting.eventId,
+            graphOrganizerUpn: meeting.organizerUpn,
+            teamsJoinUrl: meeting.joinUrl,
+            durationMinutes: dto.cita.duration_minutes ?? 60,
+          },
+          { transaction },
+        );
+      }
+
       const citaDto = cita ? this.toCitaResponse(cita) : null;
 
       await this.workflowEngine.transition(
@@ -282,9 +310,16 @@ export class SqlsService {
           ...(dto.descripcion !== undefined
             ? { descripcion: dto.descripcion }
             : {}),
+          ...(dto.duration_minutes !== undefined
+            ? { durationMinutes: dto.duration_minutes }
+            : {}),
         },
         { transaction },
       );
+
+      if (cita.graphEventId && cita.graphOrganizerUpn) {
+        await this.updateTeamsMeetingForCita(cita, sql);
+      }
 
       const lead = await this.demandGenerationService.findLeadById(sql.mql.leadId);
 
@@ -461,6 +496,7 @@ export class SqlsService {
         contactos,
         contactoCargo: dto.contacto_cargo ?? null,
         descripcion: dto.descripcion ?? null,
+        durationMinutes: dto.duration_minutes ?? 60,
         agendadaPor,
       },
       { transaction },
@@ -492,7 +528,9 @@ export class SqlsService {
     return contactos;
   }
 
-  private async assertActiveEjecutivo(userId: string): Promise<void> {
+  private async requireActiveEjecutivo(
+    userId: string,
+  ): Promise<UserResponseDto> {
     const commercials = await this.usersService.findActiveByRoleName(
       QUALIFICATION_ROLES.EJECUTIVO_COMERCIAL,
     );
@@ -504,6 +542,142 @@ export class SqlsService {
           'comercial_asignado_id must reference an active EjecutivoComercial',
       });
     }
+    return match;
+  }
+
+  private async createTeamsMeetingForCita(params: {
+    comercial: UserResponseDto;
+    leadLabel: string;
+    dto: CreateSqlCitaDto;
+    contactos: Array<{ nombre: string; email: string; telefono: string }>;
+  }): Promise<{
+    eventId: string;
+    organizerUpn: string;
+    joinUrl: string | null;
+  }> {
+    const organizerUpn = this.assertOrgMailbox(params.comercial.email);
+    const { startTime, endTime } = this.citaWindow(
+      params.dto.fecha,
+      params.dto.hora,
+      params.dto.duration_minutes ?? 60,
+    );
+    const attendees = params.contactos
+      .filter((contacto) => contacto.email.includes('@'))
+      .map((contacto) => ({
+        email: contacto.email,
+        name: contacto.nombre,
+        type: 'required' as const,
+      }));
+
+    try {
+      const meeting = await this.graphService.createMeeting({
+        organizerUpn,
+        subject: `Cita SQL — ${params.leadLabel}`,
+        startTime,
+        endTime,
+        attendees,
+        location: params.dto.lugar,
+        body: params.dto.descripcion ?? undefined,
+        isOnlineMeeting: true,
+      });
+      return {
+        eventId: meeting.eventId,
+        organizerUpn: meeting.organizer.email ?? organizerUpn,
+        joinUrl: meeting.joinUrl,
+      };
+    } catch (error) {
+      throw new BadRequestException({
+        code: QUALIFICATION_ERROR_CODES.TEAMS_MEETING_FAILED,
+        message:
+          error instanceof Error
+            ? error.message
+            : 'No se pudo crear la reunión de Teams. Verifica la integración y el correo del comercial.',
+      });
+    }
+  }
+
+  private async updateTeamsMeetingForCita(
+    cita: SqlCita,
+    sql: Sql,
+  ): Promise<void> {
+    if (!cita.graphEventId || !cita.graphOrganizerUpn) {
+      return;
+    }
+    const { startTime, endTime } = this.citaWindow(
+      String(cita.fecha),
+      String(cita.hora),
+      cita.durationMinutes ?? 60,
+    );
+    const contactos = normalizeCitaContactos(cita.contactos);
+    try {
+      await this.graphService.updateMeeting(cita.graphEventId, {
+        organizerUpn: cita.graphOrganizerUpn,
+        subject: `Cita SQL — ${sql.sqlId}`,
+        startTime,
+        endTime,
+        attendees: contactos
+          .filter((contacto) => contacto.email.includes('@'))
+          .map((contacto) => ({
+            email: contacto.email,
+            name: contacto.nombre,
+            type: 'required' as const,
+          })),
+        location: cita.lugar,
+        body: cita.descripcion ?? undefined,
+        isOnlineMeeting: true,
+      });
+    } catch (error) {
+      throw new BadRequestException({
+        code: QUALIFICATION_ERROR_CODES.TEAMS_MEETING_FAILED,
+        message:
+          error instanceof Error
+            ? error.message
+            : 'No se pudo actualizar la reunión de Teams.',
+      });
+    }
+  }
+
+  private assertOrgMailbox(email: string): string {
+    const trimmed = email.trim().toLowerCase();
+    const domain = trimmed.split('@')[1];
+    if (!domain || !this.graphService.domains.includes(domain)) {
+      throw new BadRequestException({
+        code: QUALIFICATION_ERROR_CODES.TEAMS_MEETING_FAILED,
+        message:
+          'El comercial debe tener un correo de frisson.net.co o grupoverytel.com para crear la reunión de Teams.',
+      });
+    }
+    return trimmed;
+  }
+
+  private citaWindow(
+    fecha: string,
+    hora: string,
+    durationMinutes: number,
+  ): { startTime: string; endTime: string } {
+    const datePart = fecha.slice(0, 10);
+    const time = this.normalizeHora(hora);
+    const dateMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(datePart);
+    const timeMatch = /^(\d{2}):(\d{2})/.exec(time);
+    if (!dateMatch || !timeMatch) {
+      throw new BadRequestException({
+        code: QUALIFICATION_ERROR_CODES.VALIDATION_ERROR,
+        message: 'fecha and hora must form a valid datetime',
+      });
+    }
+    const startMinutes =
+      Number(timeMatch[1]) * 60 + Number(timeMatch[2]);
+    const endMinutes = startMinutes + durationMinutes;
+    const pad = (value: number) => String(value).padStart(2, '0');
+    const toClock = (total: number) => {
+      const hours = Math.floor(total / 60);
+      const minutes = total % 60;
+      return `${pad(hours)}:${pad(minutes)}`;
+    };
+    return {
+      startTime: `${datePart}T${toClock(startMinutes)}`,
+      endTime: `${datePart}T${toClock(endMinutes)}`,
+    };
   }
 
   private assertSoporteOrAdmin(roleName?: string): void {
@@ -617,6 +791,10 @@ export class SqlsService {
       contacto_cargo: cita.contactoCargo,
       descripcion: cita.descripcion,
       agendada_por: cita.agendadaPor,
+      graph_event_id: cita.graphEventId,
+      graph_organizer_upn: cita.graphOrganizerUpn,
+      teams_join_url: cita.teamsJoinUrl,
+      duration_minutes: cita.durationMinutes ?? 60,
       created_at: cita.createdAt,
       updated_at: cita.updatedAt,
     };

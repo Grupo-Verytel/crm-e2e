@@ -5,12 +5,15 @@ import {
   IsArray,
   IsDateString,
   IsEmail,
+  IsInt,
   IsNotEmpty,
   IsOptional,
   IsString,
   IsUUID,
   Matches,
+  Max,
   MaxLength,
+  Min,
   ValidateNested,
 } from 'class-validator';
 
@@ -75,6 +78,14 @@ export class CreateSqlCitaDto {
   @IsOptional()
   @IsString()
   descripcion?: string;
+
+  /** Duration of the Teams meeting in minutes. Default 60. */
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(15)
+  @Max(180)
+  duration_minutes?: number;
 }
 
 export class AssignSqlDto {
@@ -117,4 +128,11 @@ export class UpdateSqlCitaDto {
   @IsOptional()
   @IsString()
   descripcion?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(15)
+  @Max(180)
+  duration_minutes?: number;
 }

@@ -160,6 +160,21 @@ export function SqlDetailPage() {
                     {sql.cita.fecha} {sql.cita.hora}
                   </dd>
                 </div>
+                {sql.cita.teams_join_url ? (
+                  <div className="flex justify-between gap-4">
+                    <dt className="text-muted">Teams</dt>
+                    <dd>
+                      <a
+                        href={sql.cita.teams_join_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-bold text-accent hover:underline"
+                      >
+                        Unirse a la reunión
+                      </a>
+                    </dd>
+                  </div>
+                ) : null}
                 <div className="flex justify-between gap-4">
                   <dt className="text-muted">Contactos</dt>
                   <dd className="text-right text-ink">

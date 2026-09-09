@@ -122,11 +122,23 @@ export function AssignedSqlsPage() {
                         />
                         <span className="inline-flex flex-col gap-0.5">
                           <span className="inline-flex w-fit items-center rounded-sm border border-turquoise px-2 py-0.5 text-xs font-bold text-ink">
-                            Reunión agendada
+                            {sql.cita.teams_join_url
+                              ? 'Reunión Teams'
+                              : 'Reunión agendada'}
                           </span>
                           <span className="text-xs text-muted">
                             {sql.cita.fecha} {sql.cita.hora.slice(0, 5)}
                           </span>
+                          {sql.cita.teams_join_url ? (
+                            <a
+                              href={sql.cita.teams_join_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-xs font-bold text-accent hover:underline"
+                            >
+                              Unirse a Teams
+                            </a>
+                          ) : null}
                         </span>
                       </span>
                     ) : (

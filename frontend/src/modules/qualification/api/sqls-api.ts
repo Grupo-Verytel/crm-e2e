@@ -18,6 +18,10 @@ export type SqlCita = {
   contacto_cargo: string | null;
   descripcion: string | null;
   agendada_por: string;
+  graph_event_id?: string | null;
+  graph_organizer_upn?: string | null;
+  teams_join_url?: string | null;
+  duration_minutes?: number;
   created_at: string;
   updated_at: string;
 };
@@ -88,6 +92,7 @@ export type AssignSqlPayload = {
     }>;
     contacto_cargo?: string;
     descripcion?: string;
+    duration_minutes?: number;
   };
 };
 
