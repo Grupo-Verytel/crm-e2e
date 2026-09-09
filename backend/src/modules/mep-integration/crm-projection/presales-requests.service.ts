@@ -24,8 +24,8 @@ import { CreatePresalesRequestDto } from './dtos/create-presales-request.dto';
 import {
   DUPLICATE_ACTIVITY_TYPE_CODE,
   DUPLICATE_ACTIVITY_TYPE_MESSAGE,
-  comboKey,
-  isSolicitudRechazada,
+  isSolicitudEnCurso,
+  servicesOverlap,
 } from './presales-combo-guard';
 import {
   PresalesRequestView,
@@ -258,9 +258,9 @@ export class PresalesRequestsService {
   }
 
   /**
-   * Un combo (tipo de actividad) no se puede repetir en la OUV salvo que
-   * todas las anteriores de ese combo estén rechazadas (acuse REJECTED o
-   * QUARANTINED y sin cierre comercial).
+   * Un tipo de actividad no puede superponerse con una solicitud en curso
+   * (Pendiente, Aceptado o En progreso). Aprobada y Rechazada liberan el
+   * servicio. Técnica en curso bloquea también las combinadas.
    */
   private async assertComboDisponible(
     opportunityRef: string,
@@ -274,15 +274,13 @@ export class PresalesRequestsService {
       transaction,
     });
 
-    const incoming = comboKey(services);
-
     for (const row of existing) {
-      if (comboKey(row.requestedServices ?? []) !== incoming) {
+      if (!servicesOverlap(services, row.requestedServices ?? [])) {
         continue;
       }
 
       const view = await this.project(row);
-      if (!isSolicitudRechazada(view)) {
+      if (isSolicitudEnCurso(view)) {
         throw new ConflictException({
           codigo_error: DUPLICATE_ACTIVITY_TYPE_CODE,
           detalle: DUPLICATE_ACTIVITY_TYPE_MESSAGE,
