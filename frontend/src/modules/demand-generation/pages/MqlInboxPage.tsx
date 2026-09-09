@@ -11,7 +11,7 @@ import { MotivoModal } from '../components/MotivoModal';
 import { RegisterAppointmentModal } from '../components/leads/RegisterAppointmentModal';
 import { cardClass, ghostButtonClass, primaryButtonClass } from '../components/ui';
 import { leadDisplayName } from '../lib/lead-vocab';
-import type { Lead, Mql } from '../types';
+import type { ApproveAgencyMqlPayload, Lead, Mql } from '../types';
 
 /** Same role the workflow guard checks for lead.mql_aprobado. */
 const MQL_DECISION_ROLES = new Set([
@@ -66,7 +66,7 @@ export function MqlInboxPage() {
 
   async function handleApprove(
     mql: Mql,
-    appointment?: { fecha_cita: string; comercial_asignado_id: string },
+    appointment?: ApproveAgencyMqlPayload,
   ) {
     setBusyId(mql.mql_id);
     setError(null);

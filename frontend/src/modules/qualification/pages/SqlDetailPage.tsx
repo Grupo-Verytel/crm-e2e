@@ -11,6 +11,7 @@ import {
   ghostButtonClass,
   primaryButtonClass,
 } from '../components/ui';
+import { needsAgencyCitaGeneration, sqlLeadName } from '../lib/agency-cita';
 
 export function SqlDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -71,8 +72,11 @@ export function SqlDetailPage() {
         <div className="grid gap-4 lg:grid-cols-2">
           <section className={`${cardClass} p-5`}>
             <h1 className="text-lg font-bold text-ink">
-              {String(sql.lead.empresa_nombre ?? 'SQL')}
+              {sqlLeadName(sql.lead)}
             </h1>
+            <p className="mt-1 text-sm text-muted">
+              {String(sql.lead.empresa_nombre ?? '—')}
+            </p>
             <dl className="mt-4 space-y-2 text-sm">
               <div className="flex justify-between gap-4">
                 <dt className="text-muted">Estado</dt>
@@ -160,6 +164,13 @@ export function SqlDetailPage() {
                   <dd className="text-ink">{sql.cita.contacto_nombre}</dd>
                 </div>
               </dl>
+            ) : needsAgencyCitaGeneration(sql) ? (
+              <p className="mt-3 text-sm text-ink">
+                Pendiente de generar en la bandeja de enrutamiento.
+                {sql.lead.fecha_cita
+                  ? ` Indicada al aprobar el MQL: ${formatDateTime(String(sql.lead.fecha_cita))}.`
+                  : ''}
+              </p>
             ) : (
               <p className="mt-3 text-sm text-muted">Sin cita agendada.</p>
             )}

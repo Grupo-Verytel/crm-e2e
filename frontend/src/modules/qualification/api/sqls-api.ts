@@ -8,6 +8,8 @@ export type SqlCita = {
   fecha: string;
   hora: string;
   contacto_nombre: string;
+  contacto_email: string | null;
+  contacto_telefono: string | null;
   contacto_cargo: string | null;
   descripcion: string | null;
   agendada_por: string;
@@ -28,11 +30,20 @@ export type SqlDetail = {
   ouv: { ouv_id: string; consecutivo: string } | null;
   lead: {
     lead_id?: string;
+    name?: string | null;
     empresa_nombre?: string;
     contacto_nombre?: string;
     email?: string;
     icp_score?: number | null;
     origen?: string;
+    canal_origen?: string;
+    cita_agendada?: boolean;
+    fecha_cita?: string | null;
+    cita_lugar?: string | null;
+    cita_contacto_nombre?: string | null;
+    cita_contacto_email?: string | null;
+    cita_contacto_telefono?: string | null;
+    comercial_asignado_id?: string | null;
     segment_id?: string | null;
     subsegment_id?: string | null;
     segmento?: string;
@@ -58,6 +69,8 @@ export type AssignSqlPayload = {
     fecha: string;
     hora: string;
     contacto_nombre: string;
+    contacto_email?: string;
+    contacto_telefono?: string;
     contacto_cargo?: string;
     descripcion?: string;
   };

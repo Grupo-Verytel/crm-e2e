@@ -1,6 +1,7 @@
 import { Type } from 'class-transformer';
 import {
   IsDateString,
+  IsEmail,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -28,6 +29,16 @@ export class CreateSqlCitaDto {
   @IsNotEmpty()
   @MaxLength(120)
   contacto_nombre!: string;
+
+  @IsOptional()
+  @IsEmail()
+  @MaxLength(160)
+  contacto_email?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  contacto_telefono?: string;
 
   @IsOptional()
   @IsString()

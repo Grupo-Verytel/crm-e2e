@@ -1,10 +1,16 @@
 import { useEffect, useState, type FormEvent } from 'react';
+import { formatDateTime } from '../../../lib/format';
 import {
   assignSql,
   fetchCommercials,
   type CommercialOption,
   type SqlDetail,
 } from '../api/sqls-api';
+import {
+  needsAgencyCitaGeneration,
+  splitCitaDateTime,
+  sqlLeadName,
+} from '../lib/agency-cita';
 import {
   ghostButtonClass,
   inputClass,
@@ -18,15 +24,32 @@ type Props = {
   onAssigned: () => void;
 };
 
+function leadText(lead: SqlDetail['lead'], key: string): string {
+  const value = lead[key];
+  return typeof value === 'string' ? value : '';
+}
+
 export function AssignSqlModal({ sql, onClose, onAssigned }: Props) {
+  const pendingAgencyCita = needsAgencyCitaGeneration(sql);
+  const suggested = splitCitaDateTime(
+    typeof sql.lead.fecha_cita === 'string' ? sql.lead.fecha_cita : null,
+  );
   const [commercials, setCommercials] = useState<CommercialOption[]>([]);
   const [comercialId, setComercialId] = useState('');
-  const [withCita, setWithCita] = useState(false);
-  const [lugar, setLugar] = useState('');
-  const [fecha, setFecha] = useState('');
-  const [hora, setHora] = useState('09:00');
+  const [withCita, setWithCita] = useState(pendingAgencyCita);
+  const [lugar, setLugar] = useState(leadText(sql.lead, 'cita_lugar'));
+  const [fecha, setFecha] = useState(suggested?.fecha ?? '');
+  const [hora, setHora] = useState(suggested?.hora ?? '09:00');
   const [contactoNombre, setContactoNombre] = useState(
-    String(sql.lead.contacto_nombre ?? ''),
+    leadText(sql.lead, 'cita_contacto_nombre') ||
+      leadText(sql.lead, 'contacto_nombre'),
+  );
+  const [contactoEmail, setContactoEmail] = useState(
+    leadText(sql.lead, 'cita_contacto_email') || leadText(sql.lead, 'email'),
+  );
+  const [contactoTelefono, setContactoTelefono] = useState(
+    leadText(sql.lead, 'cita_contacto_telefono') ||
+      leadText(sql.lead, 'telefono'),
   );
   const [contactoCargo, setContactoCargo] = useState('');
   const [descripcion, setDescripcion] = useState('');
@@ -45,6 +68,10 @@ export function AssignSqlModal({ sql, onClose, onAssigned }: Props) {
       setError('Selecciona un Ejecutivo Comercial.');
       return;
     }
+    if (pendingAgencyCita && !withCita) {
+      setError('Este SQL de agencia requiere generar la cita al asignar.');
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -57,6 +84,12 @@ export function AssignSqlModal({ sql, onClose, onAssigned }: Props) {
                 fecha,
                 hora,
                 contacto_nombre: contactoNombre,
+                ...(contactoEmail.trim()
+                  ? { contacto_email: contactoEmail.trim() }
+                  : {}),
+                ...(contactoTelefono.trim()
+                  ? { contacto_telefono: contactoTelefono.trim() }
+                  : {}),
                 ...(contactoCargo ? { contacto_cargo: contactoCargo } : {}),
                 ...(descripcion ? { descripcion } : {}),
               },
@@ -80,8 +113,21 @@ export function AssignSqlModal({ sql, onClose, onAssigned }: Props) {
       >
         <h2 className="text-base font-bold text-ink">Asignar SQL</h2>
         <p className="mt-1 text-sm text-muted">
-          {String(sql.lead.empresa_nombre ?? sql.sql_id)}
+          {sqlLeadName(sql.lead)}
+          {sql.lead.empresa_nombre
+            ? ` · ${String(sql.lead.empresa_nombre)}`
+            : ''}
         </p>
+        {pendingAgencyCita ? (
+          <p className="mt-2 rounded bg-accent/10 px-3 py-2 text-sm text-ink">
+            Canal agencia: al asignar debes generar la cita indicada al aprobar
+            el MQL
+            {sql.lead.fecha_cita
+              ? ` (${formatDateTime(String(sql.lead.fecha_cita))})`
+              : ''}
+            .
+          </p>
+        ) : null}
 
         <label className={`${labelClass} mt-4`}>
           Ejecutivo Comercial
@@ -105,8 +151,11 @@ export function AssignSqlModal({ sql, onClose, onAssigned }: Props) {
             type="checkbox"
             checked={withCita}
             onChange={(e) => setWithCita(e.target.checked)}
+            required={pendingAgencyCita}
           />
-          Agendar cita ahora (opcional)
+          {pendingAgencyCita
+            ? 'Generar cita ahora'
+            : 'Agendar cita ahora (opcional)'}
         </label>
 
         {withCita ? (
@@ -147,6 +196,24 @@ export function AssignSqlModal({ sql, onClose, onAssigned }: Props) {
                 value={contactoNombre}
                 onChange={(e) => setContactoNombre(e.target.value)}
                 required={withCita}
+              />
+            </label>
+            <label className={labelClass}>
+              Correo
+              <input
+                type="email"
+                className={inputClass}
+                value={contactoEmail}
+                onChange={(e) => setContactoEmail(e.target.value)}
+              />
+            </label>
+            <label className={labelClass}>
+              Teléfono
+              <input
+                type="tel"
+                className={inputClass}
+                value={contactoTelefono}
+                onChange={(e) => setContactoTelefono(e.target.value)}
               />
             </label>
             <label className={`${labelClass} sm:col-span-2`}>

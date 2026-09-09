@@ -1,9 +1,5 @@
-import { useEffect, useState, type FormEvent } from 'react';
-import {
-  fetchAppointmentCommercials,
-  registerLeadAppointment,
-} from '../../api/leads-api';
-import type { CommercialOption, Lead, RegisterAppointmentPayload } from '../../types';
+import { useState, type FormEvent } from 'react';
+import type { ApproveAgencyMqlPayload, Lead } from '../../types';
 import { ModalShell } from '../ModalShell';
 import {
   ghostButtonClass,
@@ -12,68 +8,42 @@ import {
   primaryButtonClass,
 } from '../ui';
 
+export type { ApproveAgencyMqlPayload };
+
 export function RegisterAppointmentModal({
   lead,
-  title = 'Registrar cita agendada',
-  submitLabel = 'Registrar cita',
-  onRegistered,
+  title = 'Cita para aprobar SQL',
+  submitLabel = 'Aprobar → SQL',
   onConfirm,
   onClose,
 }: {
   lead: Lead;
   title?: string;
   submitLabel?: string;
-  onRegistered?: (lead: Lead) => void;
-  onConfirm?: (payload: RegisterAppointmentPayload) => Promise<void>;
+  onConfirm: (payload: ApproveAgencyMqlPayload) => Promise<void>;
   onClose: () => void;
 }) {
-  const [commercials, setCommercials] = useState<CommercialOption[]>([]);
   const [fechaCita, setFechaCita] = useState('');
-  const [commercialId, setCommercialId] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
+  const [contactoNombre, setContactoNombre] = useState(lead.contacto_nombre ?? '');
+  const [contactoEmail, setContactoEmail] = useState(lead.email ?? '');
+  const [contactoTelefono, setContactoTelefono] = useState(lead.telefono ?? '');
+  const [lugar, setLugar] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    void fetchAppointmentCommercials()
-      .then((items) => {
-        if (active) {
-          setCommercials(items);
-          setCommercialId(items[0]?.user_id ?? '');
-        }
-      })
-      .catch(() => {
-        if (active) {
-          setError('No se pudieron cargar los comerciales.');
-        }
-      })
-      .finally(() => {
-        if (active) {
-          setIsLoading(false);
-        }
-      });
-
-    return () => {
-      active = false;
-    };
-  }, []);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsSubmitting(true);
     setError(null);
     try {
-      const payload: RegisterAppointmentPayload = {
+      const payload: ApproveAgencyMqlPayload = {
         fecha_cita: new Date(fechaCita).toISOString(),
-        comercial_asignado_id: commercialId,
+        cita_contacto_nombre: contactoNombre.trim(),
+        cita_contacto_email: contactoEmail.trim(),
+        cita_contacto_telefono: contactoTelefono.trim(),
+        ...(lugar.trim() ? { cita_lugar: lugar.trim() } : {}),
       };
-      if (onConfirm) {
-        await onConfirm(payload);
-      } else if (onRegistered) {
-        const updated = await registerLeadAppointment(lead.lead_id, payload);
-        onRegistered(updated);
-      }
+      await onConfirm(payload);
       onClose();
     } catch (submitError) {
       setError(
@@ -95,7 +65,7 @@ export function RegisterAppointmentModal({
 
         <div>
           <label htmlFor="appointment-date" className={labelClass}>
-            Fecha de la cita
+            Fecha de la cita y hora
           </label>
           <input
             id="appointment-date"
@@ -107,27 +77,58 @@ export function RegisterAppointmentModal({
           />
         </div>
 
+        <fieldset className="space-y-3">
+          <legend className={labelClass}>Contacto principal</legend>
+          <div>
+            <label htmlFor="cita-contacto-nombre" className={labelClass}>
+              Nombre
+            </label>
+            <input
+              id="cita-contacto-nombre"
+              value={contactoNombre}
+              onChange={(event) => setContactoNombre(event.target.value)}
+              className={inputClass}
+              required
+            />
+          </div>
+          <div>
+            <label htmlFor="cita-contacto-email" className={labelClass}>
+              Correo
+            </label>
+            <input
+              id="cita-contacto-email"
+              type="email"
+              value={contactoEmail}
+              onChange={(event) => setContactoEmail(event.target.value)}
+              className={inputClass}
+              required
+            />
+          </div>
+          <div>
+            <label htmlFor="cita-contacto-telefono" className={labelClass}>
+              Teléfono
+            </label>
+            <input
+              id="cita-contacto-telefono"
+              type="tel"
+              value={contactoTelefono}
+              onChange={(event) => setContactoTelefono(event.target.value)}
+              className={inputClass}
+              required
+            />
+          </div>
+        </fieldset>
+
         <div>
-          <label htmlFor="appointment-commercial" className={labelClass}>
-            Comercial asignado
+          <label htmlFor="cita-lugar" className={labelClass}>
+            Lugar de la cita (opcional)
           </label>
-          <select
-            id="appointment-commercial"
-            value={commercialId}
-            onChange={(event) => setCommercialId(event.target.value)}
+          <input
+            id="cita-lugar"
+            value={lugar}
+            onChange={(event) => setLugar(event.target.value)}
             className={inputClass}
-            disabled={isLoading}
-            required
-          >
-            {commercials.length === 0 ? (
-              <option value="">No hay comerciales disponibles</option>
-            ) : null}
-            {commercials.map((commercial) => (
-              <option key={commercial.user_id} value={commercial.user_id}>
-                {commercial.full_name}
-              </option>
-            ))}
-          </select>
+          />
         </div>
 
         {error ? <p className="text-sm text-danger">{error}</p> : null}
@@ -138,7 +139,7 @@ export function RegisterAppointmentModal({
           </button>
           <button
             type="submit"
-            disabled={isSubmitting || isLoading || !commercialId}
+            disabled={isSubmitting}
             className={primaryButtonClass}
           >
             {isSubmitting ? 'Guardando…' : submitLabel}

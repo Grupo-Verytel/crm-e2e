@@ -7,7 +7,6 @@ import {
 import { InjectConnection, InjectModel } from '@nestjs/sequelize';
 import { Sequelize } from 'sequelize';
 import { AccountsService } from '../../accounts/services/accounts.service';
-import { UsersService } from '../../auth/services/users.service';
 import { EntityType } from '../../workflow-engine/enums/entity-type.enum';
 import { StatusHistoryTrigger } from '../../workflow-engine/lib/status-history-trigger';
 import { StatusHistoryService } from '../../workflow-engine/services/status-history.service';
@@ -59,7 +58,6 @@ export class LeadStateMachineService {
     private readonly workflowEngine: WorkflowEngineService,
     private readonly statusHistory: StatusHistoryService,
     private readonly accountsService: AccountsService,
-    private readonly usersService: UsersService,
     @Inject(NOTIFICATION_PORT)
     private readonly notifications: NotificationPort,
   ) {}
@@ -228,9 +226,6 @@ export class LeadStateMachineService {
           estado: SqlEstado.PendienteAsignacion,
           enBacklog: true,
           origenCreacion: SqlOrigenCreacion.EnrutamientoNormal,
-          ...(agencyAppointment
-            ? { comercialAsignadoId: agencyAppointment.comercialAsignadoId }
-            : {}),
         },
         { transaction },
       );
@@ -289,16 +284,6 @@ export class LeadStateMachineService {
 
       return { mql, sql, lead };
     });
-
-    if (agencyAppointment) {
-      const entityLabel = await this.getLeadDisplayLabel(lead);
-      await this.notifications.notify({
-        event: NotificationEvent.AppointmentScheduled,
-        recipientUserId: agencyAppointment.comercialAsignadoId,
-        message: `Appointment scheduled for lead ${entityLabel}`,
-        metadata: { leadId: lead.leadId, mqlId: mql.mqlId },
-      });
-    }
 
     return result;
   }
@@ -451,36 +436,33 @@ export class LeadStateMachineService {
   ): Promise<{
     citaAgendada: true;
     fechaCita: Date;
-    comercialAsignadoId: string;
+    citaLugar: string | null;
+    citaContactoNombre: string;
+    citaContactoEmail: string;
+    citaContactoTelefono: string;
   } | null> {
     if (lead.canalOrigen !== CanalOrigen.GeneracionDemandaAgencia) {
       return null;
     }
 
-    if (!dto.fecha_cita || !dto.comercial_asignado_id) {
+    const nombre = dto.cita_contacto_nombre?.trim();
+    const email = dto.cita_contacto_email?.trim();
+    const telefono = dto.cita_contacto_telefono?.trim();
+    if (!dto.fecha_cita || !nombre || !email || !telefono) {
       throw new BadRequestException({
         code: DEMAND_GENERATION_ERROR_CODES.VALIDATION_ERROR,
         message:
-          'fecha_cita and comercial_asignado_id are required to approve an agency MQL',
-      });
-    }
-
-    const isEligibleCommercial = await this.usersService.isActiveWithRole(
-      dto.comercial_asignado_id,
-      DEMAND_GENERATION_ROLES.EJECUTIVO_COMERCIAL,
-    );
-    if (!isEligibleCommercial) {
-      throw new BadRequestException({
-        code: DEMAND_GENERATION_ERROR_CODES.VALIDATION_ERROR,
-        message:
-          'comercial_asignado_id must reference an active EjecutivoComercial',
+          'fecha_cita, cita_contacto_nombre, cita_contacto_email and cita_contacto_telefono are required to approve an agency MQL',
       });
     }
 
     return {
       citaAgendada: true,
       fechaCita: new Date(dto.fecha_cita),
-      comercialAsignadoId: dto.comercial_asignado_id,
+      citaLugar: dto.cita_lugar?.trim() || null,
+      citaContactoNombre: nombre,
+      citaContactoEmail: email,
+      citaContactoTelefono: telefono,
     };
   }
 

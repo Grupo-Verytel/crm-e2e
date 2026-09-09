@@ -83,8 +83,12 @@
 | region | VARCHAR(60) | Sí | |
 | responsable_id | UUID | Sí | FK users (Gestor de Mercadeo asignado, o el propio creador en rutas directas) |
 | cita_agendada | BOOLEAN | Sí | default false. Solo relevante para `canal_origen=GENERACION_DEMANDA_AGENCIA` |
-| fecha_cita | DATE | No | Solo relevante para `canal_origen=GENERACION_DEMANDA_AGENCIA` |
-| comercial_asignado_id | UUID | No | FK users. Solo relevante para `canal_origen=GENERACION_DEMANDA_AGENCIA` |
+| fecha_cita | TIMESTAMPTZ | No | Solo relevante para `canal_origen=GENERACION_DEMANDA_AGENCIA`. La captura el Director de Mercadeo al aprobar el MQL |
+| cita_lugar | VARCHAR(200) | No | Lugar de la cita (opcional). Capturado en Bandeja MQL |
+| cita_contacto_nombre | VARCHAR(120) | No | Contacto principal de la cita. Obligatorio al aprobar MQL de agencia |
+| cita_contacto_email | VARCHAR(160) | No | Correo del contacto de la cita. Obligatorio al aprobar MQL de agencia |
+| cita_contacto_telefono | VARCHAR(40) | No | Teléfono del contacto de la cita. Obligatorio al aprobar MQL de agencia |
+| comercial_asignado_id | UUID | No | FK users. Lo asigna Soporte Comercial en Calificación, no el Director en Bandeja MQL |
 | **business_referrer_id** *(nuevo v2.3)* | UUID | Condicional | FK `users.user_id`, filtrado a rol `TraductorDeNegocio`. **Obligatorio y visible únicamente si `canal_origen = TRADUCTOR_NEGOCIO`**; oculto y `null` en cualquier otro caso |
 | motivo_descarte | TEXT | Condicional | Obligatorio si estado=Descartado |
 | fecha_captura | TIMESTAMPTZ | Sí | default now() |
@@ -181,7 +185,7 @@ Sin cambios respecto a v2.2 para el flujo estándar. Ver sección 4.1 para las d
 | CAMPANA_DIGITAL | TOFU | TOFU → MOFU → BOFU → SQL | Ninguna (checklist estándar) |
 | BTL | TOFU | TOFU → MOFU → BOFU → SQL | Ninguna (checklist estándar). **Excepción:** si lo crea `ProductManager` o `EjecutivoComercial`, aplica su ruta directa (ver abajo) |
 | FABRICA | TOFU | TOFU → BOFU → SQL | Omite MOFU. **Excepción:** igual que BTL, ruta directa si aplica |
-| GENERACION_DEMANDA_AGENCIA | MOFU | MOFU → BOFU → SQL | MOFU → BOFU por checklist (igual que BTL). La cita (`fecha_cita` + `comercial_asignado_id`) se registra en Bandeja MQL al aprobar → SQL |
+| GENERACION_DEMANDA_AGENCIA | MOFU | MOFU → BOFU → SQL | MOFU → BOFU por checklist (igual que BTL). La cita (`fecha_cita` + contacto principal + `cita_lugar` opcional) se registra en Bandeja MQL al aprobar → SQL. El comercial lo asigna Soporte Comercial |
 | **TRADUCTOR_NEGOCIO** *(resuelto v2.3)* | **SQL** | **SQL directo** | **Solo puede originarse por la ruta EjecutivoComercial (nunca por captura estándar) — ver sección 5. Ya no es TBD.** |
 | — Ruta `ProductManager` (BTL/FABRICA) | MQL_PENDING | MQL_PENDING → SQL (enrutamiento normal) | Checklist ya viene diligenciado al crear |
 | — Ruta EjecutivoComercial (BTL/FABRICA/TRADUCTOR_NEGOCIO) | SQL | SQL (ya resuelto, sin enrutamiento) | Checklist ya viene diligenciado al crear; auto-asignado |
@@ -227,7 +231,7 @@ Sin cambios respecto a v2.2 para el flujo estándar. Ver sección 4.1 para las d
 **Reglas por canal de origen**
 - EARS-19: CUANDO se crea un lead con `canal_origen=FABRICA` (captura estándar, no ruta directa), el sistema DEBERÁ asignar `estado_inicial=TOFU` y omitir la transición a MOFU.
 - EARS-20: CUANDO se crea un lead con `canal_origen=GENERACION_DEMANDA_AGENCIA`, el sistema DEBERÁ asignar `estado_inicial=MOFU` sin pasar por TOFU.
-- EARS-21: CUANDO el Director de Mercadeo aprueba un MQL cuyo lead tiene `canal_origen=GENERACION_DEMANDA_AGENCIA`, el sistema DEBERÁ exigir `fecha_cita` y `comercial_asignado_id` (EjecutivoComercial activo), persistir `cita_agendada=true` en el lead, asignar el comercial al SQL y notificar a `comercial_asignado_id`. El paso MOFU → BOFU de este canal DEBE usar el mismo checklist que los demás canales (DG-05 / DG-13).
+- EARS-21: CUANDO el Director de Mercadeo aprueba un MQL cuyo lead tiene `canal_origen=GENERACION_DEMANDA_AGENCIA`, el sistema DEBERÁ exigir `fecha_cita`, `cita_contacto_nombre`, `cita_contacto_email` y `cita_contacto_telefono`, aceptar `cita_lugar` opcional, y persistir `cita_agendada=true` en el lead. NO DEBE exigir ni asignar `comercial_asignado_id` en este paso: el comercial lo asigna `SoporteComercial` en Calificación. El paso MOFU → BOFU de este canal DEBE usar el mismo checklist que los demás canales (DG-05 / DG-13).
 - EARS-22: SI un lead tiene `canal_origen=FABRICA` o `canal_origen=GENERACION_DEMANDA_AGENCIA`, ENTONCES el Kanban DEBERÁ ocultar o atenuar visualmente las columnas no aplicables.
 - EARS-23: CUANDO se filtra el Kanban o la Lista por un `canal_origen` específico, el sistema DEBERÁ mostrar únicamente los leads de ese canal y ajustar las columnas visibles.
 

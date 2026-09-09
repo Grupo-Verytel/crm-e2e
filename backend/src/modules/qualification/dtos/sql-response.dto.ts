@@ -23,6 +23,8 @@ export class SqlCitaResponseDto {
   fecha: string;
   hora: string;
   contacto_nombre: string;
+  contacto_email: string | null;
+  contacto_telefono: string | null;
   contacto_cargo: string | null;
   descripcion: string | null;
   agendada_por: string;
