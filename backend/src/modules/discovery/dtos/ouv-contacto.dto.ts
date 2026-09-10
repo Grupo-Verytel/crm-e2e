@@ -44,7 +44,7 @@ export class InlineOuvPersonDto {
   phone?: string | null;
 
   @ValidateIf((o: InlineOuvPersonDto) => !o.account)
-  @IsUUID('4')
+  @IsUUID()
   account_id?: string;
 
   @ValidateIf((o: InlineOuvPersonDto) => !o.account_id)
@@ -56,7 +56,7 @@ export class InlineOuvPersonDto {
 /** Create: person_id XOR inline person (+ optional notas). */
 export class CrearOuvContactoDto {
   @ValidateIf((o: CrearOuvContactoDto) => !o.person)
-  @IsUUID('4')
+  @IsUUID()
   person_id?: string;
 
   @ValidateIf((o: CrearOuvContactoDto) => !o.person_id)

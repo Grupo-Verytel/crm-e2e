@@ -6,7 +6,7 @@ export class ActualizarInfluenciaDto {
   estado!: InfluenciaEstado;
 
   @IsOptional()
-  @IsUUID('4')
+  @IsUUID()
   contacto_ouv_id?: string | null;
 
   @IsOptional()
