@@ -353,7 +353,7 @@ export const DEMO_VENTAS_GANADAS: VentaGanadaRecord[] = [
       { estado: 'SER-0210 creado', fecha: ISO('2026-08-05'), origen: 'Control de Proyectos (mock)' },
     ],
     createdAt: ISO('2026-05-01'),
-    updatedAt: ISO('2026-08-24'),
+    updatedAt: ISO('2026-08-24T14:35:00'),
   },
 ];
 

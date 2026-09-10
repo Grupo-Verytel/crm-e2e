@@ -1,38 +1,50 @@
-import { Lock } from 'lucide-react';
-import type { IndicadoresProyecto } from '../../shared/project/types';
-import { cardClass, badgeClass } from './ui';
+import type { IndicadorVs, IndicadorVsKey } from '../lib/project-metrics';
+import { cardClass } from './ui';
 
-const BLOQUES: { key: keyof IndicadoresProyecto; label: string }[] = [
+const BLOQUES: {
+  key: IndicadorVsKey;
+  label: string;
+}[] = [
   { key: 'facturacion', label: 'Facturación' },
   { key: 'costos', label: 'Costos' },
   { key: 'tiempo', label: 'Tiempo' },
   { key: 'alcance', label: 'Alcance' },
-  { key: 'documentacion', label: 'Documentación' },
+  { key: 'documentacion', label: 'CDP' },
 ];
 
+type Props = {
+  vs: Record<IndicadorVsKey, IndicadorVs>;
+};
+
 /** C3 — Indicadores from mock Control de Proyectos. */
-export function IndicadoresDashboard({ indicadores }: { indicadores: IndicadoresProyecto }) {
+export function IndicadoresDashboard({ vs }: Props) {
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {BLOQUES.map(({ key, label }) => {
-        const block = indicadores[key];
-        const valor = block.valor ?? 'Sin dato disponible';
+        const pair = vs[key];
         return (
           <div key={key} className={cardClass}>
-            <div className="mb-2 flex items-center justify-between">
-              <h3 className="text-sm font-bold text-ink">{label}</h3>
-              {block.soloLectura !== false ? (
-                <Lock size={14} className="text-muted" aria-label="Calculado por Control de Proyectos" />
-              ) : null}
+            <h3 className="text-sm font-bold text-ink">{label}</h3>
+            <p className="mt-2 text-[11px] font-bold uppercase tracking-wide text-muted">
+              Actual
+            </p>
+            <p className="text-2xl font-bold text-accent">{pair.actual}</p>
+            <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border pt-3">
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-wide text-muted">
+                  Real
+                </p>
+                <p className="mt-0.5 text-sm font-bold text-ink">{pair.real}</p>
+              </div>
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-wide text-muted">
+                  Proyectado
+                </p>
+                <p className="mt-0.5 text-sm font-bold text-ink">
+                  {pair.proyectado}
+                </p>
+              </div>
             </div>
-            <p className="text-2xl font-bold text-accent">{valor}</p>
-            <span className={`${badgeClass} mt-2 bg-border text-muted`}>{block.estado}</span>
-            {block.actualizadoEn ? (
-              <p className="mt-2 text-xs text-muted">
-                Actualizado: {new Date(block.actualizadoEn).toLocaleDateString('es-CO')}
-              </p>
-            ) : null}
-            <p className="mt-1 text-xs text-muted">Fuente: Control de Proyectos (mock)</p>
           </div>
         );
       })}

@@ -1,105 +1,99 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Expand } from 'lucide-react';
 import { useAuth } from '../../auth/hooks/useAuth';
-import type { VentaGanadaRecord } from '../../shared/project/types';
+import type { CsatSemanaEntry, VentaGanadaRecord } from '../../shared/project/types';
 import { upsertVentaGanada } from '../../shared/project/mock-store';
-import { AlertaBadge } from '../../shared/project/AlertaBadge';
-import { CSATIndicator } from '../../shared/project/CSATIndicator';
 import { FormularioDatosProyecto } from '../../offer-closing/components/FormularioDatosProyecto';
-import { IndicadoresDashboard } from './IndicadoresDashboard';
-import { cardClass, ghostButtonClass, primaryButtonClass } from './ui';
+import { ProjectCsatWeeklyPanel } from './ProjectCsatWeeklyPanel';
+import { ProjectInfoPanel } from './ProjectInfoPanel';
+import { ghostButtonClass, primaryButtonClass } from './ui';
 
 type Props = {
   record: VentaGanadaRecord;
   onUpdate?: (r: VentaGanadaRecord) => void;
 };
 
-/** HU-F06 + HU-F08 — Dashboard desempeño + alertas/CSAT (mock CP). */
+type ProjectTab = 'informacion' | 'csat';
+
+const tabClass = (active: boolean) =>
+  [
+    '-mb-px border-b-2 px-4 py-2 text-sm transition-colors',
+    active
+      ? 'border-accent font-bold text-accent'
+      : 'border-transparent text-muted hover:text-accent',
+  ].join(' ');
+
+/** Detalle SER: ficha de proyecto + CSAT semanal. */
 export function ProjectDashboard({ record, onUpdate }: Props) {
   const { user } = useAuth();
   const [showAmpliar, setShowAmpliar] = useState(false);
+  const [tab, setTab] = useState<ProjectTab>('informacion');
   const canEditCsat =
-    user?.role_name === 'Admin' ||
-    user?.role_name === 'SoporteComercial';
+    user?.role_name === 'Admin' || user?.role_name === 'SoporteComercial';
 
-  function saveCsat(valor: number) {
+  function saveWeeklyCsat(entry: CsatSemanaEntry) {
+    const prev = record.csat.semanas ?? [];
+    const semanas = [
+      entry,
+      ...prev.filter((row) => row.semanaIso !== entry.semanaIso),
+    ];
     const next = upsertVentaGanada({
       ...record,
       csat: {
         ...record.csat,
-        valor,
-        fecha: new Date().toISOString(),
+        valor: entry.valor,
+        fecha: entry.registradoEn,
+        semanas,
       },
     });
     onUpdate?.(next);
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="text-xs text-muted">Control de Proyectos (simulado)</p>
-          <h1 className="text-xl font-bold text-ink">{record.datosBase.nombreProyecto}</h1>
-          <p className="text-sm text-accent">{record.envioPmo.serConsecutivo}</p>
-          <p className="text-xs text-muted">
-            OUV origen:{' '}
-            <Link to="/opportunities" className="text-accent hover:underline">
-              {record.consecutivo}
-            </Link>
-            · CP {record.envioPmo.consecutivoControlProyectos}
-          </p>
-        </div>
+        <h1 className="text-xl font-bold text-ink">{record.consecutivo}</h1>
         <button
           type="button"
-          className={ghostButtonClass}
+          className={`${ghostButtonClass} inline-flex items-center gap-2`}
           onClick={() => setShowAmpliar(true)}
         >
+          <Expand size={16} aria-hidden />
           Ampliar proyecto
         </button>
       </header>
 
-      <div className={`${cardClass} border border-brand/20`}>
-        <p className="text-xs font-bold text-muted">Acumulado global · Fuente: CERES (mock)</p>
-        <p className="mt-1 text-sm">
-          Proyectos activos en CP: 12 · Facturación acumulada: $ 48.200 MM · Margen promedio: 28%
-        </p>
-      </div>
+      <nav
+        className="flex flex-wrap gap-1 border-b border-border"
+        aria-label="Proyecto"
+      >
+        <button
+          type="button"
+          className={tabClass(tab === 'informacion')}
+          onClick={() => setTab('informacion')}
+          aria-current={tab === 'informacion' ? 'page' : undefined}
+        >
+          Información proyecto
+        </button>
+        <button
+          type="button"
+          className={tabClass(tab === 'csat')}
+          onClick={() => setTab('csat')}
+          aria-current={tab === 'csat' ? 'page' : undefined}
+        >
+          CSAT
+        </button>
+      </nav>
 
-      <IndicadoresDashboard indicadores={record.indicadores} />
-
-      <section className={cardClass}>
-        <h2 className="mb-3 text-sm font-bold text-ink">Línea de tiempo</h2>
-        <ol className="space-y-2 border-l-2 border-border pl-4">
-          {record.historialEstados.map((h, i) => (
-            <li key={i} className="text-sm">
-              <span className="font-bold">{h.estado}</span>
-              <span className="text-muted"> · {new Date(h.fecha).toLocaleDateString('es-CO')} · {h.origen}</span>
-            </li>
-          ))}
-        </ol>
-      </section>
-
-      <section className={cardClass}>
-        <h2 className="mb-3 text-sm font-bold text-ink">Alertas operativas</h2>
-        {record.alertas.length === 0 ? (
-          <p className="text-sm text-muted">Sin alertas activas.</p>
-        ) : (
-          <div className="space-y-2">
-            {record.alertas.map((a) => (
-              <AlertaBadge key={a.id} alerta={a} />
-            ))}
-          </div>
-        )}
-      </section>
-
-      <section className={cardClass}>
-        <h2 className="mb-3 text-sm font-bold text-ink">Satisfacción del cliente (CSAT)</h2>
-        <CSATIndicator
-          csat={record.csat}
-          mode={canEditCsat ? 'editable' : 'readOnly'}
-          onSave={saveCsat}
+      {tab === 'informacion' ? (
+        <ProjectInfoPanel record={record} />
+      ) : (
+        <ProjectCsatWeeklyPanel
+          record={record}
+          canEdit={canEditCsat}
+          onSave={saveWeeklyCsat}
         />
-      </section>
+      )}
 
       {showAmpliar ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/50 p-4">

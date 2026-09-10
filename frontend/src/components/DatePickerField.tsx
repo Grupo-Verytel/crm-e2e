@@ -23,6 +23,8 @@ type Props = {
   onChange: (yyyyMmDd: string) => void;
   className?: string;
   'aria-label'?: string;
+  /** Overrides the date text in the trigger (e.g. ISO week). */
+  displayValue?: string;
 };
 
 function parseYmd(value: string): Date | null {
@@ -67,6 +69,7 @@ export function DatePickerField({
   onChange,
   className = '',
   'aria-label': ariaLabel,
+  displayValue,
 }: Props) {
   const selected = parseYmd(value);
   const [open, setOpen] = useState(false);
@@ -112,8 +115,8 @@ export function DatePickerField({
         onClick={() => setOpen((v) => !v)}
       >
         <Calendar size={15} className="shrink-0 text-accent" strokeWidth={2} />
-        <span className={selected ? 'text-ink' : 'text-muted'}>
-          {formatDisplay(value)}
+        <span className={selected || displayValue ? 'text-ink' : 'text-muted'}>
+          {displayValue || formatDisplay(value)}
         </span>
       </button>
 

@@ -56,10 +56,18 @@ export type IndicadoresProyecto = {
   ejecucion: IndicadorBloque;
 };
 
+export type CsatSemanaEntry = {
+  semanaIso: string;
+  valor: number;
+  comentario: string;
+  registradoEn: string;
+};
+
 export type CsatRecord = {
   valor: number | null;
   escala: number;
   fecha: string | null;
+  semanas?: CsatSemanaEntry[];
 };
 
 export type ValidacionRecord = {
