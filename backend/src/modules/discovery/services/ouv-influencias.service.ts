@@ -88,14 +88,20 @@ export class OuvInfluenciasService {
         );
       }
 
-      const influencia = await this.influenciaModel.findOne({
+      let influencia = await this.influenciaModel.findOne({
         where: { ouvId, tipo },
         transaction,
         lock: transaction.LOCK.UPDATE,
       });
       if (!influencia) {
-        throw new NotFoundException(
-          `Influencia ${tipo} not found for OUV ${ouvId}`,
+        influencia = await this.influenciaModel.create(
+          {
+            ouvId,
+            tipo,
+            estado: InfluenciaEstado.SinEvaluar,
+            contactoOuvId: null,
+          },
+          { transaction },
         );
       }
 
