@@ -5,6 +5,7 @@ import { Pagination } from '../../../components/Pagination';
 import { formatDateTime } from '../../../lib/format';
 import { fetchLead } from '../api/leads-api';
 import { approveMql, fetchMqls, rejectMql } from '../api/mqls-api';
+import { DemandNav } from '../components/DemandNav';
 import { MotivoModal } from '../components/MotivoModal';
 import { cardClass, ghostButtonClass, primaryButtonClass } from '../components/ui';
 import type { Lead, Mql } from '../types';
@@ -64,6 +65,7 @@ export function MqlInboxPage() {
 
   return (
     <AppLayout title="Bandeja de MQL">
+      <DemandNav />
 
       <h1 className="mb-4 text-lg font-bold text-ink">MQL pendientes de aprobación</h1>
 

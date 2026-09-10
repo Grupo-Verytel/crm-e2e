@@ -213,7 +213,7 @@ export function LeadsPage() {
 
   return (
     <AppLayout title="Leads">
-      <DemandNav />
+      {showExceptions ? <DemandNav /> : null}
 
       {isTraductor ? (
         <p className="mb-3 rounded border border-border bg-bg px-3 py-2 text-sm text-ink">
@@ -315,6 +315,8 @@ export function LeadsPage() {
           )}
         </div>
       </div>
+
+      {!showExceptions ? <DemandNav /> : null}
 
       {!isTraductor && filtersOpen ? (
         <div id="leads-filters-panel">

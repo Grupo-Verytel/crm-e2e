@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
-import { ExternalLink } from 'lucide-react';
+import { ChevronDown, ChevronRight, ExternalLink } from 'lucide-react';
 import type { Ouv } from '../api/ouvs-api';
 import {
   SOLICITUD_PREVENTA_FIELDS,
+  mockFechaEntregaIso,
+  mockPreventaAsignado,
   resolveServiceSharePoint,
   type ServiceCard,
 } from '../lib/opportunity-context-fields';
@@ -12,6 +14,7 @@ import {
   SolicitudPreventaModal,
   type MepSolicitudStatus,
   type SolicitudPreventaRecord,
+  type ViabilidadPreventa,
 } from './SolicitudPreventaModal';
 import {
   badgeClass,
@@ -30,15 +33,32 @@ const STORAGE_PREFIX = 'crm-ouv-solicitudes-preventa-v4-';
 
 const MEP_STATUS_CLASS: Record<MepSolicitudStatus, string> = {
   Aceptado: 'bg-brand text-white',
-  Aprobado: 'bg-success text-white',
+  Completado: 'bg-success text-white',
   Rechazado: 'bg-danger text-white',
   Pendiente: 'bg-border text-muted',
 };
 
+function normalizeMepStatus(
+  status: string | null | undefined,
+): MepSolicitudStatus {
+  if (status === 'Aprobado' || status === 'Completado') {
+    return 'Completado';
+  }
+  if (
+    status === 'Aceptado' ||
+    status === 'Rechazado' ||
+    status === 'Pendiente'
+  ) {
+    return status;
+  }
+  return 'Pendiente';
+}
+
 function MepStatusBadge({ status }: { status: MepSolicitudStatus }) {
+  const normalized = normalizeMepStatus(status);
   return (
-    <span className={`${badgeClass} ${MEP_STATUS_CLASS[status]}`}>
-      {status}
+    <span className={`${badgeClass} ${MEP_STATUS_CLASS[normalized]}`}>
+      {normalized}
     </span>
   );
 }
@@ -48,10 +68,15 @@ function loadSolicitudes(ouvId: string): SolicitudPreventaRecord[] {
     const raw = localStorage.getItem(`${STORAGE_PREFIX}${ouvId}`);
     if (!raw) return [];
     const parsed = JSON.parse(raw) as SolicitudPreventaRecord[];
-    return parsed.map((item) => ({
+    const items = parsed.map((item) => ({
       ...item,
-      mepStatus: item.mepStatus ?? 'Pendiente',
+      mepStatus: normalizeMepStatus(item.mepStatus),
+      preventaAsignado: item.preventaAsignado ?? null,
+      observaciones: item.observaciones ?? '',
+      viabilidad: item.viabilidad ?? null,
     }));
+    localStorage.setItem(`${STORAGE_PREFIX}${ouvId}`, JSON.stringify(items));
+    return items;
   } catch {
     return [];
   }
@@ -61,18 +86,203 @@ function saveSolicitudes(ouvId: string, items: SolicitudPreventaRecord[]): void 
   localStorage.setItem(`${STORAGE_PREFIX}${ouvId}`, JSON.stringify(items));
 }
 
+type DetailTab = 'informacion' | 'historico';
+
+type PreventaHistoryDetail = {
+  accion: string;
+  resultado: string;
+  origen: string;
+  notas: string;
+  registrado: string;
+};
+
+type PreventaHistoryEntry = {
+  version: string;
+  actor: string;
+  message: string;
+  detail: PreventaHistoryDetail;
+};
+
+function offsetIso(createdAt: string, hours: number): string {
+  const d = new Date(createdAt);
+  if (Number.isNaN(d.getTime())) {
+    return new Date().toISOString();
+  }
+  d.setHours(d.getHours() + hours);
+  return d.toISOString();
+}
+
+const detailTabClass = (active: boolean) =>
+  [
+    '-mb-px border-b-2 px-4 py-2 text-sm transition-colors',
+    active
+      ? 'border-accent font-bold text-accent'
+      : 'border-transparent text-muted hover:text-accent',
+  ].join(' ');
+
+function buildPreventaHistory(
+  item: SolicitudPreventaRecord,
+  service: ServiceCard,
+  asignado: string,
+): PreventaHistoryEntry[] {
+  const created = item.createdAt;
+  const entries: PreventaHistoryEntry[] = [
+    {
+      version: 'v1',
+      actor: 'MEP-LEAN',
+      message: 'La interacción fue recibida por MEP-LEAN.',
+      detail: {
+        accion: 'Recepción de la solicitud',
+        resultado: 'La interacción quedó en cola de MEP-LEAN.',
+        origen: 'Canal MEP-LEAN',
+        notas: `Acuse automático de ${service.label}. Referencia ${item.interactionRef}.`,
+        registrado: offsetIso(created, 0),
+      },
+    },
+  ];
+  if (item.mepStatus === 'Pendiente') {
+    return entries;
+  }
+
+  entries.push({
+    version: 'v2',
+    actor: 'Ingeniero Preventa',
+    message: 'Se asignó ingeniero de preventa a la interacción.',
+    detail: {
+      accion: 'Asignación de ingeniero',
+      resultado: `Se asignó a ${asignado}.`,
+      origen: 'Mesa de Preventa',
+      notas: 'El ingeniero queda como responsable de la evaluación técnica.',
+      registrado: offsetIso(created, 4),
+    },
+  });
+  if (item.mepStatus === 'Aceptado') {
+    return [...entries].reverse();
+  }
+
+  entries.push({
+    version: 'v3',
+    actor: 'Ingeniero Preventa',
+    message:
+      service.service === 'FINANCIAL_DESIGN'
+        ? 'Ruta financiera y capacidad planificada quedaron registradas.'
+        : 'Ruta viable V1, ETA y capacidad planificada quedaron registradas.',
+    detail: {
+      accion: 'Evaluación de ruta y capacidad',
+      resultado:
+        service.service === 'FINANCIAL_DESIGN'
+          ? 'Quedó registrada la ruta financiera y la capacidad planificada.'
+          : 'Quedaron registradas la ruta viable V1, el ETA y la capacidad planificada.',
+      origen: asignado,
+      notas: 'Se documentó el hallazgo en la pista técnica de la solicitud.',
+      registrado: offsetIso(created, 28),
+    },
+  });
+  if (item.mepStatus === 'Rechazado') {
+    entries.push({
+      version: 'v4',
+      actor: 'Ingeniero Preventa',
+      message: 'La solicitud fue rechazada por Preventa.',
+      detail: {
+        accion: 'Dictamen de viabilidad',
+        resultado: 'No viable. La solicitud fue rechazada por Preventa.',
+        origen: asignado,
+        notas: 'No se emite diseño. Revisa observaciones y el historial de acuses.',
+        registrado: offsetIso(created, 36),
+      },
+    });
+    return [...entries].reverse();
+  }
+
+  entries.push({
+    version: 'v5',
+    actor: 'Ingeniero Preventa',
+    message:
+      item.tipoId === 'technical_and_financial'
+        ? 'Diseño técnico y financiero entregados; interacción cerrada.'
+        : service.service === 'FINANCIAL_DESIGN'
+          ? 'Diseño financiero entregado; interacción cerrada.'
+          : 'Diseño técnico entregado; interacción cerrada.',
+    detail: {
+      accion: 'Entrega de diseño y cierre',
+      resultado:
+        item.tipoId === 'technical_and_financial'
+          ? 'Se entregaron el diseño técnico y el financiero. Interacción cerrada.'
+          : service.service === 'FINANCIAL_DESIGN'
+            ? 'Se entregó el diseño financiero. Interacción cerrada.'
+            : 'Se entregó el diseño técnico. Interacción cerrada.',
+      origen: asignado,
+      notas: 'El documento de Preventa queda vinculado a esta solicitud.',
+      registrado: offsetIso(created, 48),
+    },
+  });
+  return [...entries].reverse();
+}
+
 function formatFieldValue(key: string, value: string): string {
   if (!value) {
-    // Fecha de respuesta (etag): vacío hasta que MEP la asigne.
-    if (key === 'etag') return '';
     return '—';
   }
-  if (key === 'source_created_at') {
+  if (key === 'source_created_at' || key === 'etag') {
     const d = new Date(value);
     return Number.isNaN(d.getTime()) ? value : d.toLocaleString('es-CO');
   }
   return value;
 }
+
+function formatDateTimeValue(value: string): string {
+  if (!value) return '—';
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? value : d.toLocaleString('es-CO');
+}
+
+function resolvePreventaAsignado(item: SolicitudPreventaRecord): string {
+  if (item.preventaAsignado) {
+    return item.preventaAsignado;
+  }
+  if ((item.mepStatus ?? 'Pendiente') === 'Pendiente') {
+    return 'Sin asignar';
+  }
+  return mockPreventaAsignado(item.id);
+}
+
+function resolveFechaEntrega(item: SolicitudPreventaRecord): string {
+  const raw = item.values?.etag || item.etag || '';
+  if (raw) {
+    return formatDateTimeValue(raw);
+  }
+  if ((item.mepStatus ?? 'Pendiente') === 'Pendiente') {
+    return '—';
+  }
+  return formatDateTimeValue(mockFechaEntregaIso(item.createdAt));
+}
+
+function resolveObservaciones(
+  item: SolicitudPreventaRecord,
+  history: PreventaHistoryEntry[],
+): string {
+  if (item.observaciones?.trim()) {
+    return item.observaciones;
+  }
+  return history[0]?.message ?? 'Sin observaciones.';
+}
+
+function resolveViabilidad(item: SolicitudPreventaRecord): ViabilidadPreventa | null {
+  if (item.viabilidad) {
+    return item.viabilidad;
+  }
+  if ((item.mepStatus ?? 'Pendiente') === 'Pendiente') {
+    return null;
+  }
+  return item.mepStatus === 'Rechazado' ? 'No viable' : 'Viable';
+}
+
+const DETAIL_INFO_FIELDS = SOLICITUD_PREVENTA_FIELDS.filter(
+  (field) => field.key !== 'etag',
+);
+
+const fieldValueClass =
+  'min-h-9 rounded border border-border bg-bg px-3 py-2 text-sm text-ink';
 
 function ServiceCardView({
   card,
@@ -136,11 +346,28 @@ function SolicitudDetailModal({
   consecutivo: string;
   onClose: () => void;
 }) {
+  const [tab, setTab] = useState<DetailTab>('informacion');
   const [preview, setPreview] = useState<{
     title: string;
     url: string;
   } | null>(null);
+  const [pistaOpen, setPistaOpen] = useState(false);
+  const [selectedVersion, setSelectedVersion] = useState<string | null>(null);
   const sharepoint = resolveServiceSharePoint(consecutivo, service);
+  const preventaAsignado = resolvePreventaAsignado(item);
+  const history = buildPreventaHistory(item, service, preventaAsignado);
+  const fechaEntrega = resolveFechaEntrega(item);
+  const observaciones = resolveObservaciones(item, history);
+  const viabilidad = resolveViabilidad(item);
+  const selectedEntry =
+    history.find((entry) => entry.version === selectedVersion) ?? null;
+  const showTipoBadge =
+    item.tipoNombre.trim().toLowerCase() !== service.label.trim().toLowerCase();
+
+  function handleSelectHistory(version: string) {
+    setSelectedVersion(version);
+    setPistaOpen(true);
+  }
 
   return (
     <>
@@ -148,76 +375,229 @@ function SolicitudDetailModal({
         title={`Detalle — ${service.label}`}
         onClose={onClose}
         size="wide"
-        headerAside={<MepStatusBadge status={item.mepStatus ?? 'Pendiente'} />}
-      >
-        <div className="mb-4 flex flex-wrap gap-2">
-          <span
-            className={[
-              badgeClass,
-              service.state === 'active'
-                ? 'bg-accent text-white'
-                : 'bg-border text-muted',
-            ].join(' ')}
-          >
-            {service.label}
-          </span>
-          <span className={`${badgeClass} bg-border text-ink`}>
-            {item.tipoNombre}
-          </span>
-          <span className={`${badgeClass} bg-accent/15 text-accent`}>
-            {item.priority === 'ASAP' ? 'ASAP' : 'Sombra'}
-          </span>
-          {service.state === 'blocked' ? (
-            <span className={`${badgeClass} bg-border text-muted`}>
-              Bloqueada — espera viabilidad Preventa
-            </span>
-          ) : null}
-        </div>
-
-        <div className="grid gap-3 sm:grid-cols-2">
-          {SOLICITUD_PREVENTA_FIELDS.map((field) => {
-            const raw = item.values[field.key] ?? '';
-            return (
-              <div
-                key={field.key}
-                className={field.spanFull ? 'sm:col-span-2' : undefined}
-              >
-                <p className={labelClass}>{field.label}</p>
-                <p className="whitespace-pre-wrap text-sm text-ink">
-                  {formatFieldValue(field.key, raw)}
-                </p>
-              </div>
-            );
-          })}
-        </div>
-
-        <div className="mt-4 rounded border border-border bg-bg p-3">
-          <p className="mb-1 text-xs font-bold text-muted">
-            Documento SharePoint
-          </p>
-          <p className="mb-2 text-xs text-muted">
-            Link retornado por Preventa para esta solicitud.
-          </p>
-          {sharepoint ? (
-            <button
-              type="button"
-              className="inline-flex max-w-full items-center gap-2 text-left text-sm font-bold text-accent hover:underline"
-              onClick={() =>
-                setPreview({
-                  title: sharepoint.nombre,
-                  url: sharepoint.url,
-                })
-              }
+        headerAside={
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <span
+              className={[
+                badgeClass,
+                service.state === 'active'
+                  ? 'bg-accent text-white'
+                  : 'bg-border text-muted',
+              ].join(' ')}
             >
-              <ExternalLink size={15} aria-hidden />
-              <span className="truncate">{sharepoint.nombre}</span>
-            </button>
-          ) : (
-            <p className="text-xs text-muted">
-              Sin documento vinculado (servicio pendiente o bloqueado).
+              {service.label}
+            </span>
+            {showTipoBadge ? (
+              <span className={`${badgeClass} bg-border text-ink`}>
+                {item.tipoNombre}
+              </span>
+            ) : null}
+            <span className={`${badgeClass} bg-accent/15 text-accent`}>
+              {item.priority === 'ASAP' ? 'ASAP' : 'Sombra'}
+            </span>
+            {service.state === 'blocked' ? (
+              <span className={`${badgeClass} bg-border text-muted`}>
+                Bloqueada
+              </span>
+            ) : null}
+            <MepStatusBadge status={item.mepStatus ?? 'Pendiente'} />
+          </div>
+        }
+      >
+        <nav
+          className="mb-4 flex flex-wrap gap-1 border-b border-border"
+          aria-label="Detalle de solicitud"
+        >
+          <button
+            type="button"
+            className={detailTabClass(tab === 'informacion')}
+            onClick={() => setTab('informacion')}
+            aria-current={tab === 'informacion' ? 'page' : undefined}
+          >
+            Información solicitud
+          </button>
+          <button
+            type="button"
+            className={detailTabClass(tab === 'historico')}
+            onClick={() => setTab('historico')}
+            aria-current={tab === 'historico' ? 'page' : undefined}
+          >
+            Histórico
+          </button>
+        </nav>
+
+        {tab === 'informacion' ? (
+          <>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {DETAIL_INFO_FIELDS.map((field) => {
+                const raw = item.values[field.key] ?? '';
+                return (
+                  <div
+                    key={field.key}
+                    className={field.spanFull ? 'sm:col-span-2' : undefined}
+                  >
+                    <p className={labelClass}>{field.label}</p>
+                    <p
+                      className={[
+                        fieldValueClass,
+                        'whitespace-pre-wrap',
+                        field.inputType === 'textarea' ? 'min-h-20' : '',
+                      ].join(' ')}
+                    >
+                      {formatFieldValue(field.key, raw)}
+                    </p>
+                  </div>
+                );
+              })}
+              <div>
+                <p className={labelClass}>Fecha de entrega</p>
+                <p className={fieldValueClass}>{fechaEntrega}</p>
+              </div>
+              <div>
+                <p className={labelClass}>Preventa asignado</p>
+                <p className={fieldValueClass}>{preventaAsignado}</p>
+              </div>
+              <div>
+                <p className={labelClass}>Viabilidad</p>
+                <p className={fieldValueClass}>{viabilidad ?? '—'}</p>
+              </div>
+              <div>
+                <p className={labelClass}>Documento</p>
+                {sharepoint ? (
+                  <button
+                    type="button"
+                    className="inline-flex min-h-9 w-full max-w-full items-center gap-2 rounded border border-border bg-bg px-3 py-2 text-left text-sm font-bold text-accent hover:underline"
+                    onClick={() =>
+                      setPreview({
+                        title: sharepoint.nombre,
+                        url: sharepoint.url,
+                      })
+                    }
+                  >
+                    <ExternalLink size={15} aria-hidden />
+                    <span className="truncate text-accent">
+                      {sharepoint.nombre}
+                    </span>
+                  </button>
+                ) : (
+                  <p className={`${fieldValueClass} text-muted`}>
+                    Sin documento vinculado
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="mt-4 rounded border border-border bg-bg p-3">
+              <p className={labelClass}>Observaciones</p>
+              <p className="min-h-20 whitespace-pre-wrap text-sm text-ink">
+                {observaciones}
+              </p>
+            </div>
+          </>
+        ) : (
+          <div>
+            <p className="mb-3 text-xs font-bold text-muted">
+              Historial de Preventa
             </p>
-          )}
-        </div>
+            <ul className="space-y-2">
+              {history.map((entry) => {
+                const selected = entry.version === selectedVersion;
+                return (
+                  <li key={entry.version}>
+                    <button
+                      type="button"
+                      onClick={() => handleSelectHistory(entry.version)}
+                      className={[
+                        'w-full rounded border-l-2 px-3 py-2 text-left transition-colors',
+                        selected
+                          ? 'border-accent bg-accent/10'
+                          : 'border-accent/40 bg-bg hover:bg-accent/5',
+                      ].join(' ')}
+                      aria-pressed={selected}
+                    >
+                      <p className="text-sm">
+                        <span className="font-bold text-accent">
+                          {entry.version}
+                        </span>
+                        <span className="text-ink"> · {entry.actor}</span>
+                      </p>
+                      <p className="text-sm text-muted">{entry.message}</p>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+
+            <div className="mt-4 rounded border border-border bg-bg">
+              <button
+                type="button"
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-muted"
+                onClick={() => setPistaOpen((open) => !open)}
+                aria-expanded={pistaOpen}
+              >
+                {pistaOpen ? (
+                  <ChevronDown size={14} aria-hidden />
+                ) : (
+                  <ChevronRight size={14} aria-hidden />
+                )}
+                Pista técnica · {history.length} acuse(s)
+              </button>
+              {pistaOpen ? (
+                <div className="space-y-2 border-t border-border px-3 py-3 text-sm">
+                  {selectedEntry ? (
+                    <>
+                      <p>
+                        <span className="font-bold text-ink">Versión: </span>
+                        <span className="text-accent">
+                          {selectedEntry.version}
+                        </span>
+                      </p>
+                      <p>
+                        <span className="font-bold text-ink">Actor: </span>
+                        <span className="text-ink">{selectedEntry.actor}</span>
+                      </p>
+                      <p>
+                        <span className="font-bold text-ink">Acción: </span>
+                        <span className="text-ink">
+                          {selectedEntry.detail.accion}
+                        </span>
+                      </p>
+                      <p>
+                        <span className="font-bold text-ink">Resultado: </span>
+                        <span className="text-ink">
+                          {selectedEntry.detail.resultado}
+                        </span>
+                      </p>
+                      <p>
+                        <span className="font-bold text-ink">Origen: </span>
+                        <span className="text-ink">
+                          {selectedEntry.detail.origen}
+                        </span>
+                      </p>
+                      <p>
+                        <span className="font-bold text-ink">Registrado: </span>
+                        <span className="text-ink">
+                          {formatDateTimeValue(selectedEntry.detail.registrado)}
+                        </span>
+                      </p>
+                      <p>
+                        <span className="font-bold text-ink">Detalle: </span>
+                        <span className="text-ink">
+                          {selectedEntry.detail.notas}
+                        </span>
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-muted">
+                      Elige un evento del historial para ver el detalle de la
+                      acción.
+                    </p>
+                  )}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        )}
       </ModalShell>
 
       <SharePointPreviewModal

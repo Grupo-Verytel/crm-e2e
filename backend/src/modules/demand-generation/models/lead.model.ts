@@ -80,7 +80,7 @@ export class Lead extends Model {
   @Column({ type: DataType.STRING(80), allowNull: true })
   declare industria: string | null;
 
-  @Column({ type: DataType.STRING(80), allowNull: true })
+  @Column({ type: DataType.STRING(80), allowNull: true, field: 'city' })
   declare ciudad: string | null;
 
   @Column({ type: DataType.STRING(60), allowNull: false })

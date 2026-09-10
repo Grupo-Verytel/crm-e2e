@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { AppLayout } from '../../../layout/AppLayout';
 import { fetchMarketingDashboard } from '../api/dashboard-api';
+import { DemandNav } from '../components/DemandNav';
 import { StatusBadge } from '../components/StatusBadge';
 import { cardClass } from '../components/ui';
 import type { MarketingDashboard } from '../types';
@@ -36,6 +37,7 @@ export function MarketingDashboardPage() {
 
   return (
     <AppLayout title="Dashboard de mercadeo">
+      <DemandNav />
 
       <h1 className="mb-4 text-lg font-bold text-ink">Indicadores de mercadeo</h1>
 

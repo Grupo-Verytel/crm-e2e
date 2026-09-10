@@ -41,7 +41,7 @@ export const SOLICITUD_PREVENTA_FIELDS: RequestField[] = [
   { key: 'source_version', label: 'Versión de origen' },
   {
     key: 'etag',
-    label: 'Fecha de respuesta',
+    label: 'Fecha de entrega',
     locked: true,
     lockedValue: '',
   },
@@ -205,4 +205,29 @@ export function mockInteractionRef(seed: string): string {
     h = (h * 31 + seed.charCodeAt(i)) >>> 0;
   }
   return `int_${(h % 90000) + 10000}`;
+}
+
+const PREVENTA_ENGINEERS = [
+  'Andrés Gutiérrez',
+  'María Fernanda López',
+  'Julián Castro',
+];
+
+/** Mock MEP assignee from a stable seed (solicitud id). */
+export function mockPreventaAsignado(seed: string): string {
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) {
+    h = (h + seed.charCodeAt(i)) >>> 0;
+  }
+  return PREVENTA_ENGINEERS[h % PREVENTA_ENGINEERS.length] ?? PREVENTA_ENGINEERS[0];
+}
+
+/** Delivery timestamp two days after creation (ISO). */
+export function mockFechaEntregaIso(createdAt: string): string {
+  const d = new Date(createdAt);
+  if (Number.isNaN(d.getTime())) {
+    return new Date().toISOString();
+  }
+  d.setDate(d.getDate() + 2);
+  return d.toISOString();
 }

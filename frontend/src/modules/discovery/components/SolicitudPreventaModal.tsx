@@ -6,7 +6,9 @@ import {
   SERVICE_COMBOS,
   SOLICITUD_PREVENTA_FIELDS,
   buildServiceCards,
+  mockFechaEntregaIso,
   mockInteractionRef,
+  mockPreventaAsignado,
   type ActivityPriority,
   type ServiceCard,
   type ServiceComboId,
@@ -37,13 +39,19 @@ export type SolicitudPreventaRecord = {
   values: Record<string, string>;
   requestedServices: { service: string; dependency: string }[];
   createdAt: string;
+  /** Ingeniero de Preventa asignado por MEP (vacío mientras está Pendiente). */
+  preventaAsignado: string | null;
+  observaciones: string;
+  viabilidad: ViabilidadPreventa | null;
 };
 
-export type MepSolicitudStatus = 'Aceptado' | 'Aprobado' | 'Rechazado' | 'Pendiente';
+export type ViabilidadPreventa = 'Viable' | 'No viable';
+
+export type MepSolicitudStatus = 'Aceptado' | 'Completado' | 'Rechazado' | 'Pendiente';
 
 const MEP_MOCK_STATUSES: MepSolicitudStatus[] = [
   'Aceptado',
-  'Aprobado',
+  'Completado',
   'Rechazado',
   'Pendiente',
 ];
@@ -134,25 +142,40 @@ export function SolicitudPreventaModal({
         consecutivo: ouv.consecutivo,
         includeSharePoint: true,
       });
+      const createdAt = new Date().toISOString();
+      const id = `sol-${Date.now()}`;
+      const mepStatus =
+        MEP_MOCK_STATUSES[
+          Math.floor(Math.random() * MEP_MOCK_STATUSES.length)
+        ]!;
+      const assigned =
+        mepStatus === 'Pendiente' ? null : mockPreventaAsignado(id);
+      const fechaEntrega =
+        mepStatus === 'Pendiente' ? '' : mockFechaEntregaIso(createdAt);
       const record: SolicitudPreventaRecord = {
-        id: `sol-${Date.now()}`,
+        id,
         priority,
         tipoId: combo.id,
         tipoNombre: combo.name,
         subject: values.subject || '(Sin asunto)',
         status: 'ENVIADA',
-        mepStatus:
-          MEP_MOCK_STATUSES[
-            Math.floor(Math.random() * MEP_MOCK_STATUSES.length)
-          ]!,
+        mepStatus,
         interactionRef: values.crm_interaction_ref,
         sourceVersion: values.source_version,
-        etag: values.etag,
+        etag: fechaEntrega,
         services,
         sameContainer: combo.id === 'technical_and_financial',
-        values: { ...values },
+        values: { ...values, etag: fechaEntrega },
         requestedServices: combo.services.map((s) => ({ ...s })),
-        createdAt: new Date().toISOString(),
+        createdAt,
+        preventaAsignado: assigned,
+        observaciones: '',
+        viabilidad:
+          mepStatus === 'Pendiente'
+            ? null
+            : mepStatus === 'Rechazado'
+              ? 'No viable'
+              : 'Viable',
       };
       onResult({
         ok: true,
