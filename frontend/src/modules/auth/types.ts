@@ -76,6 +76,12 @@ export type UpdateRolePayload = {
   permissions: CaslPermissionRule[];
 };
 
+export type CreateRolePayload = {
+  name: string;
+  description?: string;
+  permissions: CaslPermissionRule[];
+};
+
 export type UsersQuery = {
   page?: number;
   limit?: number;

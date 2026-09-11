@@ -25,6 +25,8 @@ type Props = {
   'aria-label'?: string;
   /** Overrides the date text in the trigger (e.g. ISO week). */
   displayValue?: string;
+  /** Calendar panel alignment relative to the trigger. */
+  align?: 'start' | 'end';
 };
 
 function parseYmd(value: string): Date | null {
@@ -70,6 +72,7 @@ export function DatePickerField({
   className = '',
   'aria-label': ariaLabel,
   displayValue,
+  align = 'start',
 }: Props) {
   const selected = parseYmd(value);
   const [open, setOpen] = useState(false);
@@ -122,7 +125,9 @@ export function DatePickerField({
 
       {open ? (
         <div
-          className="absolute left-0 z-50 mt-1 w-[17.5rem] rounded border border-border bg-surface p-3 shadow-card"
+          className={`absolute z-50 mt-1 w-[17.5rem] rounded border border-border bg-surface p-3 shadow-card ${
+            align === 'end' ? 'right-0' : 'left-0'
+          }`}
           role="dialog"
           aria-label="Calendario"
         >

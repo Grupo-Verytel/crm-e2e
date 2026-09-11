@@ -1,8 +1,17 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
+import { UniqueConstraintError } from 'sequelize';
 import { AUTH_ERROR_CODES } from '../constants/auth.constants';
 import { CaslPermissionRule } from '../casl/casl-permission.interface';
-import { RoleResponseDto, UpdateRoleDto } from '../dtos/role-response.dto';
+import {
+  CreateRoleDto,
+  RoleResponseDto,
+  UpdateRoleDto,
+} from '../dtos/role-response.dto';
 import { Role } from '../models';
 
 @Injectable()
@@ -15,6 +24,28 @@ export class RolesService {
     });
 
     return roles.map((role) => this.toResponseDto(role));
+  }
+
+  async create(dto: CreateRoleDto): Promise<RoleResponseDto> {
+    try {
+      const role = await this.roleModel.create({
+        name: dto.name.trim(),
+        description: dto.description?.trim() || null,
+        permissions: dto.permissions,
+        isSystem: false,
+      });
+
+      return this.toResponseDto(role);
+    } catch (error) {
+      if (error instanceof UniqueConstraintError) {
+        throw new ConflictException({
+          code: AUTH_ERROR_CODES.ROLE_NAME_CONFLICT,
+          message: 'Role name already exists',
+        });
+      }
+
+      throw error;
+    }
   }
 
   async update(roleId: string, dto: UpdateRoleDto): Promise<RoleResponseDto> {

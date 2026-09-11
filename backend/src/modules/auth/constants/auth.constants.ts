@@ -10,6 +10,7 @@ export const AUTH_ERROR_CODES = {
   UNAUTHORIZED: 'UNAUTHORIZED',
   FORBIDDEN: 'FORBIDDEN',
   EMAIL_CONFLICT: 'EMAIL_CONFLICT',
+  ROLE_NAME_CONFLICT: 'ROLE_NAME_CONFLICT',
   NOT_FOUND: 'NOT_FOUND',
   VALIDATION_ERROR: 'VALIDATION_ERROR',
   /** DB/network outage — never treat as session expiry on the client. */

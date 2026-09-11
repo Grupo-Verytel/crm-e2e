@@ -42,6 +42,7 @@ const LEAD_ACTIONS: PermissionAction[] = [
   'approve',
   'schedule',
 ];
+const SQL_ACTIONS: PermissionAction[] = ['create', 'read', 'update'];
 const OUV_ACTIONS: PermissionAction[] = [
   'create',
   'read',
@@ -52,7 +53,7 @@ const OUV_ACTIONS: PermissionAction[] = [
 
 /**
  * Catalog of platform modules for the role permission editor.
- * Order mirrors the app sidebar (NAV_ITEMS); Usuarios y roles stays last.
+ * One entry per sidebar item (`NAV_ITEMS`), same order and labels.
  * Subjects/actions must match CASL rules used by backend guards and nav.
  */
 export const PERMISSION_MODULES: PermissionModuleDef[] = [
@@ -66,18 +67,19 @@ export const PERMISSION_MODULES: PermissionModuleDef[] = [
     ],
   },
   {
-    id: 'opportunities',
-    label: 'Oportunidades (OUV)',
-    description: 'Bandeja y detalle de oportunidades comerciales',
+    id: 'qualification',
+    label: 'Calificación',
+    description: 'Bandeja SQL, asignación y creación de OUV',
     subjects: [
-      { subject: 'Opportunity', label: 'OUV', actions: OUV_ACTIONS },
+      { subject: 'Sql', label: 'SQL', actions: SQL_ACTIONS },
     ],
   },
   {
-    id: 'ouv-catalogs',
-    label: 'Catálogos OUV',
-    description: 'Motivos y plantillas de checklist por zona',
+    id: 'discovery',
+    label: 'Oportunidades (OUV)',
+    description: 'Bandeja, detalle y catálogos de oportunidades',
     subjects: [
+      { subject: 'Opportunity', label: 'OUV', actions: OUV_ACTIONS },
       {
         subject: 'MotivoPerdida',
         label: 'Motivos de pérdida',
@@ -96,7 +98,7 @@ export const PERMISSION_MODULES: PermissionModuleDef[] = [
     ],
   },
   {
-    id: 'presales',
+    id: 'technical-feasibility',
     label: 'Preventa (PRE)',
     description: 'Módulo de Preventa (PRE)',
     subjects: [{ subject: 'Presale', label: 'Preventa', actions: CRUA }],
@@ -108,7 +110,7 @@ export const PERMISSION_MODULES: PermissionModuleDef[] = [
     subjects: [{ subject: 'Pricing', label: 'Pricing', actions: CRUA }],
   },
   {
-    id: 'proposals-contracts',
+    id: 'offer-closing',
     label: 'Oferta & Cierre',
     description: 'Oferta, cierre y contratos',
     subjects: [
@@ -117,7 +119,7 @@ export const PERMISSION_MODULES: PermissionModuleDef[] = [
     ],
   },
   {
-    id: 'services',
+    id: 'implementation',
     label: 'Implementación (SER)',
     description: 'Servicios (SER) y kickoff',
     subjects: [
@@ -132,34 +134,31 @@ export const PERMISSION_MODULES: PermissionModuleDef[] = [
     subjects: [{ subject: 'PostSale', label: 'Postventa', actions: CRU }],
   },
   {
-    id: 'accounts',
-    label: 'Empresas y contactos',
-    description: 'Empresas (accounts) y personas (people)',
-    subjects: [
-      { subject: 'Account', label: 'Empresas', actions: CRUD },
-      { subject: 'Person', label: 'Contactos', actions: CRUD },
-    ],
+    id: 'accounts-empresas',
+    label: 'Empresas',
+    description: 'Maestro de empresas (accounts)',
+    subjects: [{ subject: 'Account', label: 'Empresas', actions: CRUD }],
   },
   {
-    id: 'billing',
-    label: 'Facturación',
-    description: 'Billing y finanzas',
-    subjects: [{ subject: 'Billing', label: 'Facturación', actions: CRUA }],
+    id: 'accounts-contactos',
+    label: 'Contactos',
+    description: 'Maestro de personas (people)',
+    subjects: [{ subject: 'Person', label: 'Contactos', actions: CRUD }],
   },
   {
-    id: 'audit',
-    label: 'Auditoría',
-    description: 'Consulta del audit log',
-    subjects: [{ subject: 'AuditLog', label: 'Audit log', actions: READ }],
-  },
-  {
-    id: 'users-roles',
+    id: 'auth',
     label: 'Usuarios y roles',
     description: 'Administración de usuarios y roles del sistema',
     subjects: [
       { subject: 'User', label: 'Usuarios', actions: CRUD_APPROVE },
       { subject: 'Role', label: 'Roles', actions: CRUD_APPROVE },
     ],
+  },
+  {
+    id: 'audit',
+    label: 'Auditoría',
+    description: 'Consulta del audit log',
+    subjects: [{ subject: 'AuditLog', label: 'Audit log', actions: READ }],
   },
 ];
 

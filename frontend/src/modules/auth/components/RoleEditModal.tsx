@@ -1,5 +1,5 @@
 import type { FormEvent } from 'react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CaslPermissionRule, Role } from '../types';
 import { getFormErrorMessage } from '../lib/form-errors';
 import {
@@ -14,11 +14,19 @@ import {
   type PermissionModuleDef,
 } from '../lib/permission-catalog';
 
+const inputClass =
+  'h-9 w-full rounded border border-border bg-bg px-3 text-sm text-ink outline-none focus:border-accent focus:bg-surface';
+
+type RoleModalMode = 'create' | 'edit';
+
 type RoleEditModalProps = {
   open: boolean;
+  mode: RoleModalMode;
   role: Role | null;
+  existingRoleNames?: string[];
   onClose: () => void;
   onSubmit: (payload: {
+    name?: string;
     description?: string;
     permissions: CaslPermissionRule[];
   }) => Promise<void>;
@@ -26,18 +34,25 @@ type RoleEditModalProps = {
 
 export function RoleEditModal({
   open,
+  mode,
   role,
+  existingRoleNames = [],
   onClose,
   onSubmit,
 }: RoleEditModalProps) {
-  if (!open || !role) {
+  if (!open) {
+    return null;
+  }
+  if (mode === 'edit' && !role) {
     return null;
   }
 
   return (
     <RoleEditModalBody
-      key={role.role_id}
+      key={mode === 'create' ? 'create' : role?.role_id}
+      mode={mode}
       role={role}
+      existingRoleNames={existingRoleNames}
       onClose={onClose}
       onSubmit={onSubmit}
     />
@@ -45,18 +60,22 @@ export function RoleEditModal({
 }
 
 function RoleEditModalBody({
+  mode,
   role,
+  existingRoleNames = [],
   onClose,
   onSubmit,
-}: Omit<RoleEditModalProps, 'open' | 'role'> & { role: Role }) {
-  const isAdmin = role.name === 'Admin';
+}: Omit<RoleEditModalProps, 'open'>) {
+  const isCreate = mode === 'create';
+  const isAdmin = !isCreate && role?.name === 'Admin';
+  const [name, setName] = useState(role?.name ?? '');
   const [activeModuleId, setActiveModuleId] = useState(
     PERMISSION_MODULES[0]?.id ?? '',
   );
   const [enabled, setEnabled] = useState<Set<string>>(() =>
     isAdmin
       ? permissionsToSet(buildFullCatalogPermissions())
-      : permissionsToSet(role.permissions),
+      : permissionsToSet(role?.permissions ?? []),
   );
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -67,6 +86,20 @@ function RoleEditModalBody({
       PERMISSION_MODULES[0],
     [activeModuleId],
   );
+
+  const trimmedName = name.trim();
+  const nameTaken = existingRoleNames.some(
+    (existing) => existing.trim().toLowerCase() === trimmedName.toLowerCase(),
+  );
+  const hasModuleAccess = PERMISSION_MODULES.some(
+    (module) => moduleEnabledCount(module, enabled).on > 0,
+  );
+  const hasSubmodulePermission = enabled.size > 0;
+  const canCreate =
+    trimmedName.length >= 2 &&
+    !nameTaken &&
+    hasModuleAccess &&
+    hasSubmodulePermission;
 
   function toggle(action: PermissionAction, subject: string) {
     if (isAdmin) return;
@@ -100,18 +133,27 @@ function RoleEditModalBody({
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+    if (isCreate && !canCreate) {
+      return;
+    }
     setIsSubmitting(true);
     try {
       const permissions = isAdmin
         ? buildFullCatalogPermissions()
         : setToPermissions(enabled);
       await onSubmit({
+        name: isCreate ? name.trim() : undefined,
         permissions,
       });
       onClose();
     } catch (submitError) {
       setError(
-        getFormErrorMessage(submitError, 'No se pudo actualizar el rol.'),
+        getFormErrorMessage(
+          submitError,
+          isCreate
+            ? 'No se pudo crear el rol.'
+            : 'No se pudo actualizar el rol.',
+        ),
       );
     } finally {
       setIsSubmitting(false);
@@ -123,11 +165,12 @@ function RoleEditModalBody({
       <div className="flex max-h-[90vh] w-full max-w-3xl flex-col rounded bg-surface shadow-card">
         <div className="border-b border-border px-6 py-4">
           <h2 className="text-sm font-bold text-ink">
-            Editar rol — {role.name}
+            {isCreate ? 'Nuevo rol' : `Editar rol — ${role?.name ?? ''}`}
           </h2>
           <p className="mt-1 text-xs text-muted">
-            Activa o desactiva accesos por módulo (crear, ver, editar,
-            eliminar).
+            {isCreate
+              ? 'Nombra el rol y marca los módulos a los que puede acceder. Luego ajusta crear, ver, editar y eliminar.'
+              : 'Marca los módulos a los que puede acceder. Luego ajusta crear, ver, editar y eliminar.'}
             {isAdmin
               ? ' Admin conserva acceso completo a todos los módulos.'
               : null}
@@ -136,63 +179,53 @@ function RoleEditModalBody({
 
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
           <div className="flex min-h-0 flex-1">
-            <aside className="w-56 shrink-0 overflow-y-auto border-r border-border bg-surface">
+            <aside className="w-80 shrink-0 overflow-y-auto border-r border-border bg-surface">
+              {isCreate ? (
+                <div className="border-b border-border px-3 py-3">
+                  <label className="mb-1 block text-xs font-bold text-ink" htmlFor="role-name">
+                    Nombre
+                  </label>
+                  <input
+                    id="role-name"
+                    className={inputClass}
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
+                    placeholder="Ej. CoordinadorPMO"
+                    maxLength={60}
+                    required
+                  />
+                  {trimmedName.length >= 2 && nameTaken ? (
+                    <p className="mt-1 text-xs text-danger">
+                      Ya existe un rol con ese nombre.
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
               <nav className="flex flex-col p-2" aria-label="Módulos">
-                {PERMISSION_MODULES.map((module) => {
-                  const { on, total } = moduleEnabledCount(module, enabled);
-                  const active = module.id === activeModule?.id;
-                  return (
-                    <button
-                      key={module.id}
-                      type="button"
-                      onClick={() => setActiveModuleId(module.id)}
-                      className={[
-                        'mb-1 rounded px-3 py-2 text-left text-sm transition',
-                        active
-                          ? 'bg-bg font-bold text-accent'
-                          : 'text-ink hover:bg-bg',
-                      ].join(' ')}
-                    >
-                      <span className="block">{module.label}</span>
-                      <span className="mt-0.5 block text-[11px] font-normal text-muted">
-                        {on}/{total} permisos
-                      </span>
-                    </button>
-                  );
-                })}
+                {PERMISSION_MODULES.map((module) => (
+                  <ModuleAccessRow
+                    key={module.id}
+                    module={module}
+                    enabled={enabled}
+                    active={module.id === activeModule?.id}
+                    disabled={isAdmin}
+                    onSelect={() => setActiveModuleId(module.id)}
+                    onToggleAccess={(on) => setModuleAll(module, on)}
+                  />
+                ))}
               </nav>
             </aside>
 
             <div className="min-h-0 flex-1 overflow-y-auto bg-bg px-6 py-4">
               {activeModule ? (
                 <div className="space-y-4">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <h3 className="text-sm font-bold text-ink">
-                        {activeModule.label}
-                      </h3>
-                      <p className="mt-1 text-xs text-muted">
-                        {activeModule.description}
-                      </p>
-                    </div>
-                    {!isAdmin ? (
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          className="btn-glow-outline rounded px-3 py-1.5 text-xs font-bold"
-                          onClick={() => setModuleAll(activeModule, true)}
-                        >
-                          Activar todo
-                        </button>
-                        <button
-                          type="button"
-                          className="btn-glow-outline rounded px-3 py-1.5 text-xs font-bold"
-                          onClick={() => setModuleAll(activeModule, false)}
-                        >
-                          Desactivar todo
-                        </button>
-                      </div>
-                    ) : null}
+                  <div>
+                    <h3 className="text-sm font-bold text-ink">
+                      {activeModule.label}
+                    </h3>
+                    <p className="mt-1 text-xs text-muted">
+                      {activeModule.description}
+                    </p>
                   </div>
 
                   {activeModule.subjects.map((subject) => (
@@ -230,7 +263,7 @@ function RoleEditModalBody({
                                 onChange={() =>
                                   toggle(action, subject.subject)
                                 }
-                                className="h-4 w-4"
+                                className="h-4 w-4 accent-accent"
                               />
                               {ACTION_LABEL[action]}
                             </label>
@@ -263,14 +296,72 @@ function RoleEditModalBody({
             </button>
             <button
               type="submit"
-              disabled={isSubmitting}
+              disabled={isSubmitting || (isCreate && !canCreate)}
               className="btn-glow rounded px-4 py-2 text-sm font-bold text-white disabled:opacity-60"
             >
-              {isSubmitting ? 'Guardando…' : 'Guardar'}
+              {isSubmitting ? 'Guardando…' : isCreate ? 'Crear' : 'Guardar'}
             </button>
           </div>
         </form>
       </div>
+    </div>
+  );
+}
+
+function ModuleAccessRow({
+  module,
+  enabled,
+  active,
+  disabled,
+  onSelect,
+  onToggleAccess,
+}: {
+  module: PermissionModuleDef;
+  enabled: Set<string>;
+  active: boolean;
+  disabled: boolean;
+  onSelect: () => void;
+  onToggleAccess: (on: boolean) => void;
+}) {
+  const { on, total } = moduleEnabledCount(module, enabled);
+  const checkboxRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (checkboxRef.current) {
+      checkboxRef.current.indeterminate = on > 0 && on < total;
+    }
+  }, [on, total]);
+
+  return (
+    <div
+      className={[
+        'mb-1 flex items-start gap-2 rounded px-2 py-2',
+        active ? 'bg-bg' : 'hover:bg-bg',
+      ].join(' ')}
+    >
+      <input
+        ref={checkboxRef}
+        type="checkbox"
+        className="mt-1 h-4 w-4 shrink-0 accent-accent"
+        checked={on === total && total > 0}
+        disabled={disabled}
+        aria-label={`Acceso a ${module.label}`}
+        onChange={(event) => onToggleAccess(event.target.checked)}
+        onClick={(event) => event.stopPropagation()}
+      />
+      <button
+        type="button"
+        onClick={onSelect}
+        className={[
+          'min-w-0 flex-1 text-left text-sm transition',
+          active ? 'font-bold text-accent' : 'text-ink',
+        ].join(' ')}
+      >
+        <span className="block">{module.label}</span>
+        <span className="mt-0.5 block text-[11px] font-normal text-muted">
+          {on}/{total} permisos
+        </span>
+      </button>
     </div>
   );
 }

@@ -1,14 +1,28 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
-import { Op, WhereOptions } from 'sequelize';
+import { Includeable, Op, Order, WhereOptions } from 'sequelize';
+import { User } from '../../auth/models/user.model';
 import { AuditLog } from '../models';
-import { AuditLogQueryDto } from '../dtos/audit-log-query.dto';
+import {
+  AUDIT_SORT_FIELDS,
+  AuditLogQueryDto,
+  AuditSortField,
+} from '../dtos/audit-log-query.dto';
 import {
   AuditLogResponseDto,
   PaginatedAuditLogResponseDto,
 } from '../dtos/audit-log-response.dto';
 import { RecordSecurityEventDto } from '../dtos/record-security-event.dto';
 import { AuditWriterService } from './audit-writer.service';
+
+const SORT_COLUMN: Record<Exclude<AuditSortField, 'actor'>, keyof AuditLog> = {
+  timestamp: 'timestamp',
+  accion: 'accion',
+  tabla: 'tabla',
+  registro_id: 'registroId',
+  campo_modificado: 'campoModificado',
+  ip_address: 'ipAddress',
+};
 
 @Injectable()
 export class AuditService {
@@ -24,10 +38,13 @@ export class AuditService {
     const limit = query.limit ?? 20;
     const offset = (page - 1) * limit;
     const where = this.buildWhereClause(query);
+    const include = this.buildActorInclude();
 
-    const { rows, count } = await this.auditLogModel.findAndCountAll({
+    const count = await this.auditLogModel.count({ where });
+    const rows = await this.auditLogModel.findAll({
       where,
-      order: [['timestamp', 'DESC']],
+      include,
+      order: this.buildOrder(query),
       limit,
       offset,
     });
@@ -50,6 +67,44 @@ export class AuditService {
       valorNuevo: dto.valor_nuevo ?? null,
       contexto: dto.contexto ?? null,
     });
+  }
+
+  private buildActorInclude(): Includeable[] {
+    return [
+      {
+        model: User,
+        as: 'actor',
+        attributes: ['userId', 'fullName', 'email'],
+        required: false,
+        paranoid: false,
+      },
+    ];
+  }
+
+  private buildOrder(query: AuditLogQueryDto): Order {
+    const sortBy = AUDIT_SORT_FIELDS.includes(
+      query.sort_by as AuditSortField,
+    )
+      ? (query.sort_by as AuditSortField)
+      : 'timestamp';
+    const direction = query.sort_dir === 'ASC' ? 'ASC' : 'DESC';
+
+    if (sortBy === 'actor') {
+      return [
+        [{ model: User, as: 'actor' }, 'fullName', direction],
+        ['timestamp', 'DESC'],
+      ];
+    }
+
+    const column = SORT_COLUMN[sortBy];
+    if (sortBy === 'timestamp') {
+      return [[column, direction]];
+    }
+
+    return [
+      [column, direction],
+      ['timestamp', 'DESC'],
+    ];
   }
 
   private buildWhereClause(query: AuditLogQueryDto): WhereOptions<AuditLog> {
@@ -98,6 +153,7 @@ export class AuditService {
       valor_anterior: auditLog.valorAnterior,
       valor_nuevo: auditLog.valorNuevo,
       usuario_id: auditLog.usuarioId,
+      actor_nombre: auditLog.actor?.fullName ?? null,
       ip_address: auditLog.ipAddress,
       user_agent: auditLog.userAgent,
       timestamp: auditLog.timestamp,

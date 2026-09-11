@@ -1,6 +1,18 @@
-import { Body, Controller, Get, Param, Put, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Put,
+  UseGuards,
+} from '@nestjs/common';
 import { AdminGuard } from '../guards/admin.guard';
-import { RoleResponseDto, UpdateRoleDto } from '../dtos/role-response.dto';
+import {
+  CreateRoleDto,
+  RoleResponseDto,
+  UpdateRoleDto,
+} from '../dtos/role-response.dto';
 import { RolesService } from '../services/roles.service';
 
 @Controller('roles')
@@ -11,6 +23,11 @@ export class RolesController {
   @Get()
   findAll(): Promise<RoleResponseDto[]> {
     return this.rolesService.findAll();
+  }
+
+  @Post()
+  create(@Body() dto: CreateRoleDto): Promise<RoleResponseDto> {
+    return this.rolesService.create(dto);
   }
 
   @Put(':id')

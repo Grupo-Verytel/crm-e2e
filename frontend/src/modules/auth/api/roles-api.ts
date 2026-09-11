@@ -1,8 +1,15 @@
 import { apiRequest } from '../../../lib/api/http-client';
-import type { Role, UpdateRolePayload } from '../types';
+import type { CreateRolePayload, Role, UpdateRolePayload } from '../types';
 
 export async function fetchRoles(): Promise<Role[]> {
   return apiRequest<Role[]>('/roles');
+}
+
+export async function createRole(payload: CreateRolePayload): Promise<Role> {
+  return apiRequest<Role>('/roles', {
+    method: 'POST',
+    body: payload,
+  });
 }
 
 export async function updateRole(

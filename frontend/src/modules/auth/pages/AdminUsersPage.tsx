@@ -4,7 +4,7 @@ import { AppLayout } from '../../../layout/AppLayout';
 import { Pagination } from '../../../components/Pagination';
 import { formatDateTime } from '../../../lib/format';
 import { createUser, fetchUsers, updateUser } from '../api/users-api';
-import { fetchRoles, updateRole } from '../api/roles-api';
+import { fetchRoles, createRole, updateRole } from '../api/roles-api';
 import { RoleEditModal } from '../components/RoleEditModal';
 import { UserFormModal } from '../components/UserFormModal';
 import { modulesAccessibleByPermissions } from '../lib/permission-catalog';
@@ -27,6 +27,7 @@ export function AdminUsersPage() {
   const [selectedUser, setSelectedUser] = useState<User | undefined>();
 
   const [roleModalOpen, setRoleModalOpen] = useState(false);
+  const [roleModalMode, setRoleModalMode] = useState<'create' | 'edit'>('edit');
   const [selectedRole, setSelectedRole] = useState<Role | null>(null);
 
   const loadRoles = useCallback(async () => {
@@ -74,7 +75,14 @@ export function AdminUsersPage() {
     setUserModalOpen(true);
   }
 
+  function openCreateRole() {
+    setRoleModalMode('create');
+    setSelectedRole(null);
+    setRoleModalOpen(true);
+  }
+
   function openEditRole(role: Role) {
+    setRoleModalMode('edit');
     setSelectedRole(role);
     setRoleModalOpen(true);
   }
@@ -101,7 +109,16 @@ export function AdminUsersPage() {
               <Plus size={16} />
               Nuevo usuario
             </button>
-          ) : null}
+          ) : (
+            <button
+              type="button"
+              onClick={openCreateRole}
+              className="btn-glow my-3 inline-flex items-center gap-2 rounded px-3 py-2 text-sm font-bold text-white"
+            >
+              <Plus size={16} />
+              Nuevo rol
+            </button>
+          )}
         </div>
 
         {tab === 'users' ? (
@@ -251,13 +268,32 @@ export function AdminUsersPage() {
 
       <RoleEditModal
         open={roleModalOpen}
+        mode={roleModalMode}
         role={selectedRole}
         onClose={() => setRoleModalOpen(false)}
+        existingRoleNames={roles.map((item) => item.name)}
         onSubmit={async (payload) => {
+          if (roleModalMode === 'create') {
+            if (!payload.name) {
+              throw new Error('Name required');
+            }
+            const created = await createRole({
+              name: payload.name,
+              description: payload.description,
+              permissions: payload.permissions,
+            });
+            setRoles((current) =>
+              [...current, created].sort((a, b) => a.name.localeCompare(b.name)),
+            );
+            return;
+          }
           if (!selectedRole) {
             return;
           }
-          const updated = await updateRole(selectedRole.role_id, payload);
+          const updated = await updateRole(selectedRole.role_id, {
+            description: payload.description,
+            permissions: payload.permissions,
+          });
           setRoles((current) =>
             current.map((role) => (role.role_id === updated.role_id ? updated : role)),
           );

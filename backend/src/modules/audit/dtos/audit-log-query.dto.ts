@@ -2,6 +2,7 @@ import { Type } from 'class-transformer';
 import {
   IsDateString,
   IsEnum,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -10,6 +11,22 @@ import {
   Min,
 } from 'class-validator';
 import { AuditAction } from '../models/audit-action.enum';
+
+export const AUDIT_SORT_FIELDS = [
+  'timestamp',
+  'accion',
+  'tabla',
+  'registro_id',
+  'campo_modificado',
+  'actor',
+  'ip_address',
+] as const;
+
+export type AuditSortField = (typeof AUDIT_SORT_FIELDS)[number];
+
+export const AUDIT_SORT_DIRECTIONS = ['ASC', 'DESC'] as const;
+
+export type AuditSortDirection = (typeof AUDIT_SORT_DIRECTIONS)[number];
 
 export class AuditLogQueryDto {
   @IsOptional()
@@ -35,6 +52,14 @@ export class AuditLogQueryDto {
   @IsOptional()
   @IsDateString()
   to?: string;
+
+  @IsOptional()
+  @IsIn(AUDIT_SORT_FIELDS)
+  sort_by?: AuditSortField;
+
+  @IsOptional()
+  @IsIn(AUDIT_SORT_DIRECTIONS)
+  sort_dir?: AuditSortDirection;
 
   @IsOptional()
   @Type(() => Number)

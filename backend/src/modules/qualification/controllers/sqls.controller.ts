@@ -29,7 +29,7 @@ export class SqlsController {
   constructor(private readonly sqlsService: SqlsService) {}
 
   @Get('inbox')
-  @CheckAbility({ action: 'read', subject: 'Opportunity' })
+  @CheckAbility({ action: 'read', subject: 'Sql' })
   listInbox(
     @Query() query: SqlsQueryDto,
     @CurrentUser() user: AuthenticatedUser,
@@ -38,7 +38,7 @@ export class SqlsController {
   }
 
   @Get('assigned')
-  @CheckAbility({ action: 'read', subject: 'Opportunity' })
+  @CheckAbility({ action: 'read', subject: 'Sql' })
   listAssigned(
     @Query() query: SqlsQueryDto,
     @CurrentUser() user: AuthenticatedUser,
@@ -47,7 +47,7 @@ export class SqlsController {
   }
 
   @Get(':id')
-  @CheckAbility({ action: 'read', subject: 'Opportunity' })
+  @CheckAbility({ action: 'read', subject: 'Sql' })
   findOne(
     @Param('id') id: string,
     @CurrentUser() user: AuthenticatedUser,
@@ -56,7 +56,7 @@ export class SqlsController {
   }
 
   @Post(':id/assign')
-  @CheckAbility({ action: 'update', subject: 'Opportunity' })
+  @CheckAbility({ action: 'update', subject: 'Sql' })
   assign(
     @Param('id') id: string,
     @Body() dto: AssignSqlDto,
@@ -67,7 +67,7 @@ export class SqlsController {
 
   @Post(':id/convertir')
   @HttpCode(HttpStatus.CREATED)
-  @CheckAbility({ action: 'update', subject: 'Opportunity' })
+  @CheckAbility({ action: 'create', subject: 'Sql' })
   convertir(
     @Param('id') id: string,
     @Body() dto: CrearOuvDto,
@@ -77,7 +77,7 @@ export class SqlsController {
   }
 
   @Patch(':id/cita')
-  @CheckAbility({ action: 'update', subject: 'Opportunity' })
+  @CheckAbility({ action: 'update', subject: 'Sql' })
   updateCita(
     @Param('id') id: string,
     @Body() dto: UpdateSqlCitaDto,

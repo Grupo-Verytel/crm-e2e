@@ -9,6 +9,7 @@ export class AuditLogResponseDto {
   valor_anterior: string | null;
   valor_nuevo: string | null;
   usuario_id: string;
+  actor_nombre: string | null;
   ip_address: string;
   user_agent: string | null;
   timestamp: Date;

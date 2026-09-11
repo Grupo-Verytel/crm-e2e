@@ -1,6 +1,7 @@
 import {
   BeforeDestroy,
   BeforeUpdate,
+  BelongsTo,
   Column,
   DataType,
   Default,
@@ -8,6 +9,7 @@ import {
   PrimaryKey,
   Table,
 } from 'sequelize-typescript';
+import { User } from '../../auth/models/user.model';
 import { AuditAction } from './audit-action.enum';
 
 @Table({
@@ -49,6 +51,14 @@ export class AuditLog extends Model {
 
   @Column({ type: DataType.CHAR(36), field: 'usuario_id', allowNull: false })
   declare usuarioId: string;
+
+  @BelongsTo(() => User, {
+    foreignKey: 'usuarioId',
+    targetKey: 'userId',
+    as: 'actor',
+    constraints: false,
+  })
+  declare actor?: User | null;
 
   @Column({ type: DataType.STRING(45), field: 'ip_address', allowNull: false })
   declare ipAddress: string;

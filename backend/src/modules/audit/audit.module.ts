@@ -2,6 +2,7 @@ import { Module, forwardRef } from '@nestjs/common';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { SequelizeModule } from '@nestjs/sequelize';
 import { AuthModule } from '../auth/auth.module';
+import { User } from '../auth/models/user.model';
 import { AuditLogController } from './controllers/audit-log.controller';
 import { AuditContextService } from './context/audit-context.service';
 import { AuditContextInterceptor } from './interceptors/audit-context.interceptor';
@@ -12,7 +13,7 @@ import { AuditWriterService } from './services/audit-writer.service';
 
 @Module({
   imports: [
-    SequelizeModule.forFeature([AuditLog]),
+    SequelizeModule.forFeature([AuditLog, User]),
     forwardRef(() => AuthModule),
   ],
   controllers: [AuditLogController],

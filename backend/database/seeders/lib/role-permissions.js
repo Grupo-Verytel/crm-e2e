@@ -11,6 +11,7 @@ const ACTION_MAP = {
 const SUBJECTS = {
   'users/roles': ['User', 'Role'],
   'leads/campaigns': ['Lead', 'Campaign'],
+  qualification: ['Sql'],
   opportunities: ['Opportunity'],
   accounts: ['Account', 'Person'],
   'ouv-catalogs': [
@@ -34,6 +35,7 @@ const MATRIX = {
   Admin: {
     'users/roles': 'CRUDAS',
     'leads/campaigns': 'CRUDAS',
+    qualification: 'CRU',
     opportunities: 'CRUDX',
     accounts: 'CRUD',
     'ouv-catalogs': 'CRUD',
@@ -57,6 +59,7 @@ const MATRIX = {
   },
   EjecutivoComercial: {
     'leads/campaigns': 'CRU',
+    qualification: 'CRU',
     opportunities: 'CRUX',
     accounts: 'CRU',
     'ouv-motivos': 'R',
@@ -76,6 +79,7 @@ const MATRIX = {
   },
   SoporteComercial: {
     'leads/campaigns': 'R',
+    qualification: 'CRU',
     opportunities: 'CRU',
     accounts: 'CRUD',
     'ouv-catalogs': 'CRUD',

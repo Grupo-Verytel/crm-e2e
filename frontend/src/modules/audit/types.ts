@@ -6,6 +6,17 @@ export type AuditAction =
   | 'LOGIN'
   | 'EXPORT';
 
+export type AuditSortField =
+  | 'timestamp'
+  | 'accion'
+  | 'tabla'
+  | 'registro_id'
+  | 'campo_modificado'
+  | 'actor'
+  | 'ip_address';
+
+export type AuditSortDirection = 'ASC' | 'DESC';
+
 export type AuditLogEntry = {
   audit_id: string;
   tabla: string;
@@ -15,6 +26,7 @@ export type AuditLogEntry = {
   valor_anterior: string | null;
   valor_nuevo: string | null;
   usuario_id: string;
+  actor_nombre: string | null;
   ip_address: string;
   user_agent: string | null;
   timestamp: string;
@@ -35,8 +47,16 @@ export type AuditLogQuery = {
   accion?: AuditAction;
   from?: string;
   to?: string;
+  sort_by?: AuditSortField;
+  sort_dir?: AuditSortDirection;
   page?: number;
   limit?: number;
+};
+
+export type AuditActorOption = {
+  user_id: string;
+  full_name: string;
+  email: string;
 };
 
 export const AUDIT_ACTIONS: AuditAction[] = [
