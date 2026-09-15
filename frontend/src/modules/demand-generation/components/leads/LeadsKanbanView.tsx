@@ -78,11 +78,12 @@ function friendlyTransitionError(error: unknown): string {
 
 type Props = {
   filters: LeadFilterValues;
+  q?: string;
   /** Traductor / follow-up: no drag and no transitions. */
   readOnly?: boolean;
 };
 
-export function LeadsKanbanView({ filters, readOnly = false }: Props) {
+export function LeadsKanbanView({ filters, q, readOnly = false }: Props) {
   const [columns, setColumns] = useState<Record<KanbanEstado, ColumnState>>(
     buildInitialColumns,
   );
@@ -98,7 +99,7 @@ export function LeadsKanbanView({ filters, readOnly = false }: Props) {
     {},
   );
 
-  const filtersKey = JSON.stringify(filters);
+  const filtersKey = JSON.stringify(filters) + `|${q ?? ''}`;
 
   function toggleCollapsed(estado: KanbanEstado) {
     setCollapsed((prev) => ({ ...prev, [estado]: !prev[estado] }));
@@ -113,10 +114,11 @@ export function LeadsKanbanView({ filters, readOnly = false }: Props) {
       responsable_id: filters.responsable_id || undefined,
       from: filters.from || undefined,
       to: filters.to || undefined,
+      q: q || undefined,
       page,
       limit: PAGE_SIZE,
     }),
-    [filters],
+    [filters, q],
   );
 
   const loadColumn = useCallback(

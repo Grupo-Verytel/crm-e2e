@@ -6,10 +6,20 @@ import {
   ACTION_LABEL,
   PERMISSION_MODULES,
   buildFullCatalogPermissions,
+  isDirectorMercadeoRole,
+  isGestorMercadeoRole,
+  isSoporteComercialRole,
+  isEjecutivoComercialRole,
+  isPmoRole,
+  isPreventaRole,
+  isModuleLockedOff,
+  isPermissionLockedOff,
   moduleEnabledCount,
+  normalizeRoleKey,
   permissionKey,
   permissionsToSet,
   setToPermissions,
+  stripLockedOffPermissions,
   type PermissionAction,
   type PermissionModuleDef,
 } from '../lib/permission-catalog';
@@ -68,6 +78,13 @@ function RoleEditModalBody({
 }: Omit<RoleEditModalProps, 'open'>) {
   const isCreate = mode === 'create';
   const isAdmin = !isCreate && role?.name === 'Admin';
+  const roleName = isCreate ? undefined : role?.name;
+  const isDirectorMercadeo = isDirectorMercadeoRole(roleName);
+  const isGestorMercadeo = isGestorMercadeoRole(roleName);
+  const isSoporteComercial = isSoporteComercialRole(roleName);
+  const isEjecutivoComercial = isEjecutivoComercialRole(roleName);
+  const isPmo = isPmoRole(roleName);
+  const isPreventa = isPreventaRole(roleName);
   const [name, setName] = useState(role?.name ?? '');
   const [activeModuleId, setActiveModuleId] = useState(
     PERMISSION_MODULES[0]?.id ?? '',
@@ -75,7 +92,10 @@ function RoleEditModalBody({
   const [enabled, setEnabled] = useState<Set<string>>(() =>
     isAdmin
       ? permissionsToSet(buildFullCatalogPermissions())
-      : permissionsToSet(role?.permissions ?? []),
+      : stripLockedOffPermissions(
+          roleName,
+          permissionsToSet(role?.permissions ?? []),
+        ),
   );
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -89,7 +109,7 @@ function RoleEditModalBody({
 
   const trimmedName = name.trim();
   const nameTaken = existingRoleNames.some(
-    (existing) => existing.trim().toLowerCase() === trimmedName.toLowerCase(),
+    (existing) => normalizeRoleKey(existing) === normalizeRoleKey(trimmedName),
   );
   const hasModuleAccess = PERMISSION_MODULES.some(
     (module) => moduleEnabledCount(module, enabled).on > 0,
@@ -102,7 +122,7 @@ function RoleEditModalBody({
     hasSubmodulePermission;
 
   function toggle(action: PermissionAction, subject: string) {
-    if (isAdmin) return;
+    if (isAdmin || isPermissionLockedOff(roleName, action, subject)) return;
     const key = permissionKey(action, subject);
     setEnabled((current) => {
       const next = new Set(current);
@@ -116,11 +136,14 @@ function RoleEditModalBody({
   }
 
   function setModuleAll(module: PermissionModuleDef, on: boolean) {
-    if (isAdmin) return;
+    if (isAdmin || isModuleLockedOff(roleName, module.id)) return;
     setEnabled((current) => {
       const next = new Set(current);
       for (const subject of module.subjects) {
         for (const action of subject.actions) {
+          if (isPermissionLockedOff(roleName, action, subject.subject)) {
+            continue;
+          }
           const key = permissionKey(action, subject.subject);
           if (on) next.add(key);
           else next.delete(key);
@@ -140,7 +163,7 @@ function RoleEditModalBody({
     try {
       const permissions = isAdmin
         ? buildFullCatalogPermissions()
-        : setToPermissions(enabled);
+        : setToPermissions(stripLockedOffPermissions(roleName, enabled));
       await onSubmit({
         name: isCreate ? name.trim() : undefined,
         permissions,
@@ -173,7 +196,19 @@ function RoleEditModalBody({
               : 'Marca los módulos a los que puede acceder. Luego ajusta crear, ver, editar y eliminar.'}
             {isAdmin
               ? ' Admin conserva acceso completo a todos los módulos.'
-              : null}
+              : isDirectorMercadeo
+                ? ' Puedes parametrizar Leads, Calificación, Empresas, Contactos e Implementación (solo Ver y CSAT). OUV queda en solo Ver. Preventa, Pricing, Oferta, Posventa y el resto quedan en gris.'
+                : isGestorMercadeo
+                  ? ' Puedes parametrizar Leads y campañas. OUV queda en solo Ver. No hay MQL ni Calificación; el resto de módulos queda en gris.'
+                  : isSoporteComercial
+                    ? ' Leads con todas las opciones. Calificación: Ver y Asignar, sin crear OUV. OUV: solo Ver. Oferta & Cierre: Kickoff y crear proyecto SER. Implementación solo Ver, sin ampliar ni CSAT. Empresas y Contactos con los botones del listado. El resto queda en gris.'
+                    : isEjecutivoComercial
+                      ? ' Leads y campañas como Gestor (crear, ver, editar). No aprueba MQL. Calificación: Ver y Crear OUV; Asignar es de Soporte. OUV operativa. Implementación solo Ver. Empresas y Contactos para nutrir leads. El resto queda en gris.'
+                      : isPmo
+                        ? ' Solo Implementación: Ver SER y Editar (ampliar proyecto). Empresas, Contactos y el resto de módulos quedan en gris.'
+                      : isPreventa
+                        ? ' Solo OUV en Ver. Las solicitudes de Preventa se consultan en el detalle, sin crear ni eliminar. El resto queda en gris.'
+                      : null}
           </p>
         </div>
 
@@ -208,7 +243,9 @@ function RoleEditModalBody({
                     module={module}
                     enabled={enabled}
                     active={module.id === activeModule?.id}
-                    disabled={isAdmin}
+                    disabled={
+                      isAdmin || isModuleLockedOff(roleName, module.id)
+                    }
                     onSelect={() => setActiveModuleId(module.id)}
                     onToggleAccess={(on) => setModuleAll(module, on)}
                   />
@@ -243,6 +280,11 @@ function RoleEditModalBody({
                         {subject.actions.map((action) => {
                           const key = permissionKey(action, subject.subject);
                           const checked = enabled.has(key);
+                          const lockedOff = isPermissionLockedOff(
+                            roleName,
+                            action,
+                            subject.subject,
+                          );
                           const id = `perm-${subject.subject}-${action}`;
                           return (
                             <label
@@ -250,8 +292,8 @@ function RoleEditModalBody({
                               htmlFor={id}
                               className={[
                                 'inline-flex items-center gap-2 text-sm',
-                                isAdmin
-                                  ? 'cursor-default text-muted'
+                                isAdmin || lockedOff
+                                  ? 'cursor-not-allowed text-muted opacity-40'
                                   : 'cursor-pointer text-ink',
                               ].join(' ')}
                             >
@@ -259,11 +301,11 @@ function RoleEditModalBody({
                                 id={id}
                                 type="checkbox"
                                 checked={checked}
-                                disabled={isAdmin}
+                                disabled={isAdmin || lockedOff}
                                 onChange={() =>
                                   toggle(action, subject.subject)
                                 }
-                                className="h-4 w-4 accent-accent"
+                                className="h-4 w-4 accent-accent disabled:opacity-40"
                               />
                               {ACTION_LABEL[action]}
                             </label>
@@ -336,13 +378,14 @@ function ModuleAccessRow({
     <div
       className={[
         'mb-1 flex items-start gap-2 rounded px-2 py-2',
-        active ? 'bg-bg' : 'hover:bg-bg',
+        disabled ? 'opacity-40' : '',
+        active ? 'bg-bg' : disabled ? '' : 'hover:bg-bg',
       ].join(' ')}
     >
       <input
         ref={checkboxRef}
         type="checkbox"
-        className="mt-1 h-4 w-4 shrink-0 accent-accent"
+        className="mt-1 h-4 w-4 shrink-0 accent-accent disabled:opacity-40"
         checked={on === total && total > 0}
         disabled={disabled}
         aria-label={`Acceso a ${module.label}`}
@@ -354,7 +397,11 @@ function ModuleAccessRow({
         onClick={onSelect}
         className={[
           'min-w-0 flex-1 text-left text-sm transition',
-          active ? 'font-bold text-accent' : 'text-ink',
+          disabled
+            ? 'cursor-default text-muted'
+            : active
+              ? 'font-bold text-accent'
+              : 'text-ink',
         ].join(' ')}
       >
         <span className="block">{module.label}</span>

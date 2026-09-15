@@ -1,9 +1,10 @@
 import { Navigate } from 'react-router-dom';
 import { LoadingScreen } from '../../../components/LoadingScreen';
 import { useAuth } from '../../auth/hooks/useAuth';
+import { hasPermission } from '../../auth/lib/permission-catalog';
 import { RoutingInboxPage } from './RoutingInboxPage';
 
-/** Entry for /qualification — Soporte sees inbox; Ejecutivo is sent to assigned. */
+/** Entry for /qualification — assigners see inbox; EjecutivoComercial goes to assigned. */
 export function QualificationHomePage() {
   const { user, isLoading } = useAuth();
 
@@ -11,14 +12,18 @@ export function QualificationHomePage() {
     return <LoadingScreen />;
   }
 
-  if (user?.role_name === 'EjecutivoComercial') {
+  const canAssign =
+    user?.role_name === 'Admin' ||
+    hasPermission(user?.permissions, 'assign', 'Sql');
+  const canCreateOuv =
+    user?.role_name === 'Admin' ||
+    hasPermission(user?.permissions, 'create', 'Sql');
+
+  if (canCreateOuv && !canAssign) {
     return <Navigate to="/qualification/assigned" replace />;
   }
 
-  if (
-    user?.role_name === 'SoporteComercial' ||
-    user?.role_name === 'Admin'
-  ) {
+  if (canAssign) {
     return <RoutingInboxPage />;
   }
 

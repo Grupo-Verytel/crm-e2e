@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Filter, LayoutGrid, List, Plus, Recycle, Upload } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AppLayout } from '../../../layout/AppLayout';
+import { useModuleSearch } from '../../../layout/module-search';
 import { useAuth } from '../../auth/hooks/useAuth';
 import { fetchCampaigns } from '../api/campaigns-api';
 import { fetchLeads } from '../api/leads-api';
@@ -68,6 +69,7 @@ export function LeadsPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
+  const { query } = useModuleSearch();
   const roleName = user?.role_name;
   const isTraductor = roleName === TRADUCTOR_ROLE;
   const formMode = resolveFormMode(roleName);
@@ -100,6 +102,7 @@ export function LeadsPage() {
     try {
       const data = await fetchLeads({
         ...toQuery(applied),
+        q: query || undefined,
         page,
         limit: LIST_LIMIT,
       });
@@ -111,7 +114,7 @@ export function LeadsPage() {
       setListLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- appliedKey captures filters
-  }, [appliedKey, page]);
+  }, [appliedKey, page, query]);
 
   const refreshExceptionsCount = useCallback(async () => {
     if (isTraductor) {
@@ -120,15 +123,15 @@ export function LeadsPage() {
     }
     try {
       const [reciclaje, descartado] = await Promise.all([
-        fetchLeads({ ...toQuery(applied), estado: 'Reciclaje', page: 1, limit: 1 }),
-        fetchLeads({ ...toQuery(applied), estado: 'Descartado', page: 1, limit: 1 }),
+        fetchLeads({ ...toQuery(applied), q: query || undefined, estado: 'Reciclaje', page: 1, limit: 1 }),
+        fetchLeads({ ...toQuery(applied), q: query || undefined, estado: 'Descartado', page: 1, limit: 1 }),
       ]);
       setExceptionsCount(reciclaje.total + descartado.total);
     } catch {
       setExceptionsCount(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- appliedKey captures filters
-  }, [appliedKey, isTraductor]);
+  }, [appliedKey, isTraductor, query]);
 
   useEffect(() => {
     if (view === 'list' && !showExceptions && !isTraductor) {
@@ -139,6 +142,10 @@ export function LeadsPage() {
   useEffect(() => {
     void refreshExceptionsCount();
   }, [refreshExceptionsCount]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [query]);
 
   useEffect(() => {
     if (isTraductor) {
@@ -331,14 +338,15 @@ export function LeadsPage() {
       ) : null}
 
       {isTraductor ? (
-        <LeadsKanbanView filters={EMPTY_LEAD_FILTERS} readOnly />
+        <LeadsKanbanView filters={EMPTY_LEAD_FILTERS} q={query} readOnly />
       ) : showExceptions ? (
         <LeadsExceptionsView
           filters={applied}
+          q={query}
           onChanged={() => void refreshExceptionsCount()}
         />
       ) : view === 'kanban' ? (
-        <LeadsKanbanView filters={applied} />
+        <LeadsKanbanView filters={applied} q={query} />
       ) : (
         <LeadsTableView
           leads={items}

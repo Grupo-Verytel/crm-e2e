@@ -23,7 +23,7 @@ export const NAV_ITEMS: NavItem[] = [
   { key: 'discovery',             label: 'Oportunidades (OUV)',   path: '/opportunities', icon: Compass,       group: 'commercial', subjects: ['Opportunity'] },
   { key: 'technical-feasibility', label: 'Preventa (PRE)',        path: '/presales',      icon: Cpu,           group: 'commercial', subjects: ['Presale'] },
   { key: 'pricing',               label: 'Pricing (PRI)',         path: '/pricing',       icon: Calculator,    group: 'commercial', subjects: ['Pricing'] },
-  { key: 'offer-closing',         label: 'Oferta & Cierre',       path: '/offers',        icon: FileSignature, group: 'commercial', subjects: ['Proposal', 'Contract'] },
+  { key: 'offer-closing',         label: 'Oferta & Cierre',       path: '/offers',        icon: FileSignature, group: 'commercial', subjects: ['Kickoff'] },
   { key: 'implementation',        label: 'Implementación (SER)',  path: '/services',      icon: Wrench,        group: 'commercial', subjects: ['Service'] },
   { key: 'post-sales',            label: 'Posventa',              path: '/after-sales',   icon: RefreshCw,     group: 'commercial', subjects: ['PostSale'] },
   // Platform — auth, audit, accounts (adelanto Módulo 12)

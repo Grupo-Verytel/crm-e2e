@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/sequelize';
-import { WhereOptions } from 'sequelize';
+import { InjectConnection, InjectModel } from '@nestjs/sequelize';
+import { Sequelize, WhereOptions } from 'sequelize';
 import { ApproveMqlDto } from '../dtos/approve-mql.dto';
 import {
   ApproveMqlResponseDto,
@@ -12,11 +12,14 @@ import {
 import { RejectMqlDto } from '../dtos/reject-mql.dto';
 import { Mql } from '../models/mql.model';
 import { Sql } from '../models/sql.model';
+import { Lead } from '../models/lead.model';
+import { leadTextSearchWhere } from '../lib/lead-text-search';
 import { LeadStateMachineService } from './lead-state-machine.service';
 
 @Injectable()
 export class MqlsService {
   constructor(
+    @InjectConnection() private readonly sequelize: Sequelize,
     @InjectModel(Mql) private readonly mqlModel: typeof Mql,
     private readonly stateMachine: LeadStateMachineService,
   ) {}
@@ -31,8 +34,14 @@ export class MqlsService {
       where.estado = query.estado;
     }
 
+    const leadWhere = leadTextSearchWhere(this.sequelize, query.q);
+
     const { rows, count } = await this.mqlModel.findAndCountAll({
       where,
+      include: leadWhere
+        ? [{ model: Lead, required: true, where: leadWhere }]
+        : [],
+      distinct: Boolean(leadWhere),
       order: [['fechaCalificacion', 'DESC']],
       limit,
       offset,

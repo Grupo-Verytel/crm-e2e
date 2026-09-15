@@ -7,6 +7,7 @@ export type PermissionAction =
   | 'delete'
   | 'approve'
   | 'schedule'
+  | 'assign'
   | 'close';
 
 export type PermissionSubjectDef = {
@@ -25,14 +26,6 @@ export type PermissionModuleDef = {
 
 const CRUD: PermissionAction[] = ['create', 'read', 'update', 'delete'];
 const CRU: PermissionAction[] = ['create', 'read', 'update'];
-const CRUA: PermissionAction[] = ['create', 'read', 'update', 'approve'];
-const CRUD_APPROVE: PermissionAction[] = [
-  'create',
-  'read',
-  'update',
-  'delete',
-  'approve',
-];
 const READ: PermissionAction[] = ['read'];
 const LEAD_ACTIONS: PermissionAction[] = [
   'create',
@@ -42,12 +35,11 @@ const LEAD_ACTIONS: PermissionAction[] = [
   'approve',
   'schedule',
 ];
-const SQL_ACTIONS: PermissionAction[] = ['create', 'read', 'update'];
+const SQL_ACTIONS: PermissionAction[] = ['read', 'assign', 'create'];
 const OUV_ACTIONS: PermissionAction[] = [
   'create',
   'read',
   'update',
-  'delete',
   'close',
 ];
 
@@ -63,13 +55,13 @@ export const PERMISSION_MODULES: PermissionModuleDef[] = [
     description: 'Generación de demanda, leads y campañas',
     subjects: [
       { subject: 'Lead', label: 'Leads', actions: LEAD_ACTIONS },
-      { subject: 'Campaign', label: 'Campañas', actions: CRUD_APPROVE },
+      { subject: 'Campaign', label: 'Campañas', actions: CRU },
     ],
   },
   {
     id: 'qualification',
     label: 'Calificación',
-    description: 'Bandeja SQL, asignación y creación de OUV',
+    description: 'Bandeja SQL: ver, asignar a comercial y crear OUV',
     subjects: [
       { subject: 'Sql', label: 'SQL', actions: SQL_ACTIONS },
     ],
@@ -77,61 +69,46 @@ export const PERMISSION_MODULES: PermissionModuleDef[] = [
   {
     id: 'discovery',
     label: 'Oportunidades (OUV)',
-    description: 'Bandeja, detalle y catálogos de oportunidades',
+    description: 'Bandeja OUV, oportunidades perdidas y descartadas',
     subjects: [
       { subject: 'Opportunity', label: 'OUV', actions: OUV_ACTIONS },
-      {
-        subject: 'MotivoPerdida',
-        label: 'Motivos de pérdida',
-        actions: CRUD,
-      },
-      {
-        subject: 'MotivoDescarte',
-        label: 'Motivos de descarte',
-        actions: CRUD,
-      },
-      {
-        subject: 'ZonaChecklistTemplate',
-        label: 'Plantillas checklist zona',
-        actions: CRUD,
-      },
     ],
   },
   {
     id: 'technical-feasibility',
     label: 'Preventa (PRE)',
-    description: 'Módulo de Preventa (PRE)',
-    subjects: [{ subject: 'Presale', label: 'Preventa', actions: CRUA }],
+    description: 'Módulo de Preventa (PRE) — placeholder',
+    subjects: [{ subject: 'Presale', label: 'Preventa', actions: READ }],
   },
   {
     id: 'pricing',
     label: 'Pricing (PRI)',
-    description: 'Módulo de Pricing (PRI)',
-    subjects: [{ subject: 'Pricing', label: 'Pricing', actions: CRUA }],
+    description: 'Módulo de Pricing (PRI) — placeholder',
+    subjects: [{ subject: 'Pricing', label: 'Pricing', actions: READ }],
   },
   {
     id: 'offer-closing',
     label: 'Oferta & Cierre',
-    description: 'Oferta, cierre y contratos',
+    description: 'Bandeja de venta ganada, Kickoff y crear proyecto SER',
     subjects: [
-      { subject: 'Proposal', label: 'Propuestas', actions: CRUD_APPROVE },
-      { subject: 'Contract', label: 'Contratos', actions: CRUD_APPROVE },
+      { subject: 'Kickoff', label: 'Kickoff', actions: CRU },
+      { subject: 'Service', label: 'Proyecto SER', actions: ['create'] },
     ],
   },
   {
     id: 'implementation',
     label: 'Implementación (SER)',
-    description: 'Servicios (SER) y kickoff',
+    description: 'Servicios recibidos desde Oferta & Cierre, CSAT y ampliar',
     subjects: [
-      { subject: 'Service', label: 'Servicios', actions: CRUD_APPROVE },
-      { subject: 'Kickoff', label: 'Kickoff', actions: CRUD },
+      { subject: 'Service', label: 'Servicios', actions: ['read', 'update'] },
+      { subject: 'Csat', label: 'CSAT semanal', actions: ['update'] },
     ],
   },
   {
     id: 'post-sales',
     label: 'Posventa',
-    description: 'Seguimiento post-venta',
-    subjects: [{ subject: 'PostSale', label: 'Postventa', actions: CRU }],
+    description: 'Seguimiento post-venta — placeholder',
+    subjects: [{ subject: 'PostSale', label: 'Postventa', actions: READ }],
   },
   {
     id: 'accounts-empresas',
@@ -143,15 +120,15 @@ export const PERMISSION_MODULES: PermissionModuleDef[] = [
     id: 'accounts-contactos',
     label: 'Contactos',
     description: 'Maestro de personas (people)',
-    subjects: [{ subject: 'Person', label: 'Contactos', actions: CRUD }],
+    subjects: [{ subject: 'Person', label: 'Contactos', actions: CRU }],
   },
   {
     id: 'auth',
     label: 'Usuarios y roles',
     description: 'Administración de usuarios y roles del sistema',
     subjects: [
-      { subject: 'User', label: 'Usuarios', actions: CRUD_APPROVE },
-      { subject: 'Role', label: 'Roles', actions: CRUD_APPROVE },
+      { subject: 'User', label: 'Usuarios', actions: CRU },
+      { subject: 'Role', label: 'Roles', actions: CRU },
     ],
   },
   {
@@ -169,10 +146,32 @@ export const ACTION_LABEL: Record<PermissionAction, string> = {
   delete: 'Eliminar',
   approve: 'Aprobar',
   schedule: 'Agendar',
+  assign: 'Asignar',
   close: 'Cerrar',
 };
 
-/** Every rule implied by the catalog (Admin baseline). */
+/**
+ * CASL rules required by APIs that are not editor rows.
+ * Motivo/checklist catalogs stay as Soporte/Admin pages, not OUV tray toggles.
+ */
+const HIDDEN_CASL_EXTRAS: CaslPermissionRule[] = [
+  { action: 'update', subject: 'Sql' },
+  { action: 'delete', subject: 'Person' },
+  { action: 'create', subject: 'MotivoPerdida' },
+  { action: 'read', subject: 'MotivoPerdida' },
+  { action: 'update', subject: 'MotivoPerdida' },
+  { action: 'delete', subject: 'MotivoPerdida' },
+  { action: 'create', subject: 'MotivoDescarte' },
+  { action: 'read', subject: 'MotivoDescarte' },
+  { action: 'update', subject: 'MotivoDescarte' },
+  { action: 'delete', subject: 'MotivoDescarte' },
+  { action: 'create', subject: 'ZonaChecklistTemplate' },
+  { action: 'read', subject: 'ZonaChecklistTemplate' },
+  { action: 'update', subject: 'ZonaChecklistTemplate' },
+  { action: 'delete', subject: 'ZonaChecklistTemplate' },
+];
+
+/** Every rule implied by the catalog (Admin baseline), plus API extras. */
 export function buildFullCatalogPermissions(): CaslPermissionRule[] {
   const rules: CaslPermissionRule[] = [];
   for (const module of PERMISSION_MODULES) {
@@ -182,11 +181,29 @@ export function buildFullCatalogPermissions(): CaslPermissionRule[] {
       }
     }
   }
+  rules.push(...HIDDEN_CASL_EXTRAS);
   return rules;
 }
 
 export function permissionKey(action: string, subject: string): string {
   return `${action}::${subject}`;
+}
+
+export function hasPermission(
+  permissions: CaslPermissionRule[] | undefined,
+  action: string,
+  subject: string,
+): boolean {
+  return (
+    permissions?.some(
+      (rule) => rule.action === action && rule.subject === subject,
+    ) ?? false
+  );
+}
+
+/** Compare role names ignoring spaces, hyphens and underscores. */
+export function normalizeRoleKey(name: string): string {
+  return name.replace(/[\s_-]/g, '').toLowerCase();
 }
 
 export function permissionsToSet(
@@ -240,6 +257,275 @@ export function moduleEnabledCount(
     }
   }
   return { on, total };
+}
+
+const IMPLEMENTATION_SUBJECTS = new Set(['Service', 'Csat']);
+
+/** Modules DirectorMercadeo may parameterize. Others stay gray. */
+const DIRECTOR_MERCADEO_PARAMETERIZABLE_MODULES = new Set([
+  'demand-generation',
+  'qualification',
+  'discovery',
+  'implementation',
+  'accounts-empresas',
+  'accounts-contactos',
+]);
+
+/** Implementation keys DirectorMercadeo may enable (enter module + CSAT). */
+const DIRECTOR_MERCADEO_IMPLEMENTATION_ALLOWED = new Set([
+  permissionKey('read', 'Service'),
+  permissionKey('update', 'Csat'),
+]);
+
+/** OUV: view board, perdidas and descartadas. No create/move/close. */
+const DIRECTOR_MERCADEO_DISCOVERY_ALLOWED = new Set([
+  permissionKey('read', 'Opportunity'),
+]);
+
+export function isDirectorMercadeoRole(roleName: string | undefined): boolean {
+  if (!roleName) return false;
+  return normalizeRoleKey(roleName) === 'directormercadeo';
+}
+
+export function isGestorMercadeoRole(roleName: string | undefined): boolean {
+  if (!roleName) return false;
+  return normalizeRoleKey(roleName) === 'gestormercadeo';
+}
+
+export function isSoporteComercialRole(roleName: string | undefined): boolean {
+  if (!roleName) return false;
+  return normalizeRoleKey(roleName) === 'soportecomercial';
+}
+
+export function isEjecutivoComercialRole(roleName: string | undefined): boolean {
+  if (!roleName) return false;
+  return normalizeRoleKey(roleName) === 'ejecutivocomercial';
+}
+
+export function isPmoRole(roleName: string | undefined): boolean {
+  if (!roleName) return false;
+  return normalizeRoleKey(roleName) === 'pmo';
+}
+
+export function isPreventaRole(roleName: string | undefined): boolean {
+  if (!roleName) return false;
+  const key = normalizeRoleKey(roleName);
+  return key === 'preventa' || key === 'ingenieropreventa';
+}
+
+/** spec-calificacion / spec-ouv-funnel + Empresas/Contactos for lead data. */
+const SOPORTE_COMERCIAL_PARAMETERIZABLE_MODULES = new Set([
+  'demand-generation',
+  'qualification',
+  'discovery',
+  'offer-closing',
+  'implementation',
+  'accounts-empresas',
+  'accounts-contactos',
+]);
+
+const SOPORTE_COMERCIAL_ALLOWED = new Set([
+  permissionKey('create', 'Lead'),
+  permissionKey('read', 'Lead'),
+  permissionKey('update', 'Lead'),
+  permissionKey('delete', 'Lead'),
+  permissionKey('approve', 'Lead'),
+  permissionKey('schedule', 'Lead'),
+  permissionKey('create', 'Campaign'),
+  permissionKey('read', 'Campaign'),
+  permissionKey('update', 'Campaign'),
+  permissionKey('read', 'Sql'),
+  permissionKey('assign', 'Sql'),
+  permissionKey('read', 'Opportunity'),
+  permissionKey('create', 'MotivoPerdida'),
+  permissionKey('read', 'MotivoPerdida'),
+  permissionKey('update', 'MotivoPerdida'),
+  permissionKey('delete', 'MotivoPerdida'),
+  permissionKey('create', 'MotivoDescarte'),
+  permissionKey('read', 'MotivoDescarte'),
+  permissionKey('update', 'MotivoDescarte'),
+  permissionKey('delete', 'MotivoDescarte'),
+  permissionKey('create', 'ZonaChecklistTemplate'),
+  permissionKey('read', 'ZonaChecklistTemplate'),
+  permissionKey('update', 'ZonaChecklistTemplate'),
+  permissionKey('delete', 'ZonaChecklistTemplate'),
+  permissionKey('create', 'Account'),
+  permissionKey('read', 'Account'),
+  permissionKey('update', 'Account'),
+  permissionKey('delete', 'Account'),
+  permissionKey('create', 'Person'),
+  permissionKey('read', 'Person'),
+  permissionKey('update', 'Person'),
+  permissionKey('delete', 'Person'),
+  permissionKey('create', 'Proposal'),
+  permissionKey('read', 'Proposal'),
+  permissionKey('update', 'Proposal'),
+  permissionKey('delete', 'Proposal'),
+  permissionKey('approve', 'Proposal'),
+  permissionKey('create', 'Contract'),
+  permissionKey('read', 'Contract'),
+  permissionKey('update', 'Contract'),
+  permissionKey('delete', 'Contract'),
+  permissionKey('approve', 'Contract'),
+  permissionKey('create', 'Service'),
+  permissionKey('read', 'Service'),
+  permissionKey('create', 'Kickoff'),
+  permissionKey('read', 'Kickoff'),
+  permissionKey('update', 'Kickoff'),
+]);
+
+const GESTOR_MERCADEO_PARAMETERIZABLE_MODULES = new Set([
+  'demand-generation',
+  'discovery',
+]);
+
+const GESTOR_MERCADEO_ALLOWED = new Set([
+  permissionKey('create', 'Lead'),
+  permissionKey('read', 'Lead'),
+  permissionKey('update', 'Lead'),
+  permissionKey('create', 'Campaign'),
+  permissionKey('read', 'Campaign'),
+  permissionKey('update', 'Campaign'),
+  permissionKey('read', 'Opportunity'),
+]);
+
+const EJECUTIVO_COMERCIAL_PARAMETERIZABLE_MODULES = new Set([
+  'demand-generation',
+  'qualification',
+  'discovery',
+  'implementation',
+  'accounts-empresas',
+  'accounts-contactos',
+]);
+
+const EJECUTIVO_COMERCIAL_ALLOWED = new Set([
+  permissionKey('create', 'Lead'),
+  permissionKey('read', 'Lead'),
+  permissionKey('update', 'Lead'),
+  permissionKey('create', 'Campaign'),
+  permissionKey('read', 'Campaign'),
+  permissionKey('update', 'Campaign'),
+  permissionKey('create', 'Sql'),
+  permissionKey('read', 'Sql'),
+  permissionKey('update', 'Sql'),
+  permissionKey('create', 'Opportunity'),
+  permissionKey('read', 'Opportunity'),
+  permissionKey('update', 'Opportunity'),
+  permissionKey('close', 'Opportunity'),
+  permissionKey('read', 'MotivoPerdida'),
+  permissionKey('read', 'MotivoDescarte'),
+  permissionKey('create', 'Account'),
+  permissionKey('read', 'Account'),
+  permissionKey('update', 'Account'),
+  permissionKey('create', 'Person'),
+  permissionKey('read', 'Person'),
+  permissionKey('update', 'Person'),
+  permissionKey('read', 'Service'),
+]);
+
+const PMO_PARAMETERIZABLE_MODULES = new Set(['implementation']);
+
+const PMO_ALLOWED = new Set([
+  permissionKey('read', 'Service'),
+  permissionKey('update', 'Service'),
+]);
+
+const PREVENTA_PARAMETERIZABLE_MODULES = new Set(['discovery']);
+
+const PREVENTA_ALLOWED = new Set([
+  permissionKey('read', 'Opportunity'),
+]);
+
+export function isModuleLockedOff(
+  roleName: string | undefined,
+  moduleId: string,
+): boolean {
+  if (isDirectorMercadeoRole(roleName)) {
+    return !DIRECTOR_MERCADEO_PARAMETERIZABLE_MODULES.has(moduleId);
+  }
+  if (isGestorMercadeoRole(roleName)) {
+    return !GESTOR_MERCADEO_PARAMETERIZABLE_MODULES.has(moduleId);
+  }
+  if (isSoporteComercialRole(roleName)) {
+    return !SOPORTE_COMERCIAL_PARAMETERIZABLE_MODULES.has(moduleId);
+  }
+  if (isEjecutivoComercialRole(roleName)) {
+    return !EJECUTIVO_COMERCIAL_PARAMETERIZABLE_MODULES.has(moduleId);
+  }
+  if (isPmoRole(roleName)) {
+    return !PMO_PARAMETERIZABLE_MODULES.has(moduleId);
+  }
+  if (isPreventaRole(roleName)) {
+    return !PREVENTA_PARAMETERIZABLE_MODULES.has(moduleId);
+  }
+  return false;
+}
+
+function moduleIdForActionSubject(
+  action: PermissionAction,
+  subject: string,
+): string | undefined {
+  return PERMISSION_MODULES.find((module) =>
+    module.subjects.some(
+      (item) => item.subject === subject && item.actions.includes(action),
+    ),
+  )?.id;
+}
+
+/** True when this role cannot enable the action (shown gray in the editor). */
+export function isPermissionLockedOff(
+  roleName: string | undefined,
+  action: PermissionAction,
+  subject: string,
+): boolean {
+  if (isDirectorMercadeoRole(roleName)) {
+    const moduleId = moduleIdForActionSubject(action, subject);
+    if (!moduleId) return true;
+    if (isModuleLockedOff(roleName, moduleId)) return true;
+    if (moduleId === 'discovery') {
+      return !DIRECTOR_MERCADEO_DISCOVERY_ALLOWED.has(
+        permissionKey(action, subject),
+      );
+    }
+    if (!IMPLEMENTATION_SUBJECTS.has(subject)) return false;
+    return !DIRECTOR_MERCADEO_IMPLEMENTATION_ALLOWED.has(
+      permissionKey(action, subject),
+    );
+  }
+  if (isGestorMercadeoRole(roleName)) {
+    return !GESTOR_MERCADEO_ALLOWED.has(permissionKey(action, subject));
+  }
+  if (isSoporteComercialRole(roleName)) {
+    return !SOPORTE_COMERCIAL_ALLOWED.has(permissionKey(action, subject));
+  }
+  if (isEjecutivoComercialRole(roleName)) {
+    return !EJECUTIVO_COMERCIAL_ALLOWED.has(permissionKey(action, subject));
+  }
+  if (isPmoRole(roleName)) {
+    return !PMO_ALLOWED.has(permissionKey(action, subject));
+  }
+  if (isPreventaRole(roleName)) {
+    return !PREVENTA_ALLOWED.has(permissionKey(action, subject));
+  }
+  return false;
+}
+
+export function stripLockedOffPermissions(
+  roleName: string | undefined,
+  enabled: Set<string>,
+): Set<string> {
+  const next = new Set<string>();
+  for (const key of enabled) {
+    const [action, subject] = key.split('::');
+    if (!action || !subject) continue;
+    if (
+      isPermissionLockedOff(roleName, action as PermissionAction, subject)
+    ) {
+      continue;
+    }
+    next.add(key);
+  }
+  return next;
 }
 
 /** Modules where the role has at least one catalog permission enabled. */

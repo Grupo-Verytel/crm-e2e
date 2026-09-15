@@ -1,11 +1,16 @@
 import { Type } from 'class-transformer';
-import { IsEnum, IsInt, IsOptional, Max, Min } from 'class-validator';
+import { IsEnum, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 import { MqlEstado } from '../models/enums/mql.enums';
 
 export class MqlsQueryDto {
   @IsOptional()
   @IsEnum(MqlEstado)
   estado?: MqlEstado;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  q?: string;
 
   @IsOptional()
   @Type(() => Number)

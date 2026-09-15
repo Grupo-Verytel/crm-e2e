@@ -44,6 +44,7 @@ import {
   missingChecklistCriteria,
 } from '../lib/checklist-result';
 import { canRecycleLead } from '../lib/lead-state-machine';
+import { leadTextSearchWhere } from '../lib/lead-text-search';
 import { normalizePhoneToE164 } from '../lib/phone-normalize';
 import {
   CanalOrigen,
@@ -227,6 +228,11 @@ export class LeadsService {
         ...(query.from ? { [Op.gte]: new Date(query.from) } : {}),
         ...(query.to ? { [Op.lte]: new Date(query.to) } : {}),
       };
+    }
+
+    const textSearch = leadTextSearchWhere(this.sequelize, query.q);
+    if (textSearch) {
+      Object.assign(where, textSearch);
     }
 
     const { rows, count } = await this.leadModel.findAndCountAll({

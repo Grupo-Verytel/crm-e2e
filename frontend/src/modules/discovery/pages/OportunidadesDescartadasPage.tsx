@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Filter, LayoutGrid, List } from 'lucide-react';
 import { Pagination } from '../../../components/Pagination';
 import { AppLayout } from '../../../layout/AppLayout';
+import { useModuleSearch } from '../../../layout/module-search';
 import { formatDateTime } from '../../../lib/format';
 import { useAuth } from '../../auth/hooks/useAuth';
 import { fetchOuvs, type Ouv } from '../api/ouvs-api';
@@ -26,6 +27,7 @@ type ViewMode = 'lista' | 'kanban';
 /** Bandeja de OUVs descartadas — mismo embudo, marco warning. */
 export function OportunidadesDescartadasPage() {
   const { user } = useAuth();
+  const { query } = useModuleSearch();
   const canListAll = canReadAllOuvs(user?.role_name);
 
   const [view, setView] = useState<ViewMode>('kanban');
@@ -48,7 +50,7 @@ export function OportunidadesDescartadasPage() {
 
   const queryBase = useCallback(() => {
     return {
-      q: applied.q || undefined,
+      q: query || undefined,
       zona: (applied.zona as OuvZona) || undefined,
       resultado: 'Descartada' as const,
       tiene_gap:
@@ -59,7 +61,7 @@ export function OportunidadesDescartadasPage() {
       created_to: applied.created_to || undefined,
       all: canListAll || undefined,
     };
-  }, [applied, canListAll]);
+  }, [applied, canListAll, query]);
 
   const loadLista = useCallback(
     async (opts?: { silent?: boolean }) => {
@@ -121,6 +123,10 @@ export function OportunidadesDescartadasPage() {
     if (view === 'lista') void loadLista();
     else void loadKanban();
   }, [view, loadLista, loadKanban]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [query]);
 
   function handleApply() {
     setApplied(draft);

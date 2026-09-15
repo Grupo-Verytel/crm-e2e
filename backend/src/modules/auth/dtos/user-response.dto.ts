@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, Max, Min } from 'class-validator';
+import { IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 
 export class UsersQueryDto {
   @IsOptional()
@@ -7,6 +7,11 @@ export class UsersQueryDto {
   @IsInt()
   @Min(1)
   page?: number = 1;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  q?: string;
 
   @IsOptional()
   @Type(() => Number)

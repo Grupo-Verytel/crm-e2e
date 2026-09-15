@@ -179,8 +179,8 @@ export function ProjectCsatWeeklyPanel({ record, canEdit, onSave }: Props) {
           </div>
         ) : (
           <p className="mt-3 text-sm text-muted">
-            Solo lectura: el CSAT semanal lo diligencia Soporte comercial o
-            Admin.
+            Solo lectura: el CSAT semanal lo diligencia Soporte comercial,
+            Director de Mercadeo o Admin.
           </p>
         )}
       </section>

@@ -1,4 +1,6 @@
 import { Link, NavLink, useLocation } from 'react-router-dom';
+import { useAuth } from '../../auth/hooks/useAuth';
+import { isDirectorMercadeoRole } from '../../auth/lib/permission-catalog';
 
 const DEVUELTAS_PARAM = 'bandeja';
 const DEVUELTAS_VALUE = 'devueltas';
@@ -17,10 +19,13 @@ const tabClass = ({ isActive }: { isActive: boolean }) =>
  */
 export function DemandNav() {
   const location = useLocation();
+  const { user } = useAuth();
   const params = new URLSearchParams(location.search);
   const onDevueltas =
     location.pathname === '/demand' &&
     params.get(DEVUELTAS_PARAM) === DEVUELTAS_VALUE;
+  const canSeeMqlInbox =
+    user?.role_name === 'Admin' || isDirectorMercadeoRole(user?.role_name);
 
   if (onDevueltas) {
     return (
@@ -46,9 +51,11 @@ export function DemandNav() {
       <NavLink to="/demand/campaigns" end className={tabClass}>
         Campañas
       </NavLink>
-      <NavLink to="/demand/mqls" className={tabClass}>
-        Bandeja MQL
-      </NavLink>
+      {canSeeMqlInbox ? (
+        <NavLink to="/demand/mqls" className={tabClass}>
+          Bandeja MQL
+        </NavLink>
+      ) : null}
       <NavLink to="/demand/dashboard" className={tabClass}>
         Dashboard
       </NavLink>

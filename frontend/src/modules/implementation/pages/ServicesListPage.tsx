@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AppLayout } from '../../../layout/AppLayout';
+import { useModuleSearch } from '../../../layout/module-search';
 import { formatDateTime } from '../../../lib/format';
 import { listProyectosEnImplementacion } from '../../shared/project/mock-store';
 import type { VentaGanadaRecord } from '../../shared/project/types';
@@ -9,11 +10,30 @@ import { badgeClass, cardClass } from '../components/ui';
 
 /** Lista de SER — proyectos recibidos desde Control de Proyectos (mock). */
 export function ServicesListPage() {
+  const { query } = useModuleSearch();
   const [items, setItems] = useState<VentaGanadaRecord[]>([]);
 
   useEffect(() => {
     setItems(listProyectosEnImplementacion());
   }, []);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return items;
+    return items.filter((v) => {
+      const haystack = [
+        v.envioPmo.serConsecutivo,
+        v.datosBase.nombreProyecto,
+        v.consecutivo,
+        v.envioPmo.consecutivoControlProyectos,
+        v.empresaNombre,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [items, query]);
 
   return (
     <AppLayout title="Implementación (SER)">
@@ -40,18 +60,24 @@ export function ServicesListPage() {
             </tr>
           </thead>
           <tbody>
-            {items.length === 0 ? (
+            {filtered.length === 0 ? (
               <tr>
                 <td colSpan={7} className="px-4 py-8 text-center text-muted">
-                  Aún no hay proyectos en implementación. Completa el flujo en{' '}
-                  <Link to="/offers" className="text-accent hover:underline">
-                    Oferta & Cierre
-                  </Link>{' '}
-                  (OUV demo OUV-0245 está lista para enviar; OUV-0238 ya está aquí).
+                  {items.length === 0 ? (
+                    <>
+                      Aún no hay proyectos en implementación. Completa el flujo en{' '}
+                      <Link to="/offers" className="text-accent hover:underline">
+                        Oferta & Cierre
+                      </Link>{' '}
+                      (OUV demo OUV-0245 está lista para enviar; OUV-0238 ya está aquí).
+                    </>
+                  ) : (
+                    'No hay servicios que coincidan con la búsqueda.'
+                  )}
                 </td>
               </tr>
             ) : (
-              items.map((v) => (
+              filtered.map((v) => (
                 <tr key={v.ouvId} className="border-b border-border hover:bg-accent/5">
                   <td className="px-4 py-3">
                     <Link

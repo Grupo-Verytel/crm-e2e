@@ -49,6 +49,7 @@ export type AuditLogQuery = {
   to?: string;
   sort_by?: AuditSortField;
   sort_dir?: AuditSortDirection;
+  q?: string;
   page?: number;
   limit?: number;
 };

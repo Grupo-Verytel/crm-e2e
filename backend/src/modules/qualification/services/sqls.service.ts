@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/sequelize';
-import { Op, Sequelize } from 'sequelize';
+import { Op, Sequelize, WhereOptions } from 'sequelize';
 import { UsersService } from '../../auth/services/users.service';
 import { DemandGenerationService } from '../../demand-generation/services/demand-generation.service';
 import { Lead } from '../../demand-generation/models/lead.model';
@@ -17,6 +17,7 @@ import { OuvZona } from '../../discovery/models/enums/ouv.enums';
 import { OuvsService } from '../../discovery/services/ouvs.service';
 import { EntityType } from '../../workflow-engine/enums/entity-type.enum';
 import { WorkflowEngineService } from '../../workflow-engine/workflow-engine.service';
+import { leadTextSearchWhere } from '../../demand-generation/lib/lead-text-search';
 import {
   QUALIFICATION_ERROR_CODES,
   QUALIFICATION_ROLES,
@@ -58,24 +59,38 @@ export class SqlsService {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
     const offset = (page - 1) * limit;
+    const leadWhere = this.leadSearchWhere(query.q);
 
     const where = { estado: SqlEstado.PendienteAsignacion };
+
+    const include = [
+      {
+        model: Mql,
+        required: true,
+        include: [
+          {
+            model: Lead,
+            required: true,
+            ...(leadWhere ? { where: leadWhere } : {}),
+          },
+        ],
+      },
+    ];
 
     const [rows, count] = await Promise.all([
       this.sqlModel.findAll({
         where,
-        include: [
-          {
-            model: Mql,
-            required: true,
-            include: [{ model: Lead, required: true }],
-          },
-        ],
+        include,
         order: [['fecha_creacion', 'ASC']],
         limit,
         offset,
       }),
-      this.sqlModel.count({ where }),
+      this.sqlModel.count({
+        where,
+        include,
+        distinct: true,
+        col: 'sql_id',
+      }),
     ]);
 
     const items = await Promise.all(
@@ -104,12 +119,26 @@ export class SqlsService {
           ? { [Op.in]: [SqlEstado.Asignado, SqlEstado.EnGestion] }
           : { [Op.ne]: SqlEstado.PendienteAsignacion };
 
+    const leadWhere = this.leadSearchWhere(query.q);
     const { rows, count } = await this.sqlModel.findAndCountAll({
       where: {
         ...(adminConvertedTray ? {} : { comercialAsignadoId: comercialUserId }),
         estado: estadoFilter,
       },
-      include: [{ model: Mql, required: true }],
+      include: [
+        {
+          model: Mql,
+          required: true,
+          include: [
+            {
+              model: Lead,
+              required: true,
+              ...(leadWhere ? { where: leadWhere } : {}),
+            },
+          ],
+        },
+      ],
+      distinct: true,
       order: [['fechaAsignacion', 'DESC']],
       limit,
       offset,
@@ -451,6 +480,10 @@ export class SqlsService {
       },
       { transaction },
     );
+  }
+
+  private leadSearchWhere(q?: string): WhereOptions<Lead> | undefined {
+    return leadTextSearchWhere(this.sequelize, q);
   }
 
   private async assertActiveEjecutivo(userId: string): Promise<void> {

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AppLayout } from '../../../layout/AppLayout';
 import { Pagination } from '../../../components/Pagination';
+import { useModuleSearch } from '../../../layout/module-search';
 import { formatDateTime } from '../../../lib/format';
 import { fetchLead } from '../api/leads-api';
 import { approveMql, fetchMqls, rejectMql } from '../api/mqls-api';
@@ -11,6 +12,7 @@ import { cardClass, ghostButtonClass, primaryButtonClass } from '../components/u
 import type { Lead, Mql } from '../types';
 
 export function MqlInboxPage() {
+  const { query } = useModuleSearch();
   const [items, setItems] = useState<Mql[]>([]);
   const [leads, setLeads] = useState<Record<string, Lead>>({});
   const [page, setPage] = useState(1);
@@ -25,7 +27,12 @@ export function MqlInboxPage() {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await fetchMqls({ estado: 'Activo', page, limit });
+      const data = await fetchMqls({
+        estado: 'Activo',
+        q: query || undefined,
+        page,
+        limit,
+      });
       setItems(data.items);
       setTotal(data.total);
 
@@ -43,7 +50,11 @@ export function MqlInboxPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [page, limit]);
+  }, [page, limit, query]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [query]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetch on page change

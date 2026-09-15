@@ -299,6 +299,7 @@ export type LeadsQuery = {
   responsable_id?: string;
   from?: string;
   to?: string;
+  q?: string;
   page?: number;
   limit?: number;
 };
@@ -411,6 +412,7 @@ export type CampaignsQuery = {
   tipo?: CampaignTipo;
   from?: string;
   to?: string;
+  q?: string;
   page?: number;
   limit?: number;
 };
@@ -449,6 +451,7 @@ export type PaginatedMqls = {
 
 export type MqlsQuery = {
   estado?: MqlEstado;
+  q?: string;
   page?: number;
   limit?: number;
 };

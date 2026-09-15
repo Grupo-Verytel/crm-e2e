@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
-import { UniqueConstraintError } from 'sequelize';
+import { Op, UniqueConstraintError } from 'sequelize';
 import { AUTH_ERROR_CODES } from '../constants/auth.constants';
 import { CreateUserDto } from '../dtos/create-user.dto';
 import { UpdateUserDto } from '../dtos/update-user.dto';
@@ -30,7 +30,18 @@ export class UsersService {
     const offset = (page - 1) * limit;
 
     const { rows, count } = await this.userModel.findAndCountAll({
-      include: [Role],
+      include: [{ model: Role, as: 'role', required: false }],
+      where: query.q?.trim()
+        ? {
+            [Op.or]: [
+              { fullName: { [Op.like]: `%${query.q.trim()}%` } },
+              { email: { [Op.like]: `%${query.q.trim()}%` } },
+              { '$role.name$': { [Op.like]: `%${query.q.trim()}%` } },
+            ],
+          }
+        : undefined,
+      distinct: Boolean(query.q?.trim()),
+      col: 'user_id',
       order: [['createdAt', 'DESC']],
       limit,
       offset,
@@ -92,7 +103,7 @@ export class UsersService {
 
   async update(userId: string, dto: UpdateUserDto): Promise<UserResponseDto> {
     const user = await this.userModel.findByPk(userId, {
-      include: [Role],
+      include: [{ model: Role, as: 'role' }],
     });
 
     if (!user) {

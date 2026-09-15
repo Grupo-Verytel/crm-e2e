@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { AppLayout } from '../../../layout/AppLayout';
+import { useAuth } from '../../auth/hooks/useAuth';
 import { ApiError } from '../../auth/types';
 import {
   createZonaChecklistTemplate,
@@ -17,9 +18,12 @@ import {
   labelClass,
   primaryButtonClass,
 } from '../components/ui';
+import { canManageOuvCatalogs } from '../lib/ouv-access';
 import { OUV_ZONA_LABEL, OUV_ZONAS, type OuvZona } from '../lib/ouv-vocab';
 
 export function ZonaChecklistAdminPage() {
+  const { user } = useAuth();
+  const canManage = canManageOuvCatalogs(user?.role_name);
   const [items, setItems] = useState<ZonaChecklistTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -110,10 +114,17 @@ export function ZonaChecklistAdminPage() {
         <h1 className="text-lg font-bold text-ink">
           Plantillas checklist por zona
         </h1>
-        <button type="button" className={primaryButtonClass} onClick={openNew}>
-          Nueva plantilla
-        </button>
+        {canManage ? (
+          <button type="button" className={primaryButtonClass} onClick={openNew}>
+            Nueva plantilla
+          </button>
+        ) : null}
       </div>
+      {!canManage ? (
+        <p className="mb-3 rounded border border-border bg-bg px-3 py-2 text-sm text-muted">
+          Solo lectura: puedes ver las plantillas, no crear ni editarlas.
+        </p>
+      ) : null}
 
       {error ? <p className="mb-3 text-sm text-danger">{error}</p> : null}
 
@@ -128,7 +139,7 @@ export function ZonaChecklistAdminPage() {
                 <th className="px-3 py-2">Código</th>
                 <th className="px-3 py-2">Label</th>
                 <th className="px-3 py-2">Orden</th>
-                <th className="px-3 py-2">Acciones</th>
+                {canManage ? <th className="px-3 py-2">Acciones</th> : null}
               </tr>
             </thead>
             <tbody>
@@ -142,37 +153,41 @@ export function ZonaChecklistAdminPage() {
                   </td>
                   <td className="px-3 py-2 text-ink">{row.label}</td>
                   <td className="px-3 py-2 text-ink">{row.orden}</td>
-                  <td className="px-3 py-2">
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        className={ghostButtonClass}
-                        onClick={() => openEdit(row)}
-                      >
-                        Editar
-                      </button>
-                      <button
-                        type="button"
-                        className={ghostButtonClass}
-                        onClick={() => void onDelete(row)}
-                      >
-                        Eliminar
-                      </button>
-                    </div>
-                  </td>
+                  {canManage ? (
+                    <td className="px-3 py-2">
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          className={ghostButtonClass}
+                          onClick={() => openEdit(row)}
+                        >
+                          Editar
+                        </button>
+                        <button
+                          type="button"
+                          className={ghostButtonClass}
+                          onClick={() => void onDelete(row)}
+                        >
+                          Eliminar
+                        </button>
+                      </div>
+                    </td>
+                  ) : null}
                 </tr>
               ))}
             </tbody>
           </table>
           {items.length === 0 ? (
             <p className="p-4 text-sm text-muted">
-              Sin plantillas. Sin ellas el checklist de OUVs nace vacío.
+              {canManage
+                ? 'Sin plantillas. Sin ellas el checklist de OUVs nace vacío.'
+                : 'Sin plantillas en el catálogo.'}
             </p>
           ) : null}
         </div>
       )}
 
-      {editing ? (
+      {canManage && editing ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/30 p-4">
           <form
             className="w-full max-w-md space-y-3 rounded bg-surface p-6 shadow-card"

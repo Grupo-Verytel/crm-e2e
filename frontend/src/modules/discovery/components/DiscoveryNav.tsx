@@ -1,4 +1,6 @@
 import { NavLink } from 'react-router-dom';
+import { useAuth } from '../../auth/hooks/useAuth';
+import { canViewOuvCatalogs } from '../lib/ouv-access';
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
   [
@@ -9,6 +11,9 @@ const linkClass = ({ isActive }: { isActive: boolean }) =>
   ].join(' ');
 
 export function DiscoveryNav() {
+  const { user } = useAuth();
+  const showCatalogs = canViewOuvCatalogs(user?.role_name);
+
   return (
     <nav
       className="mb-4 flex flex-wrap gap-1 border-b border-border"
@@ -23,6 +28,14 @@ export function DiscoveryNav() {
       <NavLink to="/opportunities/descartadas" className={linkClass}>
         Oportunidades descartadas
       </NavLink>
+      {showCatalogs ? (
+        <NavLink
+          to="/opportunities/admin/zona-checklist-templates"
+          className={linkClass}
+        >
+          Checklist por zona
+        </NavLink>
+      ) : null}
     </nav>
   );
 }

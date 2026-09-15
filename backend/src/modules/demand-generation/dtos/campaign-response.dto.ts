@@ -4,7 +4,9 @@ import {
   IsEnum,
   IsInt,
   IsOptional,
+  IsString,
   Max,
+  MaxLength,
   Min,
 } from 'class-validator';
 import { CampaignEstado, CampaignTipo } from '../models/enums/campaign.enums';
@@ -25,6 +27,11 @@ export class CampaignsQueryDto {
   @IsOptional()
   @IsDateString()
   to?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  q?: string;
 
   @IsOptional()
   @Type(() => Number)

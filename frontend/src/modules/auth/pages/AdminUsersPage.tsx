@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Plus } from 'lucide-react';
 import { AppLayout } from '../../../layout/AppLayout';
 import { Pagination } from '../../../components/Pagination';
+import { useModuleSearch } from '../../../layout/module-search';
 import { formatDateTime } from '../../../lib/format';
 import { createUser, fetchUsers, updateUser } from '../api/users-api';
 import { fetchRoles, createRole, updateRole } from '../api/roles-api';
@@ -13,6 +14,7 @@ import type { Role, User } from '../types';
 type AdminTab = 'users' | 'roles';
 
 export function AdminUsersPage() {
+  const { query } = useModuleSearch();
   const [tab, setTab] = useState<AdminTab>('users');
   const [roles, setRoles] = useState<Role[]>([]);
   const [users, setUsers] = useState<User[]>([]);
@@ -41,7 +43,11 @@ export function AdminUsersPage() {
     setError(null);
 
     try {
-      const data = await fetchUsers({ page, limit });
+      const data = await fetchUsers({
+        page,
+        limit,
+        q: query || undefined,
+      });
       setUsers(data.items);
       setTotal(data.total);
     } catch {
@@ -49,7 +55,11 @@ export function AdminUsersPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [page, limit]);
+  }, [page, limit, query]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [query]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetch on mount
@@ -86,6 +96,11 @@ export function AdminUsersPage() {
     setSelectedRole(role);
     setRoleModalOpen(true);
   }
+
+  const roleQuery = query.trim().toLowerCase();
+  const visibleRoles = roleQuery
+    ? roles.filter((role) => role.name.toLowerCase().includes(roleQuery))
+    : roles;
 
   return (
     <AppLayout title="Usuarios y roles">
@@ -177,6 +192,8 @@ export function AdminUsersPage() {
           <div className="overflow-x-auto">
             {roles.length === 0 ? (
               <StateMessage>Cargando roles…</StateMessage>
+            ) : visibleRoles.length === 0 ? (
+              <StateMessage>No hay roles que coincidan con la búsqueda.</StateMessage>
             ) : (
               <table className="w-full min-w-[640px] text-left text-sm">
                 <thead>
@@ -188,7 +205,7 @@ export function AdminUsersPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {roles.map((role) => {
+                  {visibleRoles.map((role) => {
                     const modules = modulesAccessibleByPermissions(
                       role.permissions,
                     );

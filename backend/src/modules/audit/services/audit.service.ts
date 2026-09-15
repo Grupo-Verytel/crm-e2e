@@ -40,7 +40,12 @@ export class AuditService {
     const where = this.buildWhereClause(query);
     const include = this.buildActorInclude();
 
-    const count = await this.auditLogModel.count({ where });
+    const count = await this.auditLogModel.count({
+      where,
+      include,
+      distinct: true,
+      col: 'audit_id',
+    });
     const rows = await this.auditLogModel.findAll({
       where,
       include,
@@ -138,6 +143,20 @@ export class AuditService {
       }
 
       where.timestamp = timestampFilter;
+    }
+
+    if (query.q?.trim()) {
+      const like = `%${query.q.trim()}%`;
+      Object.assign(where, {
+        [Op.or]: [
+          { registroId: { [Op.like]: like } },
+          { tabla: { [Op.like]: like } },
+          { accion: { [Op.like]: like } },
+          { campoModificado: { [Op.like]: like } },
+          { ipAddress: { [Op.like]: like } },
+          { '$actor.fullName$': { [Op.like]: like } },
+        ],
+      });
     }
 
     return where;

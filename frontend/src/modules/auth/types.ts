@@ -85,6 +85,7 @@ export type CreateRolePayload = {
 export type UsersQuery = {
   page?: number;
   limit?: number;
+  q?: string;
 };
 
 export type ApiErrorBody = {

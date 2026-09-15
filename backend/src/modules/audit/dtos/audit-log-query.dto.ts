@@ -8,6 +8,7 @@ import {
   IsString,
   IsUUID,
   Max,
+  MaxLength,
   Min,
 } from 'class-validator';
 import { AuditAction } from '../models/audit-action.enum';
@@ -52,6 +53,11 @@ export class AuditLogQueryDto {
   @IsOptional()
   @IsDateString()
   to?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  q?: string;
 
   @IsOptional()
   @IsIn(AUDIT_SORT_FIELDS)

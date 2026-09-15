@@ -56,7 +56,7 @@ export class SqlsController {
   }
 
   @Post(':id/assign')
-  @CheckAbility({ action: 'update', subject: 'Sql' })
+  @CheckAbility({ action: 'assign', subject: 'Sql' })
   assign(
     @Param('id') id: string,
     @Body() dto: AssignSqlDto,

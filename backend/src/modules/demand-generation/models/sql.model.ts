@@ -63,7 +63,7 @@ export class Sql extends Model {
   })
   declare origenCreacion: SqlOrigenCreacion;
 
-  /** Assigned by SoporteComercial (qualification module) or KAM on direct route. */
+  /** Assigned by SoporteComercial (qualification module) or EjecutivoComercial on direct route. */
   @ForeignKey(() => User)
   @Column({
     type: DataType.CHAR(36),

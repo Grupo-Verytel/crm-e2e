@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AppLayout } from '../../../layout/AppLayout';
+import { useModuleSearch } from '../../../layout/module-search';
 import { formatDateTime } from '../../../lib/format';
 import { useAuth } from '../../auth/hooks/useAuth';
 import { fetchOuvs } from '../../discovery/api/ouvs-api';
@@ -22,16 +23,16 @@ import {
 } from '../components/ui';
 
 type DraftFilters = {
-  q: string;
   tipoVenta: string;
   estadoRevision: string;
 };
 
-const EMPTY: DraftFilters = { q: '', tipoVenta: '', estadoRevision: '' };
+const EMPTY: DraftFilters = { tipoVenta: '', estadoRevision: '' };
 
 /** HU-F01 — Bandeja soporte comercial (ventas ganadas → validación → PMO). */
 export function SoporteComercialInboxPage() {
   const { user } = useAuth();
+  const { query } = useModuleSearch();
   const navigate = useNavigate();
   const [draft, setDraft] = useState<DraftFilters>(EMPTY);
   const [applied, setApplied] = useState<DraftFilters>(EMPTY);
@@ -55,8 +56,8 @@ export function SoporteComercialInboxPage() {
         }
       }
       let list = listVentasGanadas().filter((v) => v.envioPmo.estado !== 'Enviado');
-      if (applied.q.trim()) {
-        const q = applied.q.toLowerCase();
+      if (query.trim()) {
+        const q = query.toLowerCase();
         list = list.filter(
           (v) =>
             v.consecutivo.toLowerCase().includes(q) ||
@@ -74,7 +75,7 @@ export function SoporteComercialInboxPage() {
     } finally {
       setLoading(false);
     }
-  }, [applied, user]);
+  }, [applied, user, query]);
 
   useEffect(() => {
     void load();
@@ -91,16 +92,7 @@ export function SoporteComercialInboxPage() {
         </div>
       </div>
 
-      <div className={`${cardClass} mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4`}>
-        <div>
-          <label className={labelClass}>Buscar</label>
-          <input
-            className={inputClass}
-            value={draft.q}
-            onChange={(e) => setDraft({ ...draft, q: e.target.value })}
-            placeholder="OUV, título, cliente…"
-          />
-        </div>
+      <div className={`${cardClass} mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3`}>
         <div>
           <label className={labelClass}>Tipo de venta</label>
           <select

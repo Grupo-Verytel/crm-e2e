@@ -81,6 +81,15 @@ export class CampaignsService {
       };
     }
 
+    if (query.q?.trim()) {
+      const like = `%${query.q.trim()}%`;
+      where[Op.or] = [
+        { nombre: { [Op.like]: like } },
+        { canal: { [Op.like]: like } },
+        { objetivo: { [Op.like]: like } },
+      ];
+    }
+
     const { rows, count } = await this.campaignModel.findAndCountAll({
       where,
       order: [['createdAt', 'DESC']],

@@ -27,6 +27,7 @@ import { FloatingToast } from './FloatingToast';
 type Props = {
   ouv: Ouv;
   commercialOwnerName?: string;
+  readOnly?: boolean;
 };
 
 const STORAGE_PREFIX = 'crm-ouv-solicitudes-preventa-v4-';
@@ -614,10 +615,12 @@ function SolicitudListItem({
   item,
   onDelete,
   onOpenService,
+  readOnly,
 }: {
   item: SolicitudPreventaRecord;
   onDelete: () => void;
   onOpenService: (service: ServiceCard) => void;
+  readOnly?: boolean;
 }) {
   const services = item.services ?? [];
   const showPair = services.length > 1;
@@ -637,9 +640,11 @@ function SolicitudListItem({
             {new Date(item.createdAt).toLocaleString('es-CO')}
           </span>
         </div>
-        <button type="button" className={ghostButtonClass} onClick={onDelete}>
-          Eliminar
-        </button>
+        {readOnly ? null : (
+          <button type="button" className={ghostButtonClass} onClick={onDelete}>
+            Eliminar
+          </button>
+        )}
       </div>
 
       {showPair ? (
@@ -683,7 +688,11 @@ function SolicitudListItem({
 }
 
 /** Vista de listado de Solicitudes Preventa. La creación va en modal por fases. */
-export function PreventaActivityPanel({ ouv, commercialOwnerName }: Props) {
+export function PreventaActivityPanel({
+  ouv,
+  commercialOwnerName,
+  readOnly = false,
+}: Props) {
   const [items, setItems] = useState<SolicitudPreventaRecord[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [detail, setDetail] = useState<{
@@ -731,13 +740,15 @@ export function PreventaActivityPanel({ ouv, commercialOwnerName }: Props) {
             Historial de solicitudes enviadas a Preventa para esta OUV.
           </p>
         </div>
-        <button
-          type="button"
-          className={ghostButtonClass}
-          onClick={() => setModalOpen(true)}
-        >
-          Nueva solicitud
-        </button>
+        {readOnly ? null : (
+          <button
+            type="button"
+            className={ghostButtonClass}
+            onClick={() => setModalOpen(true)}
+          >
+            Nueva solicitud
+          </button>
+        )}
       </div>
 
       {toast ? (
@@ -750,7 +761,9 @@ export function PreventaActivityPanel({ ouv, commercialOwnerName }: Props) {
 
       {items.length === 0 ? (
         <p className="rounded border border-dashed border-border bg-bg px-3 py-8 text-center text-sm text-muted">
-          Aún no hay solicitudes. Usa &quot;Nueva solicitud&quot; para crear una.
+          {readOnly
+            ? 'Aún no hay solicitudes de Preventa para esta OUV.'
+            : 'Aún no hay solicitudes. Usa "Nueva solicitud" para crear una.'}
         </p>
       ) : (
         <ul className="space-y-3">
@@ -758,6 +771,7 @@ export function PreventaActivityPanel({ ouv, commercialOwnerName }: Props) {
             <SolicitudListItem
               key={item.id}
               item={item}
+              readOnly={readOnly}
               onDelete={() => handleDelete(item.id)}
               onOpenService={(service) => setDetail({ item, service })}
             />
@@ -765,7 +779,7 @@ export function PreventaActivityPanel({ ouv, commercialOwnerName }: Props) {
         </ul>
       )}
 
-      {modalOpen ? (
+      {modalOpen && !readOnly ? (
         <SolicitudPreventaModal
           ouv={ouv}
           commercialOwnerName={commercialOwnerName}

@@ -1,16 +1,22 @@
 import { ForbiddenException } from '@nestjs/common';
 import type { Ouv } from '../models/ouv.model';
 
-/** Roles that may list/view every OUV (not only own comercial_id). */
-const READ_ALL_OUV_ROLES = new Set([
-  'Admin',
-  'SoporteComercial',
-  /** Director Mercadeo — follow-up board, read-only (no mutate). */
-  'DirectorMercadeo',
+function normalizeRoleKey(name: string): string {
+  return name.replace(/[\s_-]/g, '').toLowerCase();
+}
+
+const READ_ALL_OUV_ROLE_KEYS = new Set([
+  'admin',
+  'soportecomercial',
+  'directormercadeo',
+  'gestormercadeo',
+  'preventa',
+  'ingenieropreventa',
 ]);
 
+/** Roles that may list/view every OUV (not only own comercial_id). */
 export function canReadAllOuvs(roleName: string): boolean {
-  return READ_ALL_OUV_ROLES.has(roleName);
+  return READ_ALL_OUV_ROLE_KEYS.has(normalizeRoleKey(roleName));
 }
 
 /** Owner Ejecutivo, or Admin acting in support/dev. */

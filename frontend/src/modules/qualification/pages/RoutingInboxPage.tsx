@@ -2,11 +2,14 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Pagination } from '../../../components/Pagination';
 import { AppLayout } from '../../../layout/AppLayout';
+import { useModuleSearch } from '../../../layout/module-search';
 import { formatDateTime } from '../../../lib/format';
 import {
   IN_APP_NOTIFICATION_EVENT,
   type InAppNotificationEventDetail,
 } from '../../../lib/notification-events';
+import { useAuth } from '../../auth/hooks/useAuth';
+import { hasPermission } from '../../auth/lib/permission-catalog';
 import { fetchSqlInbox } from '../api/sqls-api';
 import { AssignSqlModal } from '../components/AssignSqlModal';
 import { QualificationNav } from '../components/QualificationNav';
@@ -21,6 +24,8 @@ function sqlAccentId(sql: SqlDetail): string {
 }
 
 export function RoutingInboxPage() {
+  const { user } = useAuth();
+  const { query } = useModuleSearch();
   const [items, setItems] = useState<SqlDetail[]>([]);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
@@ -28,13 +33,21 @@ export function RoutingInboxPage() {
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<SqlDetail | null>(null);
 
+  const canAssign =
+    user?.role_name === 'Admin' ||
+    hasPermission(user?.permissions, 'assign', 'Sql');
+
   const load = useCallback(async (opts?: { silent?: boolean }) => {
     if (!opts?.silent) {
       setIsLoading(true);
     }
     setError(null);
     try {
-      const data = await fetchSqlInbox({ page, limit: PAGE_SIZE });
+      const data = await fetchSqlInbox({
+        page,
+        limit: PAGE_SIZE,
+        q: query || undefined,
+      });
       setItems(data.items);
       setTotal(data.total);
     } catch (err) {
@@ -50,7 +63,11 @@ export function RoutingInboxPage() {
         setIsLoading(false);
       }
     }
-  }, [page]);
+  }, [page, query]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [query]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetch on page change
@@ -110,13 +127,15 @@ export function RoutingInboxPage() {
                     {formatDateTime(sql.fecha_creacion)}
                   </p>
                 </Link>
-                <button
-                  type="button"
-                  className={primaryButtonClass}
-                  onClick={() => setSelected(sql)}
-                >
-                  Asignar
-                </button>
+                {canAssign ? (
+                  <button
+                    type="button"
+                    className={primaryButtonClass}
+                    onClick={() => setSelected(sql)}
+                  >
+                    Asignar
+                  </button>
+                ) : null}
               </div>
             </li>
           ))}

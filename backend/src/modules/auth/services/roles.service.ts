@@ -13,6 +13,7 @@ import {
   UpdateRoleDto,
 } from '../dtos/role-response.dto';
 import { Role } from '../models';
+import { normalizeRoleKey } from '../lib/normalize-role-key';
 
 @Injectable()
 export class RolesService {
@@ -27,9 +28,19 @@ export class RolesService {
   }
 
   async create(dto: CreateRoleDto): Promise<RoleResponseDto> {
+    const name = dto.name.trim();
+    const incomingKey = normalizeRoleKey(name);
+    const existing = await this.roleModel.findAll({ attributes: ['name'] });
+    if (existing.some((role) => normalizeRoleKey(role.name) === incomingKey)) {
+      throw new ConflictException({
+        code: AUTH_ERROR_CODES.ROLE_NAME_CONFLICT,
+        message: 'Role name already exists',
+      });
+    }
+
     try {
       const role = await this.roleModel.create({
-        name: dto.name.trim(),
+        name,
         description: dto.description?.trim() || null,
         permissions: dto.permissions,
         isSystem: false,

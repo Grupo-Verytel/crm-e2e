@@ -21,9 +21,11 @@ const TABS: { value: ExceptionFilter; label: string }[] = [
 
 export function LeadsExceptionsView({
   filters,
+  q,
   onChanged,
 }: {
   filters: LeadFilterValues;
+  q?: string;
   onChanged: () => void;
 }) {
   const { user } = useAuth();
@@ -43,10 +45,11 @@ export function LeadsExceptionsView({
       responsable_id: filters.responsable_id || undefined,
       from: filters.from || undefined,
       to: filters.to || undefined,
+      q: q || undefined,
       page: 1,
       limit: PAGE_LIMIT,
     }),
-    [filters],
+    [filters, q],
   );
 
   const load = useCallback(async () => {

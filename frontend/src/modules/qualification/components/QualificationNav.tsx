@@ -1,5 +1,6 @@
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../../auth/hooks/useAuth';
+import { hasPermission } from '../../auth/lib/permission-catalog';
 
 const tabClass = (isActive: boolean) =>
   [
@@ -26,11 +27,13 @@ function assignedTray(
 export function QualificationNav() {
   const { user } = useAuth();
   const location = useLocation();
-  const isSoporte =
-    user?.role_name === 'SoporteComercial' || user?.role_name === 'Admin';
-  const isKam = user?.role_name === 'EjecutivoComercial';
-  const canSeeConverted =
-    user?.role_name === 'EjecutivoComercial' || user?.role_name === 'Admin';
+  const canAssign =
+    user?.role_name === 'Admin' ||
+    hasPermission(user?.permissions, 'assign', 'Sql');
+  const canCreateOuv =
+    user?.role_name === 'Admin' ||
+    hasPermission(user?.permissions, 'create', 'Sql');
+  const canSeeConverted = canCreateOuv;
   const tray = assignedTray(location.pathname, location.search);
 
   return (
@@ -38,12 +41,12 @@ export function QualificationNav() {
       className="mb-4 flex flex-wrap gap-1 border-b border-border"
       aria-label="Calificación"
     >
-      {isSoporte ? (
+      {canAssign ? (
         <NavLink to="/qualification" end className={navLinkClass}>
           Me llegaron
         </NavLink>
       ) : null}
-      {isKam ? (
+      {canCreateOuv && !canAssign ? (
         <Link
           to="/qualification/assigned"
           className={tabClass(tray === 'nuevos')}

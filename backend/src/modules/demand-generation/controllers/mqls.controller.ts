@@ -27,7 +27,7 @@ export class MqlsController {
   ) {}
 
   @Get()
-  @CheckAbility({ action: 'read', subject: 'Lead' })
+  @CheckAbility({ action: 'approve', subject: 'Lead' })
   findAll(@Query() query: MqlsQueryDto): Promise<PaginatedMqlsResponseDto> {
     return this.demandGenerationService.listMqls(query);
   }

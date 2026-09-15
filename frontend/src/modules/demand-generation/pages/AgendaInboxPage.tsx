@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { Pagination } from '../../../components/Pagination';
 import { AppLayout } from '../../../layout/AppLayout';
+import { useModuleSearch } from '../../../layout/module-search';
 import { fetchLeads } from '../api/leads-api';
 import { RegisterAppointmentModal } from '../components/leads/RegisterAppointmentModal';
 import {
@@ -22,6 +23,7 @@ function daysSince(date: string): number {
 }
 
 export function AgendaInboxPage() {
+  const { query } = useModuleSearch();
   const [items, setItems] = useState<Lead[]>([]);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
@@ -39,6 +41,7 @@ export function AgendaInboxPage() {
         estado: 'MOFU',
         canal_origen: 'GENERACION_DEMANDA_AGENCIA',
         responsable_id: responsible || undefined,
+        q: query || undefined,
         page,
         limit: PAGE_SIZE,
       });
@@ -49,7 +52,11 @@ export function AgendaInboxPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [page, responsible]);
+  }, [page, responsible, query]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [query]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetch on filter/page change

@@ -2,6 +2,7 @@ import type { FormEvent, ReactNode } from 'react';
 import { useCallback, useEffect, useState } from 'react';
 import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react';
 import { AppLayout } from '../../../layout/AppLayout';
+import { useModuleSearch } from '../../../layout/module-search';
 import { DatePickerField } from '../../../components/DatePickerField';
 import { Pagination } from '../../../components/Pagination';
 import { TimePickerField } from '../../../components/TimePickerField';
@@ -60,6 +61,7 @@ const SORT_COLUMNS: { key: AuditSortField; label: string }[] = [
 ];
 
 export function AuditLogPage() {
+  const { query } = useModuleSearch();
   const [items, setItems] = useState<AuditLogEntry[]>([]);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
@@ -89,6 +91,7 @@ export function AuditLogPage() {
         to: toFilterIso(applied.toDate, applied.toTime, '23:59'),
         sort_by: sortBy,
         sort_dir: sortDir,
+        q: query || undefined,
       });
       setItems(data.items);
       setTotal(data.total);
@@ -97,7 +100,11 @@ export function AuditLogPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [page, limit, applied, sortBy, sortDir]);
+  }, [page, limit, applied, sortBy, sortDir, query]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [query]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetch on filter/page change

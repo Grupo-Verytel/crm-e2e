@@ -38,6 +38,7 @@ import {
 import { PreventaActivityPanel } from '../components/PreventaActivityPanel';
 import { InteraccionesPreventaPanel } from '../components/InteraccionesPreventaPanel';
 import { RetrocesoZonaModal } from '../components/RetrocesoZonaModal';
+import { isPreventaRole } from '../../auth/lib/permission-catalog';
 import { isOuvFollowUpViewer } from '../lib/ouv-access';
 import {
   cardClass,
@@ -507,6 +508,7 @@ export function OuvDetailPage() {
         <PreventaActivityPanel
           ouv={ouv}
           commercialOwnerName={user?.full_name}
+          readOnly={isPreventaRole(user?.role_name)}
         />
       ) : detailTab === 'interacciones' ? (
         <InteraccionesPreventaPanel ouv={ouv} />

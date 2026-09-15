@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { AppLayout } from '../../../layout/AppLayout';
+import { useAuth } from '../../auth/hooks/useAuth';
 import { ApiError } from '../../auth/types';
 import {
   createMotivoDescarte,
@@ -21,6 +22,7 @@ import {
   labelClass,
   primaryButtonClass,
 } from '../components/ui';
+import { canManageOuvCatalogs } from '../lib/ouv-access';
 
 type Kind = 'perdida' | 'descarte';
 
@@ -32,6 +34,8 @@ const TITLES: Record<Kind, string> = {
 };
 
 export function MotivosCatalogoPage({ kind }: Props) {
+  const { user } = useAuth();
+  const canManage = canManageOuvCatalogs(user?.role_name);
   const [items, setItems] = useState<MotivoCatalogo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -128,10 +132,17 @@ export function MotivosCatalogoPage({ kind }: Props) {
       <DiscoveryNav />
       <div className="mb-4 flex items-center justify-between gap-3">
         <h1 className="text-lg font-bold text-ink">{TITLES[kind]}</h1>
-        <button type="button" className={primaryButtonClass} onClick={openNew}>
-          Nuevo motivo
-        </button>
+        {canManage ? (
+          <button type="button" className={primaryButtonClass} onClick={openNew}>
+            Nuevo motivo
+          </button>
+        ) : null}
       </div>
+      {!canManage ? (
+        <p className="mb-3 rounded border border-border bg-bg px-3 py-2 text-sm text-muted">
+          Solo lectura: puedes ver el catálogo, no crear ni editar motivos.
+        </p>
+      ) : null}
 
       {error ? <p className="mb-3 text-sm text-danger">{error}</p> : null}
 
@@ -145,7 +156,7 @@ export function MotivosCatalogoPage({ kind }: Props) {
                 <th className="px-3 py-2">Orden</th>
                 <th className="px-3 py-2">Nombre</th>
                 <th className="px-3 py-2">Detalle req.</th>
-                <th className="px-3 py-2">Acciones</th>
+                {canManage ? <th className="px-3 py-2">Acciones</th> : null}
               </tr>
             </thead>
             <tbody>
@@ -161,35 +172,41 @@ export function MotivosCatalogoPage({ kind }: Props) {
                   <td className="px-3 py-2 text-ink">
                     {row.requiere_detalle ? 'Sí' : 'No'}
                   </td>
-                  <td className="px-3 py-2">
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        className={ghostButtonClass}
-                        onClick={() => openEdit(row)}
-                      >
-                        Editar
-                      </button>
-                      <button
-                        type="button"
-                        className={ghostButtonClass}
-                        onClick={() => void onDelete(row)}
-                      >
-                        Eliminar
-                      </button>
-                    </div>
-                  </td>
+                  {canManage ? (
+                    <td className="px-3 py-2">
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          className={ghostButtonClass}
+                          onClick={() => openEdit(row)}
+                        >
+                          Editar
+                        </button>
+                        <button
+                          type="button"
+                          className={ghostButtonClass}
+                          onClick={() => void onDelete(row)}
+                        >
+                          Eliminar
+                        </button>
+                      </div>
+                    </td>
+                  ) : null}
                 </tr>
               ))}
             </tbody>
           </table>
           {items.length === 0 ? (
-            <p className="p-4 text-sm text-muted">Sin motivos. Crea el primero.</p>
+            <p className="p-4 text-sm text-muted">
+              {canManage
+                ? 'Sin motivos. Crea el primero.'
+                : 'Sin motivos en el catálogo.'}
+            </p>
           ) : null}
         </div>
       )}
 
-      {editing ? (
+      {canManage && editing ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/30 p-4">
           <form
             className="w-full max-w-md space-y-3 rounded bg-surface p-6 shadow-card"

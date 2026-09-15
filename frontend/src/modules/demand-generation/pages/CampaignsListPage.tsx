@@ -3,6 +3,7 @@ import type { FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { AppLayout } from '../../../layout/AppLayout';
 import { Pagination } from '../../../components/Pagination';
+import { useModuleSearch } from '../../../layout/module-search';
 import { fetchCampaigns, updateCampaignStatus } from '../api/campaigns-api';
 import { DemandNav } from '../components/DemandNav';
 import { StatusBadge } from '../components/StatusBadge';
@@ -19,6 +20,7 @@ type Filters = { estado: CampaignEstado | ''; tipo: CampaignTipo | '' };
 const emptyFilters: Filters = { estado: '', tipo: '' };
 
 export function CampaignsListPage() {
+  const { query } = useModuleSearch();
   const [items, setItems] = useState<Campaign[]>([]);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
@@ -35,6 +37,7 @@ export function CampaignsListPage() {
       const data = await fetchCampaigns({
         page,
         limit,
+        q: query || undefined,
         estado: applied.estado || undefined,
         tipo: applied.tipo || undefined,
       });
@@ -45,7 +48,11 @@ export function CampaignsListPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [page, limit, applied]);
+  }, [page, limit, applied, query]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [query]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetch on filter/page change

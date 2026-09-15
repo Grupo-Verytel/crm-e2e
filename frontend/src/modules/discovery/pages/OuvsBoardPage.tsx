@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Filter, LayoutGrid, List, Plus, Upload } from 'lucide-react';
 import { Pagination } from '../../../components/Pagination';
 import { AppLayout } from '../../../layout/AppLayout';
+import { useModuleSearch } from '../../../layout/module-search';
 import { formatDateTime } from '../../../lib/format';
 import {
   IN_APP_NOTIFICATION_EVENT,
@@ -41,6 +42,7 @@ type ViewMode = 'lista' | 'kanban';
 
 export function OuvsBoardPage() {
   const { user } = useAuth();
+  const { query } = useModuleSearch();
   const navigate = useNavigate();
   const isEjecutivo =
     user?.role_name === 'EjecutivoComercial' || user?.role_name === 'Admin';
@@ -69,7 +71,7 @@ export function OuvsBoardPage() {
 
   const queryBase = useCallback(() => {
     return {
-      q: applied.q || undefined,
+      q: query || undefined,
       zona: (applied.zona as OuvZona) || undefined,
       tiene_gap:
         applied.tiene_gap === ''
@@ -79,7 +81,7 @@ export function OuvsBoardPage() {
       created_to: applied.created_to || undefined,
       all: canListAll || undefined,
     };
-  }, [applied, canListAll]);
+  }, [applied, canListAll, query]);
 
   const loadLista = useCallback(
     async (opts?: { silent?: boolean }) => {
@@ -167,6 +169,10 @@ export function OuvsBoardPage() {
       void loadKanban();
     }
   }, [view, loadLista, loadKanban]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [query]);
 
   useEffect(() => {
     function onNotification(event: Event) {

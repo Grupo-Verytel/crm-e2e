@@ -51,12 +51,6 @@ const OportunidadesDescartadasPage = lazy(
 const OuvDetailPage = lazy(
   () => import('../modules/discovery/pages/OuvDetailPageLazy'),
 );
-const MotivosPerdidaPage = lazy(
-  () => import('../modules/discovery/pages/MotivosPerdidaPageLazy'),
-);
-const MotivosDescartePage = lazy(
-  () => import('../modules/discovery/pages/MotivosDescartePageLazy'),
-);
 const ZonaChecklistAdminPage = lazy(
   () => import('../modules/discovery/pages/ZonaChecklistAdminPageLazy'),
 );
@@ -141,26 +135,6 @@ export function AppRoutes() {
       ),
     },
     {
-      path: '/opportunities/admin/motivos-perdida',
-      element: (
-        <ProtectedRoute>
-          <RoleRoute roles={['SoporteComercial', 'Admin']}>
-            <MotivosPerdidaPage />
-          </RoleRoute>
-        </ProtectedRoute>
-      ),
-    },
-    {
-      path: '/opportunities/admin/motivos-descarte',
-      element: (
-        <ProtectedRoute>
-          <RoleRoute roles={['SoporteComercial', 'Admin']}>
-            <MotivosDescartePage />
-          </RoleRoute>
-        </ProtectedRoute>
-      ),
-    },
-    {
       path: '/opportunities/admin/zona-checklist-templates',
       element: (
         <ProtectedRoute>
@@ -214,7 +188,9 @@ export function AppRoutes() {
       path: '/demand/mqls',
       element: (
         <ProtectedRoute>
-          <MqlInboxPage />
+          <RoleRoute roles={['DirectorMercadeo']}>
+            <MqlInboxPage />
+          </RoleRoute>
         </ProtectedRoute>
       ),
     },

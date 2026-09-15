@@ -150,6 +150,8 @@ export class AccountsService {
           { name: { [Op.like]: q } },
           { email: { [Op.like]: q } },
           { phone: { [Op.like]: q } },
+          { '$account.name$': { [Op.like]: q } },
+          { '$account.taxId$': { [Op.like]: q } },
         ],
       });
     }
@@ -157,6 +159,7 @@ export class AccountsService {
     const { rows, count } = await this.personModel.findAndCountAll({
       where,
       include: [{ model: Account, as: 'account', required: false }],
+      distinct: Boolean(query.q?.trim()),
       order: [['name', 'ASC']],
       limit,
       offset,

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, Navigate, useSearchParams } from 'react-router-dom';
 import { Pagination } from '../../../components/Pagination';
 import { AppLayout } from '../../../layout/AppLayout';
+import { useModuleSearch } from '../../../layout/module-search';
 import { formatDateTime } from '../../../lib/format';
 import {
   IN_APP_NOTIFICATION_EVENT,
@@ -20,6 +21,7 @@ function sqlAccentId(sql: SqlDetail): string {
 
 export function AssignedSqlsPage() {
   const { user } = useAuth();
+  const { query } = useModuleSearch();
   const [searchParams] = useSearchParams();
   const isConverted = searchParams.get('bandeja') === 'convertidos';
   const estado = isConverted ? 'ConvertidoOUV' : 'Asignado';
@@ -46,7 +48,12 @@ export function AssignedSqlsPage() {
       }
       setError(null);
       try {
-        const data = await fetchAssignedSqls({ page, limit: PAGE_SIZE, estado });
+        const data = await fetchAssignedSqls({
+          page,
+          limit: PAGE_SIZE,
+          estado,
+          q: query || undefined,
+        });
         setItems(data.items);
         setTotal(data.total);
       } catch {
@@ -57,8 +64,12 @@ export function AssignedSqlsPage() {
         }
       }
     },
-    [page, estado, redirectAdminToInbox],
+    [page, estado, redirectAdminToInbox, query],
   );
+
+  useEffect(() => {
+    setPage(1);
+  }, [query]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetch on page/tray change

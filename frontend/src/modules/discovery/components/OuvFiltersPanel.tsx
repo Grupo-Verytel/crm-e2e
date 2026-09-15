@@ -33,19 +33,7 @@ export function OuvFiltersPanel({
       role="region"
       aria-label="Filtros de oportunidades"
     >
-      <div className="grid gap-3 md:grid-cols-5">
-        <div>
-          <label className={labelClass} htmlFor="ouv-f-q">
-            Buscar
-          </label>
-          <input
-            id="ouv-f-q"
-            className={inputClass}
-            value={draft.q}
-            onChange={(e) => onDraftChange({ ...draft, q: e.target.value })}
-            placeholder="Título, empresa, OUV-"
-          />
-        </div>
+      <div className="grid gap-3 md:grid-cols-4">
         <div>
           <label className={labelClass} htmlFor="ouv-f-zona">
             Zona

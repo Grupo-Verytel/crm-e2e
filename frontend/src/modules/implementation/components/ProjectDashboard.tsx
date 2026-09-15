@@ -1,6 +1,11 @@
 import { useState } from 'react';
 import { Expand } from 'lucide-react';
 import { useAuth } from '../../auth/hooks/useAuth';
+import {
+  isDirectorMercadeoRole,
+  isEjecutivoComercialRole,
+  isSoporteComercialRole,
+} from '../../auth/lib/permission-catalog';
 import type { CsatSemanaEntry, VentaGanadaRecord } from '../../shared/project/types';
 import { upsertVentaGanada } from '../../shared/project/mock-store';
 import { FormularioDatosProyecto } from '../../offer-closing/components/FormularioDatosProyecto';
@@ -29,7 +34,16 @@ export function ProjectDashboard({ record, onUpdate }: Props) {
   const [showAmpliar, setShowAmpliar] = useState(false);
   const [tab, setTab] = useState<ProjectTab>('informacion');
   const canEditCsat =
-    user?.role_name === 'Admin' || user?.role_name === 'SoporteComercial';
+    user?.role_name === 'Admin' ||
+    isDirectorMercadeoRole(user?.role_name) ||
+    (user?.permissions?.some(
+      (rule) => rule.action === 'update' && rule.subject === 'Csat',
+    ) ??
+      false);
+  const canAmpliar =
+    !isDirectorMercadeoRole(user?.role_name) &&
+    !isSoporteComercialRole(user?.role_name) &&
+    !isEjecutivoComercialRole(user?.role_name);
 
   function saveWeeklyCsat(entry: CsatSemanaEntry) {
     const prev = record.csat.semanas ?? [];
@@ -53,14 +67,16 @@ export function ProjectDashboard({ record, onUpdate }: Props) {
     <div className="space-y-4">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <h1 className="text-xl font-bold text-ink">{record.consecutivo}</h1>
-        <button
-          type="button"
-          className={`${ghostButtonClass} inline-flex items-center gap-2`}
-          onClick={() => setShowAmpliar(true)}
-        >
-          <Expand size={16} aria-hidden />
-          Ampliar proyecto
-        </button>
+        {canAmpliar ? (
+          <button
+            type="button"
+            className={`${ghostButtonClass} inline-flex items-center gap-2`}
+            onClick={() => setShowAmpliar(true)}
+          >
+            <Expand size={16} aria-hidden />
+            Ampliar proyecto
+          </button>
+        ) : null}
       </header>
 
       <nav

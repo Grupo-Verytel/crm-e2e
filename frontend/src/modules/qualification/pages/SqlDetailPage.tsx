@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { AppLayout } from '../../../layout/AppLayout';
 import { formatDateTime } from '../../../lib/format';
 import { useAuth } from '../../auth/hooks/useAuth';
+import { hasPermission } from '../../auth/lib/permission-catalog';
 import { fetchSql, type SqlDetail } from '../api/sqls-api';
 import { ConvertirSqlEnOuvModal } from '../components/ConvertirSqlEnOuvModal';
 import { QualificationNav } from '../components/QualificationNav';
@@ -51,9 +52,9 @@ export function SqlDetailPage() {
   }, [id]);
 
   const canConvert =
-    user?.role_name === 'EjecutivoComercial' &&
+    hasPermission(user?.permissions, 'create', 'Sql') &&
     sql?.estado === 'Asignado' &&
-    sql.comercial_asignado_id === user.user_id;
+    sql.comercial_asignado_id === user?.user_id;
 
   return (
     <AppLayout title="Calificación">

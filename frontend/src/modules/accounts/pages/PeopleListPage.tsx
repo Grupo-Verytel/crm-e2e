@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Pencil } from 'lucide-react';
 import { AppLayout } from '../../../layout/AppLayout';
 import { Pagination } from '../../../components/Pagination';
+import { useModuleSearch } from '../../../layout/module-search';
 import { fetchPeople } from '../api/accounts-api';
 import { PersonFormModal } from '../components/PersonFormModal';
 import type { Person } from '../types';
@@ -9,18 +10,12 @@ import {
   ensureDemoPersonInfluencias,
   loadPersonInfluenciaTipo,
 } from '../lib/person-influencia-extensions';
-import {
-  cardClass,
-  inputClass,
-  labelClass,
-  primaryButtonClass,
-} from '../components/ui';
+import { cardClass, primaryButtonClass } from '../components/ui';
 
 const LIMIT = 20;
 
 export function PeopleListPage() {
-  const [draftQ, setDraftQ] = useState('');
-  const [appliedQ, setAppliedQ] = useState('');
+  const { query } = useModuleSearch();
   const [page, setPage] = useState(1);
   const [items, setItems] = useState<Person[]>([]);
   const [total, setTotal] = useState(0);
@@ -33,7 +28,7 @@ export function PeopleListPage() {
     setError(null);
     try {
       const data = await fetchPeople({
-        q: appliedQ || undefined,
+        q: query || undefined,
         page,
         limit: LIMIT,
       });
@@ -45,40 +40,26 @@ export function PeopleListPage() {
     } finally {
       setLoading(false);
     }
-  }, [appliedQ, page]);
+  }, [query, page]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  function applyFilters() {
-    setAppliedQ(draftQ.trim());
+  useEffect(() => {
     setPage(1);
-  }
+  }, [query]);
 
   return (
     <AppLayout title="Contactos">
-      <div className={`${cardClass} mb-4 p-4`}>
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="min-w-[220px] flex-1">
-            <label className={labelClass} htmlFor="people-q">
-              Buscar
-            </label>
-            <input
-              id="people-q"
-              className={inputClass}
-              value={draftQ}
-              onChange={(e) => setDraftQ(e.target.value)}
-              placeholder="Nombre, email o teléfono"
-            />
-          </div>
-          <button type="button" className={primaryButtonClass} onClick={applyFilters}>
-            Aplicar
-          </button>
-          <button type="button" className={primaryButtonClass} onClick={() => setEditing('new')}>
-            Nuevo contacto
-          </button>
-        </div>
+      <div className="mb-4 flex justify-end">
+        <button
+          type="button"
+          className={primaryButtonClass}
+          onClick={() => setEditing('new')}
+        >
+          Nuevo contacto
+        </button>
       </div>
 
       {error ? (
@@ -91,7 +72,9 @@ export function PeopleListPage() {
         {loading ? (
           <p className="p-4 text-sm text-muted">Cargando…</p>
         ) : items.length === 0 ? (
-          <p className="p-4 text-sm text-muted">No hay contactos.</p>
+          <p className="p-4 text-sm text-muted">
+            {query ? 'No hay contactos que coincidan con la búsqueda.' : 'No hay contactos.'}
+          </p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
