@@ -37,6 +37,8 @@ Cubre el ciclo de vida completo de la OUV a través de 4 zonas formales del embu
 | `consecutivo` | VARCHAR(20) | Sí | Formato `OUV-####` |
 | `sql_id_origen` | UUID | No | FK sqls, NULL para OUVs directas |
 | `origen_via` | ENUM(desde_sql, directa) | Sí | — |
+| `origen` | VARCHAR(80) | No | Snapshot de `leads.origen` para OUVs creadas desde SQL; NULL para OUVs directas |
+| `canal_origen` | VARCHAR(80) | No | Snapshot de `leads.canal_origen` para OUVs creadas desde SQL; NULL para OUVs directas |
 | `comercial_id` | UUID | Sí (FK users) | Dueño exclusivo |
 | `account_id` *(nuevo)* | UUID | No (FK `accounts.account_id`) | Columna **nueva** (inglés). Vía 1: auto-poblada (GC-13). Vías 2/3/4: nullable/seleccionable |
 | `titulo` | VARCHAR(200) | Sí | — |
@@ -269,7 +271,7 @@ Sin cambios — todo pasa por `WorkflowEngineService.transition()`.
 - Notificaciones por email/SMS
 - Influencias adicionales más allá de las 3 fijas
 - Segmentación de reglas por segmento
-- Filtros avanzados en bandeja
+- Filtros avanzados adicionales en bandeja
 - Predicción de cierre basada en histórico
 - Catálogo administrable de verticales
 - Jerarquía de cuentas padre/hijas, indicadores de salud (resto de Módulo 12, ver `spec-gestion-cuentas.md` §6)

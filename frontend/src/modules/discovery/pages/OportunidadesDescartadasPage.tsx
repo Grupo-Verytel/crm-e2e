@@ -57,6 +57,7 @@ export function OportunidadesDescartadasPage() {
         applied.tiene_gap === ''
           ? undefined
           : applied.tiene_gap === 'true',
+      canal_origen: applied.canal_origen || undefined,
       created_from: applied.created_from || undefined,
       created_to: applied.created_to || undefined,
       all: canListAll || undefined,

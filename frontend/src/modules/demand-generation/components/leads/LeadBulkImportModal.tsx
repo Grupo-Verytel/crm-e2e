@@ -12,12 +12,12 @@ export const LEAD_CSV_FIELDS: {
   required: boolean;
   hint: string;
 }[] = [
-  { key: 'name', label: 'Nombre del lead', required: true, hint: 'Único; no se puede repetir' },
+  { key: 'name', label: 'Nombre (opcional)', required: false, hint: 'Si se omite, se usa el nombre de la empresa' },
   { key: 'tipo_lead', label: 'Tipo de lead', required: true, hint: 'Inbound, Outbound, Referido, Aliado, Licitacion' },
-  { key: 'origen', label: 'Origen', required: true, hint: 'Web, Email, LinkedIn, Evento, SECOP, Aliado, Otro, Referido' },
-  { key: 'canal_origen', label: 'Canal de origen', required: true, hint: 'CAMPANA_DIGITAL, BTL, FABRICA, EVENTOS, …' },
-  { key: 'segmento', label: 'Segmento', required: true, hint: 'Gobierno, D&S, ProyectosEspeciales, B2B' },
-  { key: 'industria', label: 'Industria', required: false, hint: 'Obligatoria si segmento = B2B' },
+  { key: 'origen', label: 'Origen', required: true, hint: 'Web, Email marketing, Instagram y Facebook, Prospeccion directa, LinkedIn, Evento, SECOP, Aliado, Otro, Referido' },
+  { key: 'canal_origen', label: 'Canal de origen', required: true, hint: 'CAMPANA_DIGITAL, BTL, FABRICA, EVENTOS, REFERIDO, …' },
+  { key: 'segmento', label: 'Segmento', required: true, hint: 'Ciudades y gobernaciones, Gobierno central, Defensa y seguridad, Industria' },
+  { key: 'industria', label: 'Tipo de industria', required: false, hint: 'Obligatorio si segmento = Industria: Retail, Hidrocarburos, Energia' },
   { key: 'ciudad', label: 'Ciudad', required: true, hint: 'Municipio Colombia' },
   { key: 'region', label: 'Región', required: true, hint: 'Departamento' },
   { key: 'pais', label: 'País', required: false, hint: 'ISO-2; por defecto CO' },

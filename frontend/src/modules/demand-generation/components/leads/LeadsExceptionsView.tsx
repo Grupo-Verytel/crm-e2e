@@ -159,10 +159,7 @@ export function LeadsExceptionsView({
                         {leadDisplayName(lead)}
                       </Link>
                       <div className="text-xs text-muted">
-                        {lead.empresa_nombre}
-                        {lead.contacto_nombre
-                          ? ` · ${lead.contacto_nombre}`
-                          : ''}
+                        {lead.contacto_nombre || 'Sin contacto'}
                       </div>
                     </td>
                     <td className="px-4 py-3">

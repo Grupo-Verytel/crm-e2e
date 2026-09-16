@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pencil } from 'lucide-react';
 import { AppLayout } from '../../../layout/AppLayout';
 import { Pagination } from '../../../components/Pagination';
@@ -22,8 +22,10 @@ export function PeopleListPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<Person | null | 'new'>(null);
+  const requestIdRef = useRef(0);
 
   const load = useCallback(async () => {
+    const requestId = ++requestIdRef.current;
     setLoading(true);
     setError(null);
     try {
@@ -32,13 +34,23 @@ export function PeopleListPage() {
         page,
         limit: LIMIT,
       });
+      if (requestId !== requestIdRef.current) {
+        return;
+      }
       ensureDemoPersonInfluencias(data.items);
       setItems(data.items);
       setTotal(data.total);
     } catch {
+      if (requestId !== requestIdRef.current) {
+        return;
+      }
+      setItems([]);
+      setTotal(0);
       setError('No se pudo cargar el listado de contactos.');
     } finally {
-      setLoading(false);
+      if (requestId === requestIdRef.current) {
+        setLoading(false);
+      }
     }
   }, [query, page]);
 

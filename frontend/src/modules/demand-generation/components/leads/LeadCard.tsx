@@ -88,8 +88,7 @@ export function LeadCard({
             <p className="text-xs font-bold text-accent">{leadAccentId(lead)}</p>
             <p className="text-sm text-ink">{leadDisplayName(lead)}</p>
             <p className="text-xs text-muted">
-              {lead.empresa_nombre}
-              {lead.contacto_nombre ? ` · ${lead.contacto_nombre}` : ''}
+              {lead.contacto_nombre || 'Sin contacto'}
             </p>
           </>
         ) : (
@@ -98,8 +97,7 @@ export function LeadCard({
               {leadDisplayName(lead)}
             </p>
             <p className="truncate text-xs text-muted">
-              {lead.empresa_nombre}
-              {lead.contacto_nombre ? ` · ${lead.contacto_nombre}` : ''}
+              {lead.contacto_nombre || 'Sin contacto'}
             </p>
           </>
         )}

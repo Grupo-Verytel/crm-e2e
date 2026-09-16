@@ -1,4 +1,5 @@
 import { segmentoDot } from '../../lib/lead-vocab';
+import { segmentoLabel } from '../../lib/segment-catalog';
 
 /** Categorical segment chip: a small token-colored dot + label, no large fills. */
 export function SegmentChip({ segmento }: { segmento: string }) {
@@ -8,7 +9,7 @@ export function SegmentChip({ segmento }: { segmento: string }) {
         className={`h-2 w-2 shrink-0 rounded-full ${segmentoDot(segmento)}`}
         aria-hidden="true"
       />
-      {segmento}
+      {segmentoLabel(segmento)}
     </span>
   );
 }

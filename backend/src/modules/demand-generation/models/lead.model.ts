@@ -76,7 +76,7 @@ export class Lead extends Model {
   })
   declare segmento: Segmento;
 
-  /** Required when segmento = B2B (enforced in DTO/service). */
+  /** Required when segmento = Industria (enforced in DTO/service). */
   @Column({ type: DataType.STRING(80), allowNull: true })
   declare industria: string | null;
 

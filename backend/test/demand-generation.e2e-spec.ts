@@ -49,7 +49,7 @@ describe('Demand generation module (EARS DG-01..DG-18)', () => {
       tipo_lead: 'Inbound',
       origen: 'Web',
       canal_origen: 'CAMPANA_DIGITAL',
-      segmento: 'Gobierno',
+      segmento: 'Gobierno central',
       ciudad: 'Bogota',
       region: 'Bogota',
       pais: 'CO',
@@ -158,7 +158,6 @@ describe('Demand generation module (EARS DG-01..DG-18)', () => {
         criterio_sector_objetivo: true,
         criterio_necesidad_portafolio: true,
         criterio_acceso_decisor: true,
-        criterio_presupuesto_indicios: true,
       })
       .expect(200);
   }
@@ -283,7 +282,7 @@ describe('Demand generation module (EARS DG-01..DG-18)', () => {
       .send({
         tipo_lead: 'Inbound',
         origen: 'Web',
-        segmento: 'Gobierno',
+        segmento: 'Gobierno central',
         region: 'Bogota',
         pais: 'CO',
         contacts: [
@@ -328,7 +327,7 @@ describe('Demand generation module (EARS DG-01..DG-18)', () => {
     const response = await request(app.getHttpServer())
       .post('/api/v1/leads')
       .set('Authorization', `Bearer ${marketingToken}`)
-      .send(buildLeadPayload({ segmento: 'B2B' }))
+      .send(buildLeadPayload({ segmento: 'Industria' }))
       .expect(400);
     expect(JSON.stringify(response.body.message)).toMatch(/industria/i);
   });
@@ -502,9 +501,9 @@ describe('Demand generation module (EARS DG-01..DG-18)', () => {
     const rowNew = buildCsvRow({
       name: `CSV Lead ${Date.now()}-a`,
       tipo_lead: 'Outbound',
-      origen: 'Email',
+      origen: 'Email marketing',
       canal_origen: 'CAMPANA_DIGITAL',
-      segmento: 'Gobierno',
+      segmento: 'Gobierno central',
       region: 'Bogota',
       pais: 'CO',
       account_name: 'CSV Co',
@@ -532,9 +531,9 @@ describe('Demand generation module (EARS DG-01..DG-18)', () => {
     const rowDup = buildCsvRow({
       name: `CSV Lead ${Date.now()}-b`,
       tipo_lead: 'Outbound',
-      origen: 'Email',
+      origen: 'Email marketing',
       canal_origen: 'CAMPANA_DIGITAL',
-      segmento: 'Gobierno',
+      segmento: 'Gobierno central',
       region: 'Bogota',
       pais: 'CO',
       account_name: 'Dup Co',

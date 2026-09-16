@@ -40,11 +40,23 @@ export class LeadContact extends Model {
   declare personId: string;
 
   @Column({
-    type: DataType.ENUM('Economica', 'Tecnica', 'Fabrica'),
+    type: DataType.ENUM(
+      'Economica',
+      'Tecnica',
+      'Fabrica',
+      'Coach',
+      'Usuario',
+    ),
     field: 'tipo_influencia',
     allowNull: true,
   })
-  declare tipoInfluencia: 'Economica' | 'Tecnica' | 'Fabrica' | null;
+  declare tipoInfluencia:
+    | 'Economica'
+    | 'Tecnica'
+    | 'Fabrica'
+    | 'Coach'
+    | 'Usuario'
+    | null;
 
   @CreatedAt
   @Column({ type: DataType.DATE, field: 'created_at' })

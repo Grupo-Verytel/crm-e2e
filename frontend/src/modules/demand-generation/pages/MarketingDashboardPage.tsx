@@ -1,10 +1,26 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { Pagination } from '../../../components/Pagination';
 import { AppLayout } from '../../../layout/AppLayout';
-import { fetchMarketingDashboard } from '../api/dashboard-api';
+import {
+  fetchMarketingDashboard,
+  fetchMarketingDashboardDetails,
+} from '../api/dashboard-api';
 import { DemandNav } from '../components/DemandNav';
-import { StatusBadge } from '../components/StatusBadge';
-import { cardClass } from '../components/ui';
-import type { MarketingDashboard } from '../types';
+import { cardClass, inputClass, labelClass } from '../components/ui';
+import { CANAL_ORIGEN_LABEL, leadEstadoLabel } from '../lib/lead-vocab';
+import { OUV_ZONA_LABEL, type OuvZona } from '../../discovery/lib/ouv-vocab';
+import {
+  CANALES_ORIGEN,
+  INTERACTION_CANAL_LABEL,
+  INTERACTION_TIPO_LABEL,
+  SEGMENTOS,
+  type InteractionCanal,
+  type InteractionTipo,
+  type MarketingDashboard,
+  type MarketingDashboardDetailItem,
+  type MarketingDashboardDetailKind,
+} from '../types';
 
 const FUNNEL_LABELS: Record<string, string> = {
   TOFU: 'TOFU',
@@ -13,33 +29,237 @@ const FUNNEL_LABELS: Record<string, string> = {
   SQL: 'SQL',
 };
 
+type PeriodMode = 'Semana' | 'Quincenal';
+type PeriodOption = { label: string; from: string; to: string };
+type DetailView = {
+  kind: MarketingDashboardDetailKind;
+  title: string;
+  estado?: string;
+};
+
+function dateValue(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function shortDate(date: Date): string {
+  return new Intl.DateTimeFormat('es-CO', {
+    day: 'numeric',
+    month: 'short',
+  }).format(date);
+}
+
+function buildPeriodOptions(
+  quarter: number,
+  mode: PeriodMode,
+): PeriodOption[] {
+  const year = new Date().getFullYear();
+  const startMonth = (quarter - 1) * 3;
+  const quarterEnd = new Date(year, startMonth + 3, 0);
+
+  if (mode === 'Quincenal') {
+    return [0, 1, 2].flatMap((monthOffset) => {
+      const month = startMonth + monthOffset;
+      const firstStart = new Date(year, month, 1);
+      const firstEnd = new Date(year, month, 15);
+      const secondStart = new Date(year, month, 16);
+      const secondEnd = new Date(year, month + 1, 0);
+      return [
+        {
+          label: `15 días · ${shortDate(firstStart)}–${shortDate(firstEnd)}`,
+          from: dateValue(firstStart),
+          to: dateValue(firstEnd),
+        },
+        {
+          label: `15 días · ${shortDate(secondStart)}–${shortDate(secondEnd)}`,
+          from: dateValue(secondStart),
+          to: dateValue(secondEnd),
+        },
+      ];
+    });
+  }
+
+  const options: PeriodOption[] = [];
+  let start = new Date(year, startMonth, 1);
+  let week = 1;
+  while (start <= quarterEnd) {
+    const end = new Date(start);
+    end.setDate(end.getDate() + 6);
+    if (end > quarterEnd) end.setTime(quarterEnd.getTime());
+    options.push({
+      label: `Semana ${week} · ${shortDate(start)}–${shortDate(end)}`,
+      from: dateValue(start),
+      to: dateValue(end),
+    });
+    start = new Date(end);
+    start.setDate(start.getDate() + 1);
+    week += 1;
+  }
+  return options;
+}
+
 export function MarketingDashboardPage() {
+  const currentQuarter = Math.floor(new Date().getMonth() / 3) + 1;
+  const [period, setPeriod] = useState<PeriodMode>('Semana');
+  const [quarter, setQuarter] = useState(currentQuarter);
+  const [periodIndex, setPeriodIndex] = useState(0);
+  const periodOptions = useMemo(
+    () => buildPeriodOptions(quarter, period),
+    [quarter, period],
+  );
+  const selectedPeriod = periodOptions[periodIndex] ?? periodOptions[0];
   const [data, setData] = useState<MarketingDashboard | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [detail, setDetail] = useState<DetailView | null>(null);
+  const [detailPage, setDetailPage] = useState(1);
+  const [detailItems, setDetailItems] = useState<MarketingDashboardDetailItem[]>(
+    [],
+  );
+  const [detailTotal, setDetailTotal] = useState(0);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
+  const periodLeadsLabel =
+    period === 'Semana' ? 'Leads de la semana' : 'Leads de los 15 días';
+
+  const openDetail = (view: DetailView) => {
+    if (detail?.kind === view.kind) {
+      setDetail(null);
+      return;
+    }
+    setDetail(view);
+    setDetailPage(1);
+  };
 
   const loadDashboard = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
-      setData(await fetchMarketingDashboard());
+      setData(
+        await fetchMarketingDashboard({
+          quarter,
+          period_from: selectedPeriod?.from,
+          period_to: selectedPeriod?.to,
+        }),
+      );
     } catch {
       setError('No se pudo cargar el dashboard.');
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [quarter, selectedPeriod?.from, selectedPeriod?.to]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetch on mount
     void loadDashboard();
   }, [loadDashboard]);
 
+  useEffect(() => {
+    if (!detail) {
+      return;
+    }
+    let cancelled = false;
+    setDetailLoading(true);
+    setDetailError(null);
+    void fetchMarketingDashboardDetails({
+      kind: detail.kind,
+      estado: detail.estado,
+      quarter,
+      period_from: selectedPeriod?.from,
+      period_to: selectedPeriod?.to,
+      page: detailPage,
+      limit: 20,
+    })
+      .then((response) => {
+        if (cancelled) return;
+        setDetailItems(response.items);
+        setDetailTotal(response.total);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setDetailItems([]);
+        setDetailTotal(0);
+        setDetailError('No se pudo cargar el detalle.');
+      })
+      .finally(() => {
+        if (!cancelled) setDetailLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    detail,
+    detailPage,
+    quarter,
+    selectedPeriod?.from,
+    selectedPeriod?.to,
+  ]);
+
   return (
     <AppLayout title="Dashboard de mercadeo">
       <DemandNav />
 
-      <h1 className="mb-4 text-lg font-bold text-ink">Indicadores de mercadeo</h1>
+      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+        <h1 className="text-lg font-bold text-ink">Indicadores de mercadeo</h1>
+        <div className="flex gap-3">
+          <div>
+            <label className={labelClass} htmlFor="dashboard-quarter">
+              Trimestre
+            </label>
+            <select
+              id="dashboard-quarter"
+              className={`${inputClass} min-w-24`}
+              value={quarter}
+              onChange={(event) => {
+                setQuarter(Number(event.target.value));
+                setPeriodIndex(0);
+              }}
+            >
+              {[1, 2, 3, 4].map((value) => (
+                <option key={value} value={value}>
+                  Q{value}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className={labelClass} htmlFor="dashboard-period">
+              Agrupación
+            </label>
+            <select
+              id="dashboard-period"
+              className={`${inputClass} min-w-32`}
+              value={period}
+              onChange={(event) => {
+                setPeriod(event.target.value as PeriodMode);
+                setPeriodIndex(0);
+              }}
+            >
+              <option value="Semana">Semana</option>
+              <option value="Quincenal">15 días</option>
+            </select>
+          </div>
+          <div>
+            <label className={labelClass} htmlFor="dashboard-period-range">
+              Periodo
+            </label>
+            <select
+              id="dashboard-period-range"
+              className={`${inputClass} min-w-56`}
+              value={periodIndex}
+              onChange={(event) => setPeriodIndex(Number(event.target.value))}
+            >
+              {periodOptions.map((option, index) => (
+                <option key={`${option.from}-${option.to}`} value={index}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </div>
 
       {isLoading ? (
         <p className="px-6 py-10 text-center text-sm text-muted">Cargando indicadores…</p>
@@ -49,65 +269,373 @@ export function MarketingDashboardPage() {
         </p>
       ) : (
         <div className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <KpiCard label="Leads totales" value={String(data.total_leads)} />
-            <KpiCard
-              label="% calificados"
-              value={`${(data.qualified_rate * 100).toFixed(1)}%`}
-            />
-            <KpiCard
-              label="CPL promedio"
-              value={data.average_cpl != null ? `$${data.average_cpl}` : '—'}
-            />
-            <KpiCard label="MQL pendientes" value={String(data.pending_mqls)} />
-          </div>
-
-          <div className="grid gap-4 lg:grid-cols-2">
-            <div className={`${cardClass} p-5`}>
-              <h2 className="mb-4 text-sm font-bold text-ink">
-                Embudo TOFU → MOFU → BOFU → SQL
-              </h2>
-              <Funnel funnel={data.funnel} />
+          <section aria-labelledby="funnel-dashboard-title">
+            <h2 id="funnel-dashboard-title" className="sr-only">
+              Embudo TOFU MOFU BOFU SQL
+            </h2>
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+              {data.funnel.map((stage) => (
+                <article key={stage.estado} className={`${cardClass} px-4 py-3`}>
+                  <p className="text-xs font-bold uppercase tracking-wide text-muted">
+                    {FUNNEL_LABELS[stage.estado] ?? stage.estado}
+                  </p>
+                  <p className="mt-1 text-2xl font-bold text-ink">{stage.count}</p>
+                </article>
+              ))}
+              <article className={`${cardClass} px-4 py-3`}>
+                <p className="text-xs font-bold uppercase tracking-wide text-muted">
+                  Tiempo promedio
+                </p>
+                <p className="mt-1 text-2xl text-ink">
+                  {data.average_conversion_days == null ? (
+                    '—'
+                  ) : (
+                    <>
+                      <span className="font-bold">
+                        {data.average_conversion_days}
+                      </span>{' '}
+                      <span className="text-sm font-normal">días</span>
+                    </>
+                  )}
+                </p>
+              </article>
             </div>
+          </section>
 
-            <div className={`${cardClass} p-5`}>
-              <h2 className="mb-4 text-sm font-bold text-ink">Leads por segmento</h2>
-              <SegmentBars segments={data.leads_by_segment} />
+          <section aria-labelledby="period-dashboard-title">
+            <h2
+              id="period-dashboard-title"
+              className="mb-3 text-sm font-bold text-ink"
+            >
+              Indicadores del periodo
+            </h2>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <DonutMetric
+                label="Interacciones"
+                value={data.weekly.interactions}
+                target={50}
+                selected={detail?.kind === 'interactions'}
+                onClick={() =>
+                  openDetail({ kind: 'interactions', title: 'Interacciones' })
+                }
+              />
+              <DonutMetric
+                label={periodLeadsLabel}
+                value={data.weekly.new_leads}
+                target={3}
+                selected={detail?.kind === 'period_leads'}
+                onClick={() =>
+                  openDetail({ kind: 'period_leads', title: periodLeadsLabel })
+                }
+              />
+              <DonutMetric
+                label={`Leads Q${data.weekly.quarter}`}
+                value={data.weekly.quarter_leads}
+                target={50}
+              />
+              <DonutMetric
+                label="OUV convertidas"
+                value={data.weekly.converted_ouvs ?? 0}
+                target={3}
+                selected={detail?.kind === 'ouvs'}
+                onClick={() =>
+                  openDetail({ kind: 'ouvs', title: 'OUV convertidas' })
+                }
+              />
             </div>
-          </div>
+          </section>
+
+          {detail ? (
+            <section className={`${cardClass} overflow-hidden`} aria-live="polite">
+              <div className="border-b border-border px-5 py-3">
+                <h2 className="text-sm font-bold text-ink">{detail.title}</h2>
+              </div>
+              {detailLoading ? (
+                <p className="px-5 py-8 text-sm text-muted">Cargando detalle…</p>
+              ) : detailError ? (
+                <p className="px-5 py-8 text-sm text-muted">{detailError}</p>
+              ) : !Array.isArray(detailItems) || detailItems.length === 0 ? (
+                <p className="px-5 py-8 text-sm text-muted">
+                  Sin registros en este periodo.
+                </p>
+              ) : (
+                <DashboardDetailTable kind={detail.kind} items={detailItems} />
+              )}
+              <Pagination
+                page={detailPage}
+                limit={20}
+                total={detailTotal}
+                onPageChange={setDetailPage}
+              />
+            </section>
+          ) : null}
+
+          <section className={`${cardClass} p-5`}>
+            <h2 className="mb-4 text-sm font-bold text-ink">
+              Leads creados por canal de origen
+            </h2>
+            <ChannelHorizontalBars channels={data.weekly.leads_by_channel} />
+          </section>
+
+          <section className={`${cardClass} p-5`}>
+            <h2 className="mb-4 text-sm font-bold text-ink">Leads por segmento</h2>
+            <SegmentBars segments={data.leads_by_segment} />
+          </section>
         </div>
       )}
+
     </AppLayout>
   );
 }
 
-function KpiCard({ label, value }: { label: string; value: string }) {
+function dash(value: string | null | undefined): string {
+  return value?.trim() || '—';
+}
+
+function canalOrigenLabel(value: string | null | undefined): string {
+  if (!value) return '—';
+  return CANAL_ORIGEN_LABEL[value as keyof typeof CANAL_ORIGEN_LABEL] ?? value;
+}
+
+function tipoComunicacionLabel(value: string | null | undefined): string {
+  if (!value) return '—';
+  return INTERACTION_TIPO_LABEL[value as InteractionTipo] ?? value;
+}
+
+function canalComunicacionLabel(value: string | null | undefined): string {
+  if (!value) return '—';
+  return INTERACTION_CANAL_LABEL[value as InteractionCanal] ?? value;
+}
+
+function zonaOuvLabel(value: string | null | undefined): string {
+  if (!value) return '—';
+  return OUV_ZONA_LABEL[value as OuvZona] ?? value;
+}
+
+function daysAsOuv(days: number | null | undefined): string {
+  if (days === null || days === undefined || !Number.isFinite(days)) {
+    return '—';
+  }
+  return days === 1 ? '1 día' : `${days} días`;
+}
+
+function detailHref(item: MarketingDashboardDetailItem): string {
+  return item.entity === 'ouv'
+    ? `/opportunities/${item.id}`
+    : `/demand/leads/${item.id}`;
+}
+
+function DashboardDetailTable({
+  kind,
+  items,
+}: {
+  kind: MarketingDashboardDetailKind;
+  items: MarketingDashboardDetailItem[];
+}) {
+  const columns =
+    kind === 'interactions'
+      ? [
+          'Empresa',
+          'Segmento',
+          'Origen',
+          'Canal de origen',
+          'Tipo de comunicación',
+          'Canal',
+        ]
+      : kind === 'ouvs'
+        ? ['OUV', 'Empresa', 'Segmento', 'Fase', 'Días transcurridos']
+        : ['Empresa', 'Segmento', 'Origen', 'Canal de origen', 'Estado'];
+
   return (
-    <div className={`${cardClass} p-5`}>
-      <p className="text-xs font-bold uppercase tracking-wide text-muted">{label}</p>
-      <p className="mt-2 text-3xl font-bold text-accent">{value}</p>
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[880px] text-left text-sm">
+        <thead className="border-b border-border bg-bg text-xs uppercase text-muted">
+          <tr>
+            {columns.map((column) => (
+              <th key={column} className="px-5 py-3 font-bold">
+                {column}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-border">
+          {items.map((item) => (
+            <tr key={item.interaction_id ?? `${item.entity}-${item.id}`}>
+              {kind === 'ouvs' ? (
+                <td className="px-5 py-3">
+                  <Link
+                    to={detailHref(item)}
+                    className="font-bold text-ink hover:text-accent"
+                  >
+                    {dash(item.consecutivo)}
+                  </Link>
+                </td>
+              ) : null}
+              <td className="px-5 py-3">
+                <Link
+                  to={detailHref(item)}
+                  className="font-bold text-ink hover:text-accent"
+                >
+                  {dash(item.empresa)}
+                </Link>
+              </td>
+              <td className="px-5 py-3 text-ink">{dash(item.segmento)}</td>
+              <td className="px-5 py-3 text-ink">
+                {kind === 'ouvs' ? zonaOuvLabel(item.estado) : dash(item.origen)}
+              </td>
+              <td className="px-5 py-3 text-ink">
+                {kind === 'ouvs'
+                  ? daysAsOuv(item.dias_transcurridos)
+                  : canalOrigenLabel(item.canal_origen)}
+              </td>
+              {kind === 'interactions' ? (
+                <>
+                  <td className="px-5 py-3 text-ink">
+                    {tipoComunicacionLabel(item.tipo_comunicacion)}
+                  </td>
+                  <td className="px-5 py-3 text-ink">
+                    {canalComunicacionLabel(item.canal)}
+                  </td>
+                </>
+              ) : null}
+              {kind === 'period_leads' || kind === 'quarter_leads' || kind === 'funnel' ? (
+                <td className="px-5 py-3 text-ink">
+                  {leadEstadoLabel(item.estado ?? '')}
+                </td>
+              ) : null}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
 
-function Funnel({ funnel }: { funnel: MarketingDashboard['funnel'] }) {
-  const max = Math.max(1, ...funnel.map((stage) => stage.count));
+function DonutMetric({
+  label,
+  value,
+  target,
+  selected = false,
+  onClick,
+}: {
+  label: string;
+  value: number;
+  target: number;
+  selected?: boolean;
+  onClick?: () => void;
+}) {
+  const ratio = target > 0 ? value / target : 0;
+  const percentage = Math.round(ratio * 100);
+  const progress = Math.min(100, percentage);
+  const toneClass =
+    ratio >= 0.9
+      ? 'bg-semaphore-verde/15 text-semaphore-verde'
+      : ratio >= 0.5
+        ? 'bg-warning/15 text-warning'
+        : 'bg-danger/10 text-danger';
+  const progressClass =
+    ratio >= 0.9
+      ? 'text-semaphore-verde'
+      : ratio >= 0.5
+        ? 'text-warning'
+        : 'text-danger';
+  const className = [
+    cardClass,
+    'flex items-center gap-4 p-5 text-left',
+    onClick ? '' : 'cursor-default',
+    selected ? 'ring-1 ring-accent' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  const content = (
+    <>
+      <div className="relative h-28 w-28 shrink-0" aria-hidden>
+        <svg className="h-full w-full -rotate-90" viewBox="0 0 120 120">
+          <circle
+            cx="60"
+            cy="60"
+            r="48"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="12"
+            className="text-border"
+          />
+          <circle
+            cx="60"
+            cy="60"
+            r="48"
+            pathLength="100"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="12"
+            strokeLinecap="round"
+            strokeDasharray={`${progress} ${100 - progress}`}
+            className={progressClass}
+          />
+        </svg>
+        <span
+          className={`absolute inset-0 grid place-items-center text-3xl font-bold ${progressClass}`}
+        >
+          {value}
+        </span>
+      </div>
+      <div className="min-w-0">
+        <h3 className="font-bold text-ink">{label}</h3>
+        <p className="mt-1 text-xs text-muted">Meta: {target}</p>
+        <span
+          className={`mt-2 inline-flex rounded-full px-2 py-1 text-xs font-bold ${toneClass}`}
+        >
+          {percentage}%
+        </span>
+      </div>
+    </>
+  );
+
+  if (!onClick) {
+    return <article className={className}>{content}</article>;
+  }
 
   return (
-    <div className="space-y-3">
-      {funnel.map((stage) => (
-        <div key={stage.estado}>
-          <div className="mb-1 flex items-center justify-between text-sm">
-            <StatusBadge value={stage.estado} />
-            <span className="font-bold text-ink">{stage.count}</span>
-          </div>
-          <div className="h-3 w-full rounded-sm bg-bg">
+    <button type="button" className={className} onClick={onClick}>
+      {content}
+    </button>
+  );
+}
+
+function ChannelHorizontalBars({
+  channels,
+}: {
+  channels: MarketingDashboard['weekly']['leads_by_channel'];
+}) {
+  const counts = new Map(
+    (channels ?? []).map((row) => [row.canal_origen, row.count]),
+  );
+  const data = CANALES_ORIGEN.map((canal) => ({
+    canal_origen: canal,
+    count: counts.get(canal) ?? 0,
+  }));
+  const max = Math.max(1, ...data.map((row) => row.count));
+
+  return (
+    <div className="space-y-4">
+      {data.map((row) => (
+        <div
+          key={row.canal_origen}
+          className="grid gap-2 md:grid-cols-[14rem_minmax(0,1fr)_3rem] md:items-center"
+        >
+          <p className="text-sm text-ink">
+            {CANAL_ORIGEN_LABEL[row.canal_origen]}
+          </p>
+          <div className="h-3 overflow-hidden rounded-sm bg-bg">
             <div
-              className="h-3 rounded-sm bg-accent"
-              style={{ width: `${(stage.count / max) * 100}%` }}
-              aria-label={`${FUNNEL_LABELS[stage.estado] ?? stage.estado}: ${stage.count}`}
+              className="h-full rounded-sm bg-turquoise"
+              style={{ width: `${(row.count / max) * 100}%` }}
             />
           </div>
+          <span className="text-right text-sm text-ink">
+            {row.count}
+          </span>
         </div>
       ))}
     </div>
@@ -119,26 +647,32 @@ function SegmentBars({
 }: {
   segments: MarketingDashboard['leads_by_segment'];
 }) {
-  if (segments.length === 0) {
-    return <p className="text-sm text-muted">Sin leads registrados.</p>;
-  }
-
-  const max = Math.max(1, ...segments.map((segment) => segment.count));
+  const counts = new Map(
+    (segments ?? []).map((row) => [row.segmento, row.count]),
+  );
+  const data = SEGMENTOS.map((segmento) => ({
+    segmento,
+    count: counts.get(segmento) ?? 0,
+  }));
+  const max = Math.max(1, ...data.map((row) => row.count));
 
   return (
-    <div className="space-y-3">
-      {segments.map((segment) => (
-        <div key={segment.segmento}>
-          <div className="mb-1 flex items-center justify-between text-sm">
-            <span className="text-ink">{segment.segmento}</span>
-            <span className="font-bold text-ink">{segment.count}</span>
-          </div>
-          <div className="h-3 w-full rounded-sm bg-bg">
+    <div className="space-y-5">
+      {data.map((row) => (
+        <div
+          key={row.segmento}
+          className="grid gap-2 md:grid-cols-[16rem_minmax(0,1fr)_3rem] md:items-center"
+        >
+          <p className="text-sm text-ink">{row.segmento}</p>
+          <div className="h-4 overflow-hidden rounded-sm bg-bg">
             <div
-              className="h-3 rounded-sm bg-turquoise"
-              style={{ width: `${(segment.count / max) * 100}%` }}
+              className="h-full rounded-sm bg-accent"
+              style={{ width: `${(row.count / max) * 100}%` }}
             />
           </div>
+          <span className="text-right text-sm text-ink">
+            {row.count}
+          </span>
         </div>
       ))}
     </div>

@@ -4,6 +4,7 @@ export enum InteractionTipo {
   Reunion = 'Reunion',
   Webinar = 'Webinar',
   Descarga = 'Descarga',
+  Evento = 'Evento',
   VisitaWeb = 'VisitaWeb',
 }
 
@@ -40,6 +41,7 @@ export const CANALES_POR_TIPO: Record<InteractionTipo, InteractionCanal[]> = {
   ],
   [InteractionTipo.Webinar]: [InteractionCanal.Web],
   [InteractionTipo.Descarga]: [InteractionCanal.Web],
+  [InteractionTipo.Evento]: [InteractionCanal.Presencial],
   [InteractionTipo.VisitaWeb]: [InteractionCanal.Web],
 };
 

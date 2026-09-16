@@ -55,6 +55,11 @@ export class ListarOuvsQueryDto {
   @IsBoolean()
   tiene_gap?: boolean;
 
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  canal_origen?: string;
+
   /** Free-text search over titulo / empresa_nombre / consecutivo. */
   @IsOptional()
   @IsString()

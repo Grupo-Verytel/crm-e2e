@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
-import { Link } from 'react-router-dom';
 import { X } from 'lucide-react';
 import { fetchAccounts, fetchPeople } from '../../accounts/api/accounts-api';
-import { resolvePersonInfluenciaTipo } from '../../accounts/lib/person-influencia-extensions';
+import { AccountFormModal } from '../../accounts/components/AccountFormModal';
 import type { Account, Person } from '../../accounts/types';
-import { createLead, checkLeadNameAvailable } from '../api/leads-api';
+import { createLead } from '../api/leads-api';
 import { fetchSegments } from '../api/segments-api';
 import { fetchTraductorReferrers } from '../api/traductores-api';
 import type { User } from '../../auth/types';
@@ -13,7 +12,6 @@ import {
   CANALES_ORIGEN,
   ORIGENES_LEAD,
   SEGMENTOS,
-  TIPOS_LEAD,
   type CanalOrigen,
   type CreateLeadChecklistInput,
   type CreateLeadPayload,
@@ -22,9 +20,14 @@ import {
   type OrigenLead,
   type Segment,
   type Segmento,
-  type TipoLead,
 } from '../types';
-import { CANAL_ORIGEN_LABEL, LEAD_INFLUENCIA_SLOTS } from '../lib/lead-vocab';
+import { CANAL_ORIGEN_LABEL } from '../lib/lead-vocab';
+import {
+  isIndustriaSegmento,
+  segmentoLabel,
+  TIPOS_INDUSTRIA,
+  type TipoIndustria,
+} from '../lib/segment-catalog';
 import { ColombiaCitySearchField } from '../../discovery/components/ColombiaCitySearchField';
 import { ModalShell } from './ModalShell';
 import {
@@ -33,13 +36,6 @@ import {
   labelClass,
   primaryButtonClass,
 } from './ui';
-
-const SEGMENT_NAME_TO_ENUM: Record<string, Segmento> = {
-  Gobierno: 'Gobierno',
-  'D&S': 'D&S',
-  'Proyectos Especiales': 'ProyectosEspeciales',
-  B2B: 'B2B',
-};
 
 const CHECKLIST_CRITERIA: {
   key: keyof CreateLeadChecklistInput;
@@ -54,22 +50,33 @@ const CHECKLIST_CRITERIA: {
     key: 'criterio_acceso_decisor',
     label: '¿Acceso a decisor o influencia hacia el decisor?',
   },
-  {
-    key: 'criterio_presupuesto_indicios',
-    label: '¿Indicios de presupuesto o capacidad de inversión?',
-  },
 ];
 
-type InfluenciaKey = (typeof LEAD_INFLUENCIA_SLOTS)[number]['key'];
+const CONTACT_SLOTS = [
+  { key: 'contact1', label: 'Contacto 1' },
+  { key: 'contact2', label: 'Contacto 2' },
+  { key: 'contact3', label: 'Contacto 3' },
+] as const;
+
+const INFLUENCE_TYPES = [
+  'Economica',
+  'Tecnica',
+  'Fabrica',
+  'Coach',
+  'Usuario',
+] as const;
+
+type ContactSlotKey = (typeof CONTACT_SLOTS)[number]['key'];
+type InfluenceType = (typeof INFLUENCE_TYPES)[number];
 
 type FormState = {
-  name: string;
-  tipo_lead: TipoLead;
   origen: OrigenLead;
   canal_origen: CanalOrigen;
-  segmento: Segmento;
+  referido_nombre: string;
+  segmento: Segmento | '';
   segment_id: string;
   subsegment_id: string;
+  tipo_industria: TipoIndustria | '';
   ciudad: string;
   region: string;
   business_referrer_id: string;
@@ -77,32 +84,36 @@ type FormState = {
 
 type ContactSlot = {
   person_id: string | null;
-  label: string;
+  person: Person | null;
+  tipo_influencia: InfluenceType | '';
 };
 
-const emptyContact = (): ContactSlot => ({ person_id: null, label: '' });
+const emptyContact = (): ContactSlot => ({
+  person_id: null,
+  person: null,
+  tipo_influencia: '',
+});
 
-const emptyInfluences = (): Record<InfluenciaKey, ContactSlot> => ({
-  Economica: emptyContact(),
-  Tecnica: emptyContact(),
-  Fabrica: emptyContact(),
+const emptyInfluences = (): Record<ContactSlotKey, ContactSlot> => ({
+  contact1: emptyContact(),
+  contact2: emptyContact(),
+  contact3: emptyContact(),
 });
 
 const emptyChecklist = (): CreateLeadChecklistInput => ({
   criterio_sector_objetivo: false,
   criterio_necesidad_portafolio: false,
   criterio_acceso_decisor: false,
-  criterio_presupuesto_indicios: false,
 });
 
 const initialState: FormState = {
-  name: '',
-  tipo_lead: 'Inbound',
   origen: 'Web',
   canal_origen: 'CAMPANA_DIGITAL',
-  segmento: 'Gobierno',
+  referido_nombre: '',
+  segmento: '',
   segment_id: '',
   subsegment_id: '',
+  tipo_industria: '',
   ciudad: '',
   region: '',
   business_referrer_id: '',
@@ -135,10 +146,6 @@ function modalTitle(mode: LeadFormMode): string {
   return 'Nuevo lead';
 }
 
-function personLabel(person: Person): string {
-  return `${person.name}${person.email ? ` · ${person.email}` : ''}`;
-}
-
 export function LeadFormModal({
   mode = 'standard',
   responsableId,
@@ -167,45 +174,52 @@ export function LeadFormModal({
   const accountSearchRef = useRef<HTMLDivElement>(null);
 
   const [influences, setInfluences] =
-    useState<Record<InfluenciaKey, ContactSlot>>(emptyInfluences);
+    useState<Record<ContactSlotKey, ContactSlot>>(emptyInfluences);
   const [accountPeople, setAccountPeople] = useState<Person[]>([]);
   const [peopleLoading, setPeopleLoading] = useState(false);
-  const [activePersonSearch, setActivePersonSearch] = useState<InfluenciaKey | null>(
+  const [activePersonSearch, setActivePersonSearch] = useState<ContactSlotKey | null>(
     null,
   );
   const [personQuery, setPersonQuery] = useState('');
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [nameAvailable, setNameAvailable] = useState<
-    boolean | null | 'checking'
-  >(null);
+  const [showCreateAccount, setShowCreateAccount] = useState(false);
 
   const canalOptions = canalOptionsForMode(mode);
-  const selectedSegment = segments.find((segment) => segment.id === form.segment_id);
+  const selectedSegment = segments.find(
+    (segment) =>
+      segment.id === form.segment_id || segment.name === form.segmento,
+  );
+  const showTipoIndustria = isIndustriaSegmento(form.segmento);
   const requiresChecklist = mode === 'product_manager' || mode === 'ejecutivo';
   const showTraductorSelect =
     mode === 'ejecutivo' && form.canal_origen === 'TRADUCTOR_NEGOCIO';
+  const showReferidoName = form.canal_origen === 'REFERIDO';
 
   const filteredPeople = useMemo(() => {
-    const typed = activePersonSearch
-      ? accountPeople.filter(
-          (person) =>
-            resolvePersonInfluenciaTipo(person) === activePersonSearch,
-        )
-      : accountPeople;
+    const selectedInOtherSlots = new Set(
+      CONTACT_SLOTS.flatMap(({ key }) =>
+        key !== activePersonSearch && influences[key].person_id
+          ? [influences[key].person_id]
+          : [],
+      ),
+    );
+    const available = accountPeople.filter(
+      (person) => !selectedInOtherSlots.has(person.person_id),
+    );
     const q = personQuery.trim().toLowerCase();
     if (!q) {
-      return typed;
+      return available;
     }
-    return typed.filter((person) => {
+    return available.filter((person) => {
       const haystack = [person.name, person.email, person.job_title, person.phone]
         .filter(Boolean)
         .join(' ')
         .toLowerCase();
       return haystack.includes(q);
     });
-  }, [accountPeople, personQuery, activePersonSearch]);
+  }, [accountPeople, personQuery, activePersonSearch, influences]);
 
   useEffect(() => {
     let active = true;
@@ -222,35 +236,6 @@ export function LeadFormModal({
       active = false;
     };
   }, []);
-
-  useEffect(() => {
-    const trimmed = form.name.trim();
-    if (trimmed.length < 1) {
-      setNameAvailable(null);
-      return;
-    }
-
-    let active = true;
-    setNameAvailable('checking');
-    const timer = window.setTimeout(() => {
-      void checkLeadNameAvailable(trimmed)
-        .then((result) => {
-          if (active) {
-            setNameAvailable(result.available);
-          }
-        })
-        .catch(() => {
-          if (active) {
-            setNameAvailable(null);
-          }
-        });
-    }, 350);
-
-    return () => {
-      active = false;
-      window.clearTimeout(timer);
-    };
-  }, [form.name]);
 
   useEffect(() => {
     if (!showTraductorSelect) {
@@ -358,25 +343,16 @@ export function LeadFormModal({
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
-  function syncSegmentoFromId(segmentId: string) {
-    const segment = segments.find((item) => item.id === segmentId);
-    if (!segment) {
-      return;
-    }
-    const enumValue = SEGMENT_NAME_TO_ENUM[segment.name];
-    if (enumValue) {
-      setForm((prev) => ({
-        ...prev,
-        segment_id: segmentId,
-        subsegment_id: '',
-        segmento: enumValue,
-      }));
-      return;
-    }
+  function selectSegmento(segmento: Segmento | '') {
+    const segment = segments.find(
+      (item) => item.name === segmento || segmentoLabel(item.name) === segmento,
+    );
     setForm((prev) => ({
       ...prev,
-      segment_id: segmentId,
+      segmento,
+      segment_id: segment?.id ?? '',
       subsegment_id: '',
+      tipo_industria: isIndustriaSegmento(segmento) ? prev.tipo_industria : '',
     }));
   }
 
@@ -391,22 +367,39 @@ export function LeadFormModal({
     setPersonQuery('');
   }
 
-  function selectPerson(tipo: InfluenciaKey, person: Person) {
+  function selectPerson(slotKey: ContactSlotKey, person: Person) {
     setInfluences((current) => ({
       ...current,
-      [tipo]: {
+      [slotKey]: {
+        ...current[slotKey],
         person_id: person.person_id,
-        label: personLabel(person),
+        person,
       },
     }));
     setActivePersonSearch(null);
     setPersonQuery('');
   }
 
-  function clearPerson(tipo: InfluenciaKey) {
+  function clearPerson(slotKey: ContactSlotKey) {
     setInfluences((current) => ({
       ...current,
-      [tipo]: emptyContact(),
+      [slotKey]: {
+        ...emptyContact(),
+        tipo_influencia: current[slotKey].tipo_influencia,
+      },
+    }));
+  }
+
+  function updateInfluenceType(
+    slotKey: ContactSlotKey,
+    tipoInfluencia: InfluenceType | '',
+  ) {
+    setInfluences((current) => ({
+      ...current,
+      [slotKey]: {
+        ...current[slotKey],
+        tipo_influencia: tipoInfluencia,
+      },
     }));
   }
 
@@ -414,37 +407,39 @@ export function LeadFormModal({
     event.preventDefault();
     setError(null);
 
-    if (!form.name.trim()) {
-      setError('Indica el nombre del lead.');
-      return;
-    }
-
-    if (nameAvailable === false) {
-      setError('Ya existe un lead con ese nombre.');
-      return;
-    }
-
     if (!selectedAccount) {
       setError('Selecciona una empresa existente (créala desde Empresas si no está).');
       return;
     }
 
-    const contacts = LEAD_INFLUENCIA_SLOTS.flatMap(({ key }) => {
+    if (!form.segmento) {
+      setError('Selecciona el segmento.');
+      return;
+    }
+
+    if (showTipoIndustria && !form.tipo_industria) {
+      setError('Selecciona el tipo de industria.');
+      return;
+    }
+
+    const contacts = CONTACT_SLOTS.flatMap(({ key }) => {
       const slot = influences[key];
       if (!slot.person_id) {
         return [];
       }
-      return [{ person_id: slot.person_id, tipo_influencia: key }];
+      return [
+        {
+          person_id: slot.person_id,
+          ...(slot.tipo_influencia
+            ? { tipo_influencia: slot.tipo_influencia }
+            : {}),
+        },
+      ];
     });
-    if (contacts.length === 0) {
-      setError('Asigna al menos un contacto en Económica, Técnica o Fábrica.');
-      return;
-    }
-
     if (requiresChecklist) {
       const allChecked = CHECKLIST_CRITERIA.every(({ key }) => checklist[key]);
       if (!allChecked) {
-        setError('Marca los cuatro criterios del checklist para crear el lead.');
+        setError('Marca los tres criterios del checklist para crear el lead.');
         return;
       }
     }
@@ -454,24 +449,29 @@ export function LeadFormModal({
       return;
     }
 
+    if (showReferidoName && !form.referido_nombre.trim()) {
+      setError('Indica el nombre del referido.');
+      return;
+    }
+
     if (!form.ciudad.trim() || !form.region.trim()) {
       setError('Selecciona la ciudad (la región se completa automáticamente).');
       return;
     }
 
-    const industria = selectedAccount.economic_sector?.trim() ?? '';
-    if (form.segmento === 'B2B' && !industria) {
-      setError(
-        'La empresa no tiene sector económico. Complétalo en Empresas antes de crear el lead B2B.',
+    const matchedSegment =
+      selectedSegment ??
+      segments.find(
+        (segment) =>
+          segment.name === form.segmento ||
+          segmentoLabel(segment.name) === form.segmento,
       );
-      return;
-    }
 
     setIsSubmitting(true);
 
     const payload: CreateLeadPayload = {
-      name: form.name.trim(),
-      tipo_lead: form.tipo_lead,
+      name: selectedAccount.name.trim(),
+      tipo_lead: 'Inbound',
       origen: form.origen,
       canal_origen: form.canal_origen,
       segmento: form.segmento,
@@ -480,14 +480,19 @@ export function LeadFormModal({
       pais: 'CO',
       contacts,
       responsable_id: responsableId,
-      ...(form.segment_id ? { segment_id: form.segment_id } : {}),
+      ...(matchedSegment ? { segment_id: matchedSegment.id } : {}),
       ...(form.subsegment_id ? { subsegment_id: form.subsegment_id } : {}),
-      ...(form.segmento === 'B2B' ? { industria } : {}),
+      ...(showTipoIndustria && form.tipo_industria
+        ? { industria: form.tipo_industria }
+        : {}),
       ...(selectedAccount.tax_id || nitQuery.trim()
         ? { nit: selectedAccount.tax_id ?? nitQuery.trim() }
         : {}),
       ...(showTraductorSelect && form.business_referrer_id
         ? { business_referrer_id: form.business_referrer_id }
+        : {}),
+      ...(showReferidoName
+        ? { sub_origen: form.referido_nombre.trim() }
         : {}),
       ...(requiresChecklist ? { checklist } : {}),
     };
@@ -509,40 +514,18 @@ export function LeadFormModal({
 
   return (
     <ModalShell title={modalTitle(mode)} onClose={onClose} size="wide">
+      <>
       <form onSubmit={handleSubmit} className="space-y-4">
         <section className="space-y-3">
-          <div>
-            <label className={labelClass} htmlFor="lead-name">
-              Nombre del lead
-            </label>
-            <input
-              id="lead-name"
-              value={form.name}
-              onChange={(event) => update('name', event.target.value)}
-              className={inputClass}
-              placeholder="Nombre único del lead"
-              required
-              autoComplete="off"
-            />
-            {nameAvailable === false ? (
-              <p className="mt-1 text-xs text-danger">
-                Ya existe un lead con ese nombre.
-              </p>
-            ) : null}
-            {nameAvailable === true && form.name.trim() ? (
-              <p className="mt-1 text-xs text-muted">Nombre disponible.</p>
-            ) : null}
-          </div>
-
           <p className="text-xs text-muted">
             La empresa debe existir en el catálogo.{' '}
-            <Link
-              to="/accounts/empresas"
+            <button
+              type="button"
               className="font-bold text-accent hover:underline"
-              onClick={onClose}
+              onClick={() => setShowCreateAccount(true)}
             >
-              Crear o editar en Empresas
-            </Link>
+              Crear empresa
+            </button>
             .
           </p>
 
@@ -601,14 +584,14 @@ export function LeadFormModal({
               (empresaQuery.trim().length >= 2 || nitQuery.trim().length >= 2) &&
               accountHits.length === 0 ? (
                 <p className="mt-1 text-xs text-muted">
-                  Sin coincidencias. Crea la empresa en{' '}
-                  <Link
-                    to="/accounts/empresas"
+                  Sin coincidencias.{' '}
+                  <button
+                    type="button"
                     className="font-bold text-accent hover:underline"
-                    onClick={onClose}
+                    onClick={() => setShowCreateAccount(true)}
                   >
-                    Empresas
-                  </Link>
+                    Crear empresa
+                  </button>
                   .
                 </p>
               ) : null}
@@ -644,9 +627,15 @@ export function LeadFormModal({
             <Field label="Canal de origen">
               <select
                 value={form.canal_origen}
-                onChange={(event) =>
-                  update('canal_origen', event.target.value as CanalOrigen)
-                }
+                onChange={(event) => {
+                  const canal = event.target.value as CanalOrigen;
+                  setForm((prev) => ({
+                    ...prev,
+                    canal_origen: canal,
+                    referido_nombre:
+                      canal === 'REFERIDO' ? prev.referido_nombre : '',
+                  }));
+                }}
                 className={inputClass}
                 required
               >
@@ -657,6 +646,21 @@ export function LeadFormModal({
                 ))}
               </select>
             </Field>
+
+            {showReferidoName ? (
+              <Field label="Nombre del referido">
+                <input
+                  value={form.referido_nombre}
+                  onChange={(event) =>
+                    update('referido_nombre', event.target.value)
+                  }
+                  className={inputClass}
+                  maxLength={80}
+                  placeholder="Nombre de quien realizó la referencia"
+                  required
+                />
+              </Field>
+            ) : null}
 
             {showTraductorSelect ? (
               <Field label="Traductor de negocio referente">
@@ -682,20 +686,46 @@ export function LeadFormModal({
               </Field>
             ) : null}
 
-            <Field label="Segmento (catálogo)">
+            <Field label="Segmento">
               <select
-                value={form.segment_id}
-                onChange={(event) => syncSegmentoFromId(event.target.value)}
+                value={form.segmento}
+                onChange={(event) =>
+                  selectSegmento(event.target.value as Segmento | '')
+                }
                 className={inputClass}
+                required
               >
-                <option value="">Usar segmento legacy</option>
-                {segments.map((segment) => (
-                  <option key={segment.id} value={segment.id}>
-                    {segment.name}
+                <option value="">Seleccionar</option>
+                {SEGMENTOS.map((segmento) => (
+                  <option key={segmento} value={segmento}>
+                    {segmento}
                   </option>
                 ))}
               </select>
             </Field>
+
+            {showTipoIndustria ? (
+              <Field label="Tipo de industria">
+                <select
+                  value={form.tipo_industria}
+                  onChange={(event) =>
+                    update(
+                      'tipo_industria',
+                      event.target.value as TipoIndustria | '',
+                    )
+                  }
+                  className={inputClass}
+                  required
+                >
+                  <option value="">Seleccionar</option>
+                  {TIPOS_INDUSTRIA.map((tipo) => (
+                    <option key={tipo} value={tipo}>
+                      {tipo}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            ) : null}
 
             {selectedSegment && selectedSegment.subsegments.length > 0 ? (
               <Field label="Subsegmento">
@@ -716,39 +746,6 @@ export function LeadFormModal({
               </Field>
             ) : null}
 
-            <Field label="Segmento (legacy)">
-              <select
-                value={form.segmento}
-                onChange={(event) =>
-                  update('segmento', event.target.value as Segmento)
-                }
-                className={inputClass}
-                required
-              >
-                {SEGMENTOS.map((segmento) => (
-                  <option key={segmento} value={segmento}>
-                    {segmento}
-                  </option>
-                ))}
-              </select>
-            </Field>
-
-            <Field label="Tipo de lead">
-              <select
-                value={form.tipo_lead}
-                onChange={(event) =>
-                  update('tipo_lead', event.target.value as TipoLead)
-                }
-                className={inputClass}
-              >
-                {TIPOS_LEAD.map((tipo) => (
-                  <option key={tipo} value={tipo}>
-                    {tipo}
-                  </option>
-                ))}
-              </select>
-            </Field>
-
             <Field label="Origen">
               <select
                 value={form.origen}
@@ -764,22 +761,6 @@ export function LeadFormModal({
                 ))}
               </select>
             </Field>
-
-            {form.segmento === 'B2B' ? (
-              <Field label="Industria">
-                <input
-                  value={selectedAccount?.economic_sector ?? ''}
-                  className={inputClass}
-                  readOnly
-                  required
-                  placeholder={
-                    selectedAccount
-                      ? 'La empresa no tiene sector económico'
-                      : 'Se completa al seleccionar la empresa'
-                  }
-                />
-              </Field>
-            ) : null}
 
             <Field label="Ciudad">
               <ColombiaCitySearchField
@@ -818,11 +799,11 @@ export function LeadFormModal({
         <section className="space-y-3" aria-labelledby="lead-influencias-title">
           <div>
             <h3 id="lead-influencias-title" className="text-sm font-bold text-ink">
-              Contactos por influencia
+              Contactos
             </h3>
             <p className="text-xs text-muted">
-              Coselecciona contactos de la empresa en Económica, Técnica y/o
-              Fábrica. Al menos uno es obligatorio.
+              Puedes seleccionar hasta tres contactos. Esta sección y el tipo de
+              influencia son opcionales.
             </p>
           </div>
 
@@ -831,21 +812,21 @@ export function LeadFormModal({
               Selecciona una empresa para asignar contactos.
             </p>
           ) : (
-            <div className="grid gap-3 md:grid-cols-3">
-              {LEAD_INFLUENCIA_SLOTS.map(({ key, label }) => {
+            <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+              {CONTACT_SLOTS.map(({ key, label }) => {
                 const slot = influences[key];
                 const searching = activePersonSearch === key;
 
                 return (
                   <div
                     key={key}
-                    className="rounded border border-border bg-bg p-3"
+                    className="min-w-0 rounded border border-border bg-bg p-2"
                   >
-                    <p className="mb-3 text-sm font-bold text-ink">{label}</p>
+                    <p className="mb-2 text-sm font-bold text-ink">{label}</p>
                     <span className={labelClass}>Contacto</span>
 
-                    {slot.person_id ? (
-                      <div className="relative rounded border border-border bg-surface p-2.5 pr-8 text-xs">
+                    {slot.person_id && slot.person ? (
+                      <div className="relative rounded border border-border bg-surface p-2 pr-8 text-xs">
                         <button
                           type="button"
                           className="icon-btn absolute right-1 top-1 grid h-6 w-6 place-items-center rounded text-muted"
@@ -854,7 +835,28 @@ export function LeadFormModal({
                         >
                           <X size={14} strokeWidth={2.5} />
                         </button>
-                        <p className="font-bold text-ink">{slot.label}</p>
+                        <p className="mb-1.5 truncate text-sm font-bold text-ink">
+                          {slot.person.name}
+                        </p>
+                        <dl className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1">
+                          <dt className="font-bold text-muted">Cargo</dt>
+                          <dd className="min-w-0 text-ink">
+                            {slot.person.job_title ?? '—'}
+                          </dd>
+                          <dt className="font-bold text-muted">Email</dt>
+                          <dd className="min-w-0 break-all text-ink">
+                            {slot.person.email ?? '—'}
+                          </dd>
+                          <dt className="font-bold text-muted">Teléfono</dt>
+                          <dd className="min-w-0 text-ink">
+                            {slot.person.phone ?? '—'}
+                          </dd>
+                          <dt className="font-bold text-muted">Empresa</dt>
+                          <dd className="min-w-0 break-words text-ink">
+                            {slot.person.account_name ??
+                              selectedAccount.name}
+                          </dd>
+                        </dl>
                       </div>
                     ) : (
                       <div className="space-y-2">
@@ -883,7 +885,7 @@ export function LeadFormModal({
                               <li className="px-3 py-2 text-xs text-muted">
                                 {accountPeople.length === 0
                                   ? 'Esta empresa no tiene contactos. Créalos en Contactos.'
-                                  : 'No hay contactos con esta tipología. Defínela en Contactos.'}
+                                  : 'No hay más contactos disponibles.'}
                               </li>
                             ) : (
                               filteredPeople.map((person) => (
@@ -897,7 +899,11 @@ export function LeadFormModal({
                                       {person.name}
                                     </span>
                                     <span className="text-xs text-muted">
-                                      {[person.job_title, person.email]
+                                      {[
+                                        person.job_title,
+                                        person.email,
+                                        person.phone,
+                                      ]
                                         .filter(Boolean)
                                         .join(' · ') || 'Sin datos adicionales'}
                                     </span>
@@ -909,6 +915,31 @@ export function LeadFormModal({
                         ) : null}
                       </div>
                     )}
+
+                    <label
+                      className={`${labelClass} mt-2`}
+                      htmlFor={`lead-influence-${key}`}
+                    >
+                      Tipo de influencia (opcional)
+                    </label>
+                    <select
+                      id={`lead-influence-${key}`}
+                      value={slot.tipo_influencia}
+                      onChange={(event) =>
+                        updateInfluenceType(
+                          key,
+                          event.target.value as InfluenceType | '',
+                        )
+                      }
+                      className={inputClass}
+                    >
+                      <option value="">Sin definir</option>
+                      {INFLUENCE_TYPES.map((tipo) => (
+                        <option key={tipo} value={tipo}>
+                          {tipo}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 );
               })}
@@ -953,17 +984,24 @@ export function LeadFormModal({
           </button>
           <button
             type="submit"
-            disabled={
-              isSubmitting ||
-              nameAvailable === false ||
-              nameAvailable === 'checking'
-            }
+            disabled={isSubmitting}
             className={primaryButtonClass}
           >
             Crear lead
           </button>
         </div>
       </form>
+      {showCreateAccount ? (
+        <AccountFormModal
+          editing="new"
+          onClose={() => setShowCreateAccount(false)}
+          onSaved={(account) => {
+            selectAccount(account);
+            setShowCreateAccount(false);
+          }}
+        />
+      ) : null}
+      </>
     </ModalShell>
   );
 }

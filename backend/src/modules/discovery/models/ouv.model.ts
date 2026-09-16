@@ -59,6 +59,17 @@ export class Ouv extends Model {
   })
   declare origenVia: OuvOrigenVia;
 
+  /** Lead-source snapshots; NULL for OUVs created directly. */
+  @Column({ type: DataType.STRING(80), allowNull: true })
+  declare origen: string | null;
+
+  @Column({
+    type: DataType.STRING(80),
+    field: 'canal_origen',
+    allowNull: true,
+  })
+  declare canalOrigen: string | null;
+
   @ForeignKey(() => User)
   @Column({
     type: DataType.CHAR(36),

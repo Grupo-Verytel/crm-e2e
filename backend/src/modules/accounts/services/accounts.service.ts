@@ -57,7 +57,10 @@ export class AccountsService {
 
     const { rows, count } = await this.accountModel.findAndCountAll({
       where,
-      order: [['name', 'ASC']],
+      order: [
+        ['name', 'ASC'],
+        ['accountId', 'ASC'],
+      ],
       limit,
       offset,
     });
@@ -151,7 +154,7 @@ export class AccountsService {
           { email: { [Op.like]: q } },
           { phone: { [Op.like]: q } },
           { '$account.name$': { [Op.like]: q } },
-          { '$account.taxId$': { [Op.like]: q } },
+          { '$account.tax_id$': { [Op.like]: q } },
         ],
       });
     }
@@ -160,7 +163,10 @@ export class AccountsService {
       where,
       include: [{ model: Account, as: 'account', required: false }],
       distinct: Boolean(query.q?.trim()),
-      order: [['name', 'ASC']],
+      order: [
+        ['name', 'ASC'],
+        ['personId', 'ASC'],
+      ],
       limit,
       offset,
     });

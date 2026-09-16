@@ -8,7 +8,9 @@ export enum TipoLead {
 
 export enum OrigenLead {
   Web = 'Web',
-  Email = 'Email',
+  EmailMarketing = 'Email marketing',
+  InstagramYFacebook = 'Instagram y Facebook',
+  ProspeccionDirecta = 'Prospeccion directa',
   LinkedIn = 'LinkedIn',
   Evento = 'Evento',
   SECOP = 'SECOP',
@@ -24,6 +26,7 @@ export enum CanalOrigen {
   GeneracionDemandaAgencia = 'GENERACION_DEMANDA_AGENCIA',
   TraductorNegocio = 'TRADUCTOR_NEGOCIO',
   Eventos = 'EVENTOS',
+  Referido = 'REFERIDO',
 }
 
 export enum TipoInfluencia {
@@ -34,11 +37,13 @@ export enum TipoInfluencia {
   DeFabrica = 'DeFabrica',
 }
 
-/** Per-contact slot — same tipos as OUV influencias. */
+/** Optional influence type assigned to a lead contact. */
 export enum LeadContactInfluenciaTipo {
   Economica = 'Economica',
   Tecnica = 'Tecnica',
   Fabrica = 'Fabrica',
+  Coach = 'Coach',
+  Usuario = 'Usuario',
 }
 
 export enum LeadEstado {

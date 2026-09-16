@@ -10,7 +10,11 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
-import { CanalOrigen, LeadEstado } from '../models/enums/lead.enums';
+import {
+  CanalOrigen,
+  LeadEstado,
+  OrigenLead,
+} from '../models/enums/lead.enums';
 import { Segmento } from '../models/enums/segment.enum';
 import { LeadContactResponseDto } from './lead-contact.dto';
 
@@ -26,6 +30,10 @@ export class LeadsQueryDto {
   @IsOptional()
   @IsEnum(CanalOrigen)
   canal_origen?: CanalOrigen;
+
+  @IsOptional()
+  @IsEnum(OrigenLead)
+  origen?: OrigenLead;
 
   @IsOptional()
   @IsUUID('4')

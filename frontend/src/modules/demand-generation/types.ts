@@ -17,8 +17,17 @@ export const LEAD_ESTADOS: LeadEstado[] = [
   'Descartado',
 ];
 
-export type Segmento = 'Gobierno' | 'D&S' | 'ProyectosEspeciales' | 'B2B';
-export const SEGMENTOS: Segmento[] = ['Gobierno', 'D&S', 'ProyectosEspeciales', 'B2B'];
+export type Segmento =
+  | 'Ciudades y gobernaciones'
+  | 'Gobierno central'
+  | 'Defensa y seguridad'
+  | 'Industria';
+export const SEGMENTOS: Segmento[] = [
+  'Ciudades y gobernaciones',
+  'Gobierno central',
+  'Defensa y seguridad',
+  'Industria',
+];
 
 export type SegmentoObjetivo = Segmento | 'Todos';
 export const SEGMENTOS_OBJETIVO: SegmentoObjetivo[] = [...SEGMENTOS, 'Todos'];
@@ -34,7 +43,9 @@ export const TIPOS_LEAD: TipoLead[] = [
 
 export type OrigenLead =
   | 'Web'
-  | 'Email'
+  | 'Email marketing'
+  | 'Instagram y Facebook'
+  | 'Prospeccion directa'
   | 'LinkedIn'
   | 'Evento'
   | 'SECOP'
@@ -43,7 +54,9 @@ export type OrigenLead =
   | 'Referido';
 export const ORIGENES_LEAD: OrigenLead[] = [
   'Web',
-  'Email',
+  'Email marketing',
+  'Instagram y Facebook',
+  'Prospeccion directa',
   'LinkedIn',
   'Evento',
   'SECOP',
@@ -58,7 +71,8 @@ export type CanalOrigen =
   | 'FABRICA'
   | 'GENERACION_DEMANDA_AGENCIA'
   | 'TRADUCTOR_NEGOCIO'
-  | 'EVENTOS';
+  | 'EVENTOS'
+  | 'REFERIDO';
 
 export const CANALES_ORIGEN: CanalOrigen[] = [
   'CAMPANA_DIGITAL',
@@ -67,6 +81,7 @@ export const CANALES_ORIGEN: CanalOrigen[] = [
   'FABRICA',
   'GENERACION_DEMANDA_AGENCIA',
   'TRADUCTOR_NEGOCIO',
+  'REFERIDO',
 ];
 
 export type CampaignEstado =
@@ -119,13 +134,14 @@ export type InteractionTipo =
   | 'Reunion'
   | 'Webinar'
   | 'Descarga'
+  | 'Evento'
   | 'VisitaWeb';
 export const INTERACTION_TIPOS: InteractionTipo[] = [
   'Email',
   'Llamada',
   'Reunion',
   'Webinar',
-  'Descarga',
+  'Evento',
   'VisitaWeb',
 ];
 
@@ -158,6 +174,7 @@ export const CANALES_POR_TIPO: Record<InteractionTipo, InteractionCanal[]> = {
   Reunion: ['Presencial', 'Teams', 'GoogleMeet'],
   Webinar: ['Web'],
   Descarga: ['Web'],
+  Evento: ['Presencial'],
   VisitaWeb: ['Web'],
 };
 
@@ -167,6 +184,7 @@ export const INTERACTION_TIPO_LABEL: Record<InteractionTipo, string> = {
   Reunion: 'Reunión',
   Webinar: 'Webinar',
   Descarga: 'Descarga',
+  Evento: 'Evento',
   VisitaWeb: 'Visita web',
 };
 
@@ -209,7 +227,13 @@ export type LeadContact = {
   account_id: string;
   account_name: string;
   account_tax_id: string | null;
-  tipo_influencia?: 'Economica' | 'Tecnica' | 'Fabrica' | null;
+  tipo_influencia?:
+    | 'Economica'
+    | 'Tecnica'
+    | 'Fabrica'
+    | 'Coach'
+    | 'Usuario'
+    | null;
   /** Legacy API fields — use fallbacks when reading older payloads */
   nombre?: string;
   cargo?: string | null;
@@ -219,7 +243,7 @@ export type LeadContact = {
 
 export type LeadContactInput = {
   person_id: string;
-  tipo_influencia?: 'Economica' | 'Tecnica' | 'Fabrica';
+  tipo_influencia?: 'Economica' | 'Tecnica' | 'Fabrica' | 'Coach' | 'Usuario';
 };
 
 export type Subsegment = {
@@ -237,7 +261,6 @@ export type CreateLeadChecklistInput = {
   criterio_sector_objetivo: boolean;
   criterio_necesidad_portafolio: boolean;
   criterio_acceso_decisor: boolean;
-  criterio_presupuesto_indicios: boolean;
 };
 
 export type LeadFormMode = 'standard' | 'product_manager' | 'ejecutivo';
@@ -294,6 +317,7 @@ export type PaginatedLeads = {
 export type LeadsQuery = {
   estado?: LeadEstado;
   canal_origen?: CanalOrigen;
+  origen?: OrigenLead;
   segmento?: Segmento;
   campana_id?: string;
   responsable_id?: string;
@@ -305,7 +329,7 @@ export type LeadsQuery = {
 };
 
 export type CreateLeadPayload = {
-  name: string;
+  name?: string;
   tipo_lead: TipoLead;
   origen: OrigenLead;
   canal_origen: CanalOrigen;
@@ -317,7 +341,7 @@ export type CreateLeadPayload = {
   region: string;
   pais?: string;
   nit?: string;
-  contacts: LeadContactInput[];
+  contacts?: LeadContactInput[];
   responsable_id: string;
   campana_id?: string;
   sub_origen?: string;
@@ -366,7 +390,6 @@ export type Checklist = {
   criterio_sector_objetivo: boolean;
   criterio_necesidad_portafolio: boolean;
   criterio_acceso_decisor: boolean;
-  criterio_presupuesto_indicios: boolean;
   resultado: 'Calificado' | 'NoCalificado';
   completado_por: string;
   fecha_completado: string | null;
@@ -378,7 +401,6 @@ export type UpdateChecklistPayload = {
   criterio_sector_objetivo?: boolean;
   criterio_necesidad_portafolio?: boolean;
   criterio_acceso_decisor?: boolean;
-  criterio_presupuesto_indicios?: boolean;
 };
 
 export type Campaign = {
@@ -493,4 +515,46 @@ export type MarketingDashboard = {
   average_cpl: number | null;
   pending_mqls: number;
   funnel: { estado: string; count: number }[];
+  average_conversion_days: number | null;
+  weekly: {
+    interactions: number;
+    new_leads: number;
+    quarter_leads: number;
+    quarter: number;
+    leads_by_channel: { canal_origen: string; count: number }[];
+    interactions_by_channel: { canal_origen: string; count: number }[];
+    quarter_leads_by_channel: { canal_origen: string; count: number }[];
+    converted_ouvs: number;
+  };
+};
+
+export type MarketingDashboardDetailKind =
+  | 'interactions'
+  | 'period_leads'
+  | 'quarter_leads'
+  | 'ouvs'
+  | 'funnel';
+
+export type MarketingDashboardDetailItem = {
+  entity: 'lead' | 'ouv';
+  id: string;
+  interaction_id: string | null;
+  empresa: string | null;
+  segmento: string | null;
+  origen: string | null;
+  canal_origen: string | null;
+  tipo_comunicacion: string | null;
+  canal: string | null;
+  consecutivo: string | null;
+  estado: string | null;
+  created_at: string | null;
+  dias_transcurridos: number | null;
+};
+
+export type MarketingDashboardDetails = {
+  kind: MarketingDashboardDetailKind;
+  items: MarketingDashboardDetailItem[];
+  total: number;
+  page: number;
+  limit: number;
 };

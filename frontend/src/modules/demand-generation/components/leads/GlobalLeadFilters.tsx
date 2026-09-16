@@ -1,13 +1,16 @@
 import type { FormEvent } from 'react';
 import {
   CANALES_ORIGEN,
+  ORIGENES_LEAD,
   SEGMENTOS,
   type CanalOrigen,
+  type OrigenLead,
   type Segmento,
 } from '../../types';
 import { inputClass, labelClass } from '../ui';
 import type { LeadFilterValues } from '../../lib/lead-filters';
 import { CANAL_ORIGEN_LABEL } from '../../lib/lead-vocab';
+import { segmentoLabel } from '../../lib/segment-catalog';
 
 type CampaignOption = { campana_id: string; nombre: string };
 
@@ -32,33 +35,59 @@ export function GlobalLeadFilters({
   }
 
   return (
-    <div className="mb-4 space-y-3">
-      <div
-        className="flex flex-wrap gap-2 rounded bg-surface p-3 shadow-card"
-        role="group"
-        aria-label="Filtrar por canal de origen"
-      >
-        <ChannelChip
-          label="Todos"
-          active={draft.canal_origen === ''}
-          onClick={() => onChange({ ...draft, canal_origen: '' })}
-        />
-        {CANALES_ORIGEN.map((canal) => (
-          <ChannelChip
-            key={canal}
-            label={CANAL_ORIGEN_LABEL[canal]}
-            active={draft.canal_origen === canal}
-            onClick={() =>
-              onChange({ ...draft, canal_origen: canal as CanalOrigen })
-            }
-          />
-        ))}
-      </div>
-
+    <div className="mb-4">
       <form
         onSubmit={handleSubmit}
-        className="grid gap-3 rounded bg-surface p-4 shadow-card md:grid-cols-5"
+        className="grid gap-3 rounded bg-surface p-4 shadow-card md:grid-cols-4 xl:grid-cols-7"
       >
+        <div>
+          <label htmlFor="f-canal-origen" className={labelClass}>
+            Canal de origen
+          </label>
+          <select
+            id="f-canal-origen"
+            value={draft.canal_origen}
+            onChange={(event) =>
+              onChange({
+                ...draft,
+                canal_origen: event.target.value as CanalOrigen | '',
+              })
+            }
+            className={inputClass}
+          >
+            <option value="">Todos</option>
+            {CANALES_ORIGEN.map((canal) => (
+              <option key={canal} value={canal}>
+                {CANAL_ORIGEN_LABEL[canal]}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label htmlFor="f-origen" className={labelClass}>
+            Origen
+          </label>
+          <select
+            id="f-origen"
+            value={draft.origen}
+            onChange={(event) =>
+              onChange({
+                ...draft,
+                origen: event.target.value as OrigenLead | '',
+              })
+            }
+            className={inputClass}
+          >
+            <option value="">Todos</option>
+            {ORIGENES_LEAD.map((origin) => (
+              <option key={origin} value={origin}>
+                {origin}
+              </option>
+            ))}
+          </select>
+        </div>
+
         <div>
           <label htmlFor="f-campana" className={labelClass}>
             Campaña
@@ -95,7 +124,7 @@ export function GlobalLeadFilters({
             <option value="">Todos</option>
             {SEGMENTOS.map((segmento) => (
               <option key={segmento} value={segmento}>
-                {segmento}
+                {segmentoLabel(segmento)}
               </option>
             ))}
           </select>
@@ -142,7 +171,7 @@ export function GlobalLeadFilters({
           />
         </div>
 
-        <div className="flex items-end gap-2 md:col-span-5">
+        <div className="flex items-end gap-2 md:col-span-4 xl:col-span-7">
           <button
             type="submit"
             className="btn-glow rounded px-4 py-2 text-sm font-bold text-white"
@@ -159,29 +188,5 @@ export function GlobalLeadFilters({
         </div>
       </form>
     </div>
-  );
-}
-
-function ChannelChip({
-  label,
-  active,
-  onClick,
-}: {
-  label: string;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={[
-        'rounded-full border px-3 py-1 text-xs font-bold transition-colors',
-        active ? 'btn-glow' : 'btn-glow-outline',
-      ].join(' ')}
-    >
-      {label}
-    </button>
   );
 }

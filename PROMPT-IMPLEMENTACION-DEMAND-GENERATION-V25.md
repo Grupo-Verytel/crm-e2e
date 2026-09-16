@@ -159,7 +159,7 @@ DTOs:
 
 **Ruta `ProductManager` (EARS-24…26):**
 - Solo canales `BTL` | `FABRICA`.
-- Checklist completo (4 criterios) en el mismo acto.
+- Checklist completo (3 criterios) en el mismo acto.
 - Al guardar: `estado = MQL_PENDING`, crear `mqls` `Activo`, notificar DirectorMercadeo.
 - `responsable_id` = creador (o regla existente si ya hay una; documenta).
 

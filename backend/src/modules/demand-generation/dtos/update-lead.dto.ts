@@ -1,7 +1,6 @@
 import {
   IsEnum,
   IsInt,
-  IsNotEmpty,
   IsOptional,
   IsString,
   IsUUID,
@@ -9,7 +8,6 @@ import {
   MaxLength,
   Min,
   MinLength,
-  ValidateIf,
 } from 'class-validator';
 import { OrigenLead, TipoLead } from '../models/enums/lead.enums';
 import { Segmento } from '../models/enums/segment.enum';
@@ -42,11 +40,10 @@ export class UpdateLeadDto {
   @IsEnum(Segmento)
   segmento?: Segmento;
 
-  @ValidateIf((dto: UpdateLeadDto) => dto.segmento === Segmento.B2B)
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
   @MaxLength(80)
-  industria?: string;
+  industria?: string | null;
 
   @IsOptional()
   @IsString()

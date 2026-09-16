@@ -96,7 +96,7 @@
 > **Nota v2.3:** los campos `empresa_nombre`, `contacto_nombre`, `cargo`, `email`, `telefono` que existían aquí como "copia temporal del contacto principal" se **eliminan** — ahora se resuelven vía `lead_contacts.person_id` → `people` (ver 3.2).
 
 ### 3.2 `lead_contacts` *(reestructurada v2.3 — antes tenía columnas denormalizadas)*
-Cada lead tiene entre 1 y 3 contactos. La posición 1 identifica el contacto principal.
+Cada lead puede tener entre 0 y 3 contactos. Cuando existen contactos, la posición 1 identifica el contacto principal.
 
 | Campo | Tipo | Oblig. | Notas |
 |---|---|---|---|
@@ -118,12 +118,11 @@ Sin cambios respecto a v2.2.
 | criterio_sector_objetivo | BOOLEAN | Sí | ¿Pertenece a sector/industria del grupo objetivo? |
 | criterio_necesidad_portafolio | BOOLEAN | Sí | ¿Necesidad alineada al portafolio Frisson/Verytel? |
 | criterio_acceso_decisor | BOOLEAN | Sí | ¿Se habla con decisor o influencia que lleva al decisor? |
-| criterio_presupuesto_indicios | BOOLEAN | Sí | ¿Hay indicios de presupuesto o capacidad de inversión? |
 | completado_por | UUID | Sí | FK users |
 | fecha_completado | TIMESTAMPTZ | Sí | |
-| resultado | ENUM (calculado) | Sí | Calificado si los 4 = true, No Calificado en otro caso |
+| resultado | ENUM (calculado) | Sí | Calificado si los 3 = true, No Calificado en otro caso |
 
-*Los 4 criterios son mi propuesta de armonización entre "4 FILTROS MARKETING" del Excel y los 3 filtros documentados en Filtros Embudo Comercial v5 — **queda pendiente de confirmar redacción exacta en T1**.*
+*Los 3 criterios corresponden a los filtros documentados en Filtros Embudo Comercial v5.*
 
 ### 3.4 `campaigns`
 Sin cambios respecto a v2.2. Igual al Blueprint V2 §2.2.
@@ -166,7 +165,7 @@ Sin cambios respecto a v2.2 para el flujo estándar. Ver sección 4.1 para las d
 | LEAD | — | Nuevo | Lead capturado (form web, import CSV, registro manual, integración aliado/fábrica) |
 | LEAD | Nuevo | TOFU | Automático al registrar, con campaña o fuente asociada |
 | LEAD | TOFU | MOFU | Gestor de Mercadeo registra ≥1 interacción **y** clasifica segmento/industria/línea de negocio |
-| LEAD | MOFU | MQL_PENDING (BOFU) | Gestor de Mercadeo completa `lead_checklist` con los 4 criterios = true |
+| LEAD | MOFU | MQL_PENDING (BOFU) | Gestor de Mercadeo completa `lead_checklist` con los 3 criterios = true |
 | LEAD | MQL_PENDING | SQL | Director de Mercadeo aprueba el MQL |
 | LEAD | MQL_PENDING | Reciclaje | Director rechaza (motivo obligatorio) → vuelve a MOFU para seguir nutriendo |
 | LEAD | MOFU / MQL_PENDING | Descartado | No cumple checklist de forma irreversible o desinterés explícito del prospecto (motivo obligatorio) |
@@ -199,7 +198,7 @@ Sin cambios respecto a v2.2 para el flujo estándar. Ver sección 4.1 para las d
 **Basados en evento**
 - DG-03: CUANDO se registra un lead vía formulario web, import CSV o integración de aliado, el sistema DEBE crearlo en estado `Nuevo` y transicionarlo automáticamente a `TOFU`.
 - DG-04: CUANDO el Gestor de Mercadeo registra una interacción, el sistema DEBE actualizar `fecha_ultima_interaccion` del lead asociado.
-- DG-05: CUANDO se completa el `lead_checklist` con los 4 criterios en `true`, el sistema DEBE transicionar el lead a `MQL_PENDING` y crear el registro `mqls` en estado `Activo`, notificando al Director de Mercadeo.
+- DG-05: CUANDO se completa el `lead_checklist` con los 3 criterios en `true`, el sistema DEBE transicionar el lead a `MQL_PENDING` y crear el registro `mqls` en estado `Activo`, notificando al Director de Mercadeo.
 - DG-06: CUANDO el Director de Mercadeo aprueba un MQL, el sistema DEBE crear el registro `sqls` con `en_backlog = true`, `origen_creacion = enrutamiento_normal`, actualizar `lead.estado = SQL`, y notificar a Soporte Comercial.
 - DG-07: CUANDO el Director de Mercadeo rechaza un MQL, el sistema DEBE exigir motivo, actualizar `lead.estado = Reciclaje` y notificar al Gestor de Mercadeo responsable.
 - DG-08: CUANDO se importa un CSV de campaña outbound, el sistema DEBE validar duplicados antes de crear cada fila: si vienen informados email (contacto/`people`) y NIT (`accounts.tax_id`) y ya existe un lead activo con ese mismo par vía `lead_contacts` → `people` → `accounts`, ENTONCES **rechaza esa fila** y continúa con el resto del lote. Si email o NIT vienen vacíos, ese eje no participa del match.
@@ -211,7 +210,7 @@ Sin cambios respecto a v2.2 para el flujo estándar. Ver sección 4.1 para las d
 
 **Comportamiento no deseado**
 - DG-12: SI se intenta transicionar un lead de `TOFU` a `MOFU` sin al menos 1 interacción registrada, ENTONCES el sistema DEBE rechazar la transición y mostrar el criterio faltante.
-- DG-13: SI se intenta completar el checklist sin los 4 criterios evaluados, ENTONCES el sistema DEBE bloquear el paso a `MQL_PENDING`.
+- DG-13: SI se intenta completar el checklist sin los 3 criterios evaluados, ENTONCES el sistema DEBE bloquear el paso a `MQL_PENDING`.
 - DG-14: SI se marca un lead como `Descartado`, ENTONCES el sistema DEBE exigir `motivo_descarte` como campo obligatorio.
 - DG-15: SI se intenta crear una campaña con `fecha_fin` anterior o igual a `fecha_inicio`, ENTONCES el sistema DEBE rechazar el registro.
 
@@ -219,8 +218,8 @@ Sin cambios respecto a v2.2 para el flujo estándar. Ver sección 4.1 para las d
 - DG-16: DONDE el lead provenga de un canal `SECOP` o `Licitacion`, el sistema PUEDE saltar la etapa de nutrición y sugerir calificación directa.
 - DG-17: DONDE el usuario tenga rol Director de Mercadeo, el sistema PUEDE mostrarle un panel de configuración de los criterios del checklist (para cuando se confirmen en T1).
 - DG-18: DONDE se active Wave 2, el sistema PUEDE reemplazar el gate por checklist con el motor de scoring numérico sin migración de esquema (campos ya modelados).
-- DG-19: CUANDO se crea un lead, el sistema DEBE exigir entre 1 y 3 contactos y cada contacto DEBE resolver a un `person_id` válido (ver EARS-37…42).
-- DG-20: SI se intenta crear o actualizar un lead con cero contactos o más de tres, ENTONCES el sistema DEBE rechazar la operación sin guardar cambios parciales.
+- DG-19: CUANDO se crea un lead, el sistema DEBE permitir entre 0 y 3 contactos y cada contacto informado DEBE resolver a un `person_id` válido (ver EARS-37…42).
+- DG-20: SI se intenta crear o actualizar un lead con más de tres contactos, ENTONCES el sistema DEBE rechazar la operación sin guardar cambios parciales.
 - DG-21: CUANDO se crea un lead con varios contactos, el sistema DEBE identificar al contacto en posición 1 como principal.
 - DG-22: CUANDO se crea, actualiza o elimina un contacto de un lead, el sistema DEBE registrar el cambio en auditoría.
 
@@ -233,7 +232,7 @@ Sin cambios respecto a v2.2 para el flujo estándar. Ver sección 4.1 para las d
 
 **Ruta directa — ProductManager** *(nuevo v2.3; UI: “Product Manager”)*
 - EARS-24: CUANDO un usuario con rol `ProductManager` selecciona "Nuevo Lead", el sistema DEBE permitir la creación manual, limitando `canal_origen` a `BTL` o `FABRICA`.
-- EARS-25: CUANDO un `ProductManager` crea un lead, el sistema DEBE requerir `lead_checklist` completo (los 4 criterios) en el mismo acto de creación.
+- EARS-25: CUANDO un `ProductManager` crea un lead, el sistema DEBE requerir `lead_checklist` completo (los 3 criterios) en el mismo acto de creación.
 - EARS-26: CUANDO se guarda un lead creado por `ProductManager` con checklist completo, el sistema DEBE transicionarlo directamente a `estado = MQL_PENDING` (equivalente a DG-05 en el momento de creación) y crear `mqls` en `estado = Activo`, notificando al Director de Mercadeo. A partir de aquí sigue el flujo normal (DG-06/DG-07).
 
 **Ruta directa — EjecutivoComercial** *(nuevo v2.3)*
@@ -268,7 +267,7 @@ Sin cambios respecto a v2.2 para el flujo estándar. Ver sección 4.1 para las d
 
 **Director de Mercadeo**
 - Módulo Campañas: crear / listar / importar CSV
-- Dashboard Marketing: KPIs (Leads/mes, % leads calificados, CPL, MQLs pendientes)
+- Dashboard Marketing: el usuario selecciona primero el trimestre (Q1–Q4), luego la agrupación semanal o de 15 días y finalmente el rango concreto dentro del trimestre. La vista del periodo muestra donas de interacciones (meta 50), nuevos leads (meta 3), leads acumulados del trimestre (meta 50) y distribución de leads por canal de origen. Las métricas quincenales adicionales quedan pendientes de parámetros.
 - Bandeja MQL: aprobar / rechazar con motivo
 
 **Gestor de Mercadeo**
@@ -298,7 +297,7 @@ Sin cambios respecto a v2.2. Ver `spec-calificacion.md` addendum para el ajuste 
 
 ## 8. Abierto para taller T1
 
-1. Confirmar si el checklist es de 3 o 4 criterios y su redacción exacta.
+1. Confirmado: el checklist tiene 3 criterios.
 2. Confirmar si SECOP/Licitación realmente salta nutrición o solo acelera el checklist.
 3. Confirmar catálogo de campos de `campaigns` con Director de Mercadeo.
 4. ~~Definir el flujo de `TRADUCTOR_NEGOCIO`~~ — **Resuelto en v2.3/v2.4**.

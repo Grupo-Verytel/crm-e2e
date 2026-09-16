@@ -107,6 +107,8 @@ export class OuvsService {
         consecutivo,
         sqlIdOrigen: input.sqlId,
         origenVia: OuvOrigenVia.DesdeSql,
+        origen: lead.origen,
+        canalOrigen: lead.canal_origen,
         comercialId: input.comercialId,
         accountId: person.account_id,
         titulo: input.dto.titulo.trim(),
@@ -172,6 +174,8 @@ export class OuvsService {
           consecutivo,
           sqlIdOrigen: null,
           origenVia: OuvOrigenVia.Directa,
+          origen: null,
+          canalOrigen: null,
           comercialId: actorUserId,
           accountId,
           titulo: dto.titulo.trim(),
@@ -670,6 +674,9 @@ export class OuvsService {
     if (query.tiene_gap !== undefined) {
       where.tieneGap = query.tiene_gap;
     }
+    if (query.canal_origen?.trim()) {
+      where.canalOrigen = query.canal_origen.trim();
+    }
     if (query.q?.trim()) {
       const like = `%${query.q.trim()}%`;
       where[Op.or] = [
@@ -725,6 +732,8 @@ export class OuvsService {
       consecutivo: ouv.consecutivo,
       sql_id_origen: ouv.sqlIdOrigen,
       origen_via: ouv.origenVia,
+      origen: ouv.origen,
+      canal_origen: ouv.canalOrigen,
       comercial_id: ouv.comercialId,
       account_id: ouv.accountId ?? null,
       titulo: ouv.titulo,

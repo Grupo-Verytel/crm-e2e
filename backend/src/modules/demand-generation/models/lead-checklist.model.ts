@@ -58,16 +58,8 @@ export class LeadChecklist extends Model {
   })
   declare criterioAccesoDecisor: boolean;
 
-  @Default(false)
-  @Column({
-    type: DataType.BOOLEAN,
-    field: 'criterio_presupuesto_indicios',
-    allowNull: false,
-  })
-  declare criterioPresupuestoIndicios: boolean;
-
   /**
-   * Calculated in LeadChecklistService (never in DB) whenever any of the 4
+   * Calculated in LeadChecklistService (never in DB) whenever any of the 3
    * booleans change — kept in the service layer for project-wide consistency.
    */
   @Default(ChecklistResultado.NoCalificado)

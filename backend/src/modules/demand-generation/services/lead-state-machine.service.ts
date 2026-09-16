@@ -22,7 +22,7 @@ import { CanalOrigen, LeadEstado } from '../models/enums/lead.enums';
 import { MqlEstado } from '../models/enums/mql.enums';
 import { SqlOrigenCreacion } from '../models/enums/sql-origen.enum';
 import { SqlEstado } from '../models/enums/sql.enums';
-import { Segmento } from '../models/enums/segment.enum';
+import { isIndustriaSegmento } from '../lib/segment-catalog';
 import { LeadContact } from '../models/lead-contact.model';
 import { Lead } from '../models/lead.model';
 import { LeadChecklist } from '../models/lead-checklist.model';
@@ -101,8 +101,8 @@ export class LeadStateMachineService {
       missing.push('segmento');
     }
 
-    if (lead.segmento === Segmento.B2B && !lead.industria?.trim()) {
-      missing.push('industria (requerida para segmento B2B)');
+    if (isIndustriaSegmento(lead.segmento) && !lead.industria?.trim()) {
+      missing.push('tipo de industria (requerido para segmento Industria)');
     }
 
     if (missing.length > 0) {
@@ -373,24 +373,23 @@ export class LeadStateMachineService {
   }
 
   private async getLeadDisplayLabel(lead: Lead): Promise<string> {
-    if (lead.name?.trim()) {
-      return lead.name.trim();
-    }
-
     const contact = await this.leadContactModel.findOne({
       where: { leadId: lead.leadId },
       order: [['position', 'ASC']],
     });
 
-    if (!contact) {
-      return 'Lead';
+    if (contact) {
+      const people = await this.accountsService.getPeopleWithAccounts([
+        contact.personId,
+      ]);
+      const enriched = people.get(contact.personId);
+      const company = enriched?.account_name?.trim();
+      if (company) {
+        return company;
+      }
     }
 
-    const people = await this.accountsService.getPeopleWithAccounts([
-      contact.personId,
-    ]);
-    const enriched = people.get(contact.personId);
-    return enriched?.account_name ?? enriched?.name ?? 'Lead';
+    return lead.name?.trim() || 'Lead';
   }
 
   private async findLeadOrFail(leadId: string): Promise<Lead> {

@@ -18,6 +18,7 @@ import {
 } from '../../lib/lead-vocab';
 import type { Checklist, Lead, LeadsQuery } from '../../types';
 import type { LeadFilterValues } from '../../lib/lead-filters';
+import { isIndustriaSegmento } from '../../lib/segment-catalog';
 import { MotivoModal } from '../MotivoModal';
 import { cardClass } from '../ui';
 import { ChecklistModal } from './ChecklistModal';
@@ -55,8 +56,7 @@ function isChecklistComplete(checklist: Checklist | null): boolean {
     !!checklist &&
     checklist.criterio_sector_objetivo &&
     checklist.criterio_necesidad_portafolio &&
-    checklist.criterio_acceso_decisor &&
-    checklist.criterio_presupuesto_indicios
+    checklist.criterio_acceso_decisor
   );
 }
 
@@ -216,10 +216,10 @@ export function LeadsKanbanView({ filters, q, readOnly = false }: Props) {
 
   function handleDropToMofu(lead: Lead) {
     setCardError(lead.lead_id, null);
-    if (lead.segmento === 'B2B' && !lead.industria) {
+    if (isIndustriaSegmento(lead.segmento) && !lead.industria) {
       setCardError(
         lead.lead_id,
-        'Falta la industria (requerida para B2B). Ábrelo para completarla.',
+        'Falta el tipo de industria (requerido para Industria). Ábrelo para completarlo.',
       );
       return;
     }

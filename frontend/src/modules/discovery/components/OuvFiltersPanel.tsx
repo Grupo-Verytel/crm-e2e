@@ -1,4 +1,7 @@
-import type { DraftFilters } from '../lib/ouv-filters';
+import {
+  OUV_SOURCE_CHANNEL_OPTIONS,
+  type DraftFilters,
+} from '../lib/ouv-filters';
 import { OUV_ZONA_LABEL, OUV_ZONAS } from '../lib/ouv-vocab';
 import {
   ghostButtonClass,
@@ -33,7 +36,7 @@ export function OuvFiltersPanel({
       role="region"
       aria-label="Filtros de oportunidades"
     >
-      <div className="grid gap-3 md:grid-cols-4">
+      <div className="grid gap-3 md:grid-cols-5">
         <div>
           <label className={labelClass} htmlFor="ouv-f-zona">
             Zona
@@ -67,6 +70,26 @@ export function OuvFiltersPanel({
             <option value="">Todos</option>
             <option value="true">Con gap</option>
             <option value="false">Sin gap</option>
+          </select>
+        </div>
+        <div>
+          <label className={labelClass} htmlFor="ouv-f-source-channel">
+            Canal de origen
+          </label>
+          <select
+            id="ouv-f-source-channel"
+            className={inputClass}
+            value={draft.canal_origen}
+            onChange={(e) =>
+              onDraftChange({ ...draft, canal_origen: e.target.value })
+            }
+          >
+            <option value="">Todos</option>
+            {OUV_SOURCE_CHANNEL_OPTIONS.map((channel) => (
+              <option key={channel.value} value={channel.value}>
+                {channel.label}
+              </option>
+            ))}
           </select>
         </div>
         <div>

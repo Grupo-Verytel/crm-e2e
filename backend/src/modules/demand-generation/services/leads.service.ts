@@ -46,6 +46,7 @@ import {
 import { canRecycleLead } from '../lib/lead-state-machine';
 import { leadTextSearchWhere } from '../lib/lead-text-search';
 import { normalizePhoneToE164 } from '../lib/phone-normalize';
+import { resolveSegmentoFromInput, isIndustriaSegmento } from '../lib/segment-catalog';
 import {
   CanalOrigen,
   LeadContactInfluenciaTipo,
@@ -118,19 +119,20 @@ export class LeadsService {
 
     this.assertB2bIndustria(dto.segmento, dto.industria);
     await this.ensureUserExists(dto.responsable_id);
-    await this.assertLeadNameAvailable(dto.name);
 
     if (dto.campana_id) {
       await this.campaignsService.assertCampaignAcceptsLeads(dto.campana_id);
     }
 
-    const personIds = dto.contacts.map((contact) => contact.person_id);
-    await this.accountsService.assertPeopleSameAccount(personIds);
+    const personIds = (dto.contacts ?? []).map((contact) => contact.person_id);
+    if (personIds.length > 0) {
+      await this.accountsService.assertPeopleSameAccount(personIds);
+    }
 
     const businessReferrerId = await this.resolveBusinessReferrerId(dto);
     await this.validateSegmentSubsegment(dto.segment_id, dto.subsegment_id);
 
-    const contacts = dto.contacts.map((contact, index) => ({
+    const contacts = (dto.contacts ?? []).map((contact, index) => ({
       position: index + 1,
       personId: contact.person_id,
       tipoInfluencia: contact.tipo_influencia ?? null,
@@ -140,6 +142,10 @@ export class LeadsService {
       await this.accountsService.getPeopleWithAccounts(personIds);
     const primaryPerson = peopleMap.get(personIds[0]);
     const nit = dto.nit ?? primaryPerson?.account_tax_id ?? null;
+    dto.name = this.resolveLeadSnapshotName(
+      dto.name,
+      primaryPerson?.account_name,
+    );
 
     try {
       if (roleName === DEMAND_GENERATION_ROLES.PRODUCT_MANAGER) {
@@ -213,6 +219,10 @@ export class LeadsService {
 
     if (query.canal_origen) {
       where.canalOrigen = query.canal_origen;
+    }
+
+    if (query.origen) {
+      where.origen = query.origen;
     }
 
     if (query.responsable_id) {
@@ -295,13 +305,11 @@ export class LeadsService {
     const previousCampanaId = lead.campanaId;
     const nextSegmento = dto.segmento ?? lead.segmento;
     const nextIndustria =
-      dto.industria !== undefined ? dto.industria : lead.industria;
+      dto.industria !== undefined
+        ? dto.industria?.trim() || null
+        : lead.industria;
 
     this.assertB2bIndustria(nextSegmento, nextIndustria);
-
-    if (dto.name !== undefined) {
-      await this.assertLeadNameAvailable(dto.name, leadId);
-    }
 
     if (dto.responsable_id) {
       await this.ensureUserExists(dto.responsable_id);
@@ -325,7 +333,9 @@ export class LeadsService {
         ...(dto.sub_origen !== undefined ? { subOrigen: dto.sub_origen } : {}),
         ...(dto.campana_id !== undefined ? { campanaId: dto.campana_id } : {}),
         ...(dto.segmento !== undefined ? { segmento: dto.segmento } : {}),
-        ...(dto.industria !== undefined ? { industria: dto.industria } : {}),
+        ...(dto.industria !== undefined
+          ? { industria: dto.industria?.trim() || null }
+          : {}),
         ...(dto.ciudad !== undefined ? { ciudad: dto.ciudad } : {}),
         ...(dto.region !== undefined ? { region: dto.region } : {}),
         ...(dto.pais !== undefined ? { pais: dto.pais.toUpperCase() } : {}),
@@ -438,7 +448,6 @@ export class LeadsService {
         personId,
         ...existingIds,
       ]);
-      await this.accountsService.assertPersonInfluenciaTipo(personId, tipo);
     }
 
     await this.sequelize.transaction(async (transaction) => {
@@ -639,19 +648,21 @@ export class LeadsService {
     values: Record<string, string>,
     createdBy: string,
   ): Promise<Lead> {
-    const segmento = values.segmento as Segmento;
+    const segmento = resolveSegmentoFromInput(values.segmento ?? '');
     const industria = values.industria || null;
     const canalOrigen = values.canal_origen as CanalOrigen;
     const accountName =
       values.account_name?.trim() || values.empresa_nombre?.trim() || '';
     const taxId = values.tax_id?.trim() || values.nit?.trim() || null;
 
-    if (!Object.values(Segmento).includes(segmento)) {
+    if (!segmento) {
       throw new BadRequestException(`Invalid segmento: ${values.segmento}`);
     }
 
-    if (segmento === Segmento.B2B && !industria) {
-      throw new BadRequestException('industria is required for B2B segment');
+    if (isIndustriaSegmento(segmento) && !industria) {
+      throw new BadRequestException(
+        'tipo de industria is required for Industria segment',
+      );
     }
 
     if (!Object.values(CanalOrigen).includes(canalOrigen)) {
@@ -668,11 +679,7 @@ export class LeadsService {
       throw new BadRequestException('Missing email');
     }
 
-    const name = values.name?.trim();
-    if (!name) {
-      throw new BadRequestException('Missing name');
-    }
-    await this.assertLeadNameAvailable(name);
+    const name = this.resolveLeadSnapshotName(values.name, accountName);
 
     await this.ensureUserExists(values.responsable_id);
 
@@ -695,7 +702,8 @@ export class LeadsService {
         {
           name,
           tipoLead: (values.tipo_lead as TipoLead) || TipoLead.Outbound,
-          origen: (values.origen as OrigenLead) || OrigenLead.Email,
+          origen:
+            (values.origen as OrigenLead) || OrigenLead.EmailMarketing,
           canalOrigen,
           campanaId: values.campana_id || null,
           segmento,
@@ -765,37 +773,38 @@ export class LeadsService {
   }
 
   async getLeadDisplayLabel(lead: Lead): Promise<string> {
-    if (lead.name?.trim()) {
-      return lead.name.trim();
-    }
-
     const primaryContact =
       lead.contacts?.find((contact) => contact.position === 1) ??
       lead.contacts?.[0];
 
     if (!primaryContact) {
       const loaded = await this.findLeadOrFail(lead.leadId);
-      if (loaded.name?.trim()) {
-        return loaded.name.trim();
-      }
       const contact =
         loaded.contacts?.find((item) => item.position === 1) ??
         loaded.contacts?.[0];
-      if (!contact) {
-        return 'Lead';
+      if (contact) {
+        const people = await this.accountsService.getPeopleWithAccounts([
+          contact.personId,
+        ]);
+        const enriched = people.get(contact.personId);
+        const company = enriched?.account_name?.trim();
+        if (company) {
+          return company;
+        }
       }
-      const people = await this.accountsService.getPeopleWithAccounts([
-        contact.personId,
-      ]);
-      const enriched = people.get(contact.personId);
-      return enriched?.account_name ?? enriched?.name ?? 'Lead';
+      return loaded.name?.trim() || lead.name?.trim() || 'Lead';
     }
 
     const people = await this.accountsService.getPeopleWithAccounts([
       primaryContact.personId,
     ]);
     const enriched = people.get(primaryContact.personId);
-    return enriched?.account_name ?? enriched?.name ?? 'Lead';
+    return (
+      enriched?.account_name?.trim() ||
+      lead.name?.trim() ||
+      enriched?.name ||
+      'Lead'
+    );
   }
 
   async isNameAvailable(
@@ -825,17 +834,33 @@ export class LeadsService {
     return !existing;
   }
 
-  private async assertLeadNameAvailable(
-    name: string,
-    excludeLeadId?: string,
-  ): Promise<void> {
-    const available = await this.isNameAvailable(name, excludeLeadId);
-    if (!available) {
-      throw new ConflictException({
-        code: DEMAND_GENERATION_ERROR_CODES.DUPLICATE_LEAD_NAME,
-        message: 'Ya existe un lead con ese nombre',
+  private resolveLeadSnapshotName(
+    name: string | null | undefined,
+    accountName: string | null | undefined,
+  ): string {
+    const trimmed = name?.trim();
+    if (trimmed) {
+      return trimmed;
+    }
+    const fromAccount = accountName?.trim();
+    if (fromAccount) {
+      return fromAccount;
+    }
+    throw new BadRequestException({
+      code: DEMAND_GENERATION_ERROR_CODES.VALIDATION_ERROR,
+      message: 'Cannot resolve lead name from the company',
+    });
+  }
+
+  private requireResolvedLeadName(name: string | undefined): string {
+    const trimmed = name?.trim();
+    if (!trimmed) {
+      throw new BadRequestException({
+        code: DEMAND_GENERATION_ERROR_CODES.VALIDATION_ERROR,
+        message: 'Cannot resolve lead name from the company',
       });
     }
+    return trimmed;
   }
 
   resolveInitialState(canalOrigen: CanalOrigen): LeadEstado {
@@ -882,7 +907,7 @@ export class LeadsService {
       ciudad: lead.ciudad,
       region: lead.region,
       pais: lead.pais,
-      empresa_nombre: primaryEnriched?.account_name ?? '',
+      empresa_nombre: primaryEnriched?.account_name ?? lead.name ?? '',
       nit: primaryEnriched?.account_tax_id ?? lead.nit,
       contacto_nombre: primaryEnriched?.name ?? '',
       cargo: primaryEnriched?.job_title ?? null,
@@ -944,7 +969,7 @@ export class LeadsService {
     const leadId = await this.sequelize.transaction(async (transaction) => {
       const lead = await this.leadModel.create(
         {
-          name: dto.name.trim(),
+          name: this.requireResolvedLeadName(dto.name),
           tipoLead: dto.tipo_lead,
           origen: dto.origen,
           canalOrigen: dto.canal_origen,
@@ -1009,7 +1034,7 @@ export class LeadsService {
     const leadId = await this.sequelize.transaction(async (transaction) => {
       const lead = await this.leadModel.create(
         {
-          name: dto.name.trim(),
+          name: this.requireResolvedLeadName(dto.name),
           tipoLead: dto.tipo_lead,
           origen: dto.origen,
           canalOrigen: dto.canal_origen,
@@ -1102,7 +1127,7 @@ export class LeadsService {
     const leadId = await this.sequelize.transaction(async (transaction) => {
       const lead = await this.leadModel.create(
         {
-          name: dto.name.trim(),
+          name: this.requireResolvedLeadName(dto.name),
           tipoLead: dto.tipo_lead,
           origen: dto.origen,
           canalOrigen: dto.canal_origen,
@@ -1305,7 +1330,6 @@ export class LeadsService {
       criterioSectorObjetivo: checklist.criterio_sector_objetivo,
       criterioNecesidadPortafolio: checklist.criterio_necesidad_portafolio,
       criterioAccesoDecisor: checklist.criterio_acceso_decisor,
-      criterioPresupuestoIndicios: checklist.criterio_presupuesto_indicios,
     };
 
     if (!allChecklistCriteriaMet(criteria)) {
@@ -1331,7 +1355,6 @@ export class LeadsService {
       criterioSectorObjetivo: checklist.criterio_sector_objetivo,
       criterioNecesidadPortafolio: checklist.criterio_necesidad_portafolio,
       criterioAccesoDecisor: checklist.criterio_acceso_decisor,
-      criterioPresupuestoIndicios: checklist.criterio_presupuesto_indicios,
     };
 
     return this.checklistModel.create(
@@ -1405,10 +1428,10 @@ export class LeadsService {
     segmento: Segmento,
     industria: string | null | undefined,
   ): void {
-    if (segmento === Segmento.B2B && !industria?.trim()) {
+    if (isIndustriaSegmento(segmento) && !industria?.trim()) {
       throw new BadRequestException({
         code: DEMAND_GENERATION_ERROR_CODES.VALIDATION_ERROR,
-        message: 'industria is required when segmento is B2B',
+        message: 'tipo de industria is required when segmento is Industria',
       });
     }
   }

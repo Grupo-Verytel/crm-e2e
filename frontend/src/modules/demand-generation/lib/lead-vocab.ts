@@ -19,13 +19,16 @@ export function leadEstadoLabel(estado: string): string {
   return LEAD_ESTADO_LABEL[estado as LeadEstado] ?? estado;
 }
 
-/** Prefer lead.name; fall back to empresa for legacy rows without name. */
+/** Prefer the company name for the lead's identity throughout its life. */
 export function leadDisplayName(lead: {
   name?: string | null;
   empresa_nombre: string;
 }): string {
-  const name = lead.name?.trim();
-  return name || lead.empresa_nombre;
+  const company = lead.empresa_nombre?.trim();
+  if (company) {
+    return company;
+  }
+  return lead.name?.trim() || 'Lead';
 }
 
 export const LEAD_INFLUENCIA_SLOTS = [
@@ -49,14 +52,15 @@ export const CANAL_ORIGEN_LABEL: Record<CanalOrigen, string> = {
   GENERACION_DEMANDA_AGENCIA: 'Generación de demanda (agencia)',
   TRADUCTOR_NEGOCIO: 'Traductor de negocio',
   EVENTOS: 'Eventos',
+  REFERIDO: 'Referido',
 };
 
 /** Segment palette — small categorical dot, built only from design tokens. */
 export const SEGMENTO_DOT: Record<Segmento, string> = {
-  Gobierno: 'bg-navy',
-  'D&S': 'bg-blue-500',
-  ProyectosEspeciales: 'bg-sky',
-  B2B: 'bg-muted',
+  'Ciudades y gobernaciones': 'bg-navy',
+  'Gobierno central': 'bg-blue-500',
+  'Defensa y seguridad': 'bg-sky',
+  Industria: 'bg-muted',
 };
 
 export function segmentoDot(segmento: string): string {
@@ -130,6 +134,7 @@ export const CHANNEL_ROUTES: Partial<Record<CanalOrigen, KanbanEstado[]>> = {
   FABRICA: ['TOFU', 'MQL_PENDING', 'SQL'],
   GENERACION_DEMANDA_AGENCIA: ['MOFU', 'MQL_PENDING', 'SQL'],
   EVENTOS: ['TOFU', 'MOFU', 'MQL_PENDING', 'SQL'],
+  REFERIDO: ['TOFU', 'MOFU', 'MQL_PENDING', 'SQL'],
 };
 
 /** States treated as exceptions (shown outside the board). */

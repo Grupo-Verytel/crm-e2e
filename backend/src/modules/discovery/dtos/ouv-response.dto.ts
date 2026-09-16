@@ -3,6 +3,8 @@ export class OuvResponseDto {
   consecutivo!: string;
   sql_id_origen!: string | null;
   origen_via!: string;
+  origen!: string | null;
+  canal_origen!: string | null;
   comercial_id!: string;
   account_id!: string | null;
   titulo!: string;

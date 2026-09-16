@@ -1,4 +1,5 @@
 import { CANAL_ORIGEN_LABEL, leadEstadoLabel } from './lead-vocab';
+import { segmentoLabel } from './segment-catalog';
 import type { Lead } from '../types';
 
 const COLUMNS: { header: string; value: (lead: Lead) => string }[] = [
@@ -6,8 +7,8 @@ const COLUMNS: { header: string; value: (lead: Lead) => string }[] = [
   { header: 'Contacto', value: (l) => l.contacto_nombre },
   { header: 'Email', value: (l) => l.email },
   { header: 'Teléfono', value: (l) => l.telefono ?? '' },
-  { header: 'Segmento', value: (l) => l.segmento },
-  { header: 'Industria', value: (l) => l.industria ?? '' },
+  { header: 'Segmento', value: (l) => segmentoLabel(l.segmento) },
+  { header: 'Tipo de industria', value: (l) => l.industria ?? '' },
   { header: 'Estado', value: (l) => leadEstadoLabel(l.estado) },
   { header: 'Origen', value: (l) => l.origen },
   {

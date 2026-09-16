@@ -9,11 +9,10 @@ const allTrue = {
   criterioSectorObjetivo: true,
   criterioNecesidadPortafolio: true,
   criterioAccesoDecisor: true,
-  criterioPresupuestoIndicios: true,
 };
 
 describe('Checklist result (DG-13)', () => {
-  it('is Calificado only when the 4 criteria are true', () => {
+  it('is Calificado only when the 3 criteria are true', () => {
     expect(computeChecklistResult(allTrue)).toBe(ChecklistResultado.Calificado);
     expect(allChecklistCriteriaMet(allTrue)).toBe(true);
   });
@@ -30,11 +29,9 @@ describe('Checklist result (DG-13)', () => {
     const partial = {
       ...allTrue,
       criterioAccesoDecisor: false,
-      criterioPresupuestoIndicios: false,
     };
     expect(missingChecklistCriteria(partial)).toEqual([
       'criterio_acceso_decisor',
-      'criterio_presupuesto_indicios',
     ]);
   });
 });

@@ -1,8 +1,9 @@
 import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
-  ArrayMinSize,
+  IsArray,
   IsEnum,
+  IsIn,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -18,16 +19,19 @@ import {
   TipoLead,
 } from '../models/enums/lead.enums';
 import { Segmento } from '../models/enums/segment.enum';
+import { TIPOS_INDUSTRIA } from '../lib/segment-catalog';
 import {
   DirectChecklistDto,
   LeadContactInputDto,
 } from './lead-contact.dto';
 
 export class CreateLeadDto {
+  /** Optional snapshot; when omitted the account/company name is used. */
+  @IsOptional()
   @IsString()
   @MinLength(1)
   @MaxLength(160)
-  name: string;
+  name?: string;
 
   @IsEnum(TipoLead)
   tipo_lead: TipoLead;
@@ -38,7 +42,8 @@ export class CreateLeadDto {
   @IsEnum(CanalOrigen)
   canal_origen: CanalOrigen;
 
-  @IsOptional()
+  @ValidateIf((dto: CreateLeadDto) => dto.canal_origen === CanalOrigen.Referido)
+  @IsNotEmpty()
   @IsString()
   @MaxLength(80)
   sub_origen?: string;
@@ -50,10 +55,9 @@ export class CreateLeadDto {
   @IsEnum(Segmento)
   segmento: Segmento;
 
-  @ValidateIf((dto: CreateLeadDto) => dto.segmento === Segmento.B2B)
+  @ValidateIf((dto: CreateLeadDto) => dto.segmento === Segmento.Industria)
   @IsNotEmpty()
-  @IsString()
-  @MaxLength(80)
+  @IsIn([...TIPOS_INDUSTRIA])
   industria?: string;
 
   @IsOptional()
@@ -86,11 +90,12 @@ export class CreateLeadDto {
   @MaxLength(20)
   nit?: string;
 
-  @ArrayMinSize(1)
+  @IsOptional()
+  @IsArray()
   @ArrayMaxSize(3)
   @ValidateNested({ each: true })
   @Type(() => LeadContactInputDto)
-  contacts: LeadContactInputDto[];
+  contacts?: LeadContactInputDto[];
 
   @IsUUID('4')
   responsable_id: string;

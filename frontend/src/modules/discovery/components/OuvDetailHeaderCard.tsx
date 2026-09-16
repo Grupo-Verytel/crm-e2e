@@ -8,7 +8,7 @@ import {
 } from '../lib/ouv-detail-extensions';
 import {
   buildOuvMetaFields,
-  RESULTADO_LABEL,
+  formatOuvSourceChannel,
   SEGMENTO_LABEL,
 } from '../lib/ouv-detail-meta';
 import { SEGMENTOS, VERTICALES } from '../lib/ouv-vocab';
@@ -192,28 +192,28 @@ export function OuvDetailHeaderCard({
           ) : (
             <h1 className="text-xl font-bold text-ink">{ouv.titulo}</h1>
           )}
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            <ResultadoBadge resultado={ouv.resultado} />
-            <span className="rounded bg-bg px-2 py-0.5 text-xs font-bold text-ink">
-              {resolveOuvOrigenLabel(ouv.origen_via, draft.extensions)}
-            </span>
-            {ouv.tiene_gap ? <GapBadge /> : null}
-            {editMode ? (
-              <span className="text-xs font-bold text-muted">
-                {saving ? 'Guardando…' : savedFlash ? 'Guardado' : 'Edición · autoguardado'}
-              </span>
-            ) : null}
-          </div>
         </div>
-        {editable ? (
-          <OuvConfigMenu
-            editingOuv={editMode}
-            onEditar={onToggleEditMode}
-            onAvanzar={onAvanzar}
-            onRetroceder={onRetroceder}
-            onCerrar={onCerrar}
-          />
-        ) : null}
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+          <ResultadoBadge resultado={ouv.resultado} />
+          <span className="rounded bg-bg px-2 py-0.5 text-xs font-bold text-ink">
+            {resolveOuvOrigenLabel(ouv.origen_via, draft.extensions)}
+          </span>
+          {ouv.tiene_gap ? <GapBadge /> : null}
+          {editMode ? (
+            <span className="text-xs font-bold text-muted">
+              {saving ? 'Guardando…' : savedFlash ? 'Guardado' : 'Edición · autoguardado'}
+            </span>
+          ) : null}
+          {editable ? (
+            <OuvConfigMenu
+              editingOuv={editMode}
+              onEditar={onToggleEditMode}
+              onAvanzar={onAvanzar}
+              onRetroceder={onRetroceder}
+              onCerrar={onCerrar}
+            />
+          ) : null}
+        </div>
       </div>
 
       {editMode ? (
@@ -243,21 +243,9 @@ export function OuvDetailHeaderCard({
         {editMode ? (
           <>
             <div>
-              <dt className="text-xs font-bold text-muted">OUV ID</dt>
-              <dd className="mt-0.5 break-words font-medium text-ink">
-                {ouv.ouv_id}
-              </dd>
-            </div>
-            <div>
               <dt className="text-xs font-bold text-muted">Consecutivo</dt>
               <dd className="mt-0.5 break-words font-medium text-ink">
                 {ouv.consecutivo} · {draft.titulo}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs font-bold text-muted">SQL ID</dt>
-              <dd className="mt-0.5 font-medium text-ink">
-                {ouv.sql_id_origen ?? '—'}
               </dd>
             </div>
             <div>
@@ -299,6 +287,18 @@ export function OuvDetailHeaderCard({
                 }
                 maxLength={200}
               />
+            </div>
+            <div>
+              <dt className="text-xs font-bold text-muted">Origen</dt>
+              <dd className="mt-0.5 font-medium text-ink">
+                {ouv.origen ?? '—'}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs font-bold text-muted">Canal de origen</dt>
+              <dd className="mt-0.5 font-medium text-ink">
+                {formatOuvSourceChannel(ouv.canal_origen)}
+              </dd>
             </div>
             <div>
               <label className={labelClass} htmlFor="ouv-segmento">

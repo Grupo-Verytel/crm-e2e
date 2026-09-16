@@ -17,7 +17,7 @@ import {
 type Props = {
   editing: Account | 'new';
   onClose: () => void;
-  onSaved: () => void;
+  onSaved: (account: Account) => void;
 };
 
 type SearchField = 'name' | 'tax';
@@ -216,12 +216,10 @@ export function AccountFormModal({ editing, onClose, onSaved }: Props) {
         address: address.trim(),
         website: website.trim() || null,
       };
-      if (isNew) {
-        await createAccount(payload);
-      } else {
-        await updateAccount(editing.account_id, payload);
-      }
-      onSaved();
+      const savedAccount = isNew
+        ? await createAccount(payload)
+        : await updateAccount(editing.account_id, payload);
+      onSaved(savedAccount);
       onClose();
     } catch (err) {
       showToast(

@@ -1,8 +1,9 @@
-import type { CanalOrigen, Segmento } from '../types';
+import type { CanalOrigen, OrigenLead, Segmento } from '../types';
 
 /** Global Leads filters, shared verbatim by the list, board and exceptions views. */
 export type LeadFilterValues = {
   canal_origen: CanalOrigen | '';
+  origen: OrigenLead | '';
   segmento: Segmento | '';
   campana_id: string;
   responsable_id: string;
@@ -12,6 +13,7 @@ export type LeadFilterValues = {
 
 export const EMPTY_LEAD_FILTERS: LeadFilterValues = {
   canal_origen: '',
+  origen: '',
   segmento: '',
   campana_id: '',
   responsable_id: '',
@@ -22,6 +24,7 @@ export const EMPTY_LEAD_FILTERS: LeadFilterValues = {
 export function countActiveLeadFilters(filters: LeadFilterValues): number {
   let count = 0;
   if (filters.canal_origen) count += 1;
+  if (filters.origen) count += 1;
   if (filters.segmento) count += 1;
   if (filters.campana_id) count += 1;
   if (filters.responsable_id) count += 1;

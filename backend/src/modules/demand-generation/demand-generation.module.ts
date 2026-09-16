@@ -2,6 +2,7 @@ import { Module, forwardRef } from '@nestjs/common';
 import { SequelizeModule } from '@nestjs/sequelize';
 import { AccountsModule } from '../accounts/accounts.module';
 import { AuthModule } from '../auth/auth.module';
+import { DiscoveryModule } from '../discovery/discovery.module';
 import { User } from '../auth/models/user.model';
 import { WorkflowEngineModule } from '../workflow-engine/workflow-engine.module';
 import { LoggerNotificationAdapter } from './adapters/logger-notification.adapter';
@@ -46,6 +47,7 @@ import { MqlsService } from './services/mqls.service';
     ]),
     AccountsModule,
     forwardRef(() => AuthModule),
+    forwardRef(() => DiscoveryModule),
     WorkflowEngineModule,
   ],
   controllers: [

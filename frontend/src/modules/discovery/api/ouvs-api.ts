@@ -11,6 +11,8 @@ export type Ouv = {
   consecutivo: string;
   sql_id_origen: string | null;
   origen_via: string;
+  origen: string | null;
+  canal_origen: string | null;
   comercial_id: string;
   account_id: string | null;
   titulo: string;
@@ -56,6 +58,7 @@ export type OuvsQuery = {
   /** Comma-separated or array — EnCurso,Ganada for active tray. */
   resultados?: string | OuvResultado[];
   tiene_gap?: boolean;
+  canal_origen?: string;
   q?: string;
   created_from?: string;
   created_to?: string;

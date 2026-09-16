@@ -32,18 +32,28 @@ import { ChecklistModal } from '../components/leads/ChecklistModal';
 import { RegisterAppointmentModal } from '../components/leads/RegisterAppointmentModal';
 import { LeadInfluenciasPanel } from '../components/leads/LeadInfluenciasPanel';
 import { CANAL_ORIGEN_LABEL, leadDisplayName } from '../lib/lead-vocab';
-import { contactAccountName } from '../lib/contact-display';
 import type { Checklist, Lead, OrigenLead, Segmento } from '../types';
 import { ORIGENES_LEAD, SEGMENTOS } from '../types';
+import {
+  isIndustriaSegmento,
+  segmentoLabel,
+  TIPOS_INDUSTRIA,
+} from '../lib/segment-catalog';
 
 function isChecklistComplete(checklist: Checklist | null): boolean {
   return (
     !!checklist &&
     checklist.criterio_sector_objetivo &&
     checklist.criterio_necesidad_portafolio &&
-    checklist.criterio_acceso_decisor &&
-    checklist.criterio_presupuesto_indicios
+    checklist.criterio_acceso_decisor
   );
+}
+
+function industryOptions(current: string): string[] {
+  if (current && !(TIPOS_INDUSTRIA as readonly string[]).includes(current)) {
+    return [current, ...TIPOS_INDUSTRIA];
+  }
+  return [...TIPOS_INDUSTRIA];
 }
 
 type LeadEditDraft = {
@@ -55,9 +65,16 @@ type LeadEditDraft = {
   nit: string;
 };
 
+function toCanonicalSegmento(value: string): Segmento {
+  const labeled = segmentoLabel(value);
+  return (SEGMENTOS as readonly string[]).includes(labeled)
+    ? (labeled as Segmento)
+    : SEGMENTOS[0];
+}
+
 function draftFromLead(lead: Lead): LeadEditDraft {
   return {
-    segmento: lead.segmento,
+    segmento: toCanonicalSegmento(lead.segmento),
     industria: lead.industria ?? '',
     ciudad: lead.ciudad ?? '',
     region: lead.region,
@@ -168,12 +185,18 @@ export function LeadDetailPage() {
       return;
     }
 
+    const showTipoIndustria = isIndustriaSegmento(draft.segmento);
+    if (showTipoIndustria && !draft.industria.trim()) {
+      setActionError('Selecciona el tipo de industria.');
+      return;
+    }
+
     setSaving(true);
     setActionError(null);
     try {
       const updated = await updateLead(lead.lead_id, {
         segmento: draft.segmento,
-        industria: draft.industria.trim() || undefined,
+        industria: showTipoIndustria ? draft.industria.trim() : '',
         ciudad: draft.ciudad.trim() || undefined,
         region: draft.region,
         origen: draft.origen,
@@ -243,11 +266,6 @@ export function LeadDetailPage() {
     !isTraductor &&
     (canPassToMofu || canAdvanceViaChecklist || canRegisterAppointment);
 
-  const primaryContact = lead.contacts[0];
-  const headerCompany =
-    primaryContact != null
-      ? contactAccountName(primaryContact, lead.empresa_nombre)
-      : lead.empresa_nombre;
   const headerTitle = leadDisplayName(lead);
 
   return (
@@ -284,7 +302,8 @@ export function LeadDetailPage() {
           <div className="min-w-0 flex-1">
             <h1 className="text-lg font-bold text-ink">{headerTitle}</h1>
             <p className="text-sm text-muted">
-              {headerCompany} · {lead.contacto_nombre} · {lead.email}
+              {[lead.contacto_nombre, lead.email].filter(Boolean).join(' · ') ||
+                'Sin contacto'}
             </p>
             {editMode ? (
               <p className="mt-1 text-xs font-bold text-muted">
@@ -316,30 +335,44 @@ export function LeadDetailPage() {
                 id="lead-segmento"
                 className={inputClass}
                 value={draft.segmento}
-                onChange={(e) =>
-                  setDraft({ ...draft, segmento: e.target.value as Segmento })
-                }
+                onChange={(e) => {
+                  const next = e.target.value as Segmento;
+                  setDraft({
+                    ...draft,
+                    segmento: next,
+                    industria: isIndustriaSegmento(next) ? draft.industria : '',
+                  });
+                }}
               >
-                {SEGMENTOS.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
+                {SEGMENTOS.map((segmento) => (
+                  <option key={segmento} value={segmento}>
+                    {segmento}
                   </option>
                 ))}
               </select>
             </div>
-            <div>
-              <label className={labelClass} htmlFor="lead-industria">
-                Industria
-              </label>
-              <input
-                id="lead-industria"
-                className={inputClass}
-                value={draft.industria}
-                onChange={(e) =>
-                  setDraft({ ...draft, industria: e.target.value })
-                }
-              />
-            </div>
+            {isIndustriaSegmento(draft.segmento) ? (
+              <div>
+                <label className={labelClass} htmlFor="lead-industria">
+                  Tipo de industria
+                </label>
+                <select
+                  id="lead-industria"
+                  className={inputClass}
+                  value={draft.industria}
+                  onChange={(e) =>
+                    setDraft({ ...draft, industria: e.target.value })
+                  }
+                >
+                  <option value="">Seleccionar</option>
+                  {industryOptions(draft.industria).map((tipo) => (
+                    <option key={tipo} value={tipo}>
+                      {tipo}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : null}
             <div className="col-span-2 md:col-span-1">
               <label className={labelClass} htmlFor="lead-ciudad">
                 Ciudad
@@ -428,8 +461,13 @@ export function LeadDetailPage() {
           </div>
         ) : (
           <dl className="grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
-            <Detail label="Segmento" value={lead.segmento} />
-            <Detail label="Industria" value={lead.industria ?? '—'} />
+            <Detail label="Segmento" value={segmentoLabel(lead.segmento)} />
+            {isIndustriaSegmento(lead.segmento) ? (
+              <Detail
+                label="Tipo de industria"
+                value={lead.industria ?? '—'}
+              />
+            ) : null}
             <Detail label="Ciudad" value={lead.ciudad ?? '—'} />
             <Detail label="Región" value={lead.region} />
             <Detail label="Origen" value={lead.origen} />

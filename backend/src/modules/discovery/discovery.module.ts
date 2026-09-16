@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { SequelizeModule } from '@nestjs/sequelize';
 import { AccountsModule } from '../accounts/accounts.module';
 import { DemandGenerationModule } from '../demand-generation/demand-generation.module';
@@ -20,6 +20,7 @@ import { CriteriosZonaEvaluator } from './services/criterios-zona.evaluator';
 import { OuvChecklistService } from './services/ouv-checklist.service';
 import { OuvContactosService } from './services/ouv-contactos.service';
 import { OuvInfluenciasService } from './services/ouv-influencias.service';
+import { OuvMarketingMetricsService } from './services/ouv-marketing-metrics.service';
 import { OuvsService } from './services/ouvs.service';
 
 @Module({
@@ -34,7 +35,7 @@ import { OuvsService } from './services/ouvs.service';
       ZonaChecklistTemplate,
     ]),
     AccountsModule,
-    DemandGenerationModule,
+    forwardRef(() => DemandGenerationModule),
     WorkflowEngineModule,
   ],
   controllers: [
@@ -46,6 +47,7 @@ import { OuvsService } from './services/ouvs.service';
   ],
   providers: [
     OuvsService,
+    OuvMarketingMetricsService,
     OuvContactosService,
     OuvInfluenciasService,
     OuvChecklistService,
@@ -54,6 +56,7 @@ import { OuvsService } from './services/ouvs.service';
   ],
   exports: [
     OuvsService,
+    OuvMarketingMetricsService,
     OuvContactosService,
     OuvInfluenciasService,
     OuvChecklistService,

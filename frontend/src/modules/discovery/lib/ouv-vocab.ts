@@ -115,10 +115,10 @@ export const VERTICALES = [
 ] as const;
 
 export const SEGMENTOS = [
-  'Gobierno',
-  'D&S',
-  'ProyectosEspeciales',
-  'B2B',
+  'Ciudades y gobernaciones',
+  'Gobierno central',
+  'Defensa y seguridad',
+  'Industria',
 ] as const;
 
 export const OUV_EVENT_PREFIX = 'ouv.';
