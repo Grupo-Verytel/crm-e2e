@@ -29,7 +29,6 @@ import { CanalOrigen, LeadEstado } from '../models/enums/lead.enums';
 import { MqlEstado } from '../models/enums/mql.enums';
 import { SqlOrigenCreacion } from '../models/enums/sql-origen.enum';
 import { SqlEstado } from '../models/enums/sql.enums';
-import { Segmento } from '../models/enums/segment.enum';
 import { LeadContact } from '../models/lead-contact.model';
 import { Lead } from '../models/lead.model';
 import { LeadChecklist } from '../models/lead-checklist.model';
@@ -90,7 +89,7 @@ export class LeadStateMachineService {
 
   /**
    * TOFU → MOFU. DG-12: at least one interaction AND the lead classified
-   * (segmento, industria when B2B). Rejects with the explicit missing criterion.
+   * (segmento). Rejects with the explicit missing criterion.
    */
   // userId is part of the spec signature and captured centrally by the audit
   // hooks; kept for parity with the other transitions.
@@ -109,10 +108,6 @@ export class LeadStateMachineService {
 
     if (!lead.segmento) {
       missing.push('segmento');
-    }
-
-    if (lead.segmento === Segmento.B2B && !lead.industria?.trim()) {
-      missing.push('industria (requerida para segmento B2B)');
     }
 
     if (missing.length > 0) {

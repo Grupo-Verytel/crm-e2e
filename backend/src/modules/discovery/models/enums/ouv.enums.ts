@@ -18,10 +18,10 @@ export enum OuvResultado {
  * Duplicated here to avoid deep-importing another module's internals.
  */
 export enum OuvSegmento {
-  Gobierno = 'Gobierno',
-  DS = 'D&S',
-  ProyectosEspeciales = 'ProyectosEspeciales',
-  B2B = 'B2B',
+  CiudadesYGobernaciones = 'Ciudades y gobernaciones',
+  GobiernoCentral = 'Gobierno central',
+  DefensaYSeguridad = 'Defensa y seguridad',
+  Industria = 'Industria',
 }
 
 /** How the OUV was created (Vía 1 vs Vías 2/3/4). */

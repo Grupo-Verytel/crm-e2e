@@ -49,8 +49,7 @@ function isChecklistComplete(checklist: Checklist | null): boolean {
     !!checklist &&
     checklist.criterio_sector_objetivo &&
     checklist.criterio_necesidad_portafolio &&
-    checklist.criterio_acceso_decisor &&
-    checklist.criterio_presupuesto_indicios
+    checklist.criterio_acceso_decisor
   );
 }
 
@@ -199,13 +198,6 @@ export function LeadsKanbanView({
 
   function handleDropToMofu(lead: Lead) {
     setCardError(lead.lead_id, null);
-    if (lead.segmento === 'B2B' && !lead.industria) {
-      setCardError(
-        lead.lead_id,
-        'Falta la industria (requerida para B2B). Ábrelo para completarla.',
-      );
-      return;
-    }
     if (!lead.fecha_ultima_interaccion) {
       setInteractionFor(lead);
       return;

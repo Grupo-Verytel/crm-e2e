@@ -14,10 +14,6 @@ const CRITERIA: { key: keyof UpdateChecklistPayload; label: string }[] = [
     key: 'criterio_acceso_decisor',
     label: '¿Acceso a decisor o influencia hacia el decisor?',
   },
-  {
-    key: 'criterio_presupuesto_indicios',
-    label: '¿Indicios de presupuesto o capacidad de inversión?',
-  },
 ];
 
 export function ChecklistPanel({
@@ -43,7 +39,6 @@ export function ChecklistPanel({
         criterio_sector_objetivo: data?.criterio_sector_objetivo ?? false,
         criterio_necesidad_portafolio: data?.criterio_necesidad_portafolio ?? false,
         criterio_acceso_decisor: data?.criterio_acceso_decisor ?? false,
-        criterio_presupuesto_indicios: data?.criterio_presupuesto_indicios ?? false,
       });
     });
     return () => {
@@ -112,11 +107,11 @@ export function ChecklistPanel({
           </button>
           {allChecked ? (
             <span className="text-xs text-muted">
-              Los 4 criterios cumplen: el lead puede pasar a MQL.
+              Los 3 criterios cumplen: el lead puede pasar a MQL.
             </span>
           ) : (
             <span className="text-xs text-muted">
-              Marca los 4 criterios para habilitar el paso a MQL.
+              Marca los 3 criterios para habilitar el paso a MQL.
             </span>
           )}
         </div>

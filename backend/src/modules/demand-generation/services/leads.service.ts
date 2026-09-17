@@ -47,6 +47,7 @@ import {
 import { canRecycleLead } from '../lib/lead-state-machine';
 import { normalizePhoneToE164 } from '../lib/phone-normalize';
 import { normalizeCitaContactos } from '../lib/cita-contactos';
+import { isIndustriaSegmento, resolveSegmentoFromInput } from '../lib/segment-catalog';
 import {
   CanalOrigen,
   LeadContactInfluenciaTipo,
@@ -118,9 +119,7 @@ export class LeadsService {
       });
     }
 
-    this.assertB2bIndustria(dto.segmento, dto.industria);
     await this.ensureUserExists(dto.responsable_id);
-    await this.assertLeadNameAvailable(dto.name);
 
     if (dto.campana_id) {
       await this.campaignsService.assertCampaignAcceptsLeads(dto.campana_id);
@@ -131,6 +130,7 @@ export class LeadsService {
 
     const businessReferrerId = await this.resolveBusinessReferrerId(dto);
     await this.validateSegmentSubsegment(dto.segment_id, dto.subsegment_id);
+    this.assertIndustriaRequiresSubsegment(dto.segmento, dto.subsegment_id);
 
     const contacts = dto.contacts.map((contact, index) => ({
       position: index + 1,
@@ -142,11 +142,20 @@ export class LeadsService {
       await this.accountsService.getPeopleWithAccounts(personIds);
     const primaryPerson = peopleMap.get(personIds[0]);
     const nit = dto.nit ?? primaryPerson?.account_tax_id ?? null;
+    const name = await this.resolveUniqueLeadName(
+      dto.name,
+      primaryPerson?.account_name ?? null,
+    );
+    const createDto: CreateLeadDto = {
+      ...dto,
+      name,
+      tipo_lead: dto.tipo_lead ?? TipoLead.Inbound,
+    };
 
     try {
       if (roleName === DEMAND_GENERATION_ROLES.PRODUCT_MANAGER) {
         return await this.createProductManagerLead(
-          dto,
+          createDto,
           createdBy,
           contacts,
           businessReferrerId,
@@ -156,7 +165,7 @@ export class LeadsService {
 
       if (roleName === DEMAND_GENERATION_ROLES.EJECUTIVO_COMERCIAL) {
         return await this.createEjecutivoComercialLead(
-          dto,
+          createDto,
           createdBy,
           contacts,
           businessReferrerId,
@@ -165,7 +174,7 @@ export class LeadsService {
       }
 
       return await this.createStandardLead(
-        dto,
+        createDto,
         createdBy,
         contacts,
         businessReferrerId,
@@ -282,11 +291,6 @@ export class LeadsService {
     }
 
     const previousCampanaId = lead.campanaId;
-    const nextSegmento = dto.segmento ?? lead.segmento;
-    const nextIndustria =
-      dto.industria !== undefined ? dto.industria : lead.industria;
-
-    this.assertB2bIndustria(nextSegmento, nextIndustria);
 
     if (dto.name !== undefined) {
       await this.assertLeadNameAvailable(dto.name, leadId);
@@ -304,7 +308,9 @@ export class LeadsService {
       dto.segment_id !== undefined ? dto.segment_id : lead.segmentId;
     const nextSubsegmentId =
       dto.subsegment_id !== undefined ? dto.subsegment_id : lead.subsegmentId;
+    const nextSegmento = dto.segmento ?? lead.segmento;
     await this.validateSegmentSubsegment(nextSegmentId, nextSubsegmentId);
+    this.assertIndustriaRequiresSubsegment(nextSegmento, nextSubsegmentId);
 
     try {
       await lead.update({
@@ -542,7 +548,7 @@ export class LeadsService {
     values: Record<string, string>,
     createdBy: string,
   ): Promise<Lead> {
-    const segmento = values.segmento as Segmento;
+    const segmento = resolveSegmentoFromInput(values.segmento) as Segmento;
     const industria = values.industria || null;
     const canalOrigen = values.canal_origen as CanalOrigen;
     const accountName =
@@ -551,10 +557,6 @@ export class LeadsService {
 
     if (!Object.values(Segmento).includes(segmento)) {
       throw new BadRequestException(`Invalid segmento: ${values.segmento}`);
-    }
-
-    if (segmento === Segmento.B2B && !industria) {
-      throw new BadRequestException('industria is required for B2B segment');
     }
 
     if (!Object.values(CanalOrigen).includes(canalOrigen)) {
@@ -598,7 +600,10 @@ export class LeadsService {
         {
           name,
           tipoLead: (values.tipo_lead as TipoLead) || TipoLead.Outbound,
-          origen: (values.origen as OrigenLead) || OrigenLead.Email,
+          origen:
+            values.origen === 'Email'
+              ? OrigenLead.EmailMarketing
+              : (values.origen as OrigenLead) || OrigenLead.EmailMarketing,
           canalOrigen,
           campanaId: values.campana_id || null,
           segmento,
@@ -672,6 +677,32 @@ export class LeadsService {
     }
 
     return this.leadModel.findByPk(rows[0].lead_id);
+  }
+
+  private async resolveUniqueLeadName(
+    requested: string | undefined,
+    accountName: string | null,
+  ): Promise<string> {
+    const base = (requested?.trim() || accountName?.trim() || 'Lead').slice(
+      0,
+      160,
+    );
+    if (await this.isNameAvailable(base)) {
+      return base;
+    }
+
+    for (let n = 2; n < 1000; n++) {
+      const suffix = ` (${n})`;
+      const candidate = `${base.slice(0, 160 - suffix.length)}${suffix}`;
+      if (await this.isNameAvailable(candidate)) {
+        return candidate;
+      }
+    }
+
+    throw new ConflictException({
+      code: DEMAND_GENERATION_ERROR_CODES.DUPLICATE_LEAD_NAME,
+      message: 'Ya existe un lead con ese nombre',
+    });
   }
 
   async isNameAvailable(
@@ -861,8 +892,8 @@ export class LeadsService {
     const leadId = await this.sequelize.transaction(async (transaction) => {
       const lead = await this.leadModel.create(
         {
-          name: dto.name.trim(),
-          tipoLead: dto.tipo_lead,
+          name: dto.name!.trim(),
+          tipoLead: dto.tipo_lead ?? TipoLead.Inbound,
           origen: dto.origen,
           canalOrigen: dto.canal_origen,
           subOrigen: dto.sub_origen ?? null,
@@ -933,8 +964,8 @@ export class LeadsService {
     const leadId = await this.sequelize.transaction(async (transaction) => {
       const lead = await this.leadModel.create(
         {
-          name: dto.name.trim(),
-          tipoLead: dto.tipo_lead,
+          name: dto.name!.trim(),
+          tipoLead: dto.tipo_lead ?? TipoLead.Inbound,
           origen: dto.origen,
           canalOrigen: dto.canal_origen,
           subOrigen: dto.sub_origen ?? null,
@@ -1033,8 +1064,8 @@ export class LeadsService {
     const leadId = await this.sequelize.transaction(async (transaction) => {
       const lead = await this.leadModel.create(
         {
-          name: dto.name.trim(),
-          tipoLead: dto.tipo_lead,
+          name: dto.name!.trim(),
+          tipoLead: dto.tipo_lead ?? TipoLead.Inbound,
           origen: dto.origen,
           canalOrigen: dto.canal_origen,
           subOrigen: dto.sub_origen ?? null,
@@ -1217,6 +1248,18 @@ export class LeadsService {
     }
   }
 
+  private assertIndustriaRequiresSubsegment(
+    segmento: string,
+    subsegmentId?: string | null,
+  ): void {
+    if (isIndustriaSegmento(segmento) && !subsegmentId) {
+      throw new BadRequestException({
+        code: DEMAND_GENERATION_ERROR_CODES.VALIDATION_ERROR,
+        message: 'subsegment_id is required when segmento is Industria',
+      });
+    }
+  }
+
   private async recordLeadCreated(
     leadId: string,
     toEstado: string,
@@ -1261,7 +1304,6 @@ export class LeadsService {
       criterioSectorObjetivo: checklist.criterio_sector_objetivo,
       criterioNecesidadPortafolio: checklist.criterio_necesidad_portafolio,
       criterioAccesoDecisor: checklist.criterio_acceso_decisor,
-      criterioPresupuestoIndicios: checklist.criterio_presupuesto_indicios,
     };
 
     if (!allChecklistCriteriaMet(criteria)) {
@@ -1287,7 +1329,6 @@ export class LeadsService {
       criterioSectorObjetivo: checklist.criterio_sector_objetivo,
       criterioNecesidadPortafolio: checklist.criterio_necesidad_portafolio,
       criterioAccesoDecisor: checklist.criterio_acceso_decisor,
-      criterioPresupuestoIndicios: checklist.criterio_presupuesto_indicios,
     };
 
     return this.checklistModel.create(
@@ -1353,18 +1394,6 @@ export class LeadsService {
       throw new NotFoundException({
         code: DEMAND_GENERATION_ERROR_CODES.USER_NOT_FOUND,
         message: 'User not found',
-      });
-    }
-  }
-
-  private assertB2bIndustria(
-    segmento: Segmento,
-    industria: string | null | undefined,
-  ): void {
-    if (segmento === Segmento.B2B && !industria?.trim()) {
-      throw new BadRequestException({
-        code: DEMAND_GENERATION_ERROR_CODES.VALIDATION_ERROR,
-        message: 'industria is required when segmento is B2B',
       });
     }
   }

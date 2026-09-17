@@ -33,9 +33,6 @@ export class DirectChecklistDto {
 
   @IsBoolean()
   criterio_acceso_decisor: boolean;
-
-  @IsBoolean()
-  criterio_presupuesto_indicios: boolean;
 }
 
 export class LeadContactResponseDto {

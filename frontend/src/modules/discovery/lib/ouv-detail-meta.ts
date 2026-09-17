@@ -3,10 +3,15 @@ import type { Ouv } from '../api/ouvs-api';
 import type { OuvDetailExtensions } from './ouv-detail-extensions';
 
 export const SEGMENTO_LABEL: Record<string, string> = {
-  Gobierno: 'Gobierno',
-  'D&S': 'D&S',
-  ProyectosEspeciales: 'Proyectos especiales',
-  B2B: 'B2B',
+  'Ciudades y gobernaciones': 'Ciudades y gobernaciones',
+  'Gobierno central': 'Gobierno central',
+  'Defensa y seguridad': 'Defensa y seguridad',
+  Industria: 'Industria',
+  Gobierno: 'Gobierno central',
+  'D&S': 'Defensa y seguridad',
+  ProyectosEspeciales: 'Ciudades y gobernaciones',
+  'Seguridad ciudadana': 'Ciudades y gobernaciones',
+  B2B: 'Industria',
 };
 
 export const RESULTADO_LABEL: Record<string, string> = {

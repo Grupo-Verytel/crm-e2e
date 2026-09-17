@@ -1,7 +1,7 @@
 import type { ChecklistProgress as Progress } from '../../hooks/useChecklistProgress';
 
 /**
- * Binary checklist progress ("2/4") as four filled/empty segments — not a
+ * Binary checklist progress ("2/3") as filled/empty segments — not a
  * circular gauge, because this is a count of met criteria, not a score.
  */
 export function ChecklistProgress({

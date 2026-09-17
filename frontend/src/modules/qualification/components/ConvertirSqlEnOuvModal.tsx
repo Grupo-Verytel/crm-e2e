@@ -26,13 +26,21 @@ const VERTICALES = [
   'Otros',
 ] as const;
 
-/** Map segments.name → legacy OuvSegmento ENUM (coexistence). */
+/** Map segments.name → OuvSegmento ENUM. */
 function segmentNameToEnum(
   name: string,
 ): ConvertirSqlPayload['segmento'] {
-  if (name === 'Proyectos Especiales') return 'ProyectosEspeciales';
-  if (name === 'Gobierno' || name === 'D&S' || name === 'B2B') return name;
-  return 'B2B';
+  if (name === 'Gobierno' || name === 'Gobierno central') return 'Gobierno central';
+  if (name === 'D&S' || name === 'Defensa y seguridad') return 'Defensa y seguridad';
+  if (
+    name === 'Proyectos Especiales' ||
+    name === 'ProyectosEspeciales' ||
+    name === 'Ciudades y gobernaciones'
+  ) {
+    return 'Ciudades y gobernaciones';
+  }
+  if (name === 'B2B' || name === 'Industria') return 'Industria';
+  return name;
 }
 
 type Props = {

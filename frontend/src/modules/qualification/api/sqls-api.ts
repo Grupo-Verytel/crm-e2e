@@ -141,7 +141,16 @@ export async function updateSqlCita(
 export type ConvertirSqlPayload = {
   titulo: string;
   descripcion?: string;
-  segmento: 'Gobierno' | 'D&S' | 'ProyectosEspeciales' | 'B2B';
+  segmento:
+    | 'Ciudades y gobernaciones'
+    | 'Gobierno central'
+    | 'Defensa y seguridad'
+    | 'Industria'
+    | 'Gobierno'
+    | 'D&S'
+    | 'ProyectosEspeciales'
+    | 'B2B'
+    | string;
   segment_id: string;
   subsegment_id?: string | null;
   vertical: string;

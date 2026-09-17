@@ -53,10 +53,10 @@ export const CANAL_ORIGEN_LABEL: Record<CanalOrigen, string> = {
 
 /** Segment palette — small categorical dot, built only from design tokens. */
 export const SEGMENTO_DOT: Record<Segmento, string> = {
-  Gobierno: 'bg-navy',
-  'D&S': 'bg-blue-500',
-  ProyectosEspeciales: 'bg-sky',
-  B2B: 'bg-muted',
+  'Gobierno central': 'bg-navy',
+  'Defensa y seguridad': 'bg-blue-500',
+  'Ciudades y gobernaciones': 'bg-sky',
+  Industria: 'bg-muted',
 };
 
 export function segmentoDot(segmento: string): string {

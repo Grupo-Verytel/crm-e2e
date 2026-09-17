@@ -41,8 +41,7 @@ function isChecklistComplete(checklist: Checklist | null): boolean {
     !!checklist &&
     checklist.criterio_sector_objetivo &&
     checklist.criterio_necesidad_portafolio &&
-    checklist.criterio_acceso_decisor &&
-    checklist.criterio_presupuesto_indicios
+    checklist.criterio_acceso_decisor
   );
 }
 

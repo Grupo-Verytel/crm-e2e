@@ -63,7 +63,7 @@ function ouvFromVentaRecord(record: VentaGanadaRecord): Ouv {
     city: null,
     region: null,
     descripcion: null,
-    segmento: 'Gobierno',
+    segmento: 'Gobierno central',
     segment_id: null,
     subsegment_id: null,
     vertical: '—',

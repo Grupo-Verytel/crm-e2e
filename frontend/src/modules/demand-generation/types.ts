@@ -17,8 +17,17 @@ export const LEAD_ESTADOS: LeadEstado[] = [
   'Descartado',
 ];
 
-export type Segmento = 'Gobierno' | 'D&S' | 'ProyectosEspeciales' | 'B2B';
-export const SEGMENTOS: Segmento[] = ['Gobierno', 'D&S', 'ProyectosEspeciales', 'B2B'];
+export type Segmento =
+  | 'Ciudades y gobernaciones'
+  | 'Gobierno central'
+  | 'Defensa y seguridad'
+  | 'Industria';
+export const SEGMENTOS: Segmento[] = [
+  'Ciudades y gobernaciones',
+  'Gobierno central',
+  'Defensa y seguridad',
+  'Industria',
+];
 
 export type SegmentoObjetivo = Segmento | 'Todos';
 export const SEGMENTOS_OBJETIVO: SegmentoObjetivo[] = [...SEGMENTOS, 'Todos'];
@@ -34,7 +43,9 @@ export const TIPOS_LEAD: TipoLead[] = [
 
 export type OrigenLead =
   | 'Web'
-  | 'Email'
+  | 'Email Marketing'
+  | 'Instagram & Facebook'
+  | 'Prospeccion directa'
   | 'LinkedIn'
   | 'Evento'
   | 'SECOP'
@@ -43,7 +54,9 @@ export type OrigenLead =
   | 'Referido';
 export const ORIGENES_LEAD: OrigenLead[] = [
   'Web',
-  'Email',
+  'Email Marketing',
+  'Instagram & Facebook',
+  'Prospeccion directa',
   'LinkedIn',
   'Evento',
   'SECOP',
@@ -241,7 +254,6 @@ export type CreateLeadChecklistInput = {
   criterio_sector_objetivo: boolean;
   criterio_necesidad_portafolio: boolean;
   criterio_acceso_decisor: boolean;
-  criterio_presupuesto_indicios: boolean;
 };
 
 export type LeadFormMode = 'standard' | 'product_manager' | 'ejecutivo';
@@ -317,8 +329,8 @@ export type LeadsQuery = {
 };
 
 export type CreateLeadPayload = {
-  name: string;
-  tipo_lead: TipoLead;
+  name?: string;
+  tipo_lead?: TipoLead;
   origen: OrigenLead;
   canal_origen: CanalOrigen;
   segmento: Segmento;
@@ -392,7 +404,6 @@ export type Checklist = {
   criterio_sector_objetivo: boolean;
   criterio_necesidad_portafolio: boolean;
   criterio_acceso_decisor: boolean;
-  criterio_presupuesto_indicios: boolean;
   resultado: 'Calificado' | 'NoCalificado';
   completado_por: string;
   fecha_completado: string | null;
@@ -404,7 +415,6 @@ export type UpdateChecklistPayload = {
   criterio_sector_objetivo?: boolean;
   criterio_necesidad_portafolio?: boolean;
   criterio_acceso_decisor?: boolean;
-  criterio_presupuesto_indicios?: boolean;
 };
 
 export type Campaign = {
