@@ -117,7 +117,7 @@ export function LeadInfluenciasPanel({
         El contacto se guarda al instante. En cada influencia solo aparecen
         contactos de la empresa que aún no están en otro rol.
       </p>
-      <div className="grid gap-3 md:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {LEAD_INFLUENCIA_SLOTS.map(({ key, label }) => {
           const assigned = lead.contacts.find(
             (contact) => contact.tipo_influencia === key,

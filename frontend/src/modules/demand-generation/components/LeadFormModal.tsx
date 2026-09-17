@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { X } from 'lucide-react';
+import { Plus, X } from 'lucide-react';
 import {
   fetchAccounts,
   fetchPeople,
@@ -28,7 +28,11 @@ import { CANAL_ORIGEN_LABEL, LEAD_INFLUENCIA_SLOTS } from '../lib/lead-vocab';
 import type { LeadInfluenciaKey } from '../lib/lead-vocab';
 import { ModalShell } from './ModalShell';
 import {
+  contactRowClass,
+  contactTableHeaderClass,
   ghostButtonClass,
+  influenceChipClass,
+  influenceChipPressedClass,
   inputClass,
   labelClass,
   primaryButtonClass,
@@ -73,21 +77,24 @@ type FormState = {
 };
 
 type ContactSlot = {
+  slotId: string;
   person_id: string | null;
   label: string;
-  tipo_influencia: LeadInfluenciaKey | null;
+  tipos_influencia: LeadInfluenciaKey[];
 };
 
-const CONTACT_SLOT_COUNT = 3;
-
 const emptyContact = (): ContactSlot => ({
+  slotId: crypto.randomUUID(),
   person_id: null,
   label: '',
-  tipo_influencia: null,
+  tipos_influencia: [],
 });
 
-const emptyContactSlots = (): ContactSlot[] =>
-  Array.from({ length: CONTACT_SLOT_COUNT }, emptyContact);
+const emptyContactSlots = (): ContactSlot[] => [emptyContact()];
+
+function rowLabel(index: number): string {
+  return index === 0 ? 'Principal' : `Contacto ${index + 1}`;
+}
 
 const emptyChecklist = (): CreateLeadChecklistInput => ({
   criterio_sector_objetivo: false,
@@ -403,18 +410,41 @@ export function LeadFormModal({
     }
   }
 
-  function setSlotTipo(index: number, tipo: LeadInfluenciaKey | null) {
+  function toggleSlotTipo(index: number, tipo: LeadInfluenciaKey) {
     setContactSlots((current) =>
       current.map((slot, slotIndex) => {
-        if (slotIndex === index) {
-          return { ...slot, tipo_influencia: tipo };
+        if (slotIndex !== index) {
+          return slot;
         }
-        if (tipo && slot.tipo_influencia === tipo) {
-          return { ...slot, tipo_influencia: null };
-        }
-        return slot;
+        const selected = slot.tipos_influencia.includes(tipo);
+        return {
+          ...slot,
+          tipos_influencia: selected
+            ? slot.tipos_influencia.filter((item) => item !== tipo)
+            : [...slot.tipos_influencia, tipo],
+        };
       }),
     );
+  }
+
+  function addContactRow() {
+    setContactSlots((current) => [...current, emptyContact()]);
+  }
+
+  function removeContactRow(index: number) {
+    if (index === 0) {
+      return;
+    }
+    setContactSlots((current) =>
+      current.filter((_, slotIndex) => slotIndex !== index),
+    );
+    if (activePersonSearch === index) {
+      resetContactDraft();
+      return;
+    }
+    if (activePersonSearch !== null && activePersonSearch > index) {
+      setActivePersonSearch(activePersonSearch - 1);
+    }
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -438,15 +468,15 @@ export function LeadFormModal({
       return [
         {
           person_id: slot.person_id,
-          ...(slot.tipo_influencia
-            ? { tipo_influencia: slot.tipo_influencia }
+          ...(slot.tipos_influencia[0]
+            ? { tipo_influencia: slot.tipos_influencia[0] }
             : {}),
         },
       ];
     });
     if (contacts.length === 0) {
       setError(
-        'Asocia al menos un contacto. El tipo (Económica, Técnica o Fábrica) es opcional.',
+        'Asocia al menos un contacto. El tipo (Económica, Técnica, Fábrica, Usuario o Coach) es opcional.',
       );
       return;
     }
@@ -787,8 +817,8 @@ export function LeadFormModal({
               Contactos
             </h3>
             <p className="text-xs text-muted">
-              Asocia al menos un contacto. El tipo (Económica, Técnica o
-              Fábrica) se puede marcar en la tarjeta o dejar sin definir.
+              Asocia al menos un contacto. El tipo (Económica, Técnica, Fábrica,
+              Usuario o Coach) se puede marcar en la fila o dejar sin definir.
             </p>
           </div>
 
@@ -797,124 +827,155 @@ export function LeadFormModal({
               Selecciona una empresa para asignar contactos.
             </p>
           ) : (
-            <div className="grid gap-3 md:grid-cols-3">
+            <div>
+              <div
+                className="hidden pb-1 md:grid md:min-h-10 md:grid-cols-[5.5rem_minmax(0,1fr)_minmax(12.5rem,1fr)_2rem] md:items-center md:gap-2"
+                aria-hidden="true"
+              >
+                <span />
+                <span className={contactTableHeaderClass}>Persona</span>
+                <span className={contactTableHeaderClass}>Tipo (opcional)</span>
+                <span />
+              </div>
+
               {contactSlots.map((slot, index) => {
                 const searching = activePersonSearch === index;
+                const label = rowLabel(index);
 
                 return (
-                  <div
-                    key={index}
-                    className="space-y-2 rounded border border-border bg-bg p-3"
-                  >
-                    <p className="text-sm font-bold text-ink">
-                      Contacto {index + 1}
-                      {index === 0 ? (
-                        <span className="ml-1 text-xs font-normal text-muted">
-                          (principal)
-                        </span>
-                      ) : null}
-                    </p>
-                    <span className={labelClass}>Persona</span>
+                  <div key={slot.slotId} className={contactRowClass}>
+                    <p className="text-xs font-bold text-ink">{label}</p>
 
-                    {slot.person_id ? (
-                      <div className="relative rounded border border-border bg-surface p-2.5 pr-8 text-xs">
-                        <button
-                          type="button"
-                          className="icon-btn absolute right-1 top-1 grid h-6 w-6 place-items-center rounded text-muted"
-                          aria-label={`Quitar contacto ${index + 1}`}
-                          onClick={() => clearPerson(index)}
-                        >
-                          <X size={14} strokeWidth={2.5} />
-                        </button>
-                        <p className="font-bold text-ink">{slot.label}</p>
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        <input
-                          value={searching ? personQuery : ''}
-                          onChange={(event) => {
-                            setActivePersonSearch(index);
-                            setPersonQuery(event.target.value);
-                          }}
-                          onFocus={() => {
-                            setActivePersonSearch(index);
-                            setPersonQuery('');
-                          }}
-                          className={inputClass}
-                          placeholder={
-                            peopleLoading
-                              ? 'Cargando contactos…'
-                              : 'Buscar contacto'
-                          }
-                          disabled={peopleLoading}
-                          autoComplete="off"
-                        />
-                        {searching ? (
-                          <ul className="max-h-40 overflow-y-auto rounded border border-border bg-surface">
-                            {filteredPeople.length === 0 ? (
-                              <li className="px-3 py-2 text-xs text-muted">
-                                {accountPeople.length === 0
-                                  ? 'Esta empresa no tiene contactos.'
-                                  : 'Sin coincidencias.'}
-                              </li>
-                            ) : (
-                              filteredPeople.map((person) => (
-                                <li key={person.person_id}>
-                                  <button
-                                    type="button"
-                                    onClick={() => selectPerson(index, person)}
-                                    className="flex w-full flex-col px-3 py-2 text-left text-sm hover:bg-bg"
-                                  >
-                                    <span className="font-bold text-ink">
-                                      {person.name}
-                                    </span>
-                                    <span className="text-xs text-muted">
-                                      {[person.job_title, person.email]
-                                        .filter(Boolean)
-                                        .join(' · ') || 'Sin datos adicionales'}
-                                    </span>
-                                  </button>
-                                </li>
-                              ))
-                            )}
-                          </ul>
-                        ) : null}
-                        <Link
-                          to={`/accounts/contactos?account_id=${encodeURIComponent(selectedAccount.account_id)}&new=1`}
-                          className="text-xs font-bold text-accent hover:underline"
-                          onClick={onClose}
-                        >
-                          Crear contacto
-                        </Link>
-                      </div>
-                    )}
-
-                    <fieldset className="space-y-1.5">
-                      <legend className={labelClass}>Tipo (opcional)</legend>
-                      <div className="flex flex-col gap-1.5">
-                        {LEAD_INFLUENCIA_SLOTS.map(({ key, label }) => (
-                          <label
-                            key={key}
-                            className="flex cursor-pointer items-center gap-2 text-xs text-ink"
+                    <div className="min-w-0">
+                      {slot.person_id ? (
+                        <div className="relative flex min-h-10 items-center rounded border border-border bg-surface px-3 py-1.5 pr-8 text-xs">
+                          <button
+                            type="button"
+                            className="icon-btn absolute right-1 top-1/2 grid h-6 w-6 -translate-y-1/2 place-items-center rounded text-muted"
+                            aria-label={`Quitar persona de ${label}`}
+                            onClick={() => clearPerson(index)}
                           >
-                            <input
-                              type="checkbox"
-                              checked={slot.tipo_influencia === key}
-                              onChange={() =>
-                                setSlotTipo(
-                                  index,
-                                  slot.tipo_influencia === key ? null : key,
-                                )
-                              }
-                            />
-                            {label}
-                          </label>
-                        ))}
-                      </div>
-                    </fieldset>
+                            <X size={14} strokeWidth={2.5} />
+                          </button>
+                          <p className="truncate font-bold text-ink">
+                            {slot.label}
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="relative space-y-1">
+                          <input
+                            value={searching ? personQuery : ''}
+                            onChange={(event) => {
+                              setActivePersonSearch(index);
+                              setPersonQuery(event.target.value);
+                            }}
+                            onFocus={() => {
+                              setActivePersonSearch(index);
+                              setPersonQuery('');
+                            }}
+                            className={inputClass}
+                            placeholder={
+                              peopleLoading
+                                ? 'Cargando contactos…'
+                                : 'Buscar contacto'
+                            }
+                            disabled={peopleLoading}
+                            autoComplete="off"
+                            aria-label={`Buscar persona para ${label}`}
+                          />
+                          {searching ? (
+                            <ul className="absolute z-20 mt-1 max-h-40 w-full overflow-y-auto rounded border border-border bg-surface shadow-card">
+                              {filteredPeople.length === 0 ? (
+                                <li className="px-3 py-2 text-xs text-muted">
+                                  {accountPeople.length === 0
+                                    ? 'Esta empresa no tiene contactos.'
+                                    : 'Sin coincidencias.'}
+                                </li>
+                              ) : (
+                                filteredPeople.map((person) => (
+                                  <li key={person.person_id}>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        selectPerson(index, person)
+                                      }
+                                      className="flex w-full flex-col px-3 py-2 text-left text-sm hover:bg-bg"
+                                    >
+                                      <span className="font-bold text-ink">
+                                        {person.name}
+                                      </span>
+                                      <span className="text-xs text-muted">
+                                        {[person.job_title, person.email]
+                                          .filter(Boolean)
+                                          .join(' · ') ||
+                                          'Sin datos adicionales'}
+                                      </span>
+                                    </button>
+                                  </li>
+                                ))
+                              )}
+                            </ul>
+                          ) : null}
+                          <Link
+                            to={`/accounts/contactos?account_id=${encodeURIComponent(selectedAccount.account_id)}&new=1`}
+                            className="text-xs font-bold text-accent hover:underline"
+                            onClick={onClose}
+                          >
+                            Crear contacto
+                          </Link>
+                        </div>
+                      )}
+                    </div>
+
+                    <div
+                      className="flex min-h-10 flex-wrap content-center gap-1"
+                      role="group"
+                      aria-label={`Tipo de ${label}`}
+                    >
+                      {LEAD_INFLUENCIA_SLOTS.map(({ key, label: chipLabel }) => {
+                        const pressed = slot.tipos_influencia.includes(key);
+                        return (
+                          <button
+                            key={key}
+                            type="button"
+                            aria-pressed={pressed}
+                            onClick={() => toggleSlotTipo(index, key)}
+                            className={
+                              pressed
+                                ? influenceChipPressedClass
+                                : influenceChipClass
+                            }
+                          >
+                            {chipLabel}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {index === 0 ? (
+                      <span className="hidden md:block" />
+                    ) : (
+                      <button
+                        type="button"
+                        className="icon-btn grid h-8 w-8 place-items-center self-center rounded text-muted hover:text-danger"
+                        aria-label={`Quitar ${label}`}
+                        onClick={() => removeContactRow(index)}
+                      >
+                        <X size={16} strokeWidth={2.5} />
+                      </button>
+                    )}
                   </div>
                 );
               })}
+
+              <button
+                type="button"
+                onClick={addContactRow}
+                className="mt-2 flex w-full items-center justify-center gap-1 rounded border border-dashed border-border py-2 text-xs font-bold text-accent hover:bg-bg"
+              >
+                <Plus size={14} strokeWidth={2.5} />
+                Agregar contacto
+              </button>
             </div>
           )}
         </section>

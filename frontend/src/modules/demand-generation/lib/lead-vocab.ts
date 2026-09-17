@@ -32,6 +32,8 @@ export const LEAD_INFLUENCIA_SLOTS = [
   { key: 'Economica', label: 'Económica' },
   { key: 'Tecnica', label: 'Técnica' },
   { key: 'Fabrica', label: 'Fábrica' },
+  { key: 'Usuario', label: 'Usuario' },
+  { key: 'Coach', label: 'Coach' },
 ] as const;
 
 export type LeadInfluenciaKey = (typeof LEAD_INFLUENCIA_SLOTS)[number]['key'];
@@ -40,6 +42,8 @@ export const LEAD_CONTACT_INFLUENCIA_LABEL: Record<LeadInfluenciaKey, string> = 
   Economica: 'Económica',
   Tecnica: 'Técnica',
   Fabrica: 'Fábrica',
+  Usuario: 'Usuario',
+  Coach: 'Coach',
 };
 
 export const CANAL_ORIGEN_LABEL: Record<CanalOrigen, string> = {

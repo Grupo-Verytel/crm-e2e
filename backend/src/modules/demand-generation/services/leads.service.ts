@@ -397,14 +397,6 @@ export class LeadsService {
 
       let target = contacts.find((row) => row.personId === personId);
       if (!target) {
-        const distinctPeople = new Set(contacts.map((row) => row.personId));
-        if (distinctPeople.size >= 3) {
-          throw new BadRequestException({
-            code: DEMAND_GENERATION_ERROR_CODES.VALIDATION_ERROR,
-            message: 'A lead can have at most 3 contacts',
-          });
-        }
-
         const maxPosition = contacts.reduce(
           (max, row) => Math.max(max, row.position),
           0,

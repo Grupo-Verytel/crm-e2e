@@ -29,7 +29,7 @@ export function ModalShell({
       <div
         className={[
           'max-h-[90vh] w-full overflow-y-auto rounded bg-surface p-6 shadow-card',
-          size === 'wide' ? 'max-w-3xl' : 'max-w-lg',
+          size === 'wide' ? 'max-w-4xl' : 'max-w-lg',
         ].join(' ')}
       >
         <div className="mb-4">

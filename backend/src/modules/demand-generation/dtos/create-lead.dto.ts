@@ -1,6 +1,5 @@
 import { Type, Transform } from 'class-transformer';
 import {
-  ArrayMaxSize,
   ArrayMinSize,
   IsEnum,
   IsOptional,
@@ -101,7 +100,6 @@ export class CreateLeadDto {
   nit?: string;
 
   @ArrayMinSize(1)
-  @ArrayMaxSize(3)
   @ValidateNested({ each: true })
   @Type(() => LeadContactInputDto)
   contacts: LeadContactInputDto[];

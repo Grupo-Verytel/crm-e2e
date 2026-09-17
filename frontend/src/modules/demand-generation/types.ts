@@ -213,7 +213,12 @@ export const INTERACTION_RESULTADOS: InteractionResultado[] = [
   'SinRespuesta',
 ];
 
-export type LeadInfluenciaTipo = 'Economica' | 'Tecnica' | 'Fabrica';
+export type LeadInfluenciaTipo =
+  | 'Economica'
+  | 'Tecnica'
+  | 'Fabrica'
+  | 'Usuario'
+  | 'Coach';
 
 export type LeadContact = {
   contact_id: string;

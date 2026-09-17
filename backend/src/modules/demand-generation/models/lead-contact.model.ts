@@ -11,6 +11,7 @@ import {
   Table,
   UpdatedAt,
 } from 'sequelize-typescript';
+import { LeadContactInfluenciaTipo } from './enums/lead.enums';
 import { Lead } from './lead.model';
 
 @Table({
@@ -40,11 +41,11 @@ export class LeadContact extends Model {
   declare personId: string;
 
   @Column({
-    type: DataType.ENUM('Economica', 'Tecnica', 'Fabrica'),
+    type: DataType.ENUM(...Object.values(LeadContactInfluenciaTipo)),
     field: 'tipo_influencia',
     allowNull: true,
   })
-  declare tipoInfluencia: 'Economica' | 'Tecnica' | 'Fabrica' | null;
+  declare tipoInfluencia: LeadContactInfluenciaTipo | null;
 
   @CreatedAt
   @Column({ type: DataType.DATE, field: 'created_at' })
