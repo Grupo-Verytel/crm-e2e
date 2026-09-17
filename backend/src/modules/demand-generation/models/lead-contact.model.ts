@@ -41,7 +41,13 @@ export class LeadContact extends Model {
   declare personId: string;
 
   @Column({
-    type: DataType.ENUM(...Object.values(LeadContactInfluenciaTipo)),
+    type: DataType.ENUM(
+      'Economica',
+      'Tecnica',
+      'Fabrica',
+      'Usuario',
+      'Coach',
+    ),
     field: 'tipo_influencia',
     allowNull: true,
   })

@@ -84,6 +84,42 @@ type PersonEnrichment = {
   account_tax_id: string | null;
 };
 
+function readContactInfluenciaTipo(
+  contact: LeadContact,
+): LeadContactInfluenciaTipo | null {
+  const plain = (
+    typeof contact.toJSON === 'function' ? contact.toJSON() : contact
+  ) as {
+    tipoInfluencia?: LeadContactInfluenciaTipo | string | null;
+    tipo_influencia?: LeadContactInfluenciaTipo | string | null;
+  };
+  const raw =
+    contact.tipoInfluencia ??
+    (typeof contact.getDataValue === 'function'
+      ? contact.getDataValue('tipoInfluencia')
+      : undefined) ??
+    plain.tipoInfluencia ??
+    plain.tipo_influencia ??
+    null;
+  if (!raw) {
+    return null;
+  }
+  if (raw === 'DeFabrica') {
+    return LeadContactInfluenciaTipo.Fabrica;
+  }
+  if (raw === 'Usuaria') {
+    return LeadContactInfluenciaTipo.Usuario;
+  }
+  if (
+    Object.values(LeadContactInfluenciaTipo).includes(
+      raw as LeadContactInfluenciaTipo,
+    )
+  ) {
+    return raw as LeadContactInfluenciaTipo;
+  }
+  return null;
+}
+
 @Injectable()
 export class LeadsService {
   constructor(
@@ -387,7 +423,7 @@ export class LeadsService {
       if (!personId) {
         await Promise.all(
           contacts
-            .filter((row) => row.tipoInfluencia === tipo)
+            .filter((row) => readContactInfluenciaTipo(row) === tipo)
             .map((row) =>
               row.update({ tipoInfluencia: null }, { transaction }),
             ),
@@ -417,7 +453,7 @@ export class LeadsService {
           .filter(
             (row) =>
               row.contactId !== target.contactId &&
-              row.tipoInfluencia === tipo,
+              readContactInfluenciaTipo(row) === tipo,
           )
           .map((row) =>
             row.update({ tipoInfluencia: null }, { transaction }),
@@ -837,7 +873,7 @@ export class LeadsService {
             account_id: enriched?.account_id ?? '',
             account_name: enriched?.account_name ?? '',
             account_tax_id: enriched?.account_tax_id ?? null,
-            tipo_influencia: contact.tipoInfluencia ?? null,
+            tipo_influencia: readContactInfluenciaTipo(contact),
           };
         }) ?? [],
       business_referrer_id: lead.businessReferrerId,

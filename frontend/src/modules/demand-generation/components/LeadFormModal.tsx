@@ -28,11 +28,11 @@ import { CANAL_ORIGEN_LABEL, LEAD_INFLUENCIA_SLOTS } from '../lib/lead-vocab';
 import type { LeadInfluenciaKey } from '../lib/lead-vocab';
 import { ModalShell } from './ModalShell';
 import {
-  contactRowClass,
   contactTableHeaderClass,
   ghostButtonClass,
   influenceChipClass,
   influenceChipPressedClass,
+  influenceTableRowClass,
   inputClass,
   labelClass,
   primaryButtonClass,
@@ -141,7 +141,8 @@ function modalTitle(mode: LeadFormMode): string {
 }
 
 function personLabel(person: Person): string {
-  return `${person.name}${person.email ? ` · ${person.email}` : ''}`;
+  const role = person.job_title?.trim();
+  return role ? `${person.name} · ${role}` : person.name;
 }
 
 export function LeadFormModal({
@@ -416,12 +417,10 @@ export function LeadFormModal({
         if (slotIndex !== index) {
           return slot;
         }
-        const selected = slot.tipos_influencia.includes(tipo);
+        const selected = slot.tipos_influencia[0] === tipo;
         return {
           ...slot,
-          tipos_influencia: selected
-            ? slot.tipos_influencia.filter((item) => item !== tipo)
-            : [...slot.tipos_influencia, tipo],
+          tipos_influencia: selected ? [] : [tipo],
         };
       }),
     );
@@ -827,14 +826,13 @@ export function LeadFormModal({
               Selecciona una empresa para asignar contactos.
             </p>
           ) : (
-            <div>
-              <div
-                className="hidden pb-1 md:grid md:min-h-10 md:grid-cols-[5.5rem_minmax(0,1fr)_minmax(12.5rem,1fr)_2rem] md:items-center md:gap-2"
-                aria-hidden="true"
-              >
-                <span />
+            <div className="overflow-hidden rounded border border-border bg-bg">
+              <div className={`${influenceTableRowClass} border-b border-border`}>
+                <span className={contactTableHeaderClass}>#</span>
                 <span className={contactTableHeaderClass}>Persona</span>
-                <span className={contactTableHeaderClass}>Tipo (opcional)</span>
+                <span className={`${contactTableHeaderClass} text-right`}>
+                  Tipo (opcional)
+                </span>
                 <span />
               </div>
 
@@ -843,97 +841,106 @@ export function LeadFormModal({
                 const label = rowLabel(index);
 
                 return (
-                  <div key={slot.slotId} className={contactRowClass}>
-                    <p className="text-xs font-bold text-ink">{label}</p>
+                  <div
+                    key={slot.slotId}
+                    className={`${influenceTableRowClass} border-b border-border`}
+                  >
+                    <p
+                      className={`truncate text-sm ${
+                        index === 0 ? 'font-bold text-ink' : 'text-muted'
+                      }`}
+                    >
+                      {label}
+                    </p>
 
-                    <div className="min-w-0">
+                    <div className="relative min-w-0">
                       {slot.person_id ? (
-                        <div className="relative flex min-h-10 items-center rounded border border-border bg-surface px-3 py-1.5 pr-8 text-xs">
-                          <button
-                            type="button"
-                            className="icon-btn absolute right-1 top-1/2 grid h-6 w-6 -translate-y-1/2 place-items-center rounded text-muted"
-                            aria-label={`Quitar persona de ${label}`}
-                            onClick={() => clearPerson(index)}
-                          >
-                            <X size={14} strokeWidth={2.5} />
-                          </button>
-                          <p className="truncate font-bold text-ink">
-                            {slot.label}
-                          </p>
-                        </div>
-                      ) : (
-                        <div className="relative space-y-1">
+                        <button
+                          type="button"
+                          className="truncate text-left text-sm font-bold text-ink hover:text-accent"
+                          onClick={() => {
+                            clearPerson(index);
+                            setActivePersonSearch(index);
+                            setPersonQuery('');
+                          }}
+                        >
+                          {slot.label}
+                        </button>
+                      ) : searching ? (
+                        <>
                           <input
-                            value={searching ? personQuery : ''}
+                            value={personQuery}
                             onChange={(event) => {
                               setActivePersonSearch(index);
                               setPersonQuery(event.target.value);
-                            }}
-                            onFocus={() => {
-                              setActivePersonSearch(index);
-                              setPersonQuery('');
                             }}
                             className={inputClass}
                             placeholder={
                               peopleLoading
                                 ? 'Cargando contactos…'
-                                : 'Buscar contacto'
+                                : 'Buscar contacto...'
                             }
                             disabled={peopleLoading}
                             autoComplete="off"
+                            autoFocus
                             aria-label={`Buscar persona para ${label}`}
                           />
-                          {searching ? (
-                            <ul className="absolute z-20 mt-1 max-h-40 w-full overflow-y-auto rounded border border-border bg-surface shadow-card">
-                              {filteredPeople.length === 0 ? (
-                                <li className="px-3 py-2 text-xs text-muted">
-                                  {accountPeople.length === 0
-                                    ? 'Esta empresa no tiene contactos.'
-                                    : 'Sin coincidencias.'}
+                          <ul className="absolute z-20 mt-1 max-h-40 w-full overflow-y-auto rounded border border-border bg-surface shadow-card">
+                            {filteredPeople.length === 0 ? (
+                              <li className="px-3 py-2 text-xs text-muted">
+                                {accountPeople.length === 0
+                                  ? 'Esta empresa no tiene contactos.'
+                                  : 'Sin coincidencias.'}
+                              </li>
+                            ) : (
+                              filteredPeople.map((person) => (
+                                <li key={person.person_id}>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      selectPerson(index, person)
+                                    }
+                                    className="flex w-full flex-col px-3 py-2 text-left text-sm hover:bg-bg"
+                                  >
+                                    <span className="font-bold text-ink">
+                                      {person.name}
+                                    </span>
+                                    <span className="text-xs text-muted">
+                                      {[person.job_title, person.email]
+                                        .filter(Boolean)
+                                        .join(' · ') ||
+                                        'Sin datos adicionales'}
+                                    </span>
+                                  </button>
                                 </li>
-                              ) : (
-                                filteredPeople.map((person) => (
-                                  <li key={person.person_id}>
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        selectPerson(index, person)
-                                      }
-                                      className="flex w-full flex-col px-3 py-2 text-left text-sm hover:bg-bg"
-                                    >
-                                      <span className="font-bold text-ink">
-                                        {person.name}
-                                      </span>
-                                      <span className="text-xs text-muted">
-                                        {[person.job_title, person.email]
-                                          .filter(Boolean)
-                                          .join(' · ') ||
-                                          'Sin datos adicionales'}
-                                      </span>
-                                    </button>
-                                  </li>
-                                ))
-                              )}
-                            </ul>
-                          ) : null}
-                          <Link
-                            to={`/accounts/contactos?account_id=${encodeURIComponent(selectedAccount.account_id)}&new=1`}
-                            className="text-xs font-bold text-accent hover:underline"
-                            onClick={onClose}
-                          >
-                            Crear contacto
-                          </Link>
-                        </div>
+                              ))
+                            )}
+                          </ul>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          className="truncate text-left text-sm text-muted hover:text-ink"
+                          onClick={() => {
+                            setActivePersonSearch(index);
+                            setPersonQuery('');
+                          }}
+                          disabled={peopleLoading}
+                        >
+                          {peopleLoading
+                            ? 'Cargando contactos…'
+                            : 'Buscar contacto...'}
+                        </button>
                       )}
                     </div>
 
                     <div
-                      className="flex min-h-10 flex-wrap content-center gap-1"
+                      className="flex flex-wrap content-center justify-end gap-1"
                       role="group"
                       aria-label={`Tipo de ${label}`}
                     >
                       {LEAD_INFLUENCIA_SLOTS.map(({ key, label: chipLabel }) => {
-                        const pressed = slot.tipos_influencia.includes(key);
+                        const pressed = slot.tipos_influencia[0] === key;
                         return (
                           <button
                             key={key}
@@ -953,29 +960,38 @@ export function LeadFormModal({
                     </div>
 
                     {index === 0 ? (
-                      <span className="hidden md:block" />
+                      <span />
                     ) : (
                       <button
                         type="button"
-                        className="icon-btn grid h-8 w-8 place-items-center self-center rounded text-muted hover:text-danger"
+                        className="icon-btn grid h-7 w-7 place-items-center rounded text-muted hover:text-danger"
                         aria-label={`Quitar ${label}`}
                         onClick={() => removeContactRow(index)}
                       >
-                        <X size={16} strokeWidth={2.5} />
+                        <X size={14} strokeWidth={2.5} />
                       </button>
                     )}
                   </div>
                 );
               })}
 
-              <button
-                type="button"
-                onClick={addContactRow}
-                className="mt-2 flex w-full items-center justify-center gap-1 rounded border border-dashed border-border py-2 text-xs font-bold text-accent hover:bg-bg"
-              >
-                <Plus size={14} strokeWidth={2.5} />
-                Agregar contacto
-              </button>
+              <div className="flex items-center gap-3 px-3 py-2.5">
+                <button
+                  type="button"
+                  onClick={addContactRow}
+                  className="inline-flex items-center gap-1 text-xs font-bold text-accent hover:underline"
+                >
+                  <Plus size={14} strokeWidth={2.5} />
+                  Agregar contacto
+                </button>
+                <Link
+                  to={`/accounts/contactos?account_id=${encodeURIComponent(selectedAccount.account_id)}&new=1`}
+                  className="text-xs font-bold text-accent hover:underline"
+                  onClick={onClose}
+                >
+                  Crear contacto
+                </Link>
+              </div>
             </div>
           )}
         </section>

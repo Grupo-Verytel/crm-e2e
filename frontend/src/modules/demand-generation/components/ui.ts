@@ -22,6 +22,12 @@ export const contactRowClass =
 export const contactTableHeaderClass =
   'text-[10px] font-bold uppercase tracking-wider text-muted';
 
+export const compactTableRowClass =
+  'grid min-h-10 grid-cols-[5.5rem_minmax(0,1fr)_2rem] items-center gap-x-3 px-3';
+
+export const influenceTableRowClass =
+  'grid min-h-10 grid-cols-[5.5rem_minmax(0,1fr)_minmax(18rem,auto)_2rem] items-center gap-x-3 px-3';
+
 export const influenceChipClass =
   'rounded-[14px] border border-border bg-transparent px-2.5 py-0.5 text-[11px] leading-tight text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand';
 
