@@ -55,6 +55,8 @@ export enum InfluenciaTipo {
   Economica = 'Economica',
   Tecnica = 'Tecnica',
   Fabrica = 'Fabrica',
+  Usuario = 'Usuario',
+  Coach = 'Coach',
 }
 
 export enum InfluenciaEstado {

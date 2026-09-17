@@ -1,9 +1,16 @@
-export type PersonInfluenciaTipo = 'Economica' | 'Tecnica' | 'Fabrica';
+export type PersonInfluenciaTipo =
+  | 'Economica'
+  | 'Tecnica'
+  | 'Fabrica'
+  | 'Usuario'
+  | 'Coach';
 
 export const PERSON_INFLUENCIA_TIPOS: PersonInfluenciaTipo[] = [
   'Economica',
   'Tecnica',
   'Fabrica',
+  'Usuario',
+  'Coach',
 ];
 
 const STORAGE_PREFIX = 'crm-person-influencia-tipo-';

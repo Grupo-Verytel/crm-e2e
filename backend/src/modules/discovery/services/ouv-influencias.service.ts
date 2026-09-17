@@ -38,15 +38,14 @@ export class OuvInfluenciasService {
   ): Promise<OuvInfluencia[]> {
     const rows: OuvInfluencia[] = [];
     for (const tipo of Object.values(InfluenciaTipo)) {
-      const row = await this.influenciaModel.create(
-        {
-          ouvId,
-          tipo,
+      const [row] = await this.influenciaModel.findOrCreate({
+        where: { ouvId, tipo },
+        defaults: {
           estado: InfluenciaEstado.SinEvaluar,
           contactoOuvId: null,
         },
-        { transaction },
-      );
+        transaction,
+      });
       rows.push(row);
     }
     return rows;
