@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { List } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Pagination } from '../../../components/Pagination';
 import { AppLayout } from '../../../layout/AppLayout';
@@ -7,7 +8,8 @@ import {
   fetchMarketingDashboardDetails,
 } from '../api/dashboard-api';
 import { DemandNav } from '../components/DemandNav';
-import { cardClass, inputClass, labelClass } from '../components/ui';
+import { ModalShell } from '../components/ModalShell';
+import { cardClass, ghostButtonClass, inputClass, labelClass } from '../components/ui';
 import { CANAL_ORIGEN_LABEL, leadEstadoLabel } from '../lib/lead-vocab';
 import { OUV_ZONA_LABEL, type OuvZona } from '../../discovery/lib/ouv-vocab';
 import {
@@ -126,13 +128,17 @@ export function MarketingDashboardPage() {
     period === 'Semana' ? 'Leads de la semana' : 'Leads de los 15 días';
 
   const openDetail = (view: DetailView) => {
-    if (detail?.kind === view.kind) {
-      setDetail(null);
-      return;
-    }
     setDetail(view);
     setDetailPage(1);
   };
+
+  const closeDetail = useCallback(() => {
+    setDetail(null);
+    setDetailItems([]);
+    setDetailTotal(0);
+    setDetailError(null);
+    setDetailPage(1);
+  }, []);
 
   const loadDashboard = useCallback(async () => {
     setIsLoading(true);
@@ -338,8 +344,7 @@ export function MarketingDashboardPage() {
                 label="Interacciones"
                 value={data.weekly.interactions}
                 target={50}
-                selected={detail?.kind === 'interactions'}
-                onClick={() =>
+                onViewData={() =>
                   openDetail({ kind: 'interactions', title: 'Interacciones' })
                 }
               />
@@ -347,8 +352,7 @@ export function MarketingDashboardPage() {
                 label={periodLeadsLabel}
                 value={data.weekly.new_leads}
                 target={3}
-                selected={detail?.kind === 'period_leads'}
-                onClick={() =>
+                onViewData={() =>
                   openDetail({ kind: 'period_leads', title: periodLeadsLabel })
                 }
               />
@@ -356,43 +360,23 @@ export function MarketingDashboardPage() {
                 label={`Leads Q${data.weekly.quarter}`}
                 value={data.weekly.quarter_leads}
                 target={50}
+                onViewData={() =>
+                  openDetail({
+                    kind: 'quarter_leads',
+                    title: `Leads Q${data.weekly.quarter}`,
+                  })
+                }
               />
               <DonutMetric
                 label="OUV convertidas"
                 value={data.weekly.converted_ouvs ?? 0}
                 target={3}
-                selected={detail?.kind === 'ouvs'}
-                onClick={() =>
+                onViewData={() =>
                   openDetail({ kind: 'ouvs', title: 'OUV convertidas' })
                 }
               />
             </div>
           </section>
-
-          {detail ? (
-            <section className={`${cardClass} overflow-hidden`} aria-live="polite">
-              <div className="border-b border-border px-5 py-3">
-                <h2 className="text-sm font-bold text-ink">{detail.title}</h2>
-              </div>
-              {detailLoading ? (
-                <p className="px-5 py-8 text-sm text-muted">Cargando detalle…</p>
-              ) : detailError ? (
-                <p className="px-5 py-8 text-sm text-muted">{detailError}</p>
-              ) : !Array.isArray(detailItems) || detailItems.length === 0 ? (
-                <p className="px-5 py-8 text-sm text-muted">
-                  Sin registros en este periodo.
-                </p>
-              ) : (
-                <DashboardDetailTable kind={detail.kind} items={detailItems} />
-              )}
-              <Pagination
-                page={detailPage}
-                limit={20}
-                total={detailTotal}
-                onPageChange={setDetailPage}
-              />
-            </section>
-          ) : null}
 
           <section className={`${cardClass} p-5`}>
             <h2 className="mb-4 text-sm font-bold text-ink">
@@ -407,6 +391,37 @@ export function MarketingDashboardPage() {
           </section>
         </div>
       )}
+
+      {detail ? (
+        <ModalShell title={detail.title} onClose={closeDetail} size="wide">
+          <div aria-live="polite">
+            {detailLoading ? (
+              <p className="py-8 text-sm text-muted">Cargando detalle…</p>
+            ) : detailError ? (
+              <p className="py-8 text-sm text-muted">{detailError}</p>
+            ) : !Array.isArray(detailItems) || detailItems.length === 0 ? (
+              <p className="py-8 text-sm text-muted">
+                Sin registros en este periodo.
+              </p>
+            ) : (
+              <div className="-mx-6">
+                <DashboardDetailTable kind={detail.kind} items={detailItems} />
+              </div>
+            )}
+            <Pagination
+              page={detailPage}
+              limit={20}
+              total={detailTotal}
+              onPageChange={setDetailPage}
+            />
+          </div>
+          <div className="mt-4 flex justify-end">
+            <button type="button" onClick={closeDetail} className={ghostButtonClass}>
+              Cerrar
+            </button>
+          </div>
+        </ModalShell>
+      ) : null}
     </AppLayout>
   );
 }
@@ -538,14 +553,12 @@ function DonutMetric({
   label,
   value,
   target,
-  selected = false,
-  onClick,
+  onViewData,
 }: {
   label: string;
   value: number;
   target: number;
-  selected?: boolean;
-  onClick?: () => void;
+  onViewData?: () => void;
 }) {
   const ratio = target > 0 ? value / target : 0;
   const percentage = Math.round(ratio * 100);
@@ -562,17 +575,20 @@ function DonutMetric({
       : ratio >= 0.5
         ? 'text-warning'
         : 'text-danger';
-  const className = [
-    cardClass,
-    'flex items-center gap-4 p-5 text-left',
-    onClick ? 'focus-visible:ring-2 focus-visible:ring-brand' : 'cursor-default',
-    selected ? 'ring-1 ring-accent' : '',
-  ]
-    .filter(Boolean)
-    .join(' ');
 
-  const content = (
-    <>
+  return (
+    <article className={`${cardClass} relative flex items-center gap-4 p-5 pr-12`}>
+      {onViewData ? (
+        <button
+          type="button"
+          onClick={onViewData}
+          title="Ver datos"
+          aria-label={`Ver datos de ${label}`}
+          className="absolute right-3 top-3 rounded p-1.5 text-muted hover:text-accent focus-visible:ring-2 focus-visible:ring-brand"
+        >
+          <List size={18} strokeWidth={1.75} aria-hidden />
+        </button>
+      ) : null}
       <div className="relative h-28 w-28 shrink-0" aria-hidden>
         <svg className="h-full w-full -rotate-90" viewBox="0 0 120 120">
           <circle
@@ -612,17 +628,7 @@ function DonutMetric({
           {percentage}%
         </span>
       </div>
-    </>
-  );
-
-  if (!onClick) {
-    return <article className={className}>{content}</article>;
-  }
-
-  return (
-    <button type="button" className={className} onClick={onClick}>
-      {content}
-    </button>
+    </article>
   );
 }
 
