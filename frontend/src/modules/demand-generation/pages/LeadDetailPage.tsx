@@ -314,7 +314,7 @@ export function LeadDetailPage() {
             </div>
             <div>
               <label className={labelClass} htmlFor="lead-industria">
-                Industria
+                Sub-Segmento
               </label>
               <input
                 id="lead-industria"
@@ -414,7 +414,7 @@ export function LeadDetailPage() {
         ) : (
           <dl className="grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
             <Detail label="Segmento" value={lead.segmento} />
-            <Detail label="Industria" value={lead.industria ?? '—'} />
+            <Detail label="Sub-Segmento" value={lead.industria ?? '—'} />
             <Detail label="Ciudad" value={lead.city ?? '—'} />
             <Detail label="Región" value={lead.region} />
             <Detail label="Origen" value={lead.origen} />
