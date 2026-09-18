@@ -4,18 +4,19 @@
   "business_milestone": "INTERACTION_RECEIVED",
   "response_status": "RECEIVED",
   "eta_date": null,
-  "next_milestone": "Asignar ingeniero de preventa",
+  "next_milestone": "Asignar ingeniero Preventa",
   "responded_at": "2026-08-21T14:38:00Z",
-  "responded_by": { "ref": "mep_system", "display_name": "MEP-LEAN" },
-  "assignment": null,
-  "route_capacity": null,
+  "responded_by": {
+    "ref": "mep-system",
+    "display_name": "MEP-LEAN"
+  },
   "service_results": [
     {
       "service": "TECHNICAL_DESIGN",
       "status": "RECEIVED",
       "outcome": null,
       "dependency": "NONE",
-      "summary": "Recibido en la fábrica de preventa.",
+      "summary": null,
       "reason_code": null,
       "deliverables": []
     },
@@ -24,13 +25,16 @@
       "status": "RECEIVED",
       "outcome": null,
       "dependency": "TECHNICAL_DESIGN",
-      "summary": "Pendiente del resultado técnico.",
+      "summary": null,
       "reason_code": null,
       "deliverables": []
     }
   ],
-  "operational_links": {},
-  "narrative_note": "La interacción fue recibida por MEP-LEAN.",
+  "operational_links": {
+    "planner_interaction_url": "https://tasks.office.com/verytel/Home/Task/task-20004",
+    "route_capacity_register_url": null
+  },
+  "narrative_note": "MEP-LEAN recibió la interacción y comenzó su procesamiento.",
   "delivered_interaction_type": null,
   "semantic_fingerprint": "1111111111111111111111111111111111111111111111111111111111111111"
 }

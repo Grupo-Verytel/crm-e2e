@@ -37,6 +37,13 @@ export class DeliverableDto {
   @MaxLength(1024)
   url!: string;
 
+  /** Tipo del entregable derivado del servicio (opcional, R2 §6.4). */
+  @IsOptional()
+  @ValidateIf((_o, value) => value !== null)
+  @IsString()
+  @MaxLength(64)
+  type?: string | null;
+
   @IsOptional()
   @ValidateIf((_o, value) => value !== null)
   @IsString()
@@ -104,17 +111,22 @@ export class RouteCapacityDto {
   registered_by!: ActorRefDto;
 }
 
-/** `operational_links` — enlaces operativos, HTTPS obligatorio (§6.5). */
+/** `operational_links` — enlaces operativos, HTTPS obligatorio (§6.5).
+ *
+ * Los URLs admiten `null` explícito (R2 §6.1/§6.2) para representar el
+ * hito previo al que los hace obligatorios sin omitir la propiedad. */
 export class OperationalLinksDto {
   @IsOptional()
+  @ValidateIf((_o, value) => value !== null)
   @IsUrl(HTTPS_URL)
   @MaxLength(1024)
-  planner_interaction_url?: string;
+  planner_interaction_url?: string | null;
 
   @IsOptional()
+  @ValidateIf((_o, value) => value !== null)
   @IsUrl(HTTPS_URL)
   @MaxLength(1024)
-  route_capacity_register_url?: string;
+  route_capacity_register_url?: string | null;
 }
 
 /**

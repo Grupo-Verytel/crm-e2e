@@ -3,35 +3,44 @@
   "response_version": 5,
   "business_milestone": "INTERACTION_COMPLETED",
   "response_status": "COMPLETED",
-  "eta_date": "2026-08-28",
+  "eta_date": "2026-08-30",
   "next_milestone": null,
-  "responded_at": "2026-08-28T18:10:00Z",
-  "responded_by": { "ref": "engineer_15", "display_name": "Ingeniero Preventa" },
+  "responded_at": "2026-08-29T20:00:00Z",
+  "responded_by": {
+    "ref": "engineer_15",
+    "display_name": "Ingeniero Preventa"
+  },
   "assignment": {
-    "engineer": { "ref": "engineer_15", "display_name": "Ingeniero Preventa" },
+    "engineer": {
+      "ref": "engineer_15",
+      "display_name": "Ingeniero Preventa"
+    },
     "assigned_at": "2026-08-21T14:59:30Z"
   },
   "route_capacity": {
     "version": "V2",
-    "route_status": "VIABLE",
+    "route_status": "CONDITIONED",
     "capacity_status": "PLANNED",
-    "summary": "Ruta y capacidad replanificadas en V2.",
-    "registered_at": "2026-08-25T11:20:00Z",
-    "registered_by": { "ref": "engineer_15", "display_name": "Ingeniero Preventa" }
+    "summary": "Ruta ejecutada bajo la condición acordada.",
+    "registered_at": "2026-08-23T12:59:30Z",
+    "registered_by": {
+      "ref": "engineer_15",
+      "display_name": "Ingeniero Preventa"
+    }
   },
   "service_results": [
     {
       "service": "TECHNICAL_DESIGN",
       "status": "COMPLETED",
-      "outcome": "VIABLE",
+      "outcome": "CONDITIONED",
       "dependency": "NONE",
-      "summary": "Diseño técnico entregado.",
-      "reason_code": null,
+      "summary": "Diseño técnico completado bajo la condición acordada.",
+      "reason_code": "EXTERNAL_DEPENDENCY",
       "deliverables": [
         {
-          "url": "https://verytel.sharepoint.com/sites/preventa/Shared%20Documents/int_20004/diseno-tecnico.pdf",
-          "label": "Diseño técnico",
-          "published_at": "2026-08-27T16:00:00Z"
+          "type": "TECHNICAL_DELIVERABLE",
+          "url": "https://verytel.sharepoint.com/sites/preventa/Shared%20Documents/int-20004/technical",
+          "label": "Entregable técnico"
         }
       ]
     },
@@ -40,13 +49,13 @@
       "status": "COMPLETED",
       "outcome": "VIABLE",
       "dependency": "TECHNICAL_DESIGN",
-      "summary": "Modelo financiero entregado.",
+      "summary": "Diseño financiero completado después del técnico.",
       "reason_code": null,
       "deliverables": [
         {
-          "url": "https://verytel.sharepoint.com/sites/preventa/Shared%20Documents/int_20004/modelo-financiero.xlsx",
-          "label": "Modelo financiero",
-          "published_at": "2026-08-28T17:40:00Z"
+          "type": "FINANCIAL_DELIVERABLE",
+          "url": "https://verytel.sharepoint.com/sites/preventa/Shared%20Documents/int-20004/financial",
+          "label": "Entregable financiero"
         }
       ]
     }
@@ -55,7 +64,7 @@
     "planner_interaction_url": "https://tasks.office.com/verytel/Home/Task/task-20004",
     "route_capacity_register_url": "https://verytel.sharepoint.com/sites/preventa/Lists/Commitments/DispForm.aspx?ID=20004"
   },
-  "narrative_note": "Diseño técnico y financiero entregados; interacción cerrada.",
-  "delivered_interaction_type": "DISENO_TECNICO_Y_FINANCIERO",
+  "narrative_note": "Los diseños técnico y financiero fueron completados. Los entregables están disponibles en SharePoint.",
+  "delivered_interaction_type": null,
   "semantic_fingerprint": "5555555555555555555555555555555555555555555555555555555555555555"
 }

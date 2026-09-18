@@ -37,6 +37,9 @@ export class MepDeliverable extends Model {
   @Column({ type: DataType.STRING(1024), allowNull: false })
   declare url: string;
 
+  @Column({ type: DataType.STRING(64), allowNull: true })
+  declare type: string | null;
+
   @Column({ type: DataType.STRING(256), allowNull: true })
   declare label: string | null;
 
