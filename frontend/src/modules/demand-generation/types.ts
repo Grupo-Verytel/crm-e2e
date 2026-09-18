@@ -76,6 +76,7 @@ export type CanalOrigen =
 export const CANALES_ORIGEN: CanalOrigen[] = [
   'CAMPANA_DIGITAL',
   'BTL',
+  'EVENTOS',
   'FABRICA',
   'GENERACION_DEMANDA_AGENCIA',
   'TRADUCTOR_NEGOCIO',
@@ -532,4 +533,46 @@ export type MarketingDashboard = {
   average_cpl: number | null;
   pending_mqls: number;
   funnel: { estado: string; count: number }[];
+  average_conversion_days: number | null;
+  weekly: {
+    interactions: number;
+    new_leads: number;
+    quarter_leads: number;
+    quarter: number;
+    leads_by_channel: { canal_origen: string; count: number }[];
+    interactions_by_channel: { canal_origen: string; count: number }[];
+    quarter_leads_by_channel: { canal_origen: string; count: number }[];
+    converted_ouvs: number;
+  };
+};
+
+export type MarketingDashboardDetailKind =
+  | 'interactions'
+  | 'period_leads'
+  | 'quarter_leads'
+  | 'ouvs'
+  | 'funnel';
+
+export type MarketingDashboardDetailItem = {
+  entity: 'lead' | 'ouv';
+  id: string;
+  interaction_id: string | null;
+  empresa: string | null;
+  segmento: string | null;
+  origen: string | null;
+  canal_origen: string | null;
+  tipo_comunicacion: string | null;
+  canal: string | null;
+  consecutivo: string | null;
+  estado: string | null;
+  created_at: string | null;
+  dias_transcurridos: number | null;
+};
+
+export type MarketingDashboardDetails = {
+  kind: MarketingDashboardDetailKind;
+  items: MarketingDashboardDetailItem[];
+  total: number;
+  page: number;
+  limit: number;
 };

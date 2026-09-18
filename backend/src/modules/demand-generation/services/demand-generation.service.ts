@@ -20,6 +20,8 @@ import { CreateCampaignDto } from '../dtos/create-campaign.dto';
 import { CreateInteractionDto } from '../dtos/create-interaction.dto';
 import { CreateLeadDto } from '../dtos/create-lead.dto';
 import {
+  MarketingDashboardDetailsQueryDto,
+  MarketingDashboardDetailsResponseDto,
   MarketingDashboardQueryDto,
   MarketingDashboardResponseDto,
 } from '../dtos/dashboard-response.dto';
@@ -364,6 +366,12 @@ export class DemandGenerationService {
     query: MarketingDashboardQueryDto,
   ): Promise<MarketingDashboardResponseDto> {
     return this.dashboardService.getMarketingDashboard(query);
+  }
+
+  async getMarketingDashboardDetails(
+    query: MarketingDashboardDetailsQueryDto,
+  ): Promise<MarketingDashboardDetailsResponseDto> {
+    return this.dashboardService.getMarketingDashboardDetails(query);
   }
 
   private assertTraductorCannotWriteCampaigns(roleName?: string): void {
