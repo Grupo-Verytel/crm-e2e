@@ -73,6 +73,9 @@ import {
 import type { NotificationPort } from '../ports/notification.port';
 import { CampaignsService } from './campaigns.service';
 
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 type PersonEnrichment = {
   person_id: string;
   name: string;
@@ -577,11 +580,23 @@ export class LeadsService {
     createdBy: string,
   ): Promise<Lead> {
     const segmento = resolveSegmentoFromInput(values.segmento) as Segmento;
-    const industria = values.industria || null;
     const canalOrigen = values.canal_origen as CanalOrigen;
+    const origenValue =
+      values.origen === 'Email'
+        ? OrigenLead.EmailMarketing
+        : (values.origen as OrigenLead);
     const accountName =
-      values.account_name?.trim() || values.empresa_nombre?.trim() || '';
+      values.account_name?.trim() ||
+      values.empresa?.trim() ||
+      values.empresa_nombre?.trim() ||
+      '';
     const taxId = values.tax_id?.trim() || values.nit?.trim() || null;
+    const { city, region } = this.parseImportCityRegion(
+      values.city?.trim() || values.ciudad?.trim() || '',
+      values.region?.trim() || '',
+    );
+    const subsegmentName =
+      values.subsegmento?.trim() || values.industria?.trim() || '';
 
     if (!Object.values(Segmento).includes(segmento)) {
       throw new BadRequestException(`Invalid segmento: ${values.segmento}`);
@@ -593,7 +608,11 @@ export class LeadsService {
       );
     }
 
-    if (!values.region || !accountName || !values.contacto_nombre) {
+    if (!Object.values(OrigenLead).includes(origenValue)) {
+      throw new BadRequestException(`Invalid origen: ${values.origen}`);
+    }
+
+    if (!city || !region || !accountName || !values.contacto_nombre?.trim()) {
       throw new BadRequestException('Missing required lead fields');
     }
 
@@ -601,13 +620,28 @@ export class LeadsService {
       throw new BadRequestException('Missing email');
     }
 
-    const name = values.name?.trim();
-    if (!name) {
-      throw new BadRequestException('Missing name');
-    }
-    await this.assertLeadNameAvailable(name);
+    const tipoInfluencia = this.parseImportInfluencia(values.tipo_influencia);
+    const { segmentId, subsegmentId } = await this.resolveImportSegmentIds(
+      segmento,
+      subsegmentName,
+    );
+    this.assertIndustriaRequiresSubsegment(segmento, subsegmentId);
 
-    await this.ensureUserExists(values.responsable_id);
+    const responsableId = createdBy;
+    const traductorRaw = values.traductor || values.business_referrer_id;
+    const resolvedTraductorId = traductorRaw
+      ? await this.resolveImportUserId(traductorRaw)
+      : undefined;
+    const businessReferrerId = await this.resolveBusinessReferrerId({
+      canal_origen: canalOrigen,
+      business_referrer_id: resolvedTraductorId,
+    } as CreateLeadDto);
+
+    const name = await this.resolveUniqueLeadName(values.name, accountName);
+
+    const campaignId = await this.resolveImportCampaignId(
+      values.campana || values.campana_id,
+    );
 
     const telefono = values.telefono
       ? normalizePhoneToE164(values.telefono)
@@ -623,24 +657,24 @@ export class LeadsService {
         phone: telefono,
       });
 
-    return this.sequelize.transaction(async (transaction) => {
+    const createdLead = await this.sequelize.transaction(async (transaction) => {
       const lead = await this.leadModel.create(
         {
           name,
-          tipoLead: (values.tipo_lead as TipoLead) || TipoLead.Outbound,
-          origen:
-            values.origen === 'Email'
-              ? OrigenLead.EmailMarketing
-              : (values.origen as OrigenLead) || OrigenLead.EmailMarketing,
+          tipoLead: (values.tipo_lead as TipoLead) || TipoLead.Inbound,
+          origen: origenValue,
           canalOrigen,
-          campanaId: values.campana_id || null,
+          campanaId: campaignId,
           segmento,
-          industria,
-          city: values.city?.trim() || null,
-          region: values.region,
+          industria: subsegmentName || null,
+          segmentId,
+          subsegmentId,
+          city,
+          region,
           pais: (values.pais || 'CO').toUpperCase(),
           nit: taxId,
-          responsableId: values.responsable_id,
+          businessReferrerId,
+          responsableId,
           estado: this.resolveInitialState(canalOrigen),
           createdBy,
         },
@@ -652,6 +686,7 @@ export class LeadsService {
           leadId: lead.leadId,
           position: 1,
           personId,
+          tipoInfluencia,
         },
         { transaction },
       );
@@ -665,6 +700,12 @@ export class LeadsService {
 
       return lead;
     });
+
+    if (campaignId) {
+      await this.campaignsService.incrementLeadCount(campaignId);
+    }
+
+    return createdLead;
   }
 
   async findDuplicateByEmailAndNit(
@@ -1235,6 +1276,54 @@ export class LeadsService {
     return null;
   }
 
+  private async resolveImportSegmentIds(
+    segmento: Segmento,
+    subsegmentName: string,
+  ): Promise<{ segmentId: string | null; subsegmentId: string | null }> {
+    const segment = await this.segmentModel.findOne({
+      where: { name: segmento, active: true },
+    });
+    if (!segment) {
+      return { segmentId: null, subsegmentId: null };
+    }
+
+    if (!subsegmentName) {
+      return { segmentId: segment.id, subsegmentId: null };
+    }
+
+    const subsegment = await this.subsegmentModel.findOne({
+      where: {
+        segmentId: segment.id,
+        name: subsegmentName,
+        active: true,
+      },
+    });
+    if (!subsegment) {
+      throw new BadRequestException(
+        `Invalid subsegmento: ${subsegmentName}`,
+      );
+    }
+
+    return { segmentId: segment.id, subsegmentId: subsegment.id };
+  }
+
+  private parseImportInfluencia(
+    value?: string,
+  ): LeadContactInfluenciaTipo | null {
+    const trimmed = value?.trim();
+    if (!trimmed) {
+      return null;
+    }
+    if (
+      !Object.values(LeadContactInfluenciaTipo).includes(
+        trimmed as LeadContactInfluenciaTipo,
+      )
+    ) {
+      throw new BadRequestException(`Invalid tipo_influencia: ${trimmed}`);
+    }
+    return trimmed as LeadContactInfluenciaTipo;
+  }
+
   private async validateSegmentSubsegment(
     segmentId?: string | null,
     subsegmentId?: string | null,
@@ -1424,5 +1513,77 @@ export class LeadsService {
         message: 'User not found',
       });
     }
+  }
+
+  private async resolveImportUserId(
+    value: string | undefined,
+    fallback?: string,
+  ): Promise<string> {
+    const raw = value?.trim();
+    if (!raw) {
+      if (fallback) {
+        return fallback;
+      }
+      throw new BadRequestException({
+        code: DEMAND_GENERATION_ERROR_CODES.VALIDATION_ERROR,
+        message: 'User identifier is required',
+      });
+    }
+
+    if (UUID_PATTERN.test(raw)) {
+      await this.ensureUserExists(raw);
+      return raw;
+    }
+
+    const byEmail = await this.userModel.findOne({
+      where: { email: raw.toLowerCase() },
+    });
+    if (byEmail) {
+      return byEmail.userId;
+    }
+
+    const byName = await this.userModel.findAll({
+      where: { fullName: raw },
+    });
+    if (byName.length === 1) {
+      return byName[0].userId;
+    }
+    if (byName.length > 1) {
+      throw new BadRequestException({
+        code: DEMAND_GENERATION_ERROR_CODES.VALIDATION_ERROR,
+        message: `Multiple users match "${raw}". Use the user email instead.`,
+      });
+    }
+
+    throw new NotFoundException({
+      code: DEMAND_GENERATION_ERROR_CODES.USER_NOT_FOUND,
+      message: `User not found: ${raw}`,
+    });
+  }
+
+  private parseImportCityRegion(
+    cityRaw: string,
+    regionRaw: string,
+  ): { city: string; region: string } {
+    const combined = cityRaw.match(/^(.*) \(([^)]+)\)\s*$/);
+    if (combined) {
+      return {
+        city: combined[1].trim(),
+        region: regionRaw || combined[2].trim(),
+      };
+    }
+    return { city: cityRaw, region: regionRaw };
+  }
+
+  private async resolveImportCampaignId(
+    value: string | undefined,
+  ): Promise<string | null> {
+    const raw = value?.trim();
+    if (!raw) {
+      return null;
+    }
+    const campaign =
+      await this.campaignsService.findAcceptsLeadsByNameOrId(raw);
+    return campaign.campanaId;
   }
 }

@@ -30,12 +30,10 @@ export const DEMAND_GENERATION_ROLES = {
 } as const;
 
 export const CSV_LEAD_HEADERS = [
-  'name',
-  'tipo_lead',
   'origen',
   'canal_origen',
   'segmento',
-  'industria',
+  'subsegmento',
   'city',
   'region',
   'pais',
@@ -45,6 +43,19 @@ export const CSV_LEAD_HEADERS = [
   'cargo',
   'email',
   'telefono',
-  'responsable_id',
-  'campana_id',
+  'tipo_influencia',
+  'traductor',
+  'campana',
+] as const;
+
+export const CSV_LEAD_REQUIRED_HEADERS = [
+  'origen',
+  'canal_origen',
+  'segmento',
+  'city',
+  'region',
+  'account_name',
+  'tax_id',
+  'contacto_nombre',
+  'email',
 ] as const;

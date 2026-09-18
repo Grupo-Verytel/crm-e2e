@@ -499,8 +499,6 @@ describe('Demand generation module (EARS DG-01..DG-18)', () => {
     const email = uniqueTestEmail('csv-import');
     const csvHeader = CSV_LEAD_HEADERS.join(',');
     const rowNew = buildCsvRow({
-      name: `CSV Lead ${Date.now()}-a`,
-      tipo_lead: 'Outbound',
       origen: 'Email Marketing',
       canal_origen: 'CAMPANA_DIGITAL',
       segmento: 'Gobierno central',
@@ -512,7 +510,6 @@ describe('Demand generation module (EARS DG-01..DG-18)', () => {
       contacto_nombre: 'CSV User',
       email,
       telefono: '3001234567',
-      responsable_id: marketingUserId,
     });
 
     const dupEmail = uniqueTestEmail('csv-dup');
@@ -530,8 +527,6 @@ describe('Demand generation module (EARS DG-01..DG-18)', () => {
       ],
     });
     const rowDup = buildCsvRow({
-      name: `CSV Lead ${Date.now()}-b`,
-      tipo_lead: 'Outbound',
       origen: 'Email Marketing',
       canal_origen: 'CAMPANA_DIGITAL',
       segmento: 'Gobierno central',
@@ -542,7 +537,6 @@ describe('Demand generation module (EARS DG-01..DG-18)', () => {
       tax_id: dupNit,
       contacto_nombre: 'Dup User',
       email: dupEmail,
-      responsable_id: marketingUserId,
     });
 
     const csvContent = `${csvHeader}\n${rowNew}\n${rowDup}`;

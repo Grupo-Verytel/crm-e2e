@@ -1,7 +1,7 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import {
-  CSV_LEAD_HEADERS,
+  CSV_LEAD_REQUIRED_HEADERS,
   DEMAND_GENERATION_ERROR_CODES,
 } from '../constants/demand-generation.constants';
 import {
@@ -96,7 +96,7 @@ export class LeadImportJobService {
 
     let rows: ParsedCsvRow[];
     try {
-      rows = parseCsvContent(csvContent, CSV_LEAD_HEADERS);
+      rows = parseCsvContent(csvContent, CSV_LEAD_REQUIRED_HEADERS);
     } catch (error) {
       job.status = 'failed';
       job.error =

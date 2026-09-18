@@ -17,6 +17,9 @@ import { UpdateCampaignStatusDto } from '../dtos/update-campaign-status.dto';
 import { CampaignEstado } from '../models/enums/campaign.enums';
 import { Campaign } from '../models/campaign.model';
 
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 @Injectable()
 export class CampaignsService {
   constructor(
@@ -153,6 +156,31 @@ export class CampaignsService {
       throw new ConflictException({
         code: DEMAND_GENERATION_ERROR_CODES.CAMPAIGN_CLOSED,
         message: `Campaign is ${campaign.estado}; new leads cannot be linked`,
+      });
+    }
+
+    return campaign;
+  }
+
+  async findAcceptsLeadsByNameOrId(value: string): Promise<Campaign> {
+    if (UUID_PATTERN.test(value)) {
+      return this.assertCampaignAcceptsLeads(value);
+    }
+
+    const campaign = await this.campaignModel.findOne({
+      where: {
+        nombre: value,
+        estado: {
+          [Op.notIn]: [CampaignEstado.Finalizada, CampaignEstado.Cancelada],
+        },
+      },
+      order: [['fechaInicio', 'DESC']],
+    });
+
+    if (!campaign) {
+      throw new NotFoundException({
+        code: DEMAND_GENERATION_ERROR_CODES.CAMPAIGN_NOT_FOUND,
+        message: `Campaign not found: ${value}`,
       });
     }
 
