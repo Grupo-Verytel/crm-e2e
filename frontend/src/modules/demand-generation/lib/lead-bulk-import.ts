@@ -5,7 +5,7 @@ import {
   ORIGENES_LEAD,
   SEGMENTOS,
 } from '../types';
-import { createStoreZip, readZip } from './zip-binary';
+import { createStoreZip, readZip, toArrayBuffer } from './zip-binary';
 
 const LEAD_IMPORT_DATA_ROWS = 200;
 const LEAD_PREFILLED_ROWS = 30;
@@ -497,7 +497,7 @@ export function buildLeadImportXlsx(lists: LeadImportLists = {}): Uint8Array {
 
 export function downloadLeadImportTemplate(lists: LeadImportLists = {}): void {
   const bytes = buildLeadImportXlsx(lists);
-  const blob = new Blob([bytes], {
+  const blob = new Blob([toArrayBuffer(bytes)], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });
   const url = URL.createObjectURL(blob);

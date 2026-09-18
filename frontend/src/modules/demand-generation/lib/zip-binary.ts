@@ -18,6 +18,17 @@ function crc32(data: Uint8Array): number {
   return (crc ^ 0xffffffff) >>> 0;
 }
 
+export function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  if (
+    bytes.buffer instanceof ArrayBuffer &&
+    bytes.byteOffset === 0 &&
+    bytes.byteLength === bytes.buffer.byteLength
+  ) {
+    return bytes.buffer;
+  }
+  return bytes.slice().buffer as ArrayBuffer;
+}
+
 function concatBytes(chunks: Uint8Array[]): Uint8Array {
   const total = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
   const output = new Uint8Array(total);
@@ -119,7 +130,7 @@ function readU32(view: DataView, offset: number): number {
 }
 
 async function inflateRaw(data: Uint8Array): Promise<Uint8Array> {
-  const stream = new Blob([data]).stream().pipeThrough(
+  const stream = new Blob([toArrayBuffer(data)]).stream().pipeThrough(
     new DecompressionStream('deflate-raw'),
   );
   return new Uint8Array(await new Response(stream).arrayBuffer());
