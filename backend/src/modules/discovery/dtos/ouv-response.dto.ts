@@ -86,3 +86,26 @@ export class OuvChecklistItemResponseDto {
   marcado_por!: string | null;
   created_at!: Date;
 }
+
+export class OuvInteraccionHiloResponseDto {
+  ouv_interaction_reply_id!: string;
+  titulo!: string;
+  observaciones!: string | null;
+  fecha_registrada!: Date;
+  registrado_por_id!: string;
+  registrado_por_nombre!: string;
+  created_at!: Date;
+}
+
+export class OuvInteraccionResponseDto {
+  ouv_interaction_id!: string;
+  ouv_id!: string;
+  titulo!: string;
+  observaciones!: string | null;
+  etiquetas!: string[];
+  fecha_registrada!: Date;
+  registrado_por_id!: string;
+  registrado_por_nombre!: string;
+  created_at!: Date;
+  hilos!: OuvInteraccionHiloResponseDto[];
+}

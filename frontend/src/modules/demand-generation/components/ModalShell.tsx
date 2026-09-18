@@ -19,6 +19,16 @@ export function ModalShell({
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
+  // Con el modal abierto la página de atrás no scrollea: en pantallas bajas el
+  // scroll del contenido se encadenaba al body y el fondo se movía solo.
+  useEffect(() => {
+    const previo = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previo;
+    };
+  }, []);
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-ink/30 p-4"
@@ -28,14 +38,17 @@ export function ModalShell({
     >
       <div
         className={[
-          'max-h-[90vh] w-full overflow-y-auto rounded bg-surface p-6 shadow-card',
+          // Columna: el encabezado queda fijo y solo scrollea el contenido.
+          'flex max-h-[90vh] w-full flex-col rounded bg-surface shadow-card',
           size === 'wide' ? 'max-w-3xl' : 'max-w-lg',
         ].join(' ')}
       >
-        <div className="mb-4">
+        <div className="shrink-0 px-6 pb-4 pt-6">
           <h2 className="text-base font-bold text-ink">{title}</h2>
         </div>
-        {children}
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 pb-6">
+          {children}
+        </div>
       </div>
     </div>
   );

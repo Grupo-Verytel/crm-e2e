@@ -10,13 +10,13 @@ const DUPLICATE_COMBO_MESSAGE =
 export type MepSolicitudStatus =
   | 'Aceptado'
   | 'En progreso'
-  | 'Aprobado'
+  | 'Completado'
   | 'Rechazado'
   | 'Pendiente';
 
 /**
  * Badge comercial: el último hecho MEP manda.
- * Cierre → Aprobado; IN_PROGRESS / asignación / ruta → En progreso;
+ * Cierre → Completado; IN_PROGRESS / asignación / ruta → En progreso;
  * acuse REJECTED → Rechazado; recepción o acuse ACCEPTED → Aceptado.
  */
 export function derivarMepStatus(
@@ -26,7 +26,7 @@ export function derivarMepStatus(
   const responseStatus = solicitud.estado.response_status;
 
   if (hito === 'INTERACTION_COMPLETED' || responseStatus === 'COMPLETED') {
-    return 'Aprobado';
+    return 'Completado';
   }
 
   if (
@@ -51,7 +51,7 @@ export function derivarMepStatus(
   return 'Pendiente';
 }
 
-/** Pendiente, Aceptado o En progreso cubren servicios; Aprobada y Rechazada no. */
+/** Pendiente, Aceptado o En progreso cubren servicios; Completada y Rechazada no. */
 export function esSolicitudEnCurso(solicitud: SolicitudPreventa): boolean {
   const estado = derivarMepStatus(solicitud);
   return (
