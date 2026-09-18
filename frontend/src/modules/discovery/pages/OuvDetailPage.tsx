@@ -36,7 +36,6 @@ import {
 } from '../components/CierreOuvModal';
 import { ContactoFormModal } from '../components/ContactoFormModal';
 import { ContactosSidePanel } from '../components/ContactosSidePanel';
-import { DiscoveryNav } from '../components/DiscoveryNav';
 import { FloatingToast } from '../components/FloatingToast';
 import {
   OuvDetailHeaderCard,
@@ -551,7 +550,6 @@ export function OuvDetailPage() {
 
   return (
     <AppLayout title={ouv.consecutivo}>
-      <DiscoveryNav />
       <div className="mb-4">
         <Link to={backLink.to} className="text-sm text-accent hover:underline">
           {backLink.label}

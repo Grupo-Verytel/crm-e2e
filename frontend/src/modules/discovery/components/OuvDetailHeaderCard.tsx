@@ -5,6 +5,8 @@ import type { Ouv } from '../api/ouvs-api';
 import type { OuvDetailExtensions } from '../lib/ouv-detail-extensions';
 import {
   buildOuvMetaFields,
+  formatOuvOrigin,
+  formatOuvSourceChannel,
   SEGMENTO_LABEL,
 } from '../lib/ouv-detail-meta';
 import { SEGMENTOS, VERTICALES } from '../lib/ouv-vocab';
@@ -306,6 +308,18 @@ export function OuvDetailHeaderCard({
                   </option>
                 ))}
               </select>
+            </div>
+            <div>
+              <dt className="text-xs font-bold text-muted">Origen</dt>
+              <dd className="mt-0.5 font-medium text-ink">
+                {formatOuvOrigin(ouv.origin)}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs font-bold text-muted">Canal de origen</dt>
+              <dd className="mt-0.5 font-medium text-ink">
+                {formatOuvSourceChannel(ouv.source_channel)}
+              </dd>
             </div>
             <div>
               <label className={labelClass} htmlFor="ouv-proyecto">

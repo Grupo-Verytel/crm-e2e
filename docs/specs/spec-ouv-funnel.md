@@ -1,16 +1,19 @@
 # Spec — Módulo 2: OUV Funnel (Embudo Comercial Verytel)
-**Versión:** 1.5 — addendum detalle origen/canal 2026-09-17
+**Versión:** 1.5.1 — detalle origen/canal; Proyecto se conserva
 **Fecha:** 2026-08-10
 **Autor:** Evilio Díaz (Frisson Technologies / Grupo Verytel)
-**Estado:** Aprobado (v1.5)
+**Estado:** Aprobado (v1.5.1)
 **Depende de:** `spec-calificacion.md` **v2.3**, `spec-workflow-engine.md` v1.1, `spec-gestion-cuentas.md` v0.4, `spec-demand-generation.md` v2.5
 **Referencia de negocio:** `FILTROS_EMBUDO_COMERCIAL_v5.pdf`, `Frisson_CRM_Blueprint_V2_19062026.pdf`
 **Decisiones estructurales:** DR-2026-08-B (con adendas A y B), `2026-08-DR-unificacion-contactos-cuentas-wave1.md`, `2026-08-DR-auto-poblar-ouv-account-id.md`, `2026-08-DR-accounts-por-lead.md`
 
+**Changelog v1.5 → v1.5.1 (PASO 2 frontend 2026-09-17):**
+- **Proyecto se conserva** en el detalle (vista y edición). EARS-40 revertido: el campo Recurrente / No recurrente permanece.
+
 **Changelog v1.4 → v1.5 (speckit-clarify 2026-09-17 — iteración detalle, requisitos 1–2):**
 - Snapshot de origen del lead en `ouvs.origin` y `ouvs.source_channel` (columnas nuevas en inglés). Sin backfill.
 - Detalle OUV: quitar `DiscoveryNav` (solo link volver); conservar header `crm-e2e` (Contactos, menú Cerrar).
-- Mostrar Origen / Canal de origen (solo lectura); quitar campo Proyecto del detalle; Vertical y Segmento sin cambio de contrato.
+- Mostrar Origen / Canal de origen (solo lectura); Vertical, Segmento y Proyecto sin cambio de contrato.
 - Cierre (EARS-30..34), confetti y listado Ganada/Perdida: **fuera de esta iteración**.
 
 **Changelog v1.3 → v1.4 (speckit-clarify):**
@@ -216,7 +219,7 @@ Postergada a Wave 2.
 
 **EARS-39.** EL SISTEMA DEBERÁ conservar **Vertical** en el detalle (ya existe). **Segmento** no se modifica.
 
-**EARS-40.** EL SISTEMA DEBERÁ eliminar del detalle de OUV (vista y modo edición) el campo **Proyecto** (Recurrente / No recurrente). Esta iteración NO quita ese dato de otras pantallas (p. ej. alta directa) si existiera.
+**EARS-40.** EL SISTEMA DEBERÁ conservar en el detalle de OUV (vista y modo edición) el campo **Proyecto** (Recurrente / No recurrente). *(v1.5.1 — revertido: no se elimina.)*
 
 **EARS-41.** EL SISTEMA DEBERÁ conservar sin cambios en el detalle: Plazo de ejecución, Probabilidad de cierre, Ciudad, Región, botón Contactos, menú de acciones (Editar / Avanzar / Retroceder / Cerrar). EL SISTEMA NO DEBERÁ reintroducir el campo Consecutivo en el grid de metadatos, ni portar de DesignJD los campos Origen OUV ni Estado OUV.
 
@@ -272,7 +275,7 @@ Panel de contactos: lista `ouv_contactos` (join a `people`), acciones agregar/el
 **v1.5 — chrome del detalle (congelado vs DesignJD):**
 - No se renderiza `DiscoveryNav` en `/opportunities/:id` (solo link volver), igual que DesignJD en ese punto.
 - El header permanece el de `crm-e2e` (`OuvDetailHeaderCard`): botón Contactos, menú Cerrar, ciudad/región persistidos en `ouvs.city` / `ouvs.region`.
-- Metadatos: agregar Origen y Canal de origen (solo lectura); quitar Proyecto; no agregar Consecutivo / Origen OUV / Estado OUV.
+- Metadatos: agregar Origen y Canal de origen (solo lectura); conservar Proyecto; no agregar Consecutivo / Origen OUV / Estado OUV.
 - `buildOuvMetaFields` es la fuente del grid de lectura (también alimenta `OuvReadonlyHeaderCard` en oferta/cierre).
 
 ### 8.5 Modal "Agregar contacto" *(ajustado v1.3)*

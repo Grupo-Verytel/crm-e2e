@@ -11,6 +11,8 @@ export type Ouv = {
   consecutivo: string;
   sql_id_origen: string | null;
   origen_via: string;
+  origin: string | null;
+  source_channel: string | null;
   comercial_id: string;
   account_id: string | null;
   titulo: string;

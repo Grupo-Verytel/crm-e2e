@@ -56,6 +56,8 @@ function ouvFromVentaRecord(record: VentaGanadaRecord): Ouv {
     consecutivo: record.consecutivo,
     sql_id_origen: null,
     origen_via: 'directa',
+    origin: null,
+    source_channel: null,
     comercial_id: '',
     account_id: null,
     titulo: record.titulo,
