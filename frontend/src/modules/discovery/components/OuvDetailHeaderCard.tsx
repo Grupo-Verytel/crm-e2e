@@ -11,7 +11,7 @@ import {
 } from '../lib/ouv-detail-meta';
 import { SEGMENTOS, VERTICALES } from '../lib/ouv-vocab';
 import { ColombiaCitySearchField } from './ColombiaCitySearchField';
-import { GapBadge } from './OuvBadges';
+import { GapBadge, ResultadoBadge } from './OuvBadges';
 import { OuvConfigMenu } from './OuvConfigMenu';
 import { cardClass, inputClass, labelClass } from './ui';
 
@@ -208,6 +208,7 @@ export function OuvDetailHeaderCard({
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
+          <ResultadoBadge resultado={ouv.resultado} />
           <button
             type="button"
             className="icon-btn relative grid h-9 w-9 place-items-center rounded"
