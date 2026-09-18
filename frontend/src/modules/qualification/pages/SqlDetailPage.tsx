@@ -13,6 +13,10 @@ import {
 } from '../components/ui';
 import { needsAgencyCitaGeneration, sqlLeadName } from '../lib/agency-cita';
 import { citaContactosFromLead } from '../lib/cita-contactos';
+import {
+  formatLeadOrigin,
+  formatLeadSourceChannel,
+} from '../lib/lead-source-labels';
 
 export function SqlDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -84,7 +88,7 @@ export function SqlDetailPage() {
                 <dd className="font-bold text-ink">{sql.estado}</dd>
               </div>
               <div className="flex justify-between gap-4">
-                <dt className="text-muted">Origen</dt>
+                <dt className="text-muted">Vía de creación</dt>
                 <dd className="text-ink">
                   {sql.origen_creacion === 'directo_comercial' ? (
                     <span className="rounded bg-accent/10 px-1.5 py-0.5 text-xs font-bold text-accent">
@@ -93,6 +97,16 @@ export function SqlDetailPage() {
                   ) : (
                     'Enrutamiento normal'
                   )}
+                </dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt className="text-muted">Origen</dt>
+                <dd className="text-ink">{formatLeadOrigin(sql.lead.origen)}</dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt className="text-muted">Canal de origen</dt>
+                <dd className="text-ink">
+                  {formatLeadSourceChannel(sql.lead.canal_origen)}
                 </dd>
               </div>
               <div className="flex justify-between gap-4">

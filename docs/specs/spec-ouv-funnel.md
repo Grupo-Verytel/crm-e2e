@@ -1,11 +1,17 @@
 # Spec — Módulo 2: OUV Funnel (Embudo Comercial Verytel)
-**Versión:** 1.4 — clarify 2026-08-10
+**Versión:** 1.5 — addendum detalle origen/canal 2026-09-17
 **Fecha:** 2026-08-10
 **Autor:** Evilio Díaz (Frisson Technologies / Grupo Verytel)
-**Estado:** Aprobado
+**Estado:** Aprobado (v1.5)
 **Depende de:** `spec-calificacion.md` **v2.3**, `spec-workflow-engine.md` v1.1, `spec-gestion-cuentas.md` v0.4, `spec-demand-generation.md` v2.5
 **Referencia de negocio:** `FILTROS_EMBUDO_COMERCIAL_v5.pdf`, `Frisson_CRM_Blueprint_V2_19062026.pdf`
 **Decisiones estructurales:** DR-2026-08-B (con adendas A y B), `2026-08-DR-unificacion-contactos-cuentas-wave1.md`, `2026-08-DR-auto-poblar-ouv-account-id.md`, `2026-08-DR-accounts-por-lead.md`
+
+**Changelog v1.4 → v1.5 (speckit-clarify 2026-09-17 — iteración detalle, requisitos 1–2):**
+- Snapshot de origen del lead en `ouvs.origin` y `ouvs.source_channel` (columnas nuevas en inglés). Sin backfill.
+- Detalle OUV: quitar `DiscoveryNav` (solo link volver); conservar header `crm-e2e` (Contactos, menú Cerrar).
+- Mostrar Origen / Canal de origen (solo lectura); quitar campo Proyecto del detalle; Vertical y Segmento sin cambio de contrato.
+- Cierre (EARS-30..34), confetti y listado Ganada/Perdida: **fuera de esta iteración**.
 
 **Changelog v1.3 → v1.4 (speckit-clarify):**
 - Frontera Vía 1: calificación orquesta la txn (EARS-12); este módulo aporta schema + servicio público `reutilizarDesdeLead` (EARS-01/02 = contrato).
@@ -37,6 +43,8 @@ Cubre el ciclo de vida completo de la OUV a través de 4 zonas formales del embu
 | `consecutivo` | VARCHAR(20) | Sí | Formato `OUV-####` |
 | `sql_id_origen` | UUID | No | FK sqls, NULL para OUVs directas |
 | `origen_via` | ENUM(desde_sql, directa) | Sí | — |
+| `origin` *(nuevo v1.5)* | VARCHAR(80) | No | Snapshot de `leads.origen`. NULL en OUV directa y en OUVs creadas antes de v1.5 (sin backfill) |
+| `source_channel` *(nuevo v1.5)* | VARCHAR(80) | No | Snapshot de `leads.canal_origen`. NULL en OUV directa y en OUVs creadas antes de v1.5 (sin backfill) |
 | `comercial_id` | UUID | Sí (FK users) | Dueño exclusivo |
 | `account_id` *(nuevo)* | UUID | No (FK `accounts.account_id`) | Columna **nueva** (inglés). Vía 1: auto-poblada (GC-13). Vías 2/3/4: nullable/seleccionable |
 | `titulo` | VARCHAR(200) | Sí | — |
@@ -121,7 +129,7 @@ Sin cambios respecto a v1.1.
 > **Frontera de módulo (clarify):** la **orquestación** de la conversión SQL→OUV vive en `spec-calificacion.md` EARS-12 (txn del módulo calificación). Este módulo implementa el **schema** (`ouv_contactos.person_id`, `ouvs.account_id`) y expone servicios públicos (p. ej. `reutilizarDesdeLead`, helpers de inicialización OUV) que calificación invoca **dentro de esa txn**. EARS-01/02 **no** definen un endpoint de conversión separado en discovery.
 
 **EARS-01** *(ajustado v1.3 — contrato de servicio)*. Cuando calificación solicita la inicialización de una OUV desde SQL, el servicio de discovery DEBE, en la misma transacción recibida:
-- Crear/preparar `ouvs`: `zona_actual = UNIVERSO`, `resultado = EnCurso`, `origen_via = desde_sql`, `sql_id_origen = <SQL de origen>`, `comercial_id` según actor
+- Crear/preparar `ouvs`: `zona_actual = UNIVERSO`, `resultado = EnCurso`, `origen_via = desde_sql`, `sql_id_origen = <SQL de origen>`, `comercial_id` según actor, `origin = lead.origen`, `source_channel = lead.canal_origen` (snapshot inmutable; v1.5)
 - Setear `account_id` = `account_id` del `person` del contacto principal del lead (`lead_contacts.position = 1`) — GC-13 / `2026-08-DR-auto-poblar-ouv-account-id.md`
 - Setear `empresa_nombre` desde `accounts.name` de esa misma `account` (snapshot)
 - Consecutivo `OUV-####`; tres filas en `ouv_influencias` en `SinEvaluar`; items de checklist zona UNIVERSO
@@ -140,7 +148,7 @@ Sin cambios respecto a v1.1.
 
 **EARS-05.** `EjecutivoComercial` DEBE poder crear OUV directa vía `POST /discovery/ouvs` con: `titulo`, `empresa_nombre`, `segment_id` (o `segmento` legado), `vertical`, `descripcion`.
 
-**EARS-06.** Al crear OUV directa: `origen_via = directa`, `sql_id_origen = NULL`, `comercial_id = actor`, 3 `ouv_influencias`, checklist UNIVERSO, consecutivo. `account_id` nullable (opcional en el alta). **NO se crean filas en `ouv_contactos`.**
+**EARS-06.** Al crear OUV directa: `origen_via = directa`, `sql_id_origen = NULL`, `origin = NULL`, `source_channel = NULL`, `comercial_id = actor`, 3 `ouv_influencias`, checklist UNIVERSO, consecutivo. `account_id` nullable (opcional en el alta). **NO se crean filas en `ouv_contactos`.**
 
 **EARS-07.** Emitir `ouv.creada_directa` a `SoporteComercial`.
 
@@ -191,10 +199,26 @@ Sin cambios.
 Sin cambios.
 
 ### 3.10 Cierre (EARS-30 a EARS-34)
-Sin cambios. Ganada (`MAYOR_PROBABILIDAD` estricto), Perdida (motivo+monto obligatorios), Descartada (motivo obligatorio); solo Ganada emite `ouv.lista_para_implementacion`.
+Sin cambios en v1.5. Ganada (`MAYOR_PROBABILIDAD` estricto), Perdida (motivo+monto obligatorios), Descartada (motivo obligatorio); solo Ganada emite `ouv.lista_para_implementacion`. **No se reimplementa ni se porta el cierre de DesignJD en esta iteración.**
 
 ### 3.11 Reapertura
 Postergada a Wave 2.
+
+### 3.12 Detalle OUV — nav y campos de origen (EARS-35 a EARS-41) *(nuevo v1.5)*
+
+**EARS-35.** CUANDO el usuario esté en la vista de detalle de una OUV (`/opportunities/:id`), EL SISTEMA DEBERÁ no renderizar `DiscoveryNav`. EL SISTEMA DEBERÁ mostrar un link de volver a la bandeja según el resultado (mismo `backLinkForResultado` ya existente). `DiscoveryNav` (incluida la pestaña Oportunidades ganadas) SE CONSERVA en bandejas y catálogos.
+
+**EARS-36.** EL SISTEMA DEBERÁ mostrar en el detalle los campos de solo lectura **Origen** (`ouvs.origin`) y **Canal de origen** (`ouvs.source_channel`). SI el valor es NULL, ENTONCES mostrar "—". Canal de origen SE DEBERÁ etiquetar con el mismo mapa de labels del lead (`CANAL_ORIGEN_LABEL`). Estos campos NO son editables en modo edición.
+
+**EARS-37.** CUANDO se cree una OUV desde SQL (`crearDesdeSql`), EL SISTEMA DEBERÁ persistir el snapshot `origin` / `source_channel` desde el lead origen en la misma transacción. EL SISTEMA NO DEBERÁ actualizar esos campos si el lead cambia después.
+
+**EARS-38.** EL SISTEMA NO DEBERÁ hacer backfill de `origin` / `source_channel` en OUVs ya existentes. Las OUVs previas a v1.5 muestran "—" aunque `origen_via = desde_sql`.
+
+**EARS-39.** EL SISTEMA DEBERÁ conservar **Vertical** en el detalle (ya existe). **Segmento** no se modifica.
+
+**EARS-40.** EL SISTEMA DEBERÁ eliminar del detalle de OUV (vista y modo edición) el campo **Proyecto** (Recurrente / No recurrente). Esta iteración NO quita ese dato de otras pantallas (p. ej. alta directa) si existiera.
+
+**EARS-41.** EL SISTEMA DEBERÁ conservar sin cambios en el detalle: Plazo de ejecución, Probabilidad de cierre, Ciudad, Región, botón Contactos, menú de acciones (Editar / Avanzar / Retroceder / Cerrar). EL SISTEMA NO DEBERÁ reintroducir el campo Consecutivo en el grid de metadatos, ni portar de DesignJD los campos Origen OUV ni Estado OUV.
 
 ---
 
@@ -245,6 +269,12 @@ Sin cambios estructurales salvo:
 ### 8.3 OUV — Detalle
 Panel de contactos: lista `ouv_contactos` (join a `people`), acciones agregar/eliminar y editar `notas` únicamente.
 
+**v1.5 — chrome del detalle (congelado vs DesignJD):**
+- No se renderiza `DiscoveryNav` en `/opportunities/:id` (solo link volver), igual que DesignJD en ese punto.
+- El header permanece el de `crm-e2e` (`OuvDetailHeaderCard`): botón Contactos, menú Cerrar, ciudad/región persistidos en `ouvs.city` / `ouvs.region`.
+- Metadatos: agregar Origen y Canal de origen (solo lectura); quitar Proyecto; no agregar Consecutivo / Origen OUV / Estado OUV.
+- `buildOuvMetaFields` es la fuente del grid de lectura (también alimenta `OuvReadonlyHeaderCard` en oferta/cierre).
+
 ### 8.5 Modal "Agregar contacto" *(ajustado v1.3)*
 Selector de `person` existente (busca por nombre/email) o formulario para crear uno nuevo (nombre, cargo, email, teléfono + selección/creación de `account`) — delega a `spec-gestion-cuentas.md`. `notas` local siempre editable aquí.
 
@@ -267,6 +297,9 @@ Sin cambios — todo pasa por `WorkflowEngineService.transition()`.
 - Tabla `ouv_actividades` formal
 - Editor visual de reglas del motor
 - Notificaciones por email/SMS
+- Destino de OUVs Perdidas/Descartadas (retorno a leads vs. reciclaje) — pendiente de definición
+- Iteración de cierre visual / listado Ganada-Perdida (requisitos 3–4 del prompt 2026-09-17) — posterior a v1.5
+- Backfill de `origin` / `source_channel` en OUVs históricas
 - Influencias adicionales más allá de las 3 fijas
 - Segmentación de reglas por segmento
 - Filtros avanzados en bandeja

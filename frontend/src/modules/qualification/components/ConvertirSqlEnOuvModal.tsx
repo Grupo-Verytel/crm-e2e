@@ -9,6 +9,10 @@ import {
   type SqlDetail,
 } from '../api/sqls-api';
 import {
+  formatLeadOrigin,
+  formatLeadSourceChannel,
+} from '../lib/lead-source-labels';
+import {
   ghostButtonClass,
   inputClass,
   labelClass,
@@ -178,6 +182,19 @@ export function ConvertirSqlEnOuvModal({ sql, onClose, onConverted }: Props) {
               value={descripcion}
               onChange={(e) => setDescripcion(e.target.value)}
             />
+          </div>
+
+          <div>
+            <p className={labelClass}>Origen</p>
+            <p className="mt-0.5 text-sm font-medium text-ink">
+              {formatLeadOrigin(sql.lead.origen)}
+            </p>
+          </div>
+          <div>
+            <p className={labelClass}>Canal de origen</p>
+            <p className="mt-0.5 text-sm font-medium text-ink">
+              {formatLeadSourceChannel(sql.lead.canal_origen)}
+            </p>
           </div>
 
           <div>
