@@ -35,7 +35,7 @@ export class CrearOuvDirectaDto {
   descripcion!: string;
 
   @IsOptional()
-  @IsUUID('4')
+  @IsUUID()
   account_id?: string;
 
   @IsOptional()
