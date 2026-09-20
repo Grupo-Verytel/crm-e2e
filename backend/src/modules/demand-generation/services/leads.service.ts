@@ -24,6 +24,7 @@ import { WorkflowEngineService } from '../../workflow-engine/workflow-engine.ser
 import {
   DEMAND_GENERATION_ERROR_CODES,
   DEMAND_GENERATION_ROLES,
+  LEAD_IMPORT_DUPLICATE_REASON,
 } from '../constants/demand-generation.constants';
 import { CreateLeadDto } from '../dtos/create-lead.dto';
 import {
@@ -620,6 +621,7 @@ export class LeadsService {
     options?: {
       campanaId?: string;
       canalOrigen?: CanalOrigen;
+      allowDuplicate?: boolean;
     },
   ): Promise<Lead> {
     const segmento = resolveSegmentoFromInput(values.segmento) as Segmento;
@@ -699,10 +701,8 @@ export class LeadsService {
       account.account_id,
       email,
     );
-    if (duplicate) {
-      throw new BadRequestException(
-        'Ya existe un lead con esta empresa y este email',
-      );
+    if (duplicate && !options?.allowDuplicate) {
+      throw new BadRequestException(LEAD_IMPORT_DUPLICATE_REASON);
     }
 
     const name = await this.resolveUniqueLeadName(values.name, resolvedAccountName);

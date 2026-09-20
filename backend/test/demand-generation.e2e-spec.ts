@@ -569,7 +569,36 @@ describe('Demand generation module (EARS DG-01..DG-18)', () => {
     expect(status.skipped[0].reason).toBe(
       'Ya existe un lead con esta empresa y este email',
     );
+    expect(status.skipped[0].code).toBe('DUPLICATE_ACCOUNT_EMAIL');
     createdLeadIds.push(...status.created_lead_ids);
+
+    const authorized = await request(app.getHttpServer())
+      .post('/api/v1/leads/bulk-import')
+      .set('Authorization', `Bearer ${marketingToken}`)
+      .field(
+        'authorized_duplicates',
+        JSON.stringify([{ row: status.skipped[0].row, email: dupEmail }]),
+      )
+      .attach('file', Buffer.from(csvContent, 'utf-8'), 'leads.csv')
+      .expect(202);
+
+    let authorizedStatus = authorized.body;
+    for (
+      let attempt = 0;
+      attempt < 20 && authorizedStatus.status !== 'completed';
+      attempt += 1
+    ) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      const poll = await request(app.getHttpServer())
+        .get(`/api/v1/leads/bulk-import/${authorized.body.job_id}`)
+        .set('Authorization', `Bearer ${marketingToken}`)
+        .expect(200);
+      authorizedStatus = poll.body;
+    }
+
+    expect(authorizedStatus.status).toBe('completed');
+    expect(authorizedStatus.created).toBe(1);
+    createdLeadIds.push(...authorizedStatus.created_lead_ids);
 
     const importedLead = await request(app.getHttpServer())
       .get(`/api/v1/leads/${status.created_lead_ids[0]}`)

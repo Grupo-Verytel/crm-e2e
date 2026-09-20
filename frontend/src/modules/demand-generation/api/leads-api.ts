@@ -151,6 +151,7 @@ export async function enqueueLeadImport(
     campanaId?: string;
     expectedSegmento?: string;
     canalOrigen?: string;
+    authorizedDuplicates?: Array<{ row: number; email: string }>;
   },
 ): Promise<BulkImportJobAccepted> {
   const token = getAccessToken();
@@ -168,6 +169,12 @@ export async function enqueueLeadImport(
   }
   if (options?.canalOrigen) {
     formData.append('canal_origen', options.canalOrigen);
+  }
+  if (options?.authorizedDuplicates?.length) {
+    formData.append(
+      'authorized_duplicates',
+      JSON.stringify(options.authorizedDuplicates),
+    );
   }
 
   const response = await fetch(`${API_BASE}/leads/bulk-import`, {

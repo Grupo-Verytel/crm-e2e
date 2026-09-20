@@ -501,11 +501,32 @@ export type BulkImportJobAccepted = {
   status: ImportJobStatus;
 };
 
+export type BulkImportRowOutcome = 'created' | 'duplicate' | 'skipped';
+
 export type BulkImportSkippedRow = {
   row: number;
   email: string;
   nit: string | null;
   reason: string;
+  code?: string;
+  account_name?: string | null;
+  contacto_nombre?: string | null;
+  existing_lead_id?: string | null;
+  existing_lead_name?: string | null;
+};
+
+export type BulkImportRowResult = {
+  row: number;
+  email: string;
+  nit: string | null;
+  account_name: string | null;
+  contacto_nombre: string | null;
+  outcome: BulkImportRowOutcome;
+  reason: string | null;
+  code: string | null;
+  lead_id: string | null;
+  existing_lead_id: string | null;
+  existing_lead_name: string | null;
 };
 
 export type BulkImportJobStatus = {
@@ -514,6 +535,7 @@ export type BulkImportJobStatus = {
   total_rows: number;
   created: number;
   skipped: BulkImportSkippedRow[];
+  rows?: BulkImportRowResult[];
   created_lead_ids: string[];
   error: string | null;
   started_at: string;

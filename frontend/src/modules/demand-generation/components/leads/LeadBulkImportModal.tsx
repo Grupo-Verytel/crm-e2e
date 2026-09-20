@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { Download, Upload } from 'lucide-react';
-import { enqueueLeadImport, fetchImportStatus } from '../../api/leads-api';
+import { enqueueLeadImport } from '../../api/leads-api';
 import {
   downloadLeadImportTemplate,
   excelColumnLetter,
@@ -9,13 +9,19 @@ import {
   snapshotImportFile,
 } from '../../lib/lead-bulk-import';
 import { loadLeadImportCatalog } from '../../lib/lead-import-catalog';
+import {
+  duplicateImportRows,
+  importRowKey,
+  pollLeadImportJob,
+} from '../../lib/lead-import-job';
 import type { BulkImportJobStatus } from '../../types';
 import { ModalShell } from '../ModalShell';
 import { ghostButtonClass, primaryButtonClass } from '../ui';
+import { LeadImportDuplicateReview } from './LeadImportDuplicateReview';
 
 export { LEAD_CSV_FIELDS };
 
-type Step = 'guide' | 'upload' | 'processing' | 'done';
+type Step = 'guide' | 'upload' | 'processing' | 'review' | 'done';
 
 type Props = {
   onClose: () => void;
@@ -24,11 +30,16 @@ type Props = {
 
 export function LeadBulkImportModal({ onClose, onDone }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const csvFileRef = useRef<File | null>(null);
   const [step, setStep] = useState<Step>('guide');
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState<BulkImportJobStatus | null>(null);
+  const [authorizedKeys, setAuthorizedKeys] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [error, setError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
+  const [confirming, setConfirming] = useState(false);
 
   async function handleDownloadTemplate() {
     setDownloading(true);
@@ -47,15 +58,20 @@ export function LeadBulkImportModal({ onClose, onDone }: Props) {
     }
   }
 
-  async function pollUntilDone(jobId: string) {
-    for (let attempt = 0; attempt < 40; attempt += 1) {
-      const current = await fetchImportStatus(jobId);
-      setStatus(current);
-      if (current.status === 'completed' || current.status === 'failed') {
-        return;
-      }
-      await new Promise((resolve) => setTimeout(resolve, 400));
-    }
+  async function runImport(
+    csvFile: File,
+    authorizedDuplicates?: Array<{ row: number; email: string }>,
+  ): Promise<BulkImportJobStatus> {
+    const accepted = await enqueueLeadImport(csvFile, {
+      authorizedDuplicates,
+    });
+    return pollLeadImportJob(accepted.job_id);
+  }
+
+  function finish(current: BulkImportJobStatus) {
+    setStatus(current);
+    setStep('done');
+    onDone?.();
   }
 
   async function handleImport() {
@@ -67,10 +83,20 @@ export function LeadBulkImportModal({ onClose, onDone }: Props) {
       const csvFile = new File([csv], file.name.replace(/\.(xls|xlsx)$/i, '.csv'), {
         type: 'text/csv',
       });
-      const accepted = await enqueueLeadImport(csvFile);
-      await pollUntilDone(accepted.job_id);
-      setStep('done');
-      onDone?.();
+      csvFileRef.current = csvFile;
+      const current = await runImport(csvFile);
+      if (current.status === 'failed') {
+        setStatus(current);
+        setStep('done');
+        return;
+      }
+      if (duplicateImportRows(current).length > 0) {
+        setStatus(current);
+        setAuthorizedKeys(new Set());
+        setStep('review');
+        return;
+      }
+      finish(current);
     } catch (importError) {
       setError(
         importError instanceof Error
@@ -81,8 +107,73 @@ export function LeadBulkImportModal({ onClose, onDone }: Props) {
     }
   }
 
+  async function handleConfirmAuthorized() {
+    const csvFile = csvFileRef.current;
+    const current = status;
+    if (!csvFile || !current) return;
+    const authorizedDuplicates = duplicateImportRows(current)
+      .filter((row) => authorizedKeys.has(importRowKey(row.row, row.email)))
+      .map((row) => ({ row: row.row, email: row.email }));
+    if (authorizedDuplicates.length === 0) {
+      finish(current);
+      return;
+    }
+    setConfirming(true);
+    setError(null);
+    try {
+      const next = await runImport(csvFile, authorizedDuplicates);
+      finish({
+        ...next,
+        created: current.created + next.created,
+        created_lead_ids: [
+          ...current.created_lead_ids,
+          ...next.created_lead_ids,
+        ],
+        total_rows: current.total_rows,
+        skipped: next.skipped.filter((row) => {
+          const firstRow = current.rows?.find((item) => item.row === row.row);
+          return firstRow?.outcome !== 'created';
+        }),
+      });
+    } catch (importError) {
+      setError(
+        importError instanceof Error
+          ? importError.message
+          : 'No se pudieron crear los leads autorizados.',
+      );
+    } finally {
+      setConfirming(false);
+    }
+  }
+
+  function toggleAuthorized(key: string) {
+    setAuthorizedKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  }
+
+  function toggleAllAuthorized(keys: string[]) {
+    setAuthorizedKeys((prev) => {
+      const allSelected = keys.every((key) => prev.has(key));
+      return allSelected ? new Set() : new Set(keys);
+    });
+  }
+
+  function handleClose() {
+    if (status && status.created > 0) {
+      onDone?.();
+    }
+    onClose();
+  }
+
   return (
-    <ModalShell title="Carga masiva de leads" onClose={onClose} size="wide">
+    <ModalShell title="Carga masiva de leads" onClose={handleClose} size="wide">
       <div className="space-y-4">
         {step === 'guide' ? (
           <>
@@ -122,13 +213,14 @@ export function LeadBulkImportModal({ onClose, onDone }: Props) {
             </div>
             <p className="text-xs text-muted">
               El nombre del lead se genera con la empresa. Elige la empresa de
-              la               lista; si no está, créala antes en Empresas. Si coinciden
-              empresa y email con un lead ya creado, esa fila se omite. El
+              la lista; si no está, créala antes en Empresas. Si coinciden
+              empresa y email con un lead ya creado, verás el cargue completo y
+              tendrás que autorizar cada fila duplicada para crearla. El
               responsable es quien hace la carga.
             </p>
             {error ? <p className="text-sm text-danger">{error}</p> : null}
             <div className="flex flex-wrap justify-end gap-2">
-              <button type="button" className={ghostButtonClass} onClick={onClose}>
+              <button type="button" className={ghostButtonClass} onClick={handleClose}>
                 Cancelar
               </button>
               <button
@@ -242,6 +334,19 @@ export function LeadBulkImportModal({ onClose, onDone }: Props) {
           </p>
         ) : null}
 
+        {step === 'review' && status ? (
+          <LeadImportDuplicateReview
+            status={status}
+            authorizedKeys={authorizedKeys}
+            confirming={confirming}
+            error={error}
+            onToggle={toggleAuthorized}
+            onToggleAll={toggleAllAuthorized}
+            onDecline={() => finish(status)}
+            onConfirm={() => void handleConfirmAuthorized()}
+          />
+        ) : null}
+
         {step === 'done' && status ? (
           <>
             {status.status === 'failed' ? (
@@ -265,7 +370,7 @@ export function LeadBulkImportModal({ onClose, onDone }: Props) {
               </ul>
             ) : null}
             <div className="flex justify-end gap-2">
-              <button type="button" className={primaryButtonClass} onClick={onClose}>
+              <button type="button" className={primaryButtonClass} onClick={handleClose}>
                 Cerrar
               </button>
             </div>
