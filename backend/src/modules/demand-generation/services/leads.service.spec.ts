@@ -143,4 +143,76 @@ describe('LeadsService channel flows', () => {
     expect(notify).not.toHaveBeenCalled();
     expect(result.estado).toBe(LeadEstado.MOFU);
   });
+
+  it('maps account_id onto the lead response from the selected company', async () => {
+    const service = createService({
+      accountsService: {
+        getPeopleWithAccounts: jest.fn().mockResolvedValue(
+          new Map([
+            [
+              'person-1',
+              {
+                person_id: 'person-1',
+                name: 'Contact',
+                job_title: null,
+                email: 'c@example.com',
+                phone: null,
+                account_id: 'acc-1',
+                account_name: 'Acme',
+                account_tax_id: null,
+              },
+            ],
+          ]),
+        ),
+      },
+    });
+    const lead = {
+      leadId: 'lead-1',
+      accountId: 'acc-1',
+      name: 'Acme',
+      tipoLead: 'Inbound',
+      origen: 'Web',
+      canalOrigen: CanalOrigen.Fabrica,
+      subOrigen: null,
+      campanaId: null,
+      segmento: 'Gobierno',
+      industria: null,
+      city: 'Bogota',
+      region: 'Bogota',
+      pais: 'CO',
+      nit: null,
+      contacts: [{ personId: 'person-1', position: 1, contactId: 'c-1', tipoInfluencia: null }],
+      businessReferrerId: null,
+      segmentId: null,
+      subsegmentId: null,
+      referrerName: null,
+      tipoInfluencia: null,
+      estado: LeadEstado.TOFU,
+      icpScore: null,
+      responsableId: 'user-1',
+      responsable: { fullName: 'Ana' },
+      citaAgendada: false,
+      fechaCita: null,
+      citaLugar: null,
+      citaContactoNombre: null,
+      citaContactoEmail: null,
+      citaContactoTelefono: null,
+      citaContactos: null,
+      comercialAsignadoId: null,
+      motivoDescarte: null,
+      utmSource: null,
+      utmMedium: null,
+      utmCampaign: null,
+      fechaCaptura: new Date(),
+      fechaUltimaInteraccion: null,
+      createdBy: 'user-1',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    } as unknown as Lead;
+
+    const dto = await service.toResponseDto(lead);
+
+    expect(dto.account_id).toBe('acc-1');
+    expect(dto.empresa_nombre).toBe('Acme');
+  });
 });

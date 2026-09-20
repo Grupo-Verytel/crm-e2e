@@ -57,6 +57,18 @@ export class CreateLeadDto {
   @IsUUID('4')
   campana_id?: string;
 
+  /** Selected company. If omitted, taken from the contacts' shared account. */
+  @Transform(({ value }) => {
+    if (typeof value !== 'string') {
+      return value;
+    }
+    const trimmed = value.trim();
+    return trimmed === '' ? undefined : trimmed;
+  })
+  @IsOptional()
+  @IsUUID()
+  account_id?: string;
+
   @Transform(({ value }) => resolveSegmentoFromInput(value))
   @IsEnum(Segmento)
   segmento: Segmento;

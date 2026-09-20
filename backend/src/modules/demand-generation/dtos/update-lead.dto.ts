@@ -41,6 +41,17 @@ export class UpdateLeadDto {
   @IsUUID('4')
   campana_id?: string | null;
 
+  @Transform(({ value }) => {
+    if (typeof value !== 'string') {
+      return value;
+    }
+    const trimmed = value.trim();
+    return trimmed === '' ? undefined : trimmed;
+  })
+  @IsOptional()
+  @IsUUID()
+  account_id?: string;
+
   @Transform(({ value }) => resolveSegmentoFromInput(value))
   @IsOptional()
   @IsEnum(Segmento)

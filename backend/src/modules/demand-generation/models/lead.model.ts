@@ -118,6 +118,17 @@ export class Lead extends Model {
   })
   declare subsegmentId: string | null;
 
+  /**
+   * FK to accounts.account_id — company selected for the lead.
+   * empresa_nombre stays a computed API snapshot from this account.
+   */
+  @Column({
+    type: DataType.CHAR(36),
+    field: 'account_id',
+    allowNull: true,
+  })
+  declare accountId: string | null;
+
   @Default(LeadEstado.Nuevo)
   @Column({
     type: DataType.ENUM(...Object.values(LeadEstado)),

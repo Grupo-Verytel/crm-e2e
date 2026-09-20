@@ -166,7 +166,12 @@ export class LeadsService {
     }
 
     const personIds = dto.contacts.map((contact) => contact.person_id);
-    await this.accountsService.assertPeopleSameAccount(personIds);
+    const contactsAccountId =
+      await this.accountsService.assertPeopleSameAccount(personIds);
+    const accountId = this.resolveLeadAccountId(
+      dto.account_id,
+      contactsAccountId,
+    );
 
     const businessReferrerId = await this.resolveBusinessReferrerId(dto);
     await this.validateSegmentSubsegment(dto.segment_id, dto.subsegment_id);
@@ -200,6 +205,7 @@ export class LeadsService {
           contacts,
           businessReferrerId,
           nit,
+          accountId,
         );
       }
 
@@ -210,6 +216,7 @@ export class LeadsService {
           contacts,
           businessReferrerId,
           nit,
+          accountId,
         );
       }
 
@@ -219,6 +226,7 @@ export class LeadsService {
         contacts,
         businessReferrerId,
         nit,
+        accountId,
       );
     } catch (error) {
       if (error instanceof UniqueConstraintError) {
@@ -353,12 +361,17 @@ export class LeadsService {
     this.assertIndustriaRequiresSubsegment(nextSegmento, nextSubsegmentId);
 
     try {
+      const nextAccountId =
+        dto.account_id !== undefined
+          ? await this.resolveAccountIdForUpdate(lead, dto.account_id)
+          : undefined;
       await lead.update({
         ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
         ...(dto.tipo_lead !== undefined ? { tipoLead: dto.tipo_lead } : {}),
         ...(dto.origen !== undefined ? { origen: dto.origen } : {}),
         ...(dto.sub_origen !== undefined ? { subOrigen: dto.sub_origen } : {}),
         ...(dto.campana_id !== undefined ? { campanaId: dto.campana_id } : {}),
+        ...(nextAccountId !== undefined ? { accountId: nextAccountId } : {}),
         ...(dto.segmento !== undefined ? { segmento: dto.segmento } : {}),
         ...(dto.industria !== undefined ? { industria: dto.industria } : {}),
         ...(dto.city !== undefined ? { city: dto.city } : {}),
@@ -425,10 +438,18 @@ export class LeadsService {
 
     if (personId) {
       const existingIds = contacts.map((row) => row.personId);
-      await this.accountsService.assertPeopleSameAccount([
-        personId,
-        ...existingIds,
-      ]);
+      const personAccountId =
+        await this.accountsService.assertPeopleSameAccount([
+          personId,
+          ...existingIds,
+        ]);
+      if (lead.accountId && personAccountId !== lead.accountId) {
+        throw new ConflictException({
+          code: DEMAND_GENERATION_ERROR_CODES.VALIDATION_ERROR,
+          message:
+            'Todos los contactos del lead deben pertenecer a la misma empresa.',
+        });
+      }
     }
 
     await this.sequelize.transaction(async (transaction) => {
@@ -441,6 +462,16 @@ export class LeadsService {
             ),
         );
         return;
+      }
+
+      if (!lead.accountId) {
+        const people = await this.accountsService.getPeopleWithAccounts([
+          personId,
+        ]);
+        const accountId = people.get(personId)?.account_id ?? null;
+        if (accountId) {
+          await lead.update({ accountId }, { transaction });
+        }
       }
 
       let target = contacts.find((row) => row.personId === personId);
@@ -656,7 +687,7 @@ export class LeadsService {
       ? normalizePhoneToE164(values.telefono)
       : null;
 
-    const { person_id: personId } =
+    const { person_id: personId, account_id: accountId } =
       await this.accountsService.findOrCreateAccountAndPerson({
         account_name: accountName,
         tax_id: taxId,
@@ -678,6 +709,7 @@ export class LeadsService {
           industria: subsegmentName || null,
           segmentId,
           subsegmentId,
+          accountId,
           city,
           region,
           pais: (values.pais || 'CO').toUpperCase(),
@@ -903,6 +935,7 @@ export class LeadsService {
       city: lead.city,
       region: lead.region,
       pais: lead.pais,
+      account_id: lead.accountId ?? primaryEnriched?.account_id ?? null,
       empresa_nombre: primaryEnriched?.account_name ?? '',
       nit: primaryEnriched?.account_tax_id ?? lead.nit,
       contacto_nombre: primaryEnriched?.name ?? '',
@@ -965,6 +998,7 @@ export class LeadsService {
     }>,
     businessReferrerId: string | null,
     nit: string | null,
+    accountId: string,
   ): Promise<LeadResponseDto> {
     const initialState = this.resolveInitialState(dto.canal_origen);
 
@@ -981,6 +1015,7 @@ export class LeadsService {
           industria: dto.industria ?? null,
           segmentId: dto.segment_id ?? null,
           subsegmentId: dto.subsegment_id ?? null,
+          accountId,
           referrerName: resolveReferrerName(dto.canal_origen, dto.referrer_name),
           city: dto.city,
           region: dto.region,
@@ -1034,6 +1069,7 @@ export class LeadsService {
     }>,
     businessReferrerId: string | null,
     nit: string | null,
+    accountId: string,
   ): Promise<LeadResponseDto> {
     this.assertDirectRouteCanal(dto.canal_origen, [
       CanalOrigen.BTL,
@@ -1054,6 +1090,7 @@ export class LeadsService {
           industria: dto.industria ?? null,
           segmentId: dto.segment_id ?? null,
           subsegmentId: dto.subsegment_id ?? null,
+          accountId,
           referrerName: resolveReferrerName(dto.canal_origen, dto.referrer_name),
           city: dto.city,
           region: dto.region,
@@ -1134,6 +1171,7 @@ export class LeadsService {
     }>,
     businessReferrerId: string | null,
     nit: string | null,
+    accountId: string,
   ): Promise<LeadResponseDto> {
     this.assertDirectRouteCanal(dto.canal_origen, [
       CanalOrigen.BTL,
@@ -1155,6 +1193,7 @@ export class LeadsService {
           industria: dto.industria ?? null,
           segmentId: dto.segment_id ?? null,
           subsegmentId: dto.subsegment_id ?? null,
+          accountId,
           referrerName: resolveReferrerName(dto.canal_origen, dto.referrer_name),
           city: dto.city,
           region: dto.region,
@@ -1335,6 +1374,45 @@ export class LeadsService {
       throw new BadRequestException(`Invalid tipo_influencia: ${trimmed}`);
     }
     return trimmed as LeadContactInfluenciaTipo;
+  }
+
+  private resolveLeadAccountId(
+    requestedAccountId: string | undefined,
+    contactsAccountId: string,
+  ): string {
+    if (!requestedAccountId) {
+      return contactsAccountId;
+    }
+    if (requestedAccountId !== contactsAccountId) {
+      throw new BadRequestException({
+        code: DEMAND_GENERATION_ERROR_CODES.VALIDATION_ERROR,
+        message:
+          'account_id must match the company of the selected contacts',
+      });
+    }
+    return requestedAccountId;
+  }
+
+  private async resolveAccountIdForUpdate(
+    lead: Lead,
+    accountId: string,
+  ): Promise<string> {
+    await this.accountsService.getAccount(accountId);
+    const contactPersonIds =
+      lead.contacts?.map((contact) => contact.personId) ?? [];
+    if (contactPersonIds.length === 0) {
+      return accountId;
+    }
+    const contactsAccountId =
+      await this.accountsService.assertPeopleSameAccount(contactPersonIds);
+    if (accountId !== contactsAccountId) {
+      throw new BadRequestException({
+        code: DEMAND_GENERATION_ERROR_CODES.VALIDATION_ERROR,
+        message:
+          'account_id must match the company of the selected contacts',
+      });
+    }
+    return accountId;
   }
 
   private async validateSegmentSubsegment(

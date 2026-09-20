@@ -535,6 +535,7 @@ export function LeadFormModal({
         ? form.referrer_name.trim() || null
         : null,
       ...(selectedAccount.tax_id ? { nit: selectedAccount.tax_id } : {}),
+      account_id: selectedAccount.account_id,
       ...(showTraductorSelect && form.business_referrer_id
         ? { business_referrer_id: form.business_referrer_id }
         : {}),

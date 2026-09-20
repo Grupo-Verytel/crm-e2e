@@ -68,7 +68,9 @@ export class LeadResponseDto {
   city: string | null;
   region: string;
   pais: string;
-  /** Computed from primary contact → account (UI compat). */
+  /** FK to accounts.account_id — selected company. */
+  account_id: string | null;
+  /** Computed from the selected account (UI compat snapshot). */
   empresa_nombre: string;
   nit: string | null;
   /** Computed from primary contact person (UI compat). */

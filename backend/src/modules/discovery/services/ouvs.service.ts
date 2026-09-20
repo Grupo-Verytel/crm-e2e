@@ -129,7 +129,7 @@ export class OuvsService {
         origin: leadSource.origin,
         sourceChannel: leadSource.sourceChannel,
         comercialId: input.comercialId,
-        accountId: person.account_id,
+        accountId: lead.account_id || person.account_id,
         titulo: input.dto.titulo.trim(),
         empresaNombre: person.account_name.trim(),
         city,

@@ -279,6 +279,7 @@ export type Lead = {
   city: string | null;
   region: string;
   pais: string;
+  account_id: string | null;
   empresa_nombre: string;
   nit: string | null;
   contacto_nombre: string;
@@ -351,6 +352,7 @@ export type CreateLeadPayload = {
   region: string;
   pais?: string;
   nit?: string;
+  account_id?: string;
   contacts: LeadContactInput[];
   responsable_id: string;
   campana_id?: string;
