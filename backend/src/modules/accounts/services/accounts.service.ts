@@ -256,6 +256,44 @@ export class AccountsService {
     return [...accountIds][0];
   }
 
+  async findExistingAccountForImport(
+    accountName: string,
+    taxId?: string | null,
+  ): Promise<{ account_id: string; name: string }> {
+    const account = await this.findExistingAccount(accountName, taxId);
+    return { account_id: account.accountId, name: account.name };
+  }
+
+  async findPersonIdByAccountAndEmail(
+    accountId: string,
+    email: string,
+  ): Promise<string | null> {
+    const normalized = this.normalizeOptional(email)?.toLowerCase() ?? null;
+    if (!normalized) {
+      return null;
+    }
+    const person = await this.personModel.findOne({
+      where: {
+        accountId,
+        [Op.and]: [sqlWhere(fn('LOWER', fn('TRIM', col('email'))), normalized)],
+      },
+    });
+    return person?.personId ?? null;
+  }
+
+  async findOrCreatePersonForAccount(
+    accountId: string,
+    input: {
+      person_name: string;
+      job_title?: string | null;
+      email?: string | null;
+      phone?: string | null;
+    },
+  ): Promise<{ person_id: string; account_id: string }> {
+    const account = await this.findAccountOrFail(accountId);
+    return this.findOrCreatePersonOnAccount(account, input);
+  }
+
   async findExistingAccountAndPerson(input: {
     account_name: string;
     tax_id?: string | null;

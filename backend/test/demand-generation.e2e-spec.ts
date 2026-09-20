@@ -566,7 +566,9 @@ describe('Demand generation module (EARS DG-01..DG-18)', () => {
     expect(status.status).toBe('completed');
     expect(status.created).toBe(1);
     expect(status.skipped).toHaveLength(1);
-    expect(status.skipped[0].reason).toBe('Duplicate email+nit');
+    expect(status.skipped[0].reason).toBe(
+      'Ya existe un lead con esta empresa y este email',
+    );
     createdLeadIds.push(...status.created_lead_ids);
 
     const importedLead = await request(app.getHttpServer())

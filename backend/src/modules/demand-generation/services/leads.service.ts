@@ -9,7 +9,6 @@ import {
 import { InjectConnection, InjectModel } from '@nestjs/sequelize';
 import {
   Op,
-  QueryTypes,
   Sequelize,
   Transaction,
   UniqueConstraintError,
@@ -687,25 +686,41 @@ export class LeadsService {
       business_referrer_id: resolvedTraductorId,
     } as CreateLeadDto);
 
+    const telefono = values.telefono
+      ? normalizePhoneToE164(values.telefono)
+      : null;
+    const email = values.email.trim().toLowerCase();
+
+    const account = await this.accountsService.findExistingAccountForImport(
+      resolvedAccountName,
+      taxId,
+    );
+    const duplicate = await this.findDuplicateByAccountIdAndEmail(
+      account.account_id,
+      email,
+    );
+    if (duplicate) {
+      throw new BadRequestException(
+        'Ya existe un lead con esta empresa y este email',
+      );
+    }
+
     const name = await this.resolveUniqueLeadName(values.name, resolvedAccountName);
 
     const campaignId =
       options?.campanaId ??
       (await this.resolveImportCampaignId(values.campana || values.campana_id));
 
-    const telefono = values.telefono
-      ? normalizePhoneToE164(values.telefono)
-      : null;
-
     const { person_id: personId, account_id: accountId } =
-      await this.accountsService.findExistingAccountAndPerson({
-        account_name: resolvedAccountName,
-        tax_id: taxId,
-        person_name: values.contacto_nombre.trim(),
-        job_title: values.cargo?.trim() || null,
-        email: values.email.trim().toLowerCase(),
-        phone: telefono,
-      });
+      await this.accountsService.findOrCreatePersonForAccount(
+        account.account_id,
+        {
+          person_name: values.contacto_nombre.trim(),
+          job_title: values.cargo?.trim() || null,
+          email,
+          phone: telefono,
+        },
+      );
 
     const createdLead = await this.sequelize.transaction(async (transaction) => {
       const lead = await this.leadModel.create(
@@ -762,41 +777,54 @@ export class LeadsService {
   async findDuplicateByEmailAndNit(
     email: string,
     nit: string | null,
+    accountRaw?: string,
   ): Promise<Lead | null> {
-    if (!email?.trim() || !nit?.trim()) {
-      return null;
-    }
-
-    const rows = await this.sequelize.query<{ lead_id: string }>(
-      `
-        SELECT l.lead_id
-        FROM leads l
-        INNER JOIN lead_contacts lc
-          ON lc.lead_id = l.lead_id
-          AND lc.position = 1
-          AND lc.deleted_at IS NULL
-        INNER JOIN people p
-          ON p.person_id = lc.person_id
-          AND p.deleted_at IS NULL
-        INNER JOIN accounts a
-          ON a.account_id = p.account_id
-          AND a.deleted_at IS NULL
-        WHERE LOWER(p.email) = :email
-          AND a.tax_id = :nit
-          AND l.deleted_at IS NULL
-        LIMIT 1
-      `,
-      {
-        replacements: { email: email.trim().toLowerCase(), nit: nit.trim() },
-        type: QueryTypes.SELECT,
-      },
+    const normalizedEmail = email?.trim().toLowerCase();
+    const { name: accountName, taxId } = this.parseImportAccountRef(
+      accountRaw?.trim() || '',
+      nit,
     );
-
-    if (rows.length === 0) {
+    if (!normalizedEmail || !accountName) {
       return null;
     }
 
-    return this.leadModel.findByPk(rows[0].lead_id);
+    try {
+      const account = await this.accountsService.findExistingAccountForImport(
+        accountName,
+        taxId,
+      );
+      return this.findDuplicateByAccountIdAndEmail(
+        account.account_id,
+        normalizedEmail,
+      );
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  private async findDuplicateByAccountIdAndEmail(
+    accountId: string,
+    email: string,
+  ): Promise<Lead | null> {
+    const personId = await this.accountsService.findPersonIdByAccountAndEmail(
+      accountId,
+      email,
+    );
+    if (!personId) {
+      return null;
+    }
+
+    const contact = await this.leadContactModel.findOne({
+      where: { personId },
+    });
+    if (!contact) {
+      return null;
+    }
+
+    return this.leadModel.findByPk(contact.leadId);
   }
 
   private async resolveUniqueLeadName(

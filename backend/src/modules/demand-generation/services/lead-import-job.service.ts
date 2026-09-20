@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { HttpException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import {
   CSV_LEAD_REQUIRED_HEADERS,
@@ -124,6 +124,11 @@ export class LeadImportJobService {
     for (const row of rows) {
       const email = row.values.email?.toLowerCase();
       const nit = row.values.tax_id || row.values.nit || null;
+      const accountRaw =
+        row.values.account_name ||
+        row.values.empresa ||
+        row.values.empresa_nombre ||
+        '';
 
       if (!email) {
         job.skipped.push({
@@ -139,6 +144,7 @@ export class LeadImportJobService {
         const duplicate = await this.leadsService.findDuplicateByEmailAndNit(
           email,
           nit,
+          accountRaw,
         );
 
         if (duplicate) {
@@ -146,7 +152,7 @@ export class LeadImportJobService {
             row: row.rowNumber,
             email,
             nit,
-            reason: 'Duplicate email+nit',
+            reason: 'Ya existe un lead con esta empresa y este email',
           });
           continue;
         }
@@ -163,8 +169,7 @@ export class LeadImportJobService {
           row: row.rowNumber,
           email,
           nit,
-          reason:
-            error instanceof Error ? error.message : 'Failed to create lead',
+          reason: this.importSkipReason(error),
         });
       }
     }
@@ -174,6 +179,20 @@ export class LeadImportJobService {
     this.logger.log(
       `Import job ${jobId} completed: ${job.created} created, ${job.skipped.length} skipped`,
     );
+  }
+
+  private importSkipReason(error: unknown): string {
+    if (error instanceof HttpException) {
+      const response = error.getResponse();
+      if (typeof response === 'string') {
+        return response;
+      }
+      if (typeof response === 'object' && response && 'message' in response) {
+        const message = (response as { message: string | string[] }).message;
+        return Array.isArray(message) ? message.join(', ') : String(message);
+      }
+    }
+    return error instanceof Error ? error.message : 'Failed to create lead';
   }
 
   private assertExpectedSegmento(

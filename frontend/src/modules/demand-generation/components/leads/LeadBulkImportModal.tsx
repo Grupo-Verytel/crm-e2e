@@ -122,8 +122,9 @@ export function LeadBulkImportModal({ onClose, onDone }: Props) {
             </div>
             <p className="text-xs text-muted">
               El nombre del lead se genera con la empresa. Elige la empresa de
-              la lista; si no está, créala antes en Empresas. Los duplicados
-              por email + NIT se omiten. El responsable es quien hace la carga.
+              la               lista; si no está, créala antes en Empresas. Si coinciden
+              empresa y email con un lead ya creado, esa fila se omite. El
+              responsable es quien hace la carga.
             </p>
             {error ? <p className="text-sm text-danger">{error}</p> : null}
             <div className="flex flex-wrap justify-end gap-2">
