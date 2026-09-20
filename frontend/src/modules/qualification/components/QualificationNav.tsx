@@ -12,12 +12,7 @@ const linkClass = ({ isActive }: { isActive: boolean }) =>
 
 export function QualificationNav() {
   const { user } = useAuth();
-  const isInboxViewer = isRoleName(
-    user?.role_name,
-    'SoporteComercial',
-    'Admin',
-    'DirectorMercadeo',
-  );
+  const isInboxViewer = isRoleName(user?.role_name, 'SoporteComercial');
   const seesAllAssigned = isRoleName(
     user?.role_name,
     'DirectorMercadeo',

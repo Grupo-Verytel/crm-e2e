@@ -4,10 +4,8 @@ import { isRoleName } from '../../../lib/roles';
 import { useAuth } from '../../auth/hooks/useAuth';
 import { RoutingInboxPage } from './RoutingInboxPage';
 
-const INBOX_ROLES = ['SoporteComercial', 'Admin', 'DirectorMercadeo'] as const;
-
 /**
- * Entry for /qualification — Soporte/Director see inbox;
+ * Entry for /qualification — only SoporteComercial sees the routing inbox;
  * every other authenticated role stays in Calificación (assigned tray).
  */
 export function QualificationHomePage() {
@@ -17,7 +15,7 @@ export function QualificationHomePage() {
     return <LoadingScreen />;
   }
 
-  if (isRoleName(user?.role_name, ...INBOX_ROLES)) {
+  if (isRoleName(user?.role_name, 'SoporteComercial')) {
     return <RoutingInboxPage />;
   }
 
