@@ -47,6 +47,7 @@ import {
 import { canRecycleLead } from '../lib/lead-state-machine';
 import { normalizePhoneToE164 } from '../lib/phone-normalize';
 import { normalizeCitaContactos } from '../lib/cita-contactos';
+import { resolveReferrerName } from '../lib/lead-referrer';
 import { isIndustriaSegmento, resolveSegmentoFromInput } from '../lib/segment-catalog';
 import {
   CanalOrigen,
@@ -367,6 +368,14 @@ export class LeadsService {
         ...(dto.segment_id !== undefined ? { segmentId: dto.segment_id } : {}),
         ...(dto.subsegment_id !== undefined
           ? { subsegmentId: dto.subsegment_id }
+          : {}),
+        ...(dto.referrer_name !== undefined
+          ? {
+              referrerName: resolveReferrerName(
+                lead.canalOrigen,
+                dto.referrer_name,
+              ),
+            }
           : {}),
         ...(dto.responsable_id !== undefined
           ? { responsableId: dto.responsable_id }
@@ -920,6 +929,7 @@ export class LeadsService {
       business_referrer_id: lead.businessReferrerId,
       segment_id: lead.segmentId,
       subsegment_id: lead.subsegmentId,
+      referrer_name: lead.referrerName,
       tipo_influencia: lead.tipoInfluencia,
       estado: lead.estado,
       icp_score: lead.icpScore,
@@ -971,6 +981,7 @@ export class LeadsService {
           industria: dto.industria ?? null,
           segmentId: dto.segment_id ?? null,
           subsegmentId: dto.subsegment_id ?? null,
+          referrerName: resolveReferrerName(dto.canal_origen, dto.referrer_name),
           city: dto.city,
           region: dto.region,
           pais: (dto.pais ?? 'CO').toUpperCase(),
@@ -1043,6 +1054,7 @@ export class LeadsService {
           industria: dto.industria ?? null,
           segmentId: dto.segment_id ?? null,
           subsegmentId: dto.subsegment_id ?? null,
+          referrerName: resolveReferrerName(dto.canal_origen, dto.referrer_name),
           city: dto.city,
           region: dto.region,
           pais: (dto.pais ?? 'CO').toUpperCase(),
@@ -1143,6 +1155,7 @@ export class LeadsService {
           industria: dto.industria ?? null,
           segmentId: dto.segment_id ?? null,
           subsegmentId: dto.subsegment_id ?? null,
+          referrerName: resolveReferrerName(dto.canal_origen, dto.referrer_name),
           city: dto.city,
           region: dto.region,
           pais: (dto.pais ?? 'CO').toUpperCase(),

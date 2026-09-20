@@ -26,6 +26,7 @@ export enum CanalOrigen {
   GeneracionDemandaAgencia = 'GENERACION_DEMANDA_AGENCIA',
   TraductorNegocio = 'TRADUCTOR_NEGOCIO',
   Eventos = 'EVENTOS',
+  Referido = 'REFERIDO',
 }
 
 export enum TipoInfluencia {

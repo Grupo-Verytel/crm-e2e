@@ -71,7 +71,8 @@ export type CanalOrigen =
   | 'FABRICA'
   | 'GENERACION_DEMANDA_AGENCIA'
   | 'TRADUCTOR_NEGOCIO'
-  | 'EVENTOS';
+  | 'EVENTOS'
+  | 'REFERIDO';
 
 export const CANALES_ORIGEN: CanalOrigen[] = [
   'CAMPANA_DIGITAL',
@@ -80,6 +81,7 @@ export const CANALES_ORIGEN: CanalOrigen[] = [
   'FABRICA',
   'GENERACION_DEMANDA_AGENCIA',
   'TRADUCTOR_NEGOCIO',
+  'REFERIDO',
 ];
 
 export type CampaignEstado =
@@ -287,6 +289,7 @@ export type Lead = {
   business_referrer_id: string | null;
   segment_id: string | null;
   subsegment_id: string | null;
+  referrer_name: string | null;
   tipo_influencia: string | null;
   estado: LeadEstado;
   icp_score: number | null;
@@ -342,6 +345,7 @@ export type CreateLeadPayload = {
   segmento: Segmento;
   segment_id?: string;
   subsegment_id?: string;
+  referrer_name?: string | null;
   industria?: string;
   city: string;
   region: string;

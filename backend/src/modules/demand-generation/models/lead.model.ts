@@ -63,6 +63,10 @@ export class Lead extends Model {
   @Column({ type: DataType.STRING(80), field: 'sub_origen', allowNull: true })
   declare subOrigen: string | null;
 
+  /** Optional referring person name when canal_origen = REFERIDO. */
+  @Column({ type: DataType.STRING(100), field: 'referrer_name', allowNull: true })
+  declare referrerName: string | null;
+
   @ForeignKey(() => Campaign)
   @Column({ type: DataType.CHAR(36), field: 'campana_id', allowNull: true })
   declare campanaId: string | null;

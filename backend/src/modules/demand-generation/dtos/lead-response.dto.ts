@@ -80,6 +80,7 @@ export class LeadResponseDto {
   business_referrer_id: string | null;
   segment_id: string | null;
   subsegment_id: string | null;
+  referrer_name: string | null;
   tipo_influencia: string | null;
   estado: string;
   icp_score: number | null;

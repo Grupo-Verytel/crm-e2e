@@ -77,6 +77,19 @@ export class CreateLeadDto {
   @IsUUID('4')
   subsegment_id?: string;
 
+  /** Optional referring person name when canal_origen = REFERIDO. */
+  @Transform(({ value }) => {
+    if (typeof value !== 'string') {
+      return value;
+    }
+    const trimmed = value.trim();
+    return trimmed === '' ? null : trimmed;
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  referrer_name?: string | null;
+
   @IsString()
   @MinLength(1)
   @MaxLength(80)
