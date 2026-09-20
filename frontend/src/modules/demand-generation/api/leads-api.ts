@@ -147,6 +147,11 @@ export async function fetchAppointmentCommercials(): Promise<
 
 export async function enqueueLeadImport(
   file: File,
+  options?: {
+    campanaId?: string;
+    expectedSegmento?: string;
+    canalOrigen?: string;
+  },
 ): Promise<BulkImportJobAccepted> {
   const token = getAccessToken();
   if (!token) {
@@ -155,6 +160,15 @@ export async function enqueueLeadImport(
 
   const formData = new FormData();
   formData.append('file', file);
+  if (options?.campanaId) {
+    formData.append('campana_id', options.campanaId);
+  }
+  if (options?.expectedSegmento) {
+    formData.append('expected_segmento', options.expectedSegmento);
+  }
+  if (options?.canalOrigen) {
+    formData.append('canal_origen', options.canalOrigen);
+  }
 
   const response = await fetch(`${API_BASE}/leads/bulk-import`, {
     method: 'POST',

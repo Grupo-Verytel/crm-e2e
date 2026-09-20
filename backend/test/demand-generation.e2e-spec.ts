@@ -117,7 +117,6 @@ describe('Demand generation module (EARS DG-01..DG-18)', () => {
       .set('Authorization', `Bearer ${marketingToken}`)
       .send({
         nombre: `EARS Campaign ${Date.now()}-${Math.random()}`,
-        tipo: 'Email',
         canal: 'Newsletter',
         objetivo: 'LeadGen',
         segmento_objetivo: 'Todos',
@@ -597,7 +596,6 @@ describe('Demand generation module (EARS DG-01..DG-18)', () => {
       .set('Authorization', `Bearer ${marketingToken}`)
       .send({
         nombre: `EARS Bad Dates ${Date.now()}`,
-        tipo: 'Email',
         canal: 'Newsletter',
         objetivo: 'LeadGen',
         segmento_objetivo: 'Todos',

@@ -618,9 +618,14 @@ export class LeadsService {
   async importLeadRow(
     values: Record<string, string>,
     createdBy: string,
+    options?: {
+      campanaId?: string;
+      canalOrigen?: CanalOrigen;
+    },
   ): Promise<Lead> {
     const segmento = resolveSegmentoFromInput(values.segmento) as Segmento;
-    const canalOrigen = values.canal_origen as CanalOrigen;
+    const canalOrigen = (options?.canalOrigen ??
+      values.canal_origen) as CanalOrigen;
     const origenValue =
       values.origen === 'Email'
         ? OrigenLead.EmailMarketing
@@ -679,9 +684,9 @@ export class LeadsService {
 
     const name = await this.resolveUniqueLeadName(values.name, accountName);
 
-    const campaignId = await this.resolveImportCampaignId(
-      values.campana || values.campana_id,
-    );
+    const campaignId =
+      options?.campanaId ??
+      (await this.resolveImportCampaignId(values.campana || values.campana_id));
 
     const telefono = values.telefono
       ? normalizePhoneToE164(values.telefono)

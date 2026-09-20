@@ -7,10 +7,13 @@ import {
 import {
   BulkImportJobAcceptedDto,
   BulkImportJobStatusDto,
+  BulkImportOptionsDto,
   BulkImportSkippedRowDto,
   ImportJobStatus,
 } from '../dtos/bulk-import-job.dto';
 import { parseCsvContent, type ParsedCsvRow } from '../lib/csv-parser';
+import { resolveSegmentoFromInput } from '../lib/segment-catalog';
+import { SegmentoObjetivo } from '../models/enums/segment.enum';
 import { LeadsService } from './leads.service';
 
 interface ImportJob {
@@ -38,7 +41,11 @@ export class LeadImportJobService {
 
   constructor(private readonly leadsService: LeadsService) {}
 
-  enqueue(csvContent: string, createdBy: string): BulkImportJobAcceptedDto {
+  enqueue(
+    csvContent: string,
+    createdBy: string,
+    options: BulkImportOptionsDto = {},
+  ): BulkImportJobAcceptedDto {
     const jobId = randomUUID();
     const job: ImportJob = {
       jobId,
@@ -54,7 +61,7 @@ export class LeadImportJobService {
     this.jobs.set(jobId, job);
 
     // Fire-and-forget: the response returns 202 before processing finishes.
-    void this.process(jobId, csvContent, createdBy);
+    void this.process(jobId, csvContent, createdBy, options);
 
     return { job_id: jobId, status: job.status };
   }
@@ -86,6 +93,7 @@ export class LeadImportJobService {
     jobId: string,
     csvContent: string,
     createdBy: string,
+    options: BulkImportOptionsDto,
   ): Promise<void> {
     const job = this.jobs.get(jobId);
     if (!job) {
@@ -97,6 +105,7 @@ export class LeadImportJobService {
     let rows: ParsedCsvRow[];
     try {
       rows = parseCsvContent(csvContent, CSV_LEAD_REQUIRED_HEADERS);
+      this.assertExpectedSegmento(rows, options.expected_segmento);
     } catch (error) {
       job.status = 'failed';
       job.error =
@@ -107,6 +116,10 @@ export class LeadImportJobService {
     }
 
     job.totalRows = rows.length;
+    const importOptions = {
+      campanaId: options.campana_id,
+      canalOrigen: options.canal_origen,
+    };
 
     for (const row of rows) {
       const email = row.values.email?.toLowerCase();
@@ -141,6 +154,7 @@ export class LeadImportJobService {
         const lead = await this.leadsService.importLeadRow(
           row.values,
           createdBy,
+          importOptions,
         );
         job.created += 1;
         job.createdLeadIds.push(lead.leadId);
@@ -160,5 +174,24 @@ export class LeadImportJobService {
     this.logger.log(
       `Import job ${jobId} completed: ${job.created} created, ${job.skipped.length} skipped`,
     );
+  }
+
+  private assertExpectedSegmento(
+    rows: ParsedCsvRow[],
+    expectedSegmento: string | undefined,
+  ): void {
+    const expected = expectedSegmento?.trim();
+    if (!expected || expected === SegmentoObjetivo.Todos) {
+      return;
+    }
+
+    for (const row of rows) {
+      const actual = resolveSegmentoFromInput(row.values.segmento);
+      if (actual !== expected) {
+        throw new Error(
+          `La fila ${row.rowNumber}: el segmento "${row.values.segmento || ''}" no coincide con el segmento objetivo "${expected}".`,
+        );
+      }
+    }
   }
 }

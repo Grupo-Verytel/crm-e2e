@@ -98,33 +98,24 @@ export const CAMPAIGN_ESTADOS: CampaignEstado[] = [
   'Cancelada',
 ];
 
-export type CampaignTipo =
-  | 'Email'
-  | 'LinkedIn'
-  | 'Evento'
-  | 'WebinarPaid'
-  | 'Outbound'
-  | 'Aliado';
-export const CAMPAIGN_TIPOS: CampaignTipo[] = [
-  'Email',
-  'LinkedIn',
-  'Evento',
-  'WebinarPaid',
-  'Outbound',
-  'Aliado',
-];
-
 export type CampaignObjetivo =
   | 'Awareness'
   | 'LeadGen'
   | 'Nurturing'
   | 'Reactivacion';
 export const CAMPAIGN_OBJETIVOS: CampaignObjetivo[] = [
-  'Awareness',
   'LeadGen',
+  'Awareness',
   'Nurturing',
   'Reactivacion',
 ];
+
+export const CAMPAIGN_OBJETIVO_LABEL: Record<CampaignObjetivo, string> = {
+  Awareness: 'Notoriedad',
+  LeadGen: 'Generación de leads',
+  Nurturing: 'Nutrición',
+  Reactivacion: 'Reactivación',
+};
 
 export type MqlEstado = 'Activo' | 'ConvertidoSQL' | 'Devuelto' | 'Descartado';
 
@@ -432,7 +423,6 @@ export type UpdateChecklistPayload = {
 export type Campaign = {
   campana_id: string;
   nombre: string;
-  tipo: string;
   canal: string;
   objetivo: string;
   segmento_objetivo: string;
@@ -457,7 +447,6 @@ export type PaginatedCampaigns = {
 
 export type CampaignsQuery = {
   estado?: CampaignEstado;
-  tipo?: CampaignTipo;
   from?: string;
   to?: string;
   page?: number;
@@ -466,7 +455,6 @@ export type CampaignsQuery = {
 
 export type CreateCampaignPayload = {
   nombre: string;
-  tipo: CampaignTipo;
   canal: string;
   objetivo: CampaignObjetivo;
   segmento_objetivo: SegmentoObjetivo;

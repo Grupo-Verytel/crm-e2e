@@ -9,7 +9,7 @@ import {
   Min,
   MinLength,
 } from 'class-validator';
-import { CampaignObjetivo, CampaignTipo } from '../models/enums/campaign.enums';
+import { CampaignObjetivo } from '../models/enums/campaign.enums';
 import { SegmentoObjetivo } from '../models/enums/segment.enum';
 import { IsDateAfter, IsNotPastDate } from './validators/date.validators';
 
@@ -19,13 +19,11 @@ export class CreateCampaignDto {
   @MaxLength(120)
   nombre: string;
 
-  @IsEnum(CampaignTipo)
-  tipo: CampaignTipo;
-
+  @IsOptional()
   @IsString()
   @MinLength(1)
   @MaxLength(60)
-  canal: string;
+  canal?: string;
 
   @IsEnum(CampaignObjetivo)
   objetivo: CampaignObjetivo;

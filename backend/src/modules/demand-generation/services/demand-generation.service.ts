@@ -6,6 +6,7 @@ import { ApproveMqlDto } from '../dtos/approve-mql.dto';
 import {
   BulkImportJobAcceptedDto,
   BulkImportJobStatusDto,
+  BulkImportOptionsDto,
 } from '../dtos/bulk-import-job.dto';
 import {
   CampaignResponseDto,
@@ -179,8 +180,9 @@ export class DemandGenerationService {
   enqueueLeadImport(
     csvContent: string,
     createdBy: string,
+    options?: BulkImportOptionsDto,
   ): BulkImportJobAcceptedDto {
-    return this.importJobService.enqueue(csvContent, createdBy);
+    return this.importJobService.enqueue(csvContent, createdBy, options);
   }
 
   getImportJobStatus(jobId: string): BulkImportJobStatusDto {

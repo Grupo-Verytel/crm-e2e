@@ -15,7 +15,6 @@ import { User } from '../../auth/models/user.model';
 import {
   CampaignEstado,
   CampaignObjetivo,
-  CampaignTipo,
 } from './enums/campaign.enums';
 import { SegmentoObjetivo } from './enums/segment.enum';
 
@@ -33,12 +32,6 @@ export class Campaign extends Model {
 
   @Column({ type: DataType.STRING(120), allowNull: false })
   declare nombre: string;
-
-  @Column({
-    type: DataType.ENUM(...Object.values(CampaignTipo)),
-    allowNull: false,
-  })
-  declare tipo: CampaignTipo;
 
   @Column({ type: DataType.STRING(60), allowNull: false })
   declare canal: string;

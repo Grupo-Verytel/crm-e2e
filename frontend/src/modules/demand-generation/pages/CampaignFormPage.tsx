@@ -4,7 +4,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import { AppLayout } from '../../../layout/AppLayout';
 import { useAuth } from '../../auth/hooks/useAuth';
 import { createCampaign } from '../api/campaigns-api';
-import { CsvImportStepper } from '../components/CsvImportStepper';
+import { enqueueLeadImport, fetchImportStatus } from '../api/leads-api';
+import { CampaignLeadImportCard } from '../components/CampaignLeadImportCard';
 import { DemandNav } from '../components/DemandNav';
 import {
   cardClass,
@@ -13,19 +14,20 @@ import {
   primaryButtonClass,
 } from '../components/ui';
 import {
+  assertCampaignFileMatchesSegmento,
+  fileToLeadImportCsv,
+} from '../lib/lead-bulk-import';
+import {
+  CAMPAIGN_OBJETIVO_LABEL,
   CAMPAIGN_OBJETIVOS,
-  CAMPAIGN_TIPOS,
   SEGMENTOS_OBJETIVO,
   type CampaignObjetivo,
-  type CampaignTipo,
   type CreateCampaignPayload,
   type SegmentoObjetivo,
 } from '../types';
 
 type FormState = {
   nombre: string;
-  tipo: CampaignTipo;
-  canal: string;
   objetivo: CampaignObjetivo;
   segmento_objetivo: SegmentoObjetivo;
   fecha_inicio: string;
@@ -36,8 +38,6 @@ type FormState = {
 
 const initialState: FormState = {
   nombre: '',
-  tipo: 'Email',
-  canal: '',
   objetivo: 'LeadGen',
   segmento_objetivo: 'Todos',
   fecha_inicio: '',
@@ -50,6 +50,7 @@ export function CampaignFormPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [form, setForm] = useState<FormState>(initialState);
+  const [file, setFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -57,27 +58,62 @@ export function CampaignFormPage() {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
+  async function pollUntilDone(jobId: string) {
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      const current = await fetchImportStatus(jobId);
+      if (current.status === 'completed' || current.status === 'failed') {
+        return current;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 400));
+    }
+    throw new Error('La importación sigue en proceso. Revisa los leads en unos minutos.');
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!user) return;
+    if (!file) {
+      setError('Selecciona el archivo CSV o Excel con los leads de la campaña.');
+      return;
+    }
+
     setIsSubmitting(true);
     setError(null);
 
-    const payload: CreateCampaignPayload = {
-      nombre: form.nombre,
-      tipo: form.tipo,
-      canal: form.canal,
-      objetivo: form.objetivo,
-      segmento_objetivo: form.segmento_objetivo,
-      responsable_id: user.user_id,
-      fecha_inicio: form.fecha_inicio,
-      fecha_fin: form.fecha_fin,
-      ...(form.presupuesto ? { presupuesto: Number(form.presupuesto) } : {}),
-      ...(form.gasto_real ? { gasto_real: Number(form.gasto_real) } : {}),
-    };
-
     try {
-      await createCampaign(payload);
+      const csv = await fileToLeadImportCsv(file);
+      assertCampaignFileMatchesSegmento(csv, form.segmento_objetivo);
+
+      const payload: CreateCampaignPayload = {
+        nombre: form.nombre,
+        canal: 'GENERACION_DEMANDA_AGENCIA',
+        objetivo: form.objetivo,
+        segmento_objetivo: form.segmento_objetivo,
+        responsable_id: user.user_id,
+        fecha_inicio: form.fecha_inicio,
+        fecha_fin: form.fecha_fin,
+        ...(form.presupuesto ? { presupuesto: Number(form.presupuesto) } : {}),
+        ...(form.gasto_real ? { gasto_real: Number(form.gasto_real) } : {}),
+      };
+
+      const campaign = await createCampaign(payload);
+      const csvFile = new File(
+        [csv],
+        file.name.replace(/\.(xls|xlsx)$/i, '.csv'),
+        { type: 'text/csv' },
+      );
+      const accepted = await enqueueLeadImport(csvFile, {
+        campanaId: campaign.campana_id,
+        expectedSegmento: form.segmento_objetivo,
+        canalOrigen: 'GENERACION_DEMANDA_AGENCIA',
+      });
+      const status = await pollUntilDone(accepted.job_id);
+      if (status.status === 'failed') {
+        throw new Error(
+          status.error ??
+            'La campaña se creó, pero la importación falló. Revisa el archivo y vuelve a cargar desde leads.',
+        );
+      }
       navigate('/demand/campaigns');
     } catch (submitError) {
       setError(
@@ -101,11 +137,11 @@ export function CampaignFormPage() {
         ← Volver a campañas
       </Link>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <form onSubmit={handleSubmit} className={`${cardClass} space-y-3 p-5`}>
+      <form onSubmit={handleSubmit} className="grid gap-4 lg:grid-cols-2">
+        <div className={`${cardClass} space-y-3 p-5`}>
           <h2 className="text-sm font-bold text-ink">Datos de la campaña</h2>
 
-          <Field label="Nombre">
+          <Field label="Nombre de la campaña">
             <input
               value={form.nombre}
               onChange={(event) => update('nombre', event.target.value)}
@@ -115,27 +151,6 @@ export function CampaignFormPage() {
           </Field>
 
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Tipo">
-              <select
-                value={form.tipo}
-                onChange={(event) => update('tipo', event.target.value as CampaignTipo)}
-                className={inputClass}
-              >
-                {CAMPAIGN_TIPOS.map((tipo) => (
-                  <option key={tipo} value={tipo}>
-                    {tipo}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Canal">
-              <input
-                value={form.canal}
-                onChange={(event) => update('canal', event.target.value)}
-                className={inputClass}
-                required
-              />
-            </Field>
             <Field label="Objetivo">
               <select
                 value={form.objetivo}
@@ -146,7 +161,7 @@ export function CampaignFormPage() {
               >
                 {CAMPAIGN_OBJETIVOS.map((objetivo) => (
                   <option key={objetivo} value={objetivo}>
-                    {objetivo}
+                    {CAMPAIGN_OBJETIVO_LABEL[objetivo]}
                   </option>
                 ))}
               </select>
@@ -209,12 +224,12 @@ export function CampaignFormPage() {
           {error ? <p className="text-sm text-danger">{error}</p> : null}
 
           <button type="submit" disabled={isSubmitting} className={primaryButtonClass}>
-            Crear campaña
+            {isSubmitting ? 'Creando campaña…' : 'Crear campaña'}
           </button>
-        </form>
+        </div>
 
-        <CsvImportStepper />
-      </div>
+        <CampaignLeadImportCard file={file} onFileChange={setFile} />
+      </form>
     </AppLayout>
   );
 }

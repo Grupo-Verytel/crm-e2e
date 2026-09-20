@@ -5,7 +5,7 @@ import {
   ORIGENES_LEAD,
   SEGMENTOS,
 } from '../types';
-import { createStoreZip, readZip, toArrayBuffer } from './zip-binary';
+import { createStoreZip, readZip } from './zip-binary';
 
 const LEAD_IMPORT_DATA_ROWS = 200;
 const LEAD_PREFILLED_ROWS = 30;
@@ -497,7 +497,7 @@ export function buildLeadImportXlsx(lists: LeadImportLists = {}): Uint8Array {
 
 export function downloadLeadImportTemplate(lists: LeadImportLists = {}): void {
   const bytes = buildLeadImportXlsx(lists);
-  const blob = new Blob([toArrayBuffer(bytes)], {
+  const blob = new Blob([bytes.slice()], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });
   const url = URL.createObjectURL(blob);
@@ -507,7 +507,22 @@ export function downloadLeadImportTemplate(lists: LeadImportLists = {}): void {
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();
-  URL.revokeObjectURL(url);
+  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
+/** Copy the picker File into memory so Chrome/Windows does not lose the handle. */
+export async function snapshotImportFile(file: File): Promise<File> {
+  try {
+    const buffer = await file.arrayBuffer();
+    return new File([buffer], file.name, {
+      type: file.type || 'application/octet-stream',
+      lastModified: file.lastModified,
+    });
+  } catch {
+    throw new Error(
+      'No se pudo leer el archivo. Ciérralo en Excel si está abierto, cópialo a una carpeta local y vuelve a seleccionarlo.',
+    );
+  }
 }
 
 function csvEscape(value: string): string {
@@ -691,12 +706,20 @@ function remapCsvHeaders(csv: string): string {
 }
 
 export async function fileToLeadImportCsv(file: File): Promise<string> {
-  const name = file.name.toLowerCase();
-  if (name.endsWith('.csv') || file.type.includes('csv')) {
-    return remapCsvHeaders(await file.text());
+  const snapshot = await snapshotImportFile(file);
+  const name = snapshot.name.toLowerCase();
+  if (name.endsWith('.csv') || snapshot.type.includes('csv')) {
+    return remapCsvHeaders(await snapshot.text());
   }
 
-  const buffer = await file.arrayBuffer();
+  let buffer: ArrayBuffer;
+  try {
+    buffer = await snapshot.arrayBuffer();
+  } catch {
+    throw new Error(
+      'No se pudo leer el archivo. Ciérralo en Excel si está abierto, cópialo a una carpeta local y vuelve a seleccionarlo.',
+    );
+  }
   const bytes = new Uint8Array(buffer);
   const isZip = bytes[0] === 0x50 && bytes[1] === 0x4b;
   if (isZip || name.endsWith('.xlsx')) {
@@ -716,4 +739,68 @@ export async function fileToLeadImportCsv(file: File): Promise<string> {
   }
 
   return remapCsvHeaders(text);
+}
+
+function parseCsvLine(line: string): string[] {
+  const values: string[] = [];
+  let current = '';
+  let inQuotes = false;
+
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+    if (char === '"') {
+      if (inQuotes && line[index + 1] === '"') {
+        current += '"';
+        index += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+    if (char === ',' && !inQuotes) {
+      values.push(current.trim());
+      current = '';
+      continue;
+    }
+    current += char;
+  }
+  values.push(current.trim());
+  return values;
+}
+
+export function assertCampaignFileMatchesSegmento(
+  csv: string,
+  expectedSegmento: string,
+): void {
+  const lines = csv
+    .replace(/^\uFEFF/, '')
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+
+  if (lines.length < 2) {
+    throw new Error('El archivo no tiene filas de leads para importar.');
+  }
+
+  const headers = parseCsvLine(lines[0]).map((header) =>
+    canonicalCsvHeader(header.replace(/^"(.*)"$/s, '$1')),
+  );
+  const segmentoIndex = headers.indexOf('segmento');
+  if (segmentoIndex < 0) {
+    throw new Error('El archivo no incluye la columna segmento.');
+  }
+
+  if (expectedSegmento === 'Todos') {
+    return;
+  }
+
+  for (let lineIndex = 1; lineIndex < lines.length; lineIndex += 1) {
+    const cells = parseCsvLine(lines[lineIndex]);
+    const segmento = (cells[segmentoIndex] ?? '').trim();
+    if (segmento !== expectedSegmento) {
+      throw new Error(
+        `El segmento de la fila ${lineIndex + 1} (${segmento || 'vacío'}) no coincide con el segmento objetivo (${expectedSegmento}).`,
+      );
+    }
+  }
 }

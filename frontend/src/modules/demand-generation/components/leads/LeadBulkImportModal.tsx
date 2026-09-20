@@ -9,6 +9,7 @@ import {
   excelColumnLetter,
   fileToLeadImportCsv,
   LEAD_CSV_FIELDS,
+  snapshotImportFile,
 } from '../../lib/lead-bulk-import';
 import type { BulkImportJobStatus } from '../../types';
 import { ModalShell } from '../ModalShell';
@@ -180,8 +181,23 @@ export function LeadBulkImportModal({ onClose, onDone }: Props) {
                 accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
                 className="sr-only"
                 onChange={(event) => {
-                  setFile(event.target.files?.[0] ?? null);
+                  const selected = event.target.files?.[0] ?? null;
+                  event.target.value = '';
                   setError(null);
+                  if (!selected) {
+                    setFile(null);
+                    return;
+                  }
+                  void snapshotImportFile(selected)
+                    .then(setFile)
+                    .catch((snapshotError: unknown) => {
+                      setFile(null);
+                      setError(
+                        snapshotError instanceof Error
+                          ? snapshotError.message
+                          : 'No se pudo leer el archivo seleccionado.',
+                      );
+                    });
                 }}
               />
               <div className="flex flex-wrap items-center gap-3">

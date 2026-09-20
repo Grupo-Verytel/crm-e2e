@@ -33,8 +33,7 @@ export class CampaignsService {
     try {
       const campaign = await this.campaignModel.create({
         nombre: dto.nombre.trim(),
-        tipo: dto.tipo,
-        canal: dto.canal.trim(),
+        canal: dto.canal?.trim() || 'GENERACION_DEMANDA_AGENCIA',
         objetivo: dto.objetivo,
         segmentoObjetivo: dto.segmento_objetivo,
         responsableId: dto.responsable_id,
@@ -71,10 +70,6 @@ export class CampaignsService {
 
     if (query.estado) {
       where.estado = query.estado;
-    }
-
-    if (query.tipo) {
-      where.tipo = query.tipo;
     }
 
     if (query.from || query.to) {
@@ -214,7 +209,6 @@ export class CampaignsService {
     return {
       campana_id: campaign.campanaId,
       nombre: campaign.nombre,
-      tipo: campaign.tipo,
       canal: campaign.canal,
       objetivo: campaign.objetivo,
       segmento_objetivo: campaign.segmentoObjetivo,
