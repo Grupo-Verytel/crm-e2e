@@ -5,6 +5,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  IsUUID,
   MaxLength,
   Min,
 } from 'class-validator';
@@ -69,4 +70,9 @@ export class ListarOuvsQueryDto {
   @Transform(queryBoolean)
   @IsBoolean()
   all?: boolean;
+
+  /** Owner filter. Applied only when `all` is true (follow-up roles). */
+  @IsOptional()
+  @IsUUID('4')
+  comercial_id?: string;
 }

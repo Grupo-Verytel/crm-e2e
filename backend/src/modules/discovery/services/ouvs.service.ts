@@ -765,6 +765,8 @@ export class OuvsService {
 
     if (!query.all) {
       where.comercialId = comercialId;
+    } else if (query.comercial_id) {
+      where.comercialId = query.comercial_id;
     }
     if (query.zona) {
       where.zonaActual = query.zona;
@@ -800,6 +802,17 @@ export class OuvsService {
     });
 
     return { items: rows, total: count, page, limit };
+  }
+
+  async listEjecutivosComerciales(): Promise<
+    Array<{ user_id: string; full_name: string }>
+  > {
+    const users =
+      await this.usersService.findActiveByRoleName('EjecutivoComercial');
+    return users.map((user) => ({
+      user_id: user.user_id,
+      full_name: user.full_name,
+    }));
   }
 
   async findById(ouvId: string): Promise<Ouv | null> {

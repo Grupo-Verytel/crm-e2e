@@ -1,10 +1,12 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
+import { UsersService } from '../../auth/services/users.service';
 import type {
   ActualizarMotivoCatalogoDto,
   ActualizarZonaChecklistTemplateDto,
   CrearMotivoCatalogoDto,
   CrearZonaChecklistTemplateDto,
+  EjecutivoComercialOptionDto,
   MotivoCatalogoResponseDto,
   ZonaChecklistTemplateResponseDto,
 } from '../dtos/catalogo.dto';
@@ -21,7 +23,17 @@ export class CatalogosOuvService {
     private readonly motivoDescarteModel: typeof MotivoDescarte,
     @InjectModel(ZonaChecklistTemplate)
     private readonly templateModel: typeof ZonaChecklistTemplate,
+    private readonly usersService: UsersService,
   ) {}
+
+  async listEjecutivosComerciales(): Promise<EjecutivoComercialOptionDto[]> {
+    const users =
+      await this.usersService.findActiveByRoleName('EjecutivoComercial');
+    return users.map((user) => ({
+      user_id: user.user_id,
+      full_name: user.full_name,
+    }));
+  }
 
   // ── motivos_perdida ──────────────────────────────────────────────
 

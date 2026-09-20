@@ -1,7 +1,7 @@
 export type DraftFilters = {
   zona: string;
   tiene_gap: string;
-  q: string;
+  comercial_id: string;
   created_from: string;
   created_to: string;
 };
@@ -9,7 +9,7 @@ export type DraftFilters = {
 export const EMPTY_OUV_FILTERS: DraftFilters = {
   zona: '',
   tiene_gap: '',
-  q: '',
+  comercial_id: '',
   created_from: '',
   created_to: '',
 };

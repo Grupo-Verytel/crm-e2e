@@ -75,6 +75,14 @@ export class OuvsController {
     };
   }
 
+  @Get('ejecutivos-comerciales')
+  @CheckAbility({ action: 'read', subject: 'Opportunity' })
+  listEjecutivosComerciales(): Promise<
+    Array<{ user_id: string; full_name: string }>
+  > {
+    return this.ouvsService.listEjecutivosComerciales();
+  }
+
   @Get(':id')
   @CheckAbility({ action: 'read', subject: 'Opportunity' })
   async detalle(

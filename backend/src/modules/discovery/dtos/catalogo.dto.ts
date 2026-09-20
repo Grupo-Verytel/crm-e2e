@@ -101,6 +101,11 @@ export class ActualizarZonaChecklistTemplateDto {
   orden?: number;
 }
 
+export class EjecutivoComercialOptionDto {
+  user_id!: string;
+  full_name!: string;
+}
+
 export class MotivoCatalogoResponseDto {
   motivo_id!: string;
   nombre!: string;

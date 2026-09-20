@@ -1,6 +1,9 @@
 import { Controller, Get } from '@nestjs/common';
 import { CheckAbility } from '../../auth/casl/check-ability.decorator';
-import { MotivoCatalogoResponseDto } from '../dtos/catalogo.dto';
+import {
+  EjecutivoComercialOptionDto,
+  MotivoCatalogoResponseDto,
+} from '../dtos/catalogo.dto';
 import { CatalogosOuvService } from '../services/catalogos-ouv.service';
 
 /**
@@ -11,6 +14,12 @@ import { CatalogosOuvService } from '../services/catalogos-ouv.service';
 @Controller('discovery')
 export class DiscoveryCatalogosController {
   constructor(private readonly catalogos: CatalogosOuvService) {}
+
+  @Get('ejecutivos-comerciales')
+  @CheckAbility({ action: 'read', subject: 'Opportunity' })
+  listEjecutivosComerciales(): Promise<EjecutivoComercialOptionDto[]> {
+    return this.catalogos.listEjecutivosComerciales();
+  }
 
   @Get('motivos-perdida')
   @CheckAbility({ action: 'read', subject: 'Opportunity' })
