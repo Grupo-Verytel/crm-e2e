@@ -635,7 +635,12 @@ export class LeadsService {
       values.empresa?.trim() ||
       values.empresa_nombre?.trim() ||
       '';
-    const taxId = values.tax_id?.trim() || values.nit?.trim() || null;
+    const { name: resolvedAccountName, taxId: taxIdFromLabel } =
+      this.parseImportAccountRef(
+        accountName,
+        values.tax_id?.trim() || values.nit?.trim() || null,
+      );
+    const taxId = taxIdFromLabel;
     const { city, region } = this.parseImportCityRegion(
       values.city?.trim() || values.ciudad?.trim() || '',
       values.region?.trim() || '',
@@ -657,7 +662,7 @@ export class LeadsService {
       throw new BadRequestException(`Invalid origen: ${values.origen}`);
     }
 
-    if (!city || !region || !accountName || !values.contacto_nombre?.trim()) {
+    if (!city || !region || !resolvedAccountName || !values.contacto_nombre?.trim()) {
       throw new BadRequestException('Missing required lead fields');
     }
 
@@ -682,7 +687,7 @@ export class LeadsService {
       business_referrer_id: resolvedTraductorId,
     } as CreateLeadDto);
 
-    const name = await this.resolveUniqueLeadName(values.name, accountName);
+    const name = await this.resolveUniqueLeadName(values.name, resolvedAccountName);
 
     const campaignId =
       options?.campanaId ??
@@ -693,8 +698,8 @@ export class LeadsService {
       : null;
 
     const { person_id: personId, account_id: accountId } =
-      await this.accountsService.findOrCreateAccountAndPerson({
-        account_name: accountName,
+      await this.accountsService.findExistingAccountAndPerson({
+        account_name: resolvedAccountName,
         tax_id: taxId,
         person_name: values.contacto_nombre.trim(),
         job_title: values.cargo?.trim() || null,
@@ -1657,18 +1662,42 @@ export class LeadsService {
     });
   }
 
+  private parseImportAccountRef(
+    rawName: string,
+    taxIdColumn: string | null,
+  ): { name: string; taxId: string | null } {
+    const combined = rawName.match(/^(.*) \(([^)]+)\)\s*$/);
+    const labelTax = combined?.[2]?.trim() ?? '';
+    const looksLikeTaxId = /^\d[\d.\-]{4,}$/.test(labelTax.replace(/\s/g, ''));
+    if (combined && looksLikeTaxId) {
+      return {
+        name: combined[1].trim(),
+        taxId: taxIdColumn || labelTax,
+      };
+    }
+    return { name: rawName.trim(), taxId: taxIdColumn };
+  }
+
   private parseImportCityRegion(
     cityRaw: string,
     regionRaw: string,
   ): { city: string; region: string } {
+    if (!cityRaw) {
+      return { city: '', region: regionRaw };
+    }
     const combined = cityRaw.match(/^(.*) \(([^)]+)\)\s*$/);
     if (combined) {
       return {
         city: combined[1].trim(),
-        region: regionRaw || combined[2].trim(),
+        region: combined[2].trim() || regionRaw,
       };
     }
-    return { city: cityRaw, region: regionRaw };
+    if (regionRaw) {
+      return { city: cityRaw, region: regionRaw };
+    }
+    throw new BadRequestException(
+      'La ciudad debe ir como Municipio (Departamento) para inferir la región.',
+    );
   }
 
   private async resolveImportCampaignId(

@@ -39,6 +39,7 @@ export type LeadImportLists = {
   subsegmentos?: string[];
   traductores?: string[];
   campanas?: string[];
+  empresas?: string[];
 };
 
 export const LEAD_CSV_FIELDS: LeadCsvField[] = [
@@ -78,24 +79,8 @@ export const LEAD_CSV_FIELDS: LeadCsvField[] = [
     key: 'city',
     label: 'Ciudad',
     required: true,
-    hint: 'Lista de municipios. Si el nombre se repite, incluye el departamento.',
-    example: 'Bogotá, D.C.',
-    list: true,
-  },
-  {
-    key: 'region',
-    label: 'Región',
-    required: true,
-    hint: 'Lista de departamentos',
-    example: 'Bogotá, D.C.',
-    list: true,
-  },
-  {
-    key: 'pais',
-    label: 'País',
-    required: false,
-    hint: 'Lista; por defecto CO',
-    example: 'CO',
+    hint: 'Lista de municipios. La región se toma del departamento de la ciudad.',
+    example: 'Bogotá, D.C. (Bogotá, D.C.)',
     list: true,
   },
   {
@@ -103,15 +88,16 @@ export const LEAD_CSV_FIELDS: LeadCsvField[] = [
     header: 'Empresa',
     label: 'Empresa',
     required: true,
-    hint: 'Razón social',
+    hint: 'Lista de empresas ya creadas. No se crean empresas nuevas en el cargue.',
     example: 'Empresa ejemplo S.A.S.',
+    list: true,
   },
   {
     key: 'tax_id',
     header: 'NIT',
     label: 'NIT',
-    required: true,
-    hint: 'NIT de la empresa',
+    required: false,
+    hint: 'Opcional si la empresa de la lista ya trae NIT',
     example: '900123456',
   },
   {
@@ -198,20 +184,10 @@ function uniqueSorted(values: string[]): string[] {
   );
 }
 
-function colombiaDepartments(): string[] {
-  return uniqueSorted(COLOMBIA_MUNICIPIOS.map((row) => row.departamento));
-}
-
 function colombiaCityLabels(): string[] {
-  const counts = new Map<string, number>();
-  for (const row of COLOMBIA_MUNICIPIOS) {
-    counts.set(row.municipio, (counts.get(row.municipio) ?? 0) + 1);
-  }
   return uniqueSorted(
-    COLOMBIA_MUNICIPIOS.map((row) =>
-      (counts.get(row.municipio) ?? 0) > 1
-        ? `${row.municipio} (${row.departamento})`
-        : row.municipio,
+    COLOMBIA_MUNICIPIOS.map(
+      (row) => `${row.municipio} (${row.departamento})`,
     ),
   );
 }
@@ -246,8 +222,11 @@ function buildCatalogColumns(lists: LeadImportLists = {}): CatalogColumn[] {
       values: uniqueSorted(lists.subsegmentos ?? []),
     },
     { fieldKey: 'city', header: 'city', values: colombiaCityLabels() },
-    { fieldKey: 'region', header: 'region', values: colombiaDepartments() },
-    { fieldKey: 'pais', header: 'pais', values: ['CO'] },
+    {
+      fieldKey: 'account_name',
+      header: 'Empresa',
+      values: uniqueSorted(lists.empresas ?? []),
+    },
     {
       fieldKey: 'tipo_influencia',
       header: 'tipo_influencia',

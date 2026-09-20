@@ -1,12 +1,10 @@
 import { useRef, useState } from 'react';
 import { Download, Upload } from 'lucide-react';
-import { fetchCampaigns } from '../api/campaigns-api';
-import { fetchSegments } from '../api/segments-api';
-import { fetchTraductorReferrers } from '../api/traductores-api';
 import {
   downloadLeadImportTemplate,
   snapshotImportFile,
 } from '../lib/lead-bulk-import';
+import { loadLeadImportCatalog } from '../lib/lead-import-catalog';
 import { cardClass, ghostButtonClass } from './ui';
 
 type Props = {
@@ -23,23 +21,8 @@ export function CampaignLeadImportCard({ file, onFileChange }: Props) {
     setDownloading(true);
     setDownloadError(null);
     try {
-      const [segments, traductores, campaignsPage] = await Promise.all([
-        fetchSegments().catch(() => []),
-        fetchTraductorReferrers().catch(() => []),
-        fetchCampaigns({ estado: 'Activa', limit: 100 }).catch(() => ({
-          items: [],
-          total: 0,
-          page: 1,
-          limit: 100,
-        })),
-      ]);
-      downloadLeadImportTemplate({
-        subsegmentos: segments.flatMap((segment) =>
-          segment.subsegments.map((subsegment) => subsegment.name),
-        ),
-        traductores: traductores.map((item) => item.email),
-        campanas: campaignsPage.items.map((item) => item.nombre),
-      });
+      const catalog = await loadLeadImportCatalog();
+      downloadLeadImportTemplate(catalog);
     } catch (error) {
       setDownloadError(
         error instanceof Error
@@ -68,9 +51,9 @@ export function CampaignLeadImportCard({ file, onFileChange }: Props) {
         </button>
       </div>
       <p className="text-xs text-muted">
-        Usa la misma plantilla del cargue de leads. El canal de origen se
-        asigna como Generación de demanda (agencia). El segmento y el
-        subsegmento se toman del archivo.
+        Usa la misma plantilla del cargue de leads. Elige la empresa de la
+        lista (debe existir en el CRM). Solo se pide ciudad; la región sale
+        del departamento. El canal queda como Generación de demanda (agencia).
       </p>
       {downloadError ? <p className="text-sm text-danger">{downloadError}</p> : null}
       <div className="rounded border border-border bg-bg p-4">

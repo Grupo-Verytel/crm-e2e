@@ -1,9 +1,6 @@
 import { useRef, useState } from 'react';
 import { Download, Upload } from 'lucide-react';
-import { fetchCampaigns } from '../../api/campaigns-api';
 import { enqueueLeadImport, fetchImportStatus } from '../../api/leads-api';
-import { fetchSegments } from '../../api/segments-api';
-import { fetchTraductorReferrers } from '../../api/traductores-api';
 import {
   downloadLeadImportTemplate,
   excelColumnLetter,
@@ -11,6 +8,7 @@ import {
   LEAD_CSV_FIELDS,
   snapshotImportFile,
 } from '../../lib/lead-bulk-import';
+import { loadLeadImportCatalog } from '../../lib/lead-import-catalog';
 import type { BulkImportJobStatus } from '../../types';
 import { ModalShell } from '../ModalShell';
 import { ghostButtonClass, primaryButtonClass } from '../ui';
@@ -36,23 +34,8 @@ export function LeadBulkImportModal({ onClose, onDone }: Props) {
     setDownloading(true);
     setError(null);
     try {
-      const [segments, traductores, campaignsPage] = await Promise.all([
-        fetchSegments().catch(() => []),
-        fetchTraductorReferrers().catch(() => []),
-        fetchCampaigns({ estado: 'Activa', limit: 100 }).catch(() => ({
-          items: [],
-          total: 0,
-          page: 1,
-          limit: 100,
-        })),
-      ]);
-      downloadLeadImportTemplate({
-        subsegmentos: segments.flatMap((segment) =>
-          segment.subsegments.map((subsegment) => subsegment.name),
-        ),
-        traductores: traductores.map((item) => item.email),
-        campanas: campaignsPage.items.map((item) => item.nombre),
-      });
+      const catalog = await loadLeadImportCatalog();
+      downloadLeadImportTemplate(catalog);
     } catch (downloadError) {
       setError(
         downloadError instanceof Error
@@ -105,8 +88,9 @@ export function LeadBulkImportModal({ onClose, onDone }: Props) {
           <>
             <p className="text-sm text-muted">
               Descarga la plantilla Excel (.xlsx). En origen, canal, segmento,
-              ciudad, región y las demás columnas de catálogo abre la flecha y
-              elige un valor de la lista.
+              ciudad, empresa y las demás columnas de catálogo abre la flecha y
+              elige un valor de la lista. La región se infiere de la ciudad.
+              La empresa debe existir en el CRM; el cargue no crea empresas.
             </p>
             <div className="overflow-x-auto rounded border border-border">
               <table className="w-full min-w-[640px] text-left text-sm">
@@ -137,9 +121,9 @@ export function LeadBulkImportModal({ onClose, onDone }: Props) {
               </table>
             </div>
             <p className="text-xs text-muted">
-              El nombre del lead se genera con la empresa. Los duplicados por
-              email + NIT se omiten automáticamente. El responsable de cada
-              lead es el usuario que está logueado y hace la carga.
+              El nombre del lead se genera con la empresa. Elige la empresa de
+              la lista; si no está, créala antes en Empresas. Los duplicados
+              por email + NIT se omiten. El responsable es quien hace la carga.
             </p>
             {error ? <p className="text-sm text-danger">{error}</p> : null}
             <div className="flex flex-wrap justify-end gap-2">

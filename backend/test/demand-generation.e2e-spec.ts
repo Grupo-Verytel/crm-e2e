@@ -496,14 +496,18 @@ describe('Demand generation module (EARS DG-01..DG-18)', () => {
 
   it('DG-08: bulk import runs async (202 + job) and skips email+nit duplicates, normalizing phone', async () => {
     const email = uniqueTestEmail('csv-import');
+    await request(app.getHttpServer())
+      .post('/api/v1/accounts')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ name: 'CSV Co', tax_id: '900123456' })
+      .expect(201);
+
     const csvHeader = CSV_LEAD_HEADERS.join(',');
     const rowNew = buildCsvRow({
       origen: 'Email Marketing',
       canal_origen: 'CAMPANA_DIGITAL',
       segmento: 'Gobierno central',
-      city: 'Bogota',
-      region: 'Bogota',
-      pais: 'CO',
+      city: 'Bogota (Bogota)',
       account_name: 'CSV Co',
       tax_id: '900123456',
       contacto_nombre: 'CSV User',
@@ -529,9 +533,7 @@ describe('Demand generation module (EARS DG-01..DG-18)', () => {
       origen: 'Email Marketing',
       canal_origen: 'CAMPANA_DIGITAL',
       segmento: 'Gobierno central',
-      city: 'Bogota',
-      region: 'Bogota',
-      pais: 'CO',
+      city: 'Bogota (Bogota)',
       account_name: 'Dup Co',
       tax_id: dupNit,
       contacto_nombre: 'Dup User',

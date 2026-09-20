@@ -35,8 +35,6 @@ export const CSV_LEAD_HEADERS = [
   'segmento',
   'subsegmento',
   'city',
-  'region',
-  'pais',
   'account_name',
   'tax_id',
   'contacto_nombre',
@@ -53,9 +51,7 @@ export const CSV_LEAD_REQUIRED_HEADERS = [
   'canal_origen',
   'segmento',
   'city',
-  'region',
   'account_name',
-  'tax_id',
   'contacto_nombre',
   'email',
 ] as const;
