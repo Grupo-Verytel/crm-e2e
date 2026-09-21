@@ -11,6 +11,10 @@ import {
 import { ApiError } from '../../auth/types';
 import { isRoleName } from '../../../lib/roles';
 import { useAuth } from '../../auth/hooks/useAuth';
+import {
+  fetchEjecutivosComerciales,
+  type EjecutivoComercialOption,
+} from '../api/catalogos-api';
 import { fetchOuvs, type Ouv } from '../api/ouvs-api';
 import { CrearOuvDirectaModal } from '../components/CrearOuvDirectaModal';
 import { DiscoveryNav } from '../components/DiscoveryNav';
@@ -87,12 +91,36 @@ function OuvsTray({ bandeja }: { bandeja: OuvBandejaKey }) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [ejecutivos, setEjecutivos] = useState<EjecutivoComercialOption[]>(
+    [],
+  );
+  const [ejecutivosError, setEjecutivosError] = useState<string | null>(null);
 
   const hasActiveFilters = countActiveOuvFilters(applied) > 0;
 
+  useEffect(() => {
+    if (!canListAll) return;
+    setEjecutivosError(null);
+    void fetchEjecutivosComerciales()
+      .then((rows) => {
+        setEjecutivos(Array.isArray(rows) ? rows : []);
+      })
+      .catch((err) => {
+        setEjecutivos([]);
+        setEjecutivosError(
+          err instanceof ApiError && err.message
+            ? err.message
+            : 'No se pudo cargar la lista de EjecutivoComercial.',
+        );
+      });
+  }, [canListAll]);
+
   const queryBase = useCallback(() => {
     return {
-      q: applied.q || undefined,
+      comercial_id:
+        canListAll && applied.comercial_id
+          ? applied.comercial_id
+          : undefined,
       zona: (applied.zona as OuvZona) || undefined,
       resultado: bandeja,
       tiene_gap:
@@ -271,19 +299,38 @@ function OuvsTray({ bandeja }: { bandeja: OuvBandejaKey }) {
 
       {filtersOpen ? (
         <div id="ouv-filters-panel" className={`${cardClass} mb-4 p-4`}>
-          <div className="grid gap-3 md:grid-cols-5">
-            <div>
-              <label className={labelClass} htmlFor="f-q">
-                Buscar
-              </label>
-              <input
-                id="f-q"
-                className={inputClass}
-                value={draft.q}
-                onChange={(e) => setDraft({ ...draft, q: e.target.value })}
-                placeholder="Título, empresa, OUV-"
-              />
-            </div>
+          <div
+            className={
+              canListAll
+                ? 'grid gap-3 md:grid-cols-5'
+                : 'grid gap-3 md:grid-cols-4'
+            }
+          >
+            {canListAll ? (
+              <div>
+                <label className={labelClass} htmlFor="f-comercial">
+                  Comercial
+                </label>
+                <select
+                  id="f-comercial"
+                  className={inputClass}
+                  value={draft.comercial_id}
+                  onChange={(e) =>
+                    setDraft({ ...draft, comercial_id: e.target.value })
+                  }
+                >
+                  <option value="">Todos</option>
+                  {ejecutivos.map((ejecutivo) => (
+                    <option key={ejecutivo.user_id} value={ejecutivo.user_id}>
+                      {ejecutivo.full_name}
+                    </option>
+                  ))}
+                </select>
+                {ejecutivosError ? (
+                  <p className="mt-1 text-xs text-danger">{ejecutivosError}</p>
+                ) : null}
+              </div>
+            ) : null}
             <div>
               <label className={labelClass} htmlFor="f-zona">
                 Zona

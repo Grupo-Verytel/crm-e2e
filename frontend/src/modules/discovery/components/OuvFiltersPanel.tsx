@@ -1,3 +1,4 @@
+import type { EjecutivoComercialOption } from '../api/catalogos-api';
 import type { DraftFilters } from '../lib/ouv-filters';
 import { OUV_ZONA_LABEL, OUV_ZONAS } from '../lib/ouv-vocab';
 import {
@@ -13,6 +14,8 @@ type Props = {
   onDraftChange: (next: DraftFilters) => void;
   onApply: () => void;
   onClear: () => void;
+  showOwnerFilter: boolean;
+  ejecutivos: EjecutivoComercialOption[];
 };
 
 /**
@@ -24,28 +27,47 @@ export function OuvFiltersPanel({
   onDraftChange,
   onApply,
   onClear,
+  showOwnerFilter,
+  ejecutivos,
 }: Props) {
   if (!open) return null;
 
   return (
     <div
+      id="ouv-filters-panel"
       className="mb-4 border-b border-border bg-bg px-1 pb-4 pt-1"
       role="region"
       aria-label="Filtros de oportunidades"
     >
-      <div className="grid gap-3 md:grid-cols-5">
-        <div>
-          <label className={labelClass} htmlFor="ouv-f-q">
-            Buscar
-          </label>
-          <input
-            id="ouv-f-q"
-            className={inputClass}
-            value={draft.q}
-            onChange={(e) => onDraftChange({ ...draft, q: e.target.value })}
-            placeholder="Título, empresa, OUV-"
-          />
-        </div>
+      <div
+        className={
+          showOwnerFilter
+            ? 'grid gap-3 md:grid-cols-5'
+            : 'grid gap-3 md:grid-cols-4'
+        }
+      >
+        {showOwnerFilter ? (
+          <div>
+            <label className={labelClass} htmlFor="ouv-f-comercial">
+              Comercial
+            </label>
+            <select
+              id="ouv-f-comercial"
+              className={inputClass}
+              value={draft.comercial_id}
+              onChange={(e) =>
+                onDraftChange({ ...draft, comercial_id: e.target.value })
+              }
+            >
+              <option value="">Todos</option>
+              {ejecutivos.map((ejecutivo) => (
+                <option key={ejecutivo.user_id} value={ejecutivo.user_id}>
+                  {ejecutivo.full_name}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
         <div>
           <label className={labelClass} htmlFor="ouv-f-zona">
             Zona

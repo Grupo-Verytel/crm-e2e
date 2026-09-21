@@ -1,7 +1,6 @@
 export {
   CampaignEstado,
   CampaignObjetivo,
-  CampaignTipo,
 } from './enums/campaign.enums';
 export { ChecklistResultado } from './enums/checklist.enums';
 export {

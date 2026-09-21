@@ -7,16 +7,12 @@ import {
   Max,
   Min,
 } from 'class-validator';
-import { CampaignEstado, CampaignTipo } from '../models/enums/campaign.enums';
+import { CampaignEstado } from '../models/enums/campaign.enums';
 
 export class CampaignsQueryDto {
   @IsOptional()
   @IsEnum(CampaignEstado)
   estado?: CampaignEstado;
-
-  @IsOptional()
-  @IsEnum(CampaignTipo)
-  tipo?: CampaignTipo;
 
   @IsOptional()
   @IsDateString()
@@ -43,7 +39,6 @@ export class CampaignsQueryDto {
 export class CampaignResponseDto {
   campana_id: string;
   nombre: string;
-  tipo: string;
   canal: string;
   objetivo: string;
   segmento_objetivo: string;

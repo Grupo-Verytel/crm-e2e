@@ -1,12 +1,3 @@
-export enum CampaignTipo {
-  Email = 'Email',
-  LinkedIn = 'LinkedIn',
-  Evento = 'Evento',
-  WebinarPaid = 'WebinarPaid',
-  Outbound = 'Outbound',
-  Aliado = 'Aliado',
-}
-
 export enum CampaignObjetivo {
   Awareness = 'Awareness',
   LeadGen = 'LeadGen',

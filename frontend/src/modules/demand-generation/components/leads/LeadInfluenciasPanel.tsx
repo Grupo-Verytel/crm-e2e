@@ -63,7 +63,7 @@ export function LeadInfluenciasPanel({
       [...(lead.contacts ?? [])].sort((a, b) => a.position - b.position),
     [lead.contacts],
   );
-  const accountId = contacts[0]?.account_id ?? null;
+  const accountId = lead.account_id ?? contacts[0]?.account_id ?? null;
 
   useEffect(() => {
     if (!accountId) {

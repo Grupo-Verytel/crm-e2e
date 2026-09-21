@@ -53,6 +53,7 @@ export const CANAL_ORIGEN_LABEL: Record<CanalOrigen, string> = {
   GENERACION_DEMANDA_AGENCIA: 'Generación de demanda (agencia)',
   TRADUCTOR_NEGOCIO: 'Traductor de negocio',
   EVENTOS: 'Eventos',
+  REFERIDO: 'Referido',
 };
 
 /** Segment palette — small categorical dot, built only from design tokens. */
@@ -134,6 +135,7 @@ export const CHANNEL_ROUTES: Partial<Record<CanalOrigen, KanbanEstado[]>> = {
   GENERACION_DEMANDA_AGENCIA: ['MOFU', 'MQL_PENDING', 'SQL'],
   TRADUCTOR_NEGOCIO: ['TOFU', 'MOFU', 'MQL_PENDING', 'SQL'],
   EVENTOS: ['TOFU', 'MOFU', 'MQL_PENDING', 'SQL'],
+  REFERIDO: ['TOFU', 'MOFU', 'MQL_PENDING', 'SQL'],
 };
 
 /** States treated as exceptions (shown outside the board). */

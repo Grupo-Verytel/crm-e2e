@@ -63,6 +63,7 @@ export type OuvsQuery = {
   created_from?: string;
   created_to?: string;
   all?: boolean;
+  comercial_id?: string;
 };
 
 export type OuvContacto = {

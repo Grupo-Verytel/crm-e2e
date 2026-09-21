@@ -256,6 +256,59 @@ export class AccountsService {
     return [...accountIds][0];
   }
 
+  async findExistingAccountForImport(
+    accountName: string,
+    taxId?: string | null,
+  ): Promise<{ account_id: string; name: string }> {
+    const account = await this.findExistingAccount(accountName, taxId);
+    return { account_id: account.accountId, name: account.name };
+  }
+
+  async findPersonIdByAccountAndEmail(
+    accountId: string,
+    email: string,
+  ): Promise<string | null> {
+    const normalized = this.normalizeOptional(email)?.toLowerCase() ?? null;
+    if (!normalized) {
+      return null;
+    }
+    const person = await this.personModel.findOne({
+      where: {
+        accountId,
+        [Op.and]: [sqlWhere(fn('LOWER', fn('TRIM', col('email'))), normalized)],
+      },
+    });
+    return person?.personId ?? null;
+  }
+
+  async findOrCreatePersonForAccount(
+    accountId: string,
+    input: {
+      person_name: string;
+      job_title?: string | null;
+      email?: string | null;
+      phone?: string | null;
+    },
+  ): Promise<{ person_id: string; account_id: string }> {
+    const account = await this.findAccountOrFail(accountId);
+    return this.findOrCreatePersonOnAccount(account, input);
+  }
+
+  async findExistingAccountAndPerson(input: {
+    account_name: string;
+    tax_id?: string | null;
+    person_name: string;
+    job_title?: string | null;
+    email?: string | null;
+    phone?: string | null;
+  }): Promise<{ person_id: string; account_id: string }> {
+    const account = await this.findExistingAccount(
+      input.account_name,
+      input.tax_id,
+    );
+    return this.findOrCreatePersonOnAccount(account, input);
+  }
+
   async findOrCreateAccountAndPerson(input: {
     account_name: string;
     tax_id?: string | null;
@@ -285,6 +338,61 @@ export class AccountsService {
       account = await this.findAccountOrFail(created.account_id);
     }
 
+    return this.findOrCreatePersonOnAccount(account, {
+      ...input,
+      email,
+    });
+  }
+
+  private async findExistingAccount(
+    accountName: string,
+    taxIdRaw?: string | null,
+  ): Promise<Account> {
+    const taxId = this.normalizeOptional(taxIdRaw);
+    if (taxId) {
+      const byTax = await this.accountModel.findOne({ where: { taxId } });
+      if (byTax) {
+        return byTax;
+      }
+    }
+
+    const name = accountName.trim();
+    if (!name) {
+      throw new NotFoundException({
+        code: ACCOUNTS_ERROR_CODES.ACCOUNT_NOT_FOUND,
+        message: 'La empresa es obligatoria y debe existir en el CRM.',
+      });
+    }
+
+    const byName = await this.accountModel.findOne({
+      where: sqlWhere(fn('LOWER', col('name')), name.toLowerCase()),
+    });
+    if (byName) {
+      if (taxId && byName.taxId && byName.taxId !== taxId) {
+        throw new ConflictException({
+          code: ACCOUNTS_ERROR_CODES.ACCOUNT_NAME_TAX_CONFLICT,
+          message: `El NIT no coincide con la empresa "${byName.name}".`,
+        });
+      }
+      return byName;
+    }
+
+    throw new NotFoundException({
+      code: ACCOUNTS_ERROR_CODES.ACCOUNT_NOT_FOUND,
+      message: `La empresa no existe: ${name}. Créala en Empresas antes de importar.`,
+    });
+  }
+
+  private async findOrCreatePersonOnAccount(
+    account: Account,
+    input: {
+      person_name: string;
+      job_title?: string | null;
+      email?: string | null;
+      phone?: string | null;
+    },
+  ): Promise<{ person_id: string; account_id: string }> {
+    const email = this.normalizeOptional(input.email)?.toLowerCase() ?? null;
     let person =
       email != null
         ? await this.personModel.findOne({

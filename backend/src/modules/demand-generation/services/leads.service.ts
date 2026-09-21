@@ -9,7 +9,6 @@ import {
 import { InjectConnection, InjectModel } from '@nestjs/sequelize';
 import {
   Op,
-  QueryTypes,
   Sequelize,
   Transaction,
   UniqueConstraintError,
@@ -25,6 +24,7 @@ import { WorkflowEngineService } from '../../workflow-engine/workflow-engine.ser
 import {
   DEMAND_GENERATION_ERROR_CODES,
   DEMAND_GENERATION_ROLES,
+  LEAD_IMPORT_DUPLICATE_REASON,
 } from '../constants/demand-generation.constants';
 import { CreateLeadDto } from '../dtos/create-lead.dto';
 import {
@@ -47,6 +47,7 @@ import {
 import { canRecycleLead } from '../lib/lead-state-machine';
 import { normalizePhoneToE164 } from '../lib/phone-normalize';
 import { normalizeCitaContactos } from '../lib/cita-contactos';
+import { resolveReferrerName } from '../lib/lead-referrer';
 import { isIndustriaSegmento, resolveSegmentoFromInput } from '../lib/segment-catalog';
 import {
   CanalOrigen,
@@ -165,7 +166,12 @@ export class LeadsService {
     }
 
     const personIds = dto.contacts.map((contact) => contact.person_id);
-    await this.accountsService.assertPeopleSameAccount(personIds);
+    const contactsAccountId =
+      await this.accountsService.assertPeopleSameAccount(personIds);
+    const accountId = this.resolveLeadAccountId(
+      dto.account_id,
+      contactsAccountId,
+    );
 
     const businessReferrerId = await this.resolveBusinessReferrerId(dto);
     await this.validateSegmentSubsegment(dto.segment_id, dto.subsegment_id);
@@ -199,6 +205,7 @@ export class LeadsService {
           contacts,
           businessReferrerId,
           nit,
+          accountId,
         );
       }
 
@@ -209,6 +216,7 @@ export class LeadsService {
           contacts,
           businessReferrerId,
           nit,
+          accountId,
         );
       }
 
@@ -218,6 +226,7 @@ export class LeadsService {
         contacts,
         businessReferrerId,
         nit,
+        accountId,
       );
     } catch (error) {
       if (error instanceof UniqueConstraintError) {
@@ -352,12 +361,17 @@ export class LeadsService {
     this.assertIndustriaRequiresSubsegment(nextSegmento, nextSubsegmentId);
 
     try {
+      const nextAccountId =
+        dto.account_id !== undefined
+          ? await this.resolveAccountIdForUpdate(lead, dto.account_id)
+          : undefined;
       await lead.update({
         ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
         ...(dto.tipo_lead !== undefined ? { tipoLead: dto.tipo_lead } : {}),
         ...(dto.origen !== undefined ? { origen: dto.origen } : {}),
         ...(dto.sub_origen !== undefined ? { subOrigen: dto.sub_origen } : {}),
         ...(dto.campana_id !== undefined ? { campanaId: dto.campana_id } : {}),
+        ...(nextAccountId !== undefined ? { accountId: nextAccountId } : {}),
         ...(dto.segmento !== undefined ? { segmento: dto.segmento } : {}),
         ...(dto.industria !== undefined ? { industria: dto.industria } : {}),
         ...(dto.city !== undefined ? { city: dto.city } : {}),
@@ -367,6 +381,14 @@ export class LeadsService {
         ...(dto.segment_id !== undefined ? { segmentId: dto.segment_id } : {}),
         ...(dto.subsegment_id !== undefined
           ? { subsegmentId: dto.subsegment_id }
+          : {}),
+        ...(dto.referrer_name !== undefined
+          ? {
+              referrerName: resolveReferrerName(
+                lead.canalOrigen,
+                dto.referrer_name,
+              ),
+            }
           : {}),
         ...(dto.responsable_id !== undefined
           ? { responsableId: dto.responsable_id }
@@ -416,10 +438,18 @@ export class LeadsService {
 
     if (personId) {
       const existingIds = contacts.map((row) => row.personId);
-      await this.accountsService.assertPeopleSameAccount([
-        personId,
-        ...existingIds,
-      ]);
+      const personAccountId =
+        await this.accountsService.assertPeopleSameAccount([
+          personId,
+          ...existingIds,
+        ]);
+      if (lead.accountId && personAccountId !== lead.accountId) {
+        throw new ConflictException({
+          code: DEMAND_GENERATION_ERROR_CODES.VALIDATION_ERROR,
+          message:
+            'Todos los contactos del lead deben pertenecer a la misma empresa.',
+        });
+      }
     }
 
     await this.sequelize.transaction(async (transaction) => {
@@ -432,6 +462,16 @@ export class LeadsService {
             ),
         );
         return;
+      }
+
+      if (!lead.accountId) {
+        const people = await this.accountsService.getPeopleWithAccounts([
+          personId,
+        ]);
+        const accountId = people.get(personId)?.account_id ?? null;
+        if (accountId) {
+          await lead.update({ accountId }, { transaction });
+        }
       }
 
       let target = contacts.find((row) => row.personId === personId);
@@ -578,9 +618,15 @@ export class LeadsService {
   async importLeadRow(
     values: Record<string, string>,
     createdBy: string,
+    options?: {
+      campanaId?: string;
+      canalOrigen?: CanalOrigen;
+      allowDuplicate?: boolean;
+    },
   ): Promise<Lead> {
     const segmento = resolveSegmentoFromInput(values.segmento) as Segmento;
-    const canalOrigen = values.canal_origen as CanalOrigen;
+    const canalOrigen = (options?.canalOrigen ??
+      values.canal_origen) as CanalOrigen;
     const origenValue =
       values.origen === 'Email'
         ? OrigenLead.EmailMarketing
@@ -590,7 +636,12 @@ export class LeadsService {
       values.empresa?.trim() ||
       values.empresa_nombre?.trim() ||
       '';
-    const taxId = values.tax_id?.trim() || values.nit?.trim() || null;
+    const { name: resolvedAccountName, taxId: taxIdFromLabel } =
+      this.parseImportAccountRef(
+        accountName,
+        values.tax_id?.trim() || values.nit?.trim() || null,
+      );
+    const taxId = taxIdFromLabel;
     const { city, region } = this.parseImportCityRegion(
       values.city?.trim() || values.ciudad?.trim() || '',
       values.region?.trim() || '',
@@ -612,7 +663,7 @@ export class LeadsService {
       throw new BadRequestException(`Invalid origen: ${values.origen}`);
     }
 
-    if (!city || !region || !accountName || !values.contacto_nombre?.trim()) {
+    if (!city || !region || !resolvedAccountName || !values.contacto_nombre?.trim()) {
       throw new BadRequestException('Missing required lead fields');
     }
 
@@ -637,25 +688,39 @@ export class LeadsService {
       business_referrer_id: resolvedTraductorId,
     } as CreateLeadDto);
 
-    const name = await this.resolveUniqueLeadName(values.name, accountName);
-
-    const campaignId = await this.resolveImportCampaignId(
-      values.campana || values.campana_id,
-    );
-
     const telefono = values.telefono
       ? normalizePhoneToE164(values.telefono)
       : null;
+    const email = values.email.trim().toLowerCase();
 
-    const { person_id: personId } =
-      await this.accountsService.findOrCreateAccountAndPerson({
-        account_name: accountName,
-        tax_id: taxId,
-        person_name: values.contacto_nombre.trim(),
-        job_title: values.cargo?.trim() || null,
-        email: values.email.trim().toLowerCase(),
-        phone: telefono,
-      });
+    const account = await this.accountsService.findExistingAccountForImport(
+      resolvedAccountName,
+      taxId,
+    );
+    const duplicate = await this.findDuplicateByAccountIdAndEmail(
+      account.account_id,
+      email,
+    );
+    if (duplicate && !options?.allowDuplicate) {
+      throw new BadRequestException(LEAD_IMPORT_DUPLICATE_REASON);
+    }
+
+    const name = await this.resolveUniqueLeadName(values.name, resolvedAccountName);
+
+    const campaignId =
+      options?.campanaId ??
+      (await this.resolveImportCampaignId(values.campana || values.campana_id));
+
+    const { person_id: personId, account_id: accountId } =
+      await this.accountsService.findOrCreatePersonForAccount(
+        account.account_id,
+        {
+          person_name: values.contacto_nombre.trim(),
+          job_title: values.cargo?.trim() || null,
+          email,
+          phone: telefono,
+        },
+      );
 
     const createdLead = await this.sequelize.transaction(async (transaction) => {
       const lead = await this.leadModel.create(
@@ -669,6 +734,7 @@ export class LeadsService {
           industria: subsegmentName || null,
           segmentId,
           subsegmentId,
+          accountId,
           city,
           region,
           pais: (values.pais || 'CO').toUpperCase(),
@@ -711,41 +777,54 @@ export class LeadsService {
   async findDuplicateByEmailAndNit(
     email: string,
     nit: string | null,
+    accountRaw?: string,
   ): Promise<Lead | null> {
-    if (!email?.trim() || !nit?.trim()) {
-      return null;
-    }
-
-    const rows = await this.sequelize.query<{ lead_id: string }>(
-      `
-        SELECT l.lead_id
-        FROM leads l
-        INNER JOIN lead_contacts lc
-          ON lc.lead_id = l.lead_id
-          AND lc.position = 1
-          AND lc.deleted_at IS NULL
-        INNER JOIN people p
-          ON p.person_id = lc.person_id
-          AND p.deleted_at IS NULL
-        INNER JOIN accounts a
-          ON a.account_id = p.account_id
-          AND a.deleted_at IS NULL
-        WHERE LOWER(p.email) = :email
-          AND a.tax_id = :nit
-          AND l.deleted_at IS NULL
-        LIMIT 1
-      `,
-      {
-        replacements: { email: email.trim().toLowerCase(), nit: nit.trim() },
-        type: QueryTypes.SELECT,
-      },
+    const normalizedEmail = email?.trim().toLowerCase();
+    const { name: accountName, taxId } = this.parseImportAccountRef(
+      accountRaw?.trim() || '',
+      nit,
     );
-
-    if (rows.length === 0) {
+    if (!normalizedEmail || !accountName) {
       return null;
     }
 
-    return this.leadModel.findByPk(rows[0].lead_id);
+    try {
+      const account = await this.accountsService.findExistingAccountForImport(
+        accountName,
+        taxId,
+      );
+      return this.findDuplicateByAccountIdAndEmail(
+        account.account_id,
+        normalizedEmail,
+      );
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  private async findDuplicateByAccountIdAndEmail(
+    accountId: string,
+    email: string,
+  ): Promise<Lead | null> {
+    const personId = await this.accountsService.findPersonIdByAccountAndEmail(
+      accountId,
+      email,
+    );
+    if (!personId) {
+      return null;
+    }
+
+    const contact = await this.leadContactModel.findOne({
+      where: { personId },
+    });
+    if (!contact) {
+      return null;
+    }
+
+    return this.leadModel.findByPk(contact.leadId);
   }
 
   private async resolveUniqueLeadName(
@@ -894,6 +973,7 @@ export class LeadsService {
       city: lead.city,
       region: lead.region,
       pais: lead.pais,
+      account_id: lead.accountId ?? primaryEnriched?.account_id ?? null,
       empresa_nombre: primaryEnriched?.account_name ?? '',
       nit: primaryEnriched?.account_tax_id ?? lead.nit,
       contacto_nombre: primaryEnriched?.name ?? '',
@@ -920,6 +1000,7 @@ export class LeadsService {
       business_referrer_id: lead.businessReferrerId,
       segment_id: lead.segmentId,
       subsegment_id: lead.subsegmentId,
+      referrer_name: lead.referrerName,
       tipo_influencia: lead.tipoInfluencia,
       estado: lead.estado,
       icp_score: lead.icpScore,
@@ -955,6 +1036,7 @@ export class LeadsService {
     }>,
     businessReferrerId: string | null,
     nit: string | null,
+    accountId: string,
   ): Promise<LeadResponseDto> {
     const initialState = this.resolveInitialState(dto.canal_origen);
 
@@ -971,6 +1053,8 @@ export class LeadsService {
           industria: dto.industria ?? null,
           segmentId: dto.segment_id ?? null,
           subsegmentId: dto.subsegment_id ?? null,
+          accountId,
+          referrerName: resolveReferrerName(dto.canal_origen, dto.referrer_name),
           city: dto.city,
           region: dto.region,
           pais: (dto.pais ?? 'CO').toUpperCase(),
@@ -1023,6 +1107,7 @@ export class LeadsService {
     }>,
     businessReferrerId: string | null,
     nit: string | null,
+    accountId: string,
   ): Promise<LeadResponseDto> {
     this.assertDirectRouteCanal(dto.canal_origen, [
       CanalOrigen.BTL,
@@ -1043,6 +1128,8 @@ export class LeadsService {
           industria: dto.industria ?? null,
           segmentId: dto.segment_id ?? null,
           subsegmentId: dto.subsegment_id ?? null,
+          accountId,
+          referrerName: resolveReferrerName(dto.canal_origen, dto.referrer_name),
           city: dto.city,
           region: dto.region,
           pais: (dto.pais ?? 'CO').toUpperCase(),
@@ -1122,6 +1209,7 @@ export class LeadsService {
     }>,
     businessReferrerId: string | null,
     nit: string | null,
+    accountId: string,
   ): Promise<LeadResponseDto> {
     this.assertDirectRouteCanal(dto.canal_origen, [
       CanalOrigen.BTL,
@@ -1143,6 +1231,8 @@ export class LeadsService {
           industria: dto.industria ?? null,
           segmentId: dto.segment_id ?? null,
           subsegmentId: dto.subsegment_id ?? null,
+          accountId,
+          referrerName: resolveReferrerName(dto.canal_origen, dto.referrer_name),
           city: dto.city,
           region: dto.region,
           pais: (dto.pais ?? 'CO').toUpperCase(),
@@ -1322,6 +1412,45 @@ export class LeadsService {
       throw new BadRequestException(`Invalid tipo_influencia: ${trimmed}`);
     }
     return trimmed as LeadContactInfluenciaTipo;
+  }
+
+  private resolveLeadAccountId(
+    requestedAccountId: string | undefined,
+    contactsAccountId: string,
+  ): string {
+    if (!requestedAccountId) {
+      return contactsAccountId;
+    }
+    if (requestedAccountId !== contactsAccountId) {
+      throw new BadRequestException({
+        code: DEMAND_GENERATION_ERROR_CODES.VALIDATION_ERROR,
+        message:
+          'account_id must match the company of the selected contacts',
+      });
+    }
+    return requestedAccountId;
+  }
+
+  private async resolveAccountIdForUpdate(
+    lead: Lead,
+    accountId: string,
+  ): Promise<string> {
+    await this.accountsService.getAccount(accountId);
+    const contactPersonIds =
+      lead.contacts?.map((contact) => contact.personId) ?? [];
+    if (contactPersonIds.length === 0) {
+      return accountId;
+    }
+    const contactsAccountId =
+      await this.accountsService.assertPeopleSameAccount(contactPersonIds);
+    if (accountId !== contactsAccountId) {
+      throw new BadRequestException({
+        code: DEMAND_GENERATION_ERROR_CODES.VALIDATION_ERROR,
+        message:
+          'account_id must match the company of the selected contacts',
+      });
+    }
+    return accountId;
   }
 
   private async validateSegmentSubsegment(
@@ -1561,18 +1690,42 @@ export class LeadsService {
     });
   }
 
+  private parseImportAccountRef(
+    rawName: string,
+    taxIdColumn: string | null,
+  ): { name: string; taxId: string | null } {
+    const combined = rawName.match(/^(.*) \(([^)]+)\)\s*$/);
+    const labelTax = combined?.[2]?.trim() ?? '';
+    const looksLikeTaxId = /^\d[\d.\-]{4,}$/.test(labelTax.replace(/\s/g, ''));
+    if (combined && looksLikeTaxId) {
+      return {
+        name: combined[1].trim(),
+        taxId: taxIdColumn || labelTax,
+      };
+    }
+    return { name: rawName.trim(), taxId: taxIdColumn };
+  }
+
   private parseImportCityRegion(
     cityRaw: string,
     regionRaw: string,
   ): { city: string; region: string } {
+    if (!cityRaw) {
+      return { city: '', region: regionRaw };
+    }
     const combined = cityRaw.match(/^(.*) \(([^)]+)\)\s*$/);
     if (combined) {
       return {
         city: combined[1].trim(),
-        region: regionRaw || combined[2].trim(),
+        region: combined[2].trim() || regionRaw,
       };
     }
-    return { city: cityRaw, region: regionRaw };
+    if (regionRaw) {
+      return { city: cityRaw, region: regionRaw };
+    }
+    throw new BadRequestException(
+      'La ciudad debe ir como Municipio (Departamento) para inferir la región.',
+    );
   }
 
   private async resolveImportCampaignId(

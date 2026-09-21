@@ -117,7 +117,6 @@ describe('Demand generation module (EARS DG-01..DG-18)', () => {
       .set('Authorization', `Bearer ${marketingToken}`)
       .send({
         nombre: `EARS Campaign ${Date.now()}-${Math.random()}`,
-        tipo: 'Email',
         canal: 'Newsletter',
         objetivo: 'LeadGen',
         segmento_objetivo: 'Todos',
@@ -497,14 +496,18 @@ describe('Demand generation module (EARS DG-01..DG-18)', () => {
 
   it('DG-08: bulk import runs async (202 + job) and skips email+nit duplicates, normalizing phone', async () => {
     const email = uniqueTestEmail('csv-import');
+    await request(app.getHttpServer())
+      .post('/api/v1/accounts')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ name: 'CSV Co', tax_id: '900123456' })
+      .expect(201);
+
     const csvHeader = CSV_LEAD_HEADERS.join(',');
     const rowNew = buildCsvRow({
       origen: 'Email Marketing',
       canal_origen: 'CAMPANA_DIGITAL',
       segmento: 'Gobierno central',
-      city: 'Bogota',
-      region: 'Bogota',
-      pais: 'CO',
+      city: 'Bogota (Bogota)',
       account_name: 'CSV Co',
       tax_id: '900123456',
       contacto_nombre: 'CSV User',
@@ -530,9 +533,7 @@ describe('Demand generation module (EARS DG-01..DG-18)', () => {
       origen: 'Email Marketing',
       canal_origen: 'CAMPANA_DIGITAL',
       segmento: 'Gobierno central',
-      city: 'Bogota',
-      region: 'Bogota',
-      pais: 'CO',
+      city: 'Bogota (Bogota)',
       account_name: 'Dup Co',
       tax_id: dupNit,
       contacto_nombre: 'Dup User',
@@ -565,8 +566,39 @@ describe('Demand generation module (EARS DG-01..DG-18)', () => {
     expect(status.status).toBe('completed');
     expect(status.created).toBe(1);
     expect(status.skipped).toHaveLength(1);
-    expect(status.skipped[0].reason).toBe('Duplicate email+nit');
+    expect(status.skipped[0].reason).toBe(
+      'Ya existe un lead con esta empresa y este email',
+    );
+    expect(status.skipped[0].code).toBe('DUPLICATE_ACCOUNT_EMAIL');
     createdLeadIds.push(...status.created_lead_ids);
+
+    const authorized = await request(app.getHttpServer())
+      .post('/api/v1/leads/bulk-import')
+      .set('Authorization', `Bearer ${marketingToken}`)
+      .field(
+        'authorized_duplicates',
+        JSON.stringify([{ row: status.skipped[0].row, email: dupEmail }]),
+      )
+      .attach('file', Buffer.from(csvContent, 'utf-8'), 'leads.csv')
+      .expect(202);
+
+    let authorizedStatus = authorized.body;
+    for (
+      let attempt = 0;
+      attempt < 20 && authorizedStatus.status !== 'completed';
+      attempt += 1
+    ) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      const poll = await request(app.getHttpServer())
+        .get(`/api/v1/leads/bulk-import/${authorized.body.job_id}`)
+        .set('Authorization', `Bearer ${marketingToken}`)
+        .expect(200);
+      authorizedStatus = poll.body;
+    }
+
+    expect(authorizedStatus.status).toBe('completed');
+    expect(authorizedStatus.created).toBe(1);
+    createdLeadIds.push(...authorizedStatus.created_lead_ids);
 
     const importedLead = await request(app.getHttpServer())
       .get(`/api/v1/leads/${status.created_lead_ids[0]}`)
@@ -597,7 +629,6 @@ describe('Demand generation module (EARS DG-01..DG-18)', () => {
       .set('Authorization', `Bearer ${marketingToken}`)
       .send({
         nombre: `EARS Bad Dates ${Date.now()}`,
-        tipo: 'Email',
         canal: 'Newsletter',
         objetivo: 'LeadGen',
         segmento_objetivo: 'Todos',

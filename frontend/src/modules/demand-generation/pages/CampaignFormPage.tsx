@@ -1,11 +1,14 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AppLayout } from '../../../layout/AppLayout';
 import { useAuth } from '../../auth/hooks/useAuth';
 import { createCampaign } from '../api/campaigns-api';
-import { CsvImportStepper } from '../components/CsvImportStepper';
+import { enqueueLeadImport } from '../api/leads-api';
+import { CampaignLeadImportCard } from '../components/CampaignLeadImportCard';
 import { DemandNav } from '../components/DemandNav';
+import { LeadImportDuplicateReview } from '../components/leads/LeadImportDuplicateReview';
+import { ModalShell } from '../components/ModalShell';
 import {
   cardClass,
   inputClass,
@@ -13,19 +16,26 @@ import {
   primaryButtonClass,
 } from '../components/ui';
 import {
+  assertCampaignFileMatchesSegmento,
+  fileToLeadImportCsv,
+} from '../lib/lead-bulk-import';
+import {
+  duplicateImportRows,
+  importRowKey,
+  pollLeadImportJob,
+} from '../lib/lead-import-job';
+import {
+  CAMPAIGN_OBJETIVO_LABEL,
   CAMPAIGN_OBJETIVOS,
-  CAMPAIGN_TIPOS,
   SEGMENTOS_OBJETIVO,
+  type BulkImportJobStatus,
   type CampaignObjetivo,
-  type CampaignTipo,
   type CreateCampaignPayload,
   type SegmentoObjetivo,
 } from '../types';
 
 type FormState = {
   nombre: string;
-  tipo: CampaignTipo;
-  canal: string;
   objetivo: CampaignObjetivo;
   segmento_objetivo: SegmentoObjetivo;
   fecha_inicio: string;
@@ -36,8 +46,6 @@ type FormState = {
 
 const initialState: FormState = {
   nombre: '',
-  tipo: 'Email',
-  canal: '',
   objetivo: 'LeadGen',
   segmento_objetivo: 'Todos',
   fecha_inicio: '',
@@ -50,34 +58,147 @@ export function CampaignFormPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [form, setForm] = useState<FormState>(initialState);
+  const [file, setFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [reviewStatus, setReviewStatus] = useState<BulkImportJobStatus | null>(
+    null,
+  );
+  const [authorizedKeys, setAuthorizedKeys] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [confirmingDuplicates, setConfirmingDuplicates] = useState(false);
+  const csvFileRef = useRef<File | null>(null);
+  const campaignIdRef = useRef<string | null>(null);
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
+  async function runCampaignImport(
+    csvFile: File,
+    campanaId: string,
+    expectedSegmento: SegmentoObjetivo,
+    authorizedDuplicates?: Array<{ row: number; email: string }>,
+  ): Promise<BulkImportJobStatus> {
+    const accepted = await enqueueLeadImport(csvFile, {
+      campanaId,
+      expectedSegmento,
+      canalOrigen: 'GENERACION_DEMANDA_AGENCIA',
+      authorizedDuplicates,
+    });
+    return pollLeadImportJob(accepted.job_id);
+  }
+
+  function toggleAuthorized(key: string) {
+    setAuthorizedKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  }
+
+  function toggleAllAuthorized(keys: string[]) {
+    setAuthorizedKeys((prev) => {
+      const allSelected = keys.every((key) => prev.has(key));
+      return allSelected ? new Set() : new Set(keys);
+    });
+  }
+
+  async function handleConfirmAuthorizedDuplicates() {
+    const csvFile = csvFileRef.current;
+    const campanaId = campaignIdRef.current;
+    const current = reviewStatus;
+    if (!csvFile || !campanaId || !current) return;
+    const authorizedDuplicates = duplicateImportRows(current)
+      .filter((row) => authorizedKeys.has(importRowKey(row.row, row.email)))
+      .map((row) => ({ row: row.row, email: row.email }));
+    if (authorizedDuplicates.length === 0) {
+      navigate('/demand/campaigns');
+      return;
+    }
+    setConfirmingDuplicates(true);
+    setError(null);
+    try {
+      const status = await runCampaignImport(
+        csvFile,
+        campanaId,
+        form.segmento_objetivo,
+        authorizedDuplicates,
+      );
+      if (status.status === 'failed') {
+        throw new Error(
+          status.error ??
+            'La campaña se creó, pero no se pudieron crear los leads autorizados.',
+        );
+      }
+      navigate('/demand/campaigns');
+    } catch (submitError) {
+      setError(
+        submitError instanceof Error
+          ? submitError.message
+          : 'No se pudieron crear los leads autorizados.',
+      );
+    } finally {
+      setConfirmingDuplicates(false);
+    }
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!user) return;
+    if (!file) {
+      setError('Selecciona el archivo CSV o Excel con los leads de la campaña.');
+      return;
+    }
+
     setIsSubmitting(true);
     setError(null);
 
-    const payload: CreateCampaignPayload = {
-      nombre: form.nombre,
-      tipo: form.tipo,
-      canal: form.canal,
-      objetivo: form.objetivo,
-      segmento_objetivo: form.segmento_objetivo,
-      responsable_id: user.user_id,
-      fecha_inicio: form.fecha_inicio,
-      fecha_fin: form.fecha_fin,
-      ...(form.presupuesto ? { presupuesto: Number(form.presupuesto) } : {}),
-      ...(form.gasto_real ? { gasto_real: Number(form.gasto_real) } : {}),
-    };
-
     try {
-      await createCampaign(payload);
+      const csv = await fileToLeadImportCsv(file);
+      assertCampaignFileMatchesSegmento(csv, form.segmento_objetivo);
+
+      const payload: CreateCampaignPayload = {
+        nombre: form.nombre,
+        canal: 'GENERACION_DEMANDA_AGENCIA',
+        objetivo: form.objetivo,
+        segmento_objetivo: form.segmento_objetivo,
+        responsable_id: user.user_id,
+        fecha_inicio: form.fecha_inicio,
+        fecha_fin: form.fecha_fin,
+        ...(form.presupuesto ? { presupuesto: Number(form.presupuesto) } : {}),
+        ...(form.gasto_real ? { gasto_real: Number(form.gasto_real) } : {}),
+      };
+
+      const campaign = await createCampaign(payload);
+      const csvFile = new File(
+        [csv],
+        file.name.replace(/\.(xls|xlsx)$/i, '.csv'),
+        { type: 'text/csv' },
+      );
+      csvFileRef.current = csvFile;
+      campaignIdRef.current = campaign.campana_id;
+      const status = await runCampaignImport(
+        csvFile,
+        campaign.campana_id,
+        form.segmento_objetivo,
+      );
+      if (status.status === 'failed') {
+        throw new Error(
+          status.error ??
+            'La campaña se creó, pero la importación falló. Revisa el archivo y vuelve a cargar desde leads.',
+        );
+      }
+      if (duplicateImportRows(status).length > 0) {
+        setReviewStatus(status);
+        setAuthorizedKeys(new Set());
+        return;
+      }
       navigate('/demand/campaigns');
     } catch (submitError) {
       setError(
@@ -101,11 +222,11 @@ export function CampaignFormPage() {
         ← Volver a campañas
       </Link>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <form onSubmit={handleSubmit} className={`${cardClass} space-y-3 p-5`}>
+      <form onSubmit={handleSubmit} className="grid gap-4 lg:grid-cols-2">
+        <div className={`${cardClass} space-y-3 p-5`}>
           <h2 className="text-sm font-bold text-ink">Datos de la campaña</h2>
 
-          <Field label="Nombre">
+          <Field label="Nombre de la campaña">
             <input
               value={form.nombre}
               onChange={(event) => update('nombre', event.target.value)}
@@ -115,27 +236,6 @@ export function CampaignFormPage() {
           </Field>
 
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Tipo">
-              <select
-                value={form.tipo}
-                onChange={(event) => update('tipo', event.target.value as CampaignTipo)}
-                className={inputClass}
-              >
-                {CAMPAIGN_TIPOS.map((tipo) => (
-                  <option key={tipo} value={tipo}>
-                    {tipo}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Canal">
-              <input
-                value={form.canal}
-                onChange={(event) => update('canal', event.target.value)}
-                className={inputClass}
-                required
-              />
-            </Field>
             <Field label="Objetivo">
               <select
                 value={form.objetivo}
@@ -146,7 +246,7 @@ export function CampaignFormPage() {
               >
                 {CAMPAIGN_OBJETIVOS.map((objetivo) => (
                   <option key={objetivo} value={objetivo}>
-                    {objetivo}
+                    {CAMPAIGN_OBJETIVO_LABEL[objetivo]}
                   </option>
                 ))}
               </select>
@@ -209,12 +309,32 @@ export function CampaignFormPage() {
           {error ? <p className="text-sm text-danger">{error}</p> : null}
 
           <button type="submit" disabled={isSubmitting} className={primaryButtonClass}>
-            Crear campaña
+            {isSubmitting ? 'Creando campaña…' : 'Crear campaña'}
           </button>
-        </form>
+        </div>
 
-        <CsvImportStepper />
-      </div>
+        <CampaignLeadImportCard file={file} onFileChange={setFile} />
+      </form>
+
+      {reviewStatus ? (
+        <ModalShell
+          title="Duplicados en el cargue"
+          size="wide"
+          onClose={() => navigate('/demand/campaigns')}
+        >
+          <LeadImportDuplicateReview
+            status={reviewStatus}
+            authorizedKeys={authorizedKeys}
+            confirming={confirmingDuplicates}
+            error={error}
+            declineLabel="Continuar sin duplicados"
+            onToggle={toggleAuthorized}
+            onToggleAll={toggleAllAuthorized}
+            onDecline={() => navigate('/demand/campaigns')}
+            onConfirm={() => void handleConfirmAuthorizedDuplicates()}
+          />
+        </ModalShell>
+      ) : null}
     </AppLayout>
   );
 }

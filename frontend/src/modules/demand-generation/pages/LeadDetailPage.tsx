@@ -52,6 +52,7 @@ type LeadEditDraft = {
   region: string;
   origen: OrigenLead;
   nit: string;
+  referrer_name: string;
 };
 
 function draftFromLead(lead: Lead): LeadEditDraft {
@@ -62,6 +63,7 @@ function draftFromLead(lead: Lead): LeadEditDraft {
     region: lead.region,
     origen: lead.origen as OrigenLead,
     nit: lead.nit ?? '',
+    referrer_name: lead.referrer_name ?? '',
   };
 }
 
@@ -170,6 +172,10 @@ export function LeadDetailPage() {
         origen: draft.origen,
         nit: draft.nit.trim() || undefined,
         pais: 'CO',
+        referrer_name:
+          lead.canal_origen === 'REFERIDO'
+            ? draft.referrer_name.trim() || null
+            : null,
       });
       setLead(updated);
       setEditMode(false);
@@ -381,6 +387,23 @@ export function LeadDetailPage() {
                 {CANAL_ORIGEN_LABEL[lead.canal_origen]}
               </p>
             </div>
+            {lead.canal_origen === 'REFERIDO' ? (
+              <div>
+                <label className={labelClass} htmlFor="lead-referrer-name">
+                  Nombre de quien refiere
+                </label>
+                <input
+                  id="lead-referrer-name"
+                  className={inputClass}
+                  value={draft.referrer_name}
+                  maxLength={100}
+                  placeholder="Opcional, hasta 100 caracteres"
+                  onChange={(e) =>
+                    setDraft({ ...draft, referrer_name: e.target.value })
+                  }
+                />
+              </div>
+            ) : null}
             <div>
               <span className={labelClass}>Teléfono</span>
               <p className="flex h-9 items-center text-ink">
@@ -422,6 +445,12 @@ export function LeadDetailPage() {
               label="Canal de origen"
               value={CANAL_ORIGEN_LABEL[lead.canal_origen]}
             />
+            {lead.canal_origen === 'REFERIDO' ? (
+              <Detail
+                label="Nombre de quien refiere"
+                value={lead.referrer_name ?? '—'}
+              />
+            ) : null}
             <Detail label="Teléfono" value={lead.telefono ?? '—'} />
             <Detail label="NIT" value={lead.nit ?? '—'} />
             <Detail label="Captura" value={formatDateTime(lead.fecha_captura)} />

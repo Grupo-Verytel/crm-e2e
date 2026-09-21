@@ -23,6 +23,7 @@ import { DEMAND_GENERATION_ERROR_CODES } from '../constants/demand-generation.co
 import {
   BulkImportJobAcceptedDto,
   BulkImportJobStatusDto,
+  BulkImportOptionsDto,
 } from '../dtos/bulk-import-job.dto';
 import { ChecklistResponseDto } from '../dtos/checklist-response.dto';
 import { CommercialOptionDto } from '../dtos/commercial-option.dto';
@@ -69,6 +70,7 @@ export class LeadsController {
   @UseInterceptors(FileInterceptor('file'))
   bulkImport(
     @UploadedFile() file: { buffer: Buffer } | undefined,
+    @Body() options: BulkImportOptionsDto,
     @CurrentUser() user: AuthenticatedUser,
   ): BulkImportJobAcceptedDto {
     if (!file) {
@@ -81,6 +83,7 @@ export class LeadsController {
     return this.demandGenerationService.enqueueLeadImport(
       file.buffer.toString('utf-8'),
       user.userId,
+      options ?? {},
     );
   }
 

@@ -74,6 +74,7 @@ type FormState = {
   city: string;
   region: string;
   business_referrer_id: string;
+  referrer_name: string;
 };
 
 type ContactSlot = {
@@ -111,6 +112,7 @@ const initialState: FormState = {
   city: '',
   region: '',
   business_referrer_id: '',
+  referrer_name: '',
 };
 
 function canalOptionsForMode(mode: LeadFormMode): CanalOrigen[] {
@@ -191,6 +193,7 @@ export function LeadFormModal({
     SEGMENT_NAME_TO_ENUM[selectedSegment.name] === 'Industria';
   const requiresChecklist = mode === 'product_manager' || mode === 'ejecutivo';
   const showTraductorSelect = form.canal_origen === 'TRADUCTOR_NEGOCIO';
+  const showReferidoName = form.canal_origen === 'REFERIDO';
 
   const takenPersonIds = useMemo(
     () =>
@@ -528,7 +531,11 @@ export function LeadFormModal({
       responsable_id: responsableId,
       segment_id: form.segment_id,
       ...(form.subsegment_id ? { subsegment_id: form.subsegment_id } : {}),
+      referrer_name: showReferidoName
+        ? form.referrer_name.trim() || null
+        : null,
       ...(selectedAccount.tax_id ? { nit: selectedAccount.tax_id } : {}),
+      account_id: selectedAccount.account_id,
       ...(showTraductorSelect && form.business_referrer_id
         ? { business_referrer_id: form.business_referrer_id }
         : {}),
@@ -676,6 +683,8 @@ export function LeadFormModal({
                       canal === 'TRADUCTOR_NEGOCIO'
                         ? prev.business_referrer_id
                         : '',
+                    referrer_name:
+                      canal === 'REFERIDO' ? prev.referrer_name : '',
                   }));
                 }}
                 className={inputClass}
@@ -710,6 +719,21 @@ export function LeadFormModal({
                     </option>
                   ))}
                 </select>
+              </Field>
+            ) : null}
+
+            {showReferidoName ? (
+              <Field label="Nombre de quien refiere">
+                <input
+                  id="lead-referrer-name"
+                  value={form.referrer_name}
+                  onChange={(event) =>
+                    update('referrer_name', event.target.value)
+                  }
+                  className={inputClass}
+                  maxLength={100}
+                  placeholder="Opcional, hasta 100 caracteres"
+                />
               </Field>
             ) : null}
 

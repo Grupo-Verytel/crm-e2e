@@ -1,6 +1,11 @@
 import { apiRequest } from '../../../lib/api/http-client';
 import type { OuvZona } from '../lib/ouv-vocab';
 
+export type EjecutivoComercialOption = {
+  user_id: string;
+  full_name: string;
+};
+
 export type MotivoCatalogo = {
   motivo_id: string;
   nombre: string;
@@ -34,6 +39,12 @@ export type TemplatePayload = {
   label: string;
   orden?: number;
 };
+
+export async function fetchEjecutivosComerciales(): Promise<
+  EjecutivoComercialOption[]
+> {
+  return apiRequest('/discovery/ouvs/ejecutivos-comerciales');
+}
 
 export async function fetchMotivosPerdida(): Promise<MotivoCatalogo[]> {
   return apiRequest('/discovery/motivos-perdida');

@@ -71,7 +71,8 @@ export type CanalOrigen =
   | 'FABRICA'
   | 'GENERACION_DEMANDA_AGENCIA'
   | 'TRADUCTOR_NEGOCIO'
-  | 'EVENTOS';
+  | 'EVENTOS'
+  | 'REFERIDO';
 
 export const CANALES_ORIGEN: CanalOrigen[] = [
   'CAMPANA_DIGITAL',
@@ -80,6 +81,7 @@ export const CANALES_ORIGEN: CanalOrigen[] = [
   'FABRICA',
   'GENERACION_DEMANDA_AGENCIA',
   'TRADUCTOR_NEGOCIO',
+  'REFERIDO',
 ];
 
 export type CampaignEstado =
@@ -96,33 +98,24 @@ export const CAMPAIGN_ESTADOS: CampaignEstado[] = [
   'Cancelada',
 ];
 
-export type CampaignTipo =
-  | 'Email'
-  | 'LinkedIn'
-  | 'Evento'
-  | 'WebinarPaid'
-  | 'Outbound'
-  | 'Aliado';
-export const CAMPAIGN_TIPOS: CampaignTipo[] = [
-  'Email',
-  'LinkedIn',
-  'Evento',
-  'WebinarPaid',
-  'Outbound',
-  'Aliado',
-];
-
 export type CampaignObjetivo =
   | 'Awareness'
   | 'LeadGen'
   | 'Nurturing'
   | 'Reactivacion';
 export const CAMPAIGN_OBJETIVOS: CampaignObjetivo[] = [
-  'Awareness',
   'LeadGen',
+  'Awareness',
   'Nurturing',
   'Reactivacion',
 ];
+
+export const CAMPAIGN_OBJETIVO_LABEL: Record<CampaignObjetivo, string> = {
+  Awareness: 'Notoriedad',
+  LeadGen: 'Generación de leads',
+  Nurturing: 'Nutrición',
+  Reactivacion: 'Reactivación',
+};
 
 export type MqlEstado = 'Activo' | 'ConvertidoSQL' | 'Devuelto' | 'Descartado';
 
@@ -277,6 +270,7 @@ export type Lead = {
   city: string | null;
   region: string;
   pais: string;
+  account_id: string | null;
   empresa_nombre: string;
   nit: string | null;
   contacto_nombre: string;
@@ -287,6 +281,7 @@ export type Lead = {
   business_referrer_id: string | null;
   segment_id: string | null;
   subsegment_id: string | null;
+  referrer_name: string | null;
   tipo_influencia: string | null;
   estado: LeadEstado;
   icp_score: number | null;
@@ -342,11 +337,13 @@ export type CreateLeadPayload = {
   segmento: Segmento;
   segment_id?: string;
   subsegment_id?: string;
+  referrer_name?: string | null;
   industria?: string;
   city: string;
   region: string;
   pais?: string;
   nit?: string;
+  account_id?: string;
   contacts: LeadContactInput[];
   responsable_id: string;
   campana_id?: string;
@@ -426,7 +423,6 @@ export type UpdateChecklistPayload = {
 export type Campaign = {
   campana_id: string;
   nombre: string;
-  tipo: string;
   canal: string;
   objetivo: string;
   segmento_objetivo: string;
@@ -451,7 +447,6 @@ export type PaginatedCampaigns = {
 
 export type CampaignsQuery = {
   estado?: CampaignEstado;
-  tipo?: CampaignTipo;
   from?: string;
   to?: string;
   page?: number;
@@ -460,7 +455,6 @@ export type CampaignsQuery = {
 
 export type CreateCampaignPayload = {
   nombre: string;
-  tipo: CampaignTipo;
   canal: string;
   objetivo: CampaignObjetivo;
   segmento_objetivo: SegmentoObjetivo;
@@ -507,11 +501,32 @@ export type BulkImportJobAccepted = {
   status: ImportJobStatus;
 };
 
+export type BulkImportRowOutcome = 'created' | 'duplicate' | 'skipped';
+
 export type BulkImportSkippedRow = {
   row: number;
   email: string;
   nit: string | null;
   reason: string;
+  code?: string;
+  account_name?: string | null;
+  contacto_nombre?: string | null;
+  existing_lead_id?: string | null;
+  existing_lead_name?: string | null;
+};
+
+export type BulkImportRowResult = {
+  row: number;
+  email: string;
+  nit: string | null;
+  account_name: string | null;
+  contacto_nombre: string | null;
+  outcome: BulkImportRowOutcome;
+  reason: string | null;
+  code: string | null;
+  lead_id: string | null;
+  existing_lead_id: string | null;
+  existing_lead_name: string | null;
 };
 
 export type BulkImportJobStatus = {
@@ -520,6 +535,7 @@ export type BulkImportJobStatus = {
   total_rows: number;
   created: number;
   skipped: BulkImportSkippedRow[];
+  rows?: BulkImportRowResult[];
   created_lead_ids: string[];
   error: string | null;
   started_at: string;

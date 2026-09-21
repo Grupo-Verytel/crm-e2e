@@ -19,6 +19,13 @@ export const DEMAND_GENERATION_ERROR_CODES = {
   IMPORT_JOB_NOT_FOUND: 'IMPORT_JOB_NOT_FOUND',
 } as const;
 
+export const LEAD_IMPORT_DUPLICATE_REASON =
+  'Ya existe un lead con esta empresa y este email';
+
+export const LEAD_IMPORT_SKIP_CODES = {
+  DUPLICATE_ACCOUNT_EMAIL: 'DUPLICATE_ACCOUNT_EMAIL',
+} as const;
+
 /** Role names (match auth seeder Role.name) used for notification targeting. */
 export const DEMAND_GENERATION_ROLES = {
   DIRECTOR_MERCADEO: 'DirectorMercadeo',
@@ -35,8 +42,6 @@ export const CSV_LEAD_HEADERS = [
   'segmento',
   'subsegmento',
   'city',
-  'region',
-  'pais',
   'account_name',
   'tax_id',
   'contacto_nombre',
@@ -53,9 +58,7 @@ export const CSV_LEAD_REQUIRED_HEADERS = [
   'canal_origen',
   'segmento',
   'city',
-  'region',
   'account_name',
-  'tax_id',
   'contacto_nombre',
   'email',
 ] as const;

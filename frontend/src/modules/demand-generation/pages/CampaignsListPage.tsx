@@ -9,14 +9,18 @@ import { StatusBadge } from '../components/StatusBadge';
 import { cardClass, inputClass, labelClass, primaryButtonClass } from '../components/ui';
 import {
   CAMPAIGN_ESTADOS,
-  CAMPAIGN_TIPOS,
+  CAMPAIGN_OBJETIVO_LABEL,
   type Campaign,
   type CampaignEstado,
-  type CampaignTipo,
+  type CampaignObjetivo,
 } from '../types';
 
-type Filters = { estado: CampaignEstado | ''; tipo: CampaignTipo | '' };
-const emptyFilters: Filters = { estado: '', tipo: '' };
+type Filters = { estado: CampaignEstado | '' };
+const emptyFilters: Filters = { estado: '' };
+
+function objetivoLabel(value: string): string {
+  return CAMPAIGN_OBJETIVO_LABEL[value as CampaignObjetivo] ?? value;
+}
 
 export function CampaignsListPage() {
   const [items, setItems] = useState<Campaign[]>([]);
@@ -36,7 +40,6 @@ export function CampaignsListPage() {
         page,
         limit,
         estado: applied.estado || undefined,
-        tipo: applied.tipo || undefined,
       });
       setItems(data.items);
       setTotal(data.total);
@@ -102,26 +105,6 @@ export function CampaignsListPage() {
             ))}
           </select>
         </div>
-        <div>
-          <label htmlFor="c-tipo" className={labelClass}>
-            Tipo
-          </label>
-          <select
-            id="c-tipo"
-            value={draft.tipo}
-            onChange={(event) =>
-              setDraft({ ...draft, tipo: event.target.value as CampaignTipo | '' })
-            }
-            className={inputClass}
-          >
-            <option value="">Todos</option>
-            {CAMPAIGN_TIPOS.map((tipo) => (
-              <option key={tipo} value={tipo}>
-                {tipo}
-              </option>
-            ))}
-          </select>
-        </div>
         <div className="flex items-end">
           <button type="submit" className={primaryButtonClass}>
             Aplicar filtros
@@ -142,7 +125,8 @@ export function CampaignsListPage() {
               <thead>
                 <tr className="border-b border-border text-xs uppercase tracking-wide text-muted">
                   <th className="px-4 py-3 font-bold">Nombre</th>
-                  <th className="px-4 py-3 font-bold">Tipo</th>
+                  <th className="px-4 py-3 font-bold">Segmento</th>
+                  <th className="px-4 py-3 font-bold">Objetivo</th>
                   <th className="px-4 py-3 font-bold">Leads</th>
                   <th className="px-4 py-3 font-bold">CPL</th>
                   <th className="px-4 py-3 font-bold">Estado</th>
@@ -153,7 +137,8 @@ export function CampaignsListPage() {
                 {items.map((campaign) => (
                   <tr key={campaign.campana_id} className="border-b border-border">
                     <td className="px-4 py-3 font-bold text-ink">{campaign.nombre}</td>
-                    <td className="px-4 py-3 text-muted">{campaign.tipo}</td>
+                    <td className="px-4 py-3 text-muted">{campaign.segmento_objetivo}</td>
+                    <td className="px-4 py-3 text-muted">{objetivoLabel(campaign.objetivo)}</td>
                     <td className="px-4 py-3 text-ink">{campaign.leads_generados}</td>
                     <td className="px-4 py-3 text-muted">{campaign.cpl ?? '—'}</td>
                     <td className="px-4 py-3">
