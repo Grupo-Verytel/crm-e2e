@@ -33,6 +33,14 @@ export class MarketingDashboardQueryDto {
   @IsOptional()
   @IsDateString()
   period_to?: string;
+
+  /** Calendar year for quarter accumulated leads only (independent of period filters). */
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(2000)
+  @Max(2100)
+  year?: number;
 }
 
 export class LeadsBySegmentDto {
@@ -49,7 +57,8 @@ export class WeeklyMarketingMetricsDto {
   interactions: number;
   new_leads: number;
   quarter_leads: number;
-  quarter: number;
+  quarter: number | null;
+  year: number | null;
   leads_by_channel: LeadsByChannelDto[];
   interactions_by_channel: LeadsByChannelDto[];
   quarter_leads_by_channel: LeadsByChannelDto[];
@@ -85,6 +94,13 @@ export class MarketingDashboardDetailsQueryDto {
   @IsOptional()
   @IsDateString()
   period_to?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(2000)
+  @Max(2100)
+  year?: number;
 
   @IsOptional()
   @Type(() => Number)

@@ -1,13 +1,26 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Settings } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { DatePickerField } from '../../../components/DatePickerField';
 import { Pagination } from '../../../components/Pagination';
 import { AppLayout } from '../../../layout/AppLayout';
+import { useAuth } from '../../auth/hooks/useAuth';
+import { isDirectorMercadeoRole } from '../../auth/lib/permission-catalog';
 import {
   fetchMarketingDashboard,
   fetchMarketingDashboardDetails,
+  fetchMarketingDashboardTargets,
 } from '../api/dashboard-api';
 import { DemandNav } from '../components/DemandNav';
+import { MarketingDashboardDetailModal } from '../components/MarketingDashboardDetailModal';
+import { MarketingDashboardTargetsModal } from '../components/MarketingDashboardTargetsModal';
 import { cardClass, inputClass, labelClass } from '../components/ui';
+import {
+  normalizeMarketingDashboardTargets,
+  resolveActivePeriodType,
+  resolveTargetsForPeriod,
+  type MarketingDashboardTargetRow,
+} from '../lib/marketing-dashboard-targets';
 import { CANAL_ORIGEN_LABEL, leadEstadoLabel } from '../lib/lead-vocab';
 import { OUV_ZONA_LABEL, type OuvZona } from '../../discovery/lib/ouv-vocab';
 import {
@@ -29,87 +42,49 @@ const FUNNEL_LABELS: Record<string, string> = {
   SQL: 'SQL',
 };
 
-type PeriodMode = 'Semana' | 'Quincenal';
-type PeriodOption = { label: string; from: string; to: string };
 type DetailView = {
   kind: MarketingDashboardDetailKind;
   title: string;
   estado?: string;
 };
 
-function dateValue(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+function buildAccumulatedYearOptions(): number[] {
+  const currentYear = new Date().getFullYear();
+  return [currentYear, currentYear - 1, currentYear - 2];
 }
 
-function shortDate(date: Date): string {
-  return new Intl.DateTimeFormat('es-CO', {
-    day: 'numeric',
-    month: 'short',
-  }).format(date);
+function parseYmd(value: string): Date | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const [year, month, day] = value.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+  return Number.isNaN(date.getTime()) ? null : date;
 }
 
-function buildPeriodOptions(
-  quarter: number,
-  mode: PeriodMode,
-): PeriodOption[] {
-  const year = new Date().getFullYear();
-  const startMonth = (quarter - 1) * 3;
-  const quarterEnd = new Date(year, startMonth + 3, 0);
+function daysInclusive(from: string, to: string): number | null {
+  const start = parseYmd(from);
+  const end = parseYmd(to);
+  if (!start || !end) return null;
+  return Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1;
+}
 
-  if (mode === 'Quincenal') {
-    return [0, 1, 2].flatMap((monthOffset) => {
-      const month = startMonth + monthOffset;
-      const firstStart = new Date(year, month, 1);
-      const firstEnd = new Date(year, month, 15);
-      const secondStart = new Date(year, month, 16);
-      const secondEnd = new Date(year, month + 1, 0);
-      return [
-        {
-          label: `15 días · ${shortDate(firstStart)}–${shortDate(firstEnd)}`,
-          from: dateValue(firstStart),
-          to: dateValue(firstEnd),
-        },
-        {
-          label: `15 días · ${shortDate(secondStart)}–${shortDate(secondEnd)}`,
-          from: dateValue(secondStart),
-          to: dateValue(secondEnd),
-        },
-      ];
-    });
-  }
-
-  const options: PeriodOption[] = [];
-  let start = new Date(year, startMonth, 1);
-  let week = 1;
-  while (start <= quarterEnd) {
-    const end = new Date(start);
-    end.setDate(end.getDate() + 6);
-    if (end > quarterEnd) end.setTime(quarterEnd.getTime());
-    options.push({
-      label: `Semana ${week} · ${shortDate(start)}–${shortDate(end)}`,
-      from: dateValue(start),
-      to: dateValue(end),
-    });
-    start = new Date(end);
-    start.setDate(start.getDate() + 1);
-    week += 1;
-  }
-  return options;
+function periodLeadsLabelFromRange(from: string, to: string): string {
+  const days = daysInclusive(from, to);
+  if (days == null) return 'Leads del periodo';
+  if (days <= 7) return 'Leads de la semana';
+  if (days <= 15) return 'Leads de los 15 días';
+  return 'Leads del periodo';
 }
 
 export function MarketingDashboardPage() {
-  const currentQuarter = Math.floor(new Date().getMonth() / 3) + 1;
-  const [period, setPeriod] = useState<PeriodMode>('Semana');
-  const [quarter, setQuarter] = useState(currentQuarter);
-  const [periodIndex, setPeriodIndex] = useState(0);
-  const periodOptions = useMemo(
-    () => buildPeriodOptions(quarter, period),
-    [quarter, period],
-  );
-  const selectedPeriod = periodOptions[periodIndex] ?? periodOptions[0];
+  const { user } = useAuth();
+  const canConfigureTargets =
+    isDirectorMercadeoRole(user?.role_name) || user?.role_name === 'Admin';
+  const accumulatedYearOptions = useMemo(() => buildAccumulatedYearOptions(), []);
+  const [accumulatedYear, setAccumulatedYear] = useState<number | null>(null);
+  const [quarter, setQuarter] = useState<number | null>(null);
+  const [periodFrom, setPeriodFrom] = useState('');
+  const [periodTo, setPeriodTo] = useState('');
+  const periodRangeActive = Boolean(periodFrom && periodTo);
   const [data, setData] = useState<MarketingDashboard | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -121,16 +96,106 @@ export function MarketingDashboardPage() {
   const [detailTotal, setDetailTotal] = useState(0);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
-  const periodLeadsLabel =
-    period === 'Semana' ? 'Leads de la semana' : 'Leads de los 15 días';
+  const [targets, setTargets] = useState<MarketingDashboardTargetRow[]>(
+    normalizeMarketingDashboardTargets(undefined),
+  );
+  const [showTargetsModal, setShowTargetsModal] = useState(false);
+  const activePeriodType = useMemo(
+    () =>
+      resolveActivePeriodType({
+        periodFrom,
+        periodTo,
+        periodRangeActive,
+        accumulatedYear,
+        quarter,
+      }),
+    [periodFrom, periodTo, periodRangeActive, accumulatedYear, quarter],
+  );
+  const activeTargets = useMemo(
+    () => resolveTargetsForPeriod(targets, activePeriodType),
+    [activePeriodType, targets],
+  );
+  const periodLeadsLabel = useMemo(() => {
+    if (periodRangeActive) {
+      return periodLeadsLabelFromRange(periodFrom, periodTo);
+    }
+    if (accumulatedYear != null && quarter != null) {
+      return `Leads del Q${quarter} ${accumulatedYear}`;
+    }
+    if (accumulatedYear != null) {
+      return `Leads del ${accumulatedYear}`;
+    }
+    return 'Leads del periodo';
+  }, [
+    accumulatedYear,
+    periodFrom,
+    periodRangeActive,
+    periodTo,
+    quarter,
+  ]);
+  const channelBarsData = useMemo(() => {
+    if (!data) return [];
+    if (periodRangeActive) return data.weekly.leads_by_channel ?? [];
+    if (accumulatedYear != null) {
+      return data.weekly.quarter_leads_by_channel ?? [];
+    }
+    return [];
+  }, [accumulatedYear, data, periodRangeActive]);
+  const channelBarsTitle = periodRangeActive
+    ? 'Leads creados por canal de origen'
+    : accumulatedYear != null
+      ? 'Leads acumulados por canal de origen'
+      : 'Leads por canal de origen';
 
   const openDetail = (view: DetailView) => {
-    if (detail?.kind === view.kind) {
-      setDetail(null);
-      return;
-    }
     setDetail(view);
     setDetailPage(1);
+  };
+
+  const closeDetail = () => {
+    setDetail(null);
+    setDetailPage(1);
+  };
+
+  const clearPeriodDates = () => {
+    setPeriodFrom('');
+    setPeriodTo('');
+  };
+
+  const clearAccumulatedFilters = () => {
+    setAccumulatedYear(null);
+    setQuarter(null);
+  };
+
+  /** Year drives accumulated filters; changing it resets Q and period dates. */
+  const handleYearChange = (value: string) => {
+    setAccumulatedYear(value ? Number(value) : null);
+    setQuarter(null);
+    clearPeriodDates();
+    setDetail(null);
+  };
+
+  /** Q depends on year (one-way): never clears or changes the selected year. */
+  const handleQuarterChange = (value: string) => {
+    setQuarter(value ? Number(value) : null);
+    clearPeriodDates();
+    setDetail(null);
+  };
+
+  const handlePeriodFromChange = (value: string) => {
+    setPeriodFrom(value);
+    if (value) {
+      clearAccumulatedFilters();
+      setDetail(null);
+    }
+  };
+
+  const handlePeriodToChange = (value: string) => {
+    setPeriodTo(value);
+    if (value) {
+      clearAccumulatedFilters();
+      setDetail(null);
+    }
   };
 
   const loadDashboard = useCallback(async () => {
@@ -139,9 +204,11 @@ export function MarketingDashboardPage() {
     try {
       setData(
         await fetchMarketingDashboard({
-          quarter,
-          period_from: selectedPeriod?.from,
-          period_to: selectedPeriod?.to,
+          ...(accumulatedYear != null ? { year: accumulatedYear } : {}),
+          ...(quarter != null ? { quarter } : {}),
+          ...(periodRangeActive
+            ? { period_from: periodFrom, period_to: periodTo }
+            : {}),
         }),
       );
     } catch {
@@ -149,12 +216,27 @@ export function MarketingDashboardPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [quarter, selectedPeriod?.from, selectedPeriod?.to]);
+  }, [quarter, periodFrom, periodTo, periodRangeActive, accumulatedYear]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetch on mount
     void loadDashboard();
   }, [loadDashboard]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchMarketingDashboardTargets()
+      .then((response) => {
+        if (cancelled) return;
+        setTargets(normalizeMarketingDashboardTargets(response.targets));
+      })
+      .catch(() => {
+        /* keep default targets when config is unavailable */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!detail) {
@@ -166,9 +248,11 @@ export function MarketingDashboardPage() {
     void fetchMarketingDashboardDetails({
       kind: detail.kind,
       estado: detail.estado,
-      quarter,
-      period_from: selectedPeriod?.from,
-      period_to: selectedPeriod?.to,
+      ...(accumulatedYear != null ? { year: accumulatedYear } : {}),
+      ...(quarter != null ? { quarter } : {}),
+      ...(periodRangeActive
+        ? { period_from: periodFrom, period_to: periodTo }
+        : {}),
       page: detailPage,
       limit: 20,
     })
@@ -193,30 +277,69 @@ export function MarketingDashboardPage() {
     detail,
     detailPage,
     quarter,
-    selectedPeriod?.from,
-    selectedPeriod?.to,
+    periodFrom,
+    periodTo,
+    periodRangeActive,
+    accumulatedYear,
   ]);
 
   return (
     <AppLayout title="Dashboard de mercadeo">
-      <DemandNav />
+      <DemandNav
+        trailing={
+          canConfigureTargets ? (
+            <button
+              type="button"
+              className="icon-btn -mb-px grid h-9 w-9 shrink-0 place-items-center rounded text-muted hover:text-accent"
+              aria-label="Configurar metas del dashboard"
+              title="Configurar metas"
+              onClick={() => setShowTargetsModal(true)}
+            >
+              <Settings size={18} strokeWidth={1.75} />
+            </button>
+          ) : undefined
+        }
+      />
 
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <h1 className="text-lg font-bold text-ink">Indicadores de mercadeo</h1>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-3">
+          <div>
+            <label className={labelClass} htmlFor="dashboard-accumulated-year">
+              Año
+            </label>
+            <select
+              id="dashboard-accumulated-year"
+              className={`${inputClass} min-w-24`}
+              value={accumulatedYear ?? ''}
+              title="Año del acumulado (independiente)"
+              onChange={(event) => handleYearChange(event.target.value)}
+            >
+              <option value="">—</option>
+              {accumulatedYearOptions.map((year) => (
+                <option key={year} value={year}>
+                  {year}
+                </option>
+              ))}
+            </select>
+          </div>
           <div>
             <label className={labelClass} htmlFor="dashboard-quarter">
               Trimestre
             </label>
             <select
               id="dashboard-quarter"
-              className={`${inputClass} min-w-24`}
-              value={quarter}
-              onChange={(event) => {
-                setQuarter(Number(event.target.value));
-                setPeriodIndex(0);
-              }}
+              className={`${inputClass} min-w-24 disabled:cursor-not-allowed disabled:opacity-50`}
+              value={quarter ?? ''}
+              disabled={accumulatedYear == null}
+              title={
+                accumulatedYear == null
+                  ? 'Selecciona un año primero'
+                  : 'Trimestre del año seleccionado'
+              }
+              onChange={(event) => handleQuarterChange(event.target.value)}
             >
+              <option value="">—</option>
               {[1, 2, 3, 4].map((value) => (
                 <option key={value} value={value}>
                   Q{value}
@@ -225,38 +348,29 @@ export function MarketingDashboardPage() {
             </select>
           </div>
           <div>
-            <label className={labelClass} htmlFor="dashboard-period">
-              Agrupación
+            <label className={labelClass} htmlFor="dashboard-period-from">
+              Desde
             </label>
-            <select
-              id="dashboard-period"
-              className={`${inputClass} min-w-32`}
-              value={period}
-              onChange={(event) => {
-                setPeriod(event.target.value as PeriodMode);
-                setPeriodIndex(0);
-              }}
-            >
-              <option value="Semana">Semana</option>
-              <option value="Quincenal">15 días</option>
-            </select>
+            <DatePickerField
+              id="dashboard-period-from"
+              className="min-w-36"
+              value={periodFrom}
+              aria-label="Fecha desde"
+              onChange={handlePeriodFromChange}
+            />
           </div>
           <div>
-            <label className={labelClass} htmlFor="dashboard-period-range">
-              Periodo
+            <label className={labelClass} htmlFor="dashboard-period-to">
+              Hasta
             </label>
-            <select
-              id="dashboard-period-range"
-              className={`${inputClass} min-w-56`}
-              value={periodIndex}
-              onChange={(event) => setPeriodIndex(Number(event.target.value))}
-            >
-              {periodOptions.map((option, index) => (
-                <option key={`${option.from}-${option.to}`} value={index}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+            <DatePickerField
+              id="dashboard-period-to"
+              className="min-w-36"
+              value={periodTo}
+              aria-label="Fecha hasta"
+              align="end"
+              onChange={handlePeriodToChange}
+            />
           </div>
         </div>
       </div>
@@ -309,11 +423,11 @@ export function MarketingDashboardPage() {
             >
               Indicadores del periodo
             </h2>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <DonutMetric
                 label="Interacciones"
                 value={data.weekly.interactions}
-                target={50}
+                target={activeTargets.interactions}
                 selected={detail?.kind === 'interactions'}
                 onClick={() =>
                   openDetail({ kind: 'interactions', title: 'Interacciones' })
@@ -322,59 +436,27 @@ export function MarketingDashboardPage() {
               <DonutMetric
                 label={periodLeadsLabel}
                 value={data.weekly.new_leads}
-                target={3}
+                target={activeTargets.period_leads}
                 selected={detail?.kind === 'period_leads'}
                 onClick={() =>
                   openDetail({ kind: 'period_leads', title: periodLeadsLabel })
                 }
               />
               <DonutMetric
-                label={`Leads Q${data.weekly.quarter}`}
-                value={data.weekly.quarter_leads}
-                target={50}
-              />
-              <DonutMetric
-                label="OUV convertidas"
+                label="Convertidas a OUV"
                 value={data.weekly.converted_ouvs ?? 0}
-                target={3}
+                target={activeTargets.converted_ouvs}
                 selected={detail?.kind === 'ouvs'}
                 onClick={() =>
-                  openDetail({ kind: 'ouvs', title: 'OUV convertidas' })
+                  openDetail({ kind: 'ouvs', title: 'Convertidas a OUV' })
                 }
               />
             </div>
           </section>
 
-          {detail ? (
-            <section className={`${cardClass} overflow-hidden`} aria-live="polite">
-              <div className="border-b border-border px-5 py-3">
-                <h2 className="text-sm font-bold text-ink">{detail.title}</h2>
-              </div>
-              {detailLoading ? (
-                <p className="px-5 py-8 text-sm text-muted">Cargando detalle…</p>
-              ) : detailError ? (
-                <p className="px-5 py-8 text-sm text-muted">{detailError}</p>
-              ) : !Array.isArray(detailItems) || detailItems.length === 0 ? (
-                <p className="px-5 py-8 text-sm text-muted">
-                  Sin registros en este periodo.
-                </p>
-              ) : (
-                <DashboardDetailTable kind={detail.kind} items={detailItems} />
-              )}
-              <Pagination
-                page={detailPage}
-                limit={20}
-                total={detailTotal}
-                onPageChange={setDetailPage}
-              />
-            </section>
-          ) : null}
-
           <section className={`${cardClass} p-5`}>
-            <h2 className="mb-4 text-sm font-bold text-ink">
-              Leads creados por canal de origen
-            </h2>
-            <ChannelHorizontalBars channels={data.weekly.leads_by_channel} />
+            <h2 className="mb-4 text-sm font-bold text-ink">{channelBarsTitle}</h2>
+            <ChannelHorizontalBars channels={channelBarsData} />
           </section>
 
           <section className={`${cardClass} p-5`}>
@@ -384,6 +466,35 @@ export function MarketingDashboardPage() {
         </div>
       )}
 
+      {showTargetsModal ? (
+        <MarketingDashboardTargetsModal
+          initialTargets={targets}
+          onClose={() => setShowTargetsModal(false)}
+          onSaved={setTargets}
+        />
+      ) : null}
+
+      {detail ? (
+        <MarketingDashboardDetailModal title={detail.title} onClose={closeDetail}>
+          {detailLoading ? (
+            <p className="px-5 py-8 text-sm text-muted">Cargando detalle…</p>
+          ) : detailError ? (
+            <p className="px-5 py-8 text-sm text-muted">{detailError}</p>
+          ) : !Array.isArray(detailItems) || detailItems.length === 0 ? (
+            <p className="px-5 py-8 text-sm text-muted">
+              Sin registros en este periodo.
+            </p>
+          ) : (
+            <DashboardDetailTable kind={detail.kind} items={detailItems} />
+          )}
+          <Pagination
+            page={detailPage}
+            limit={20}
+            total={detailTotal}
+            onPageChange={setDetailPage}
+          />
+        </MarketingDashboardDetailModal>
+      ) : null}
     </AppLayout>
   );
 }

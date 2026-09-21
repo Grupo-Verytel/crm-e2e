@@ -12,6 +12,12 @@ import {
   MarketingDashboardQueryDto,
   MarketingDashboardResponseDto,
 } from '../dtos/dashboard-response.dto';
+import {
+  MarketingDashboardTargetRowDto,
+  MarketingDashboardTargetsResponseDto,
+  UpdateMarketingDashboardTargetsDto,
+} from '../dtos/marketing-dashboard-targets.dto';
+import { MarketingDashboardTarget } from '../models/marketing-dashboard-target.model';
 import { ChecklistResultado } from '../models/enums/checklist.enums';
 import { LeadEstado } from '../models/enums/lead.enums';
 import { MqlEstado } from '../models/enums/mql.enums';
@@ -52,14 +58,82 @@ export class DashboardService {
     @InjectModel(Campaign) private readonly campaignModel: typeof Campaign,
     @InjectModel(Interaction)
     private readonly interactionModel: typeof Interaction,
+    @InjectModel(MarketingDashboardTarget)
+    private readonly marketingTargetModel: typeof MarketingDashboardTarget,
     private readonly ouvMarketingMetrics: OuvMarketingMetricsService,
     private readonly accountsService: AccountsService,
   ) {}
 
+  async getMarketingDashboardTargets(): Promise<MarketingDashboardTargetsResponseDto> {
+    const rows = await this.marketingTargetModel.findAll({
+      order: [['periodType', 'ASC']],
+    });
+    return { targets: rows.map((row) => this.toTargetRowDto(row)) };
+  }
+
+  async updateMarketingDashboardTargets(
+    dto: UpdateMarketingDashboardTargetsDto,
+  ): Promise<MarketingDashboardTargetsResponseDto> {
+    const sequelize = this.marketingTargetModel.sequelize;
+    if (!sequelize) {
+      return this.getMarketingDashboardTargets();
+    }
+
+    await sequelize.transaction(async (transaction) => {
+      for (const row of dto.targets) {
+        const existing = await this.marketingTargetModel.findOne({
+          where: { periodType: row.period_type },
+          transaction,
+        });
+        if (existing) {
+          await existing.update(
+            {
+              interactions: row.interactions,
+              periodLeads: row.period_leads,
+              convertedOuvs: row.converted_ouvs,
+            },
+            { transaction },
+          );
+          continue;
+        }
+        await this.marketingTargetModel.create(
+          {
+            periodType: row.period_type,
+            interactions: row.interactions,
+            periodLeads: row.period_leads,
+            convertedOuvs: row.converted_ouvs,
+          },
+          { transaction },
+        );
+      }
+    });
+
+    return this.getMarketingDashboardTargets();
+  }
+
+  private toTargetRowDto(
+    row: MarketingDashboardTarget,
+  ): MarketingDashboardTargetRowDto {
+    return {
+      period_type: row.periodType,
+      interactions: row.interactions,
+      period_leads: row.periodLeads,
+      converted_ouvs: row.convertedOuvs,
+    };
+  }
+
   async getMarketingDashboard(
     query: MarketingDashboardQueryDto,
   ): Promise<MarketingDashboardResponseDto> {
-    const leadWhere = this.buildLeadWhere(query);
+    const ranges = this.resolveRanges(
+      query.quarter,
+      query.period_from,
+      query.period_to,
+      query.year,
+    );
+    const segmentWhere = this.buildFilteredLeadWhere(ranges);
+    const activeLeadDateRange = this.getActiveLeadDateRange(ranges);
+    const hasActiveFilter = activeLeadDateRange != null;
 
     const [
       totalLeads,
@@ -71,18 +145,23 @@ export class DashboardService {
       weekly,
       averageConversionDays,
     ] = await Promise.all([
-      this.leadModel.count({ where: leadWhere }),
-      this.countLeadsBySegment(leadWhere),
+      this.leadModel.count(),
+      hasActiveFilter
+        ? this.countLeadsBySegment(segmentWhere)
+        : Promise.resolve([]),
       this.countQualifiedLeads(),
       this.mqlModel.count({ where: { estado: MqlEstado.Activo } }),
-      this.buildFunnel(leadWhere),
+      hasActiveFilter
+        ? this.buildFunnel(segmentWhere)
+        : this.buildEmptyFunnel(),
       this.averageCpl(),
-      this.buildWeeklyMetrics(
-        query.quarter,
-        query.period_from,
-        query.period_to,
-      ),
-      this.averageLeadToOuvDays(),
+      this.buildWeeklyMetrics(ranges),
+      activeLeadDateRange
+        ? this.averageLeadToOuvDays(
+            activeLeadDateRange.start,
+            activeLeadDateRange.end,
+          )
+        : Promise.resolve(null),
     ]);
 
     const qualifiedRate =
@@ -105,22 +184,35 @@ export class DashboardService {
   ): Promise<MarketingDashboardDetailsResponseDto> {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
-    const ranges = this.resolveRanges(query.quarter, query.period_from, query.period_to);
+    const ranges = this.resolveRanges(
+      query.quarter,
+      query.period_from,
+      query.period_to,
+      query.year,
+    );
+
+    const activeRange = this.getActiveLeadDateRange(ranges);
 
     if (query.kind === 'interactions') {
+      if (!activeRange) {
+        return this.emptyDetails(query.kind, page, limit);
+      }
       return this.listInteractionDetails(
-        ranges.periodStart,
-        ranges.periodEnd,
+        activeRange.start,
+        activeRange.end,
         page,
         limit,
       );
     }
     if (query.kind === 'period_leads') {
+      if (!activeRange) {
+        return this.emptyDetails(query.kind, page, limit);
+      }
       return this.listLeadDetails(
         {
           fechaCaptura: {
-            [Op.gte]: ranges.periodStart,
-            [Op.lt]: ranges.periodEnd,
+            [Op.gte]: activeRange.start,
+            [Op.lt]: activeRange.end,
           },
         },
         page,
@@ -129,6 +221,13 @@ export class DashboardService {
       );
     }
     if (query.kind === 'quarter_leads') {
+      if (
+        !ranges.hasAccumulatedRange ||
+        !ranges.quarterStart ||
+        !ranges.quarterEnd
+      ) {
+        return this.emptyDetails(query.kind, page, limit);
+      }
       return this.listLeadDetails(
         {
           fechaCaptura: {
@@ -150,9 +249,13 @@ export class DashboardService {
       );
     }
 
+    if (!activeRange) {
+      return this.emptyDetails('ouvs', page, limit);
+    }
+
     const ouvs = await this.ouvMarketingMetrics.listConvertedFromMarketing(
-      ranges.periodStart,
-      ranges.periodEnd,
+      activeRange.start,
+      activeRange.end,
       page,
       limit,
     );
@@ -187,19 +290,46 @@ export class DashboardService {
     };
   }
 
-  private buildLeadWhere(
-    query: MarketingDashboardQueryDto,
-  ): WhereOptions<Lead> {
-    const where: WhereOptions<Lead> = {};
+  private getActiveLeadDateRange(
+    ranges: ReturnType<DashboardService['resolveRanges']>,
+  ): { start: Date; end: Date } | null {
+    if (ranges.hasPeriodRange && ranges.periodStart && ranges.periodEnd) {
+      return { start: ranges.periodStart, end: ranges.periodEnd };
+    }
+    if (
+      ranges.hasAccumulatedRange &&
+      ranges.quarterStart &&
+      ranges.quarterEnd
+    ) {
+      return { start: ranges.quarterStart, end: ranges.quarterEnd };
+    }
+    return null;
+  }
 
-    if (query.from || query.to) {
-      where.fechaCaptura = {
-        ...(query.from ? { [Op.gte]: new Date(query.from) } : {}),
-        ...(query.to ? { [Op.lte]: new Date(query.to) } : {}),
+  private buildFilteredLeadWhere(
+    ranges: ReturnType<DashboardService['resolveRanges']>,
+  ): WhereOptions<Lead> {
+    if (ranges.hasPeriodRange && ranges.periodStart && ranges.periodEnd) {
+      return {
+        fechaCaptura: {
+          [Op.gte]: ranges.periodStart,
+          [Op.lt]: ranges.periodEnd,
+        },
       };
     }
-
-    return where;
+    if (
+      ranges.hasAccumulatedRange &&
+      ranges.quarterStart &&
+      ranges.quarterEnd
+    ) {
+      return {
+        fechaCaptura: {
+          [Op.gte]: ranges.quarterStart,
+          [Op.lt]: ranges.quarterEnd,
+        },
+      };
+    }
+    return {};
   }
 
   private async countLeadsBySegment(
@@ -249,6 +379,10 @@ export class DashboardService {
     }));
   }
 
+  private buildEmptyFunnel(): FunnelStageDto[] {
+    return FUNNEL_ORDER.map((estado) => ({ estado, count: 0 }));
+  }
+
   private async averageCpl(): Promise<number | null> {
     const result = (await this.campaignModel.findOne({
       attributes: [[fn('AVG', col('cpl')), 'avgCpl']],
@@ -264,52 +398,61 @@ export class DashboardService {
   }
 
   private async buildWeeklyMetrics(
-    quarter?: number,
-    periodFrom?: string,
-    periodTo?: string,
+    ranges: ReturnType<DashboardService['resolveRanges']>,
   ) {
-    const {
-      periodStart,
-      periodEnd,
-      quarterStart,
-      quarterEnd,
-      selectedQuarter,
-    } = this.resolveRanges(quarter, periodFrom, periodTo);
+    const metricRange = this.getActiveLeadDateRange(ranges);
+    const metricLeadWhere: WhereOptions<Lead> | null = metricRange
+      ? {
+          fechaCaptura: {
+            [Op.gte]: metricRange.start,
+            [Op.lt]: metricRange.end,
+          },
+        }
+      : null;
 
-    const periodLeadWhere: WhereOptions<Lead> = {
-      fechaCaptura: { [Op.gte]: periodStart, [Op.lt]: periodEnd },
-    };
-    const quarterLeadWhere: WhereOptions<Lead> = {
-      fechaCaptura: { [Op.gte]: quarterStart, [Op.lt]: quarterEnd },
-    };
     const [
       interactions,
       newLeads,
-      quarterLeads,
       leadsByChannel,
       interactionsByChannel,
-      quarterLeadsByChannel,
       convertedOuvs,
     ] = await Promise.all([
-      this.interactionModel.count({
-        where: { fecha: { [Op.gte]: periodStart, [Op.lt]: periodEnd } },
-      }),
-      this.leadModel.count({ where: periodLeadWhere }),
-      this.leadModel.count({ where: quarterLeadWhere }),
-      this.countLeadsByChannel(periodLeadWhere),
-      this.countInteractionsByChannel(periodStart, periodEnd),
-      this.countLeadsByChannel(quarterLeadWhere),
-      this.ouvMarketingMetrics.countConvertedFromMarketing(periodStart, periodEnd),
+      metricRange
+        ? this.interactionModel.count({
+            where: {
+              fecha: {
+                [Op.gte]: metricRange.start,
+                [Op.lt]: metricRange.end,
+              },
+            },
+          })
+        : Promise.resolve(0),
+      metricLeadWhere
+        ? this.leadModel.count({ where: metricLeadWhere })
+        : Promise.resolve(0),
+      metricLeadWhere
+        ? this.countLeadsByChannel(metricLeadWhere)
+        : Promise.resolve([]),
+      metricRange
+        ? this.countInteractionsByChannel(metricRange.start, metricRange.end)
+        : Promise.resolve([]),
+      metricRange
+        ? this.ouvMarketingMetrics.countConvertedFromMarketing(
+            metricRange.start,
+            metricRange.end,
+          )
+        : Promise.resolve(0),
     ]);
 
     return {
       interactions,
       new_leads: newLeads,
-      quarter_leads: quarterLeads,
-      quarter: selectedQuarter,
-      leads_by_channel: leadsByChannel,
+      quarter_leads: ranges.hasAccumulatedRange ? newLeads : 0,
+      quarter: ranges.selectedQuarter,
+      year: ranges.selectedYear,
+      leads_by_channel: ranges.hasPeriodRange ? leadsByChannel : [],
       interactions_by_channel: interactionsByChannel,
-      quarter_leads_by_channel: quarterLeadsByChannel,
+      quarter_leads_by_channel: ranges.hasAccumulatedRange ? leadsByChannel : [],
       converted_ouvs: convertedOuvs,
     };
   }
@@ -318,28 +461,54 @@ export class DashboardService {
     quarter?: number,
     periodFrom?: string,
     periodTo?: string,
+    year?: number,
   ) {
-    const now = new Date();
-    const bogotaNow = new Date(now.getTime() - 5 * 60 * 60 * 1000);
-    const selectedQuarter =
-      quarter ?? Math.floor(bogotaNow.getUTCMonth() / 3) + 1;
-    const defaultPeriod = this.currentBogotaWeek(now);
-    const periodStart = periodFrom
-      ? new Date(`${periodFrom.slice(0, 10)}T05:00:00.000Z`)
-      : defaultPeriod.start;
-    const periodEnd = periodTo
+    const hasPeriodRange = Boolean(periodFrom && periodTo);
+    const periodStart = hasPeriodRange
+      ? new Date(`${periodFrom!.slice(0, 10)}T05:00:00.000Z`)
+      : null;
+    const periodEnd = hasPeriodRange
       ? new Date(
-          new Date(`${periodTo.slice(0, 10)}T05:00:00.000Z`).getTime() +
+          new Date(`${periodTo!.slice(0, 10)}T05:00:00.000Z`).getTime() +
             24 * 60 * 60 * 1000,
         )
-      : defaultPeriod.end;
-    const quarterStart = new Date(
-      Date.UTC(bogotaNow.getUTCFullYear(), (selectedQuarter - 1) * 3, 1, 5),
-    );
-    const quarterEnd = new Date(
-      Date.UTC(bogotaNow.getUTCFullYear(), selectedQuarter * 3, 1, 5),
-    );
-    return { periodStart, periodEnd, quarterStart, quarterEnd, selectedQuarter };
+      : null;
+
+    let selectedQuarter: number | null = null;
+    let selectedYear: number | null = year ?? null;
+    let quarterStart: Date | null = null;
+    let quarterEnd: Date | null = null;
+    let hasAccumulatedRange = false;
+
+    if (year != null && quarter != null) {
+      selectedQuarter = quarter;
+      hasAccumulatedRange = true;
+      quarterStart = new Date(Date.UTC(year, (quarter - 1) * 3, 1, 5));
+      quarterEnd = new Date(Date.UTC(year, quarter * 3, 1, 5));
+    } else if (year != null) {
+      hasAccumulatedRange = true;
+      quarterStart = new Date(Date.UTC(year, 0, 1, 5));
+      quarterEnd = new Date(Date.UTC(year + 1, 0, 1, 5));
+    }
+
+    return {
+      hasPeriodRange,
+      hasAccumulatedRange,
+      periodStart,
+      periodEnd,
+      quarterStart,
+      quarterEnd,
+      selectedQuarter,
+      selectedYear,
+    };
+  }
+
+  private emptyDetails(
+    kind: MarketingDashboardDetailsResponseDto['kind'],
+    page: number,
+    limit: number,
+  ): MarketingDashboardDetailsResponseDto {
+    return { kind, items: [], total: 0, page, limit };
   }
 
   private async listLeadDetails(
@@ -522,7 +691,10 @@ export class DashboardService {
     }));
   }
 
-  private async averageLeadToOuvDays(): Promise<number | null> {
+  private async averageLeadToOuvDays(
+    start: Date,
+    end: Date,
+  ): Promise<number | null> {
     const sequelize = this.leadModel.sequelize;
     if (!sequelize) {
       return null;
@@ -547,10 +719,16 @@ export class DashboardService {
         ON leads.lead_id = mqls.lead_id
         AND leads.deleted_at IS NULL
       WHERE ouvs.origen_via = :origenVia
+        AND COALESCE(leads.fecha_captura, leads.created_at) >= :start
+        AND COALESCE(leads.fecha_captura, leads.created_at) < :end
       `,
       {
         type: QueryTypes.SELECT,
-        replacements: { origenVia: OuvOrigenVia.DesdeSql },
+        replacements: {
+          origenVia: OuvOrigenVia.DesdeSql,
+          start,
+          end,
+        },
       },
     );
     if (row?.avg_days == null) {
@@ -559,18 +737,4 @@ export class DashboardService {
     return Number(Number(row.avg_days).toFixed(1));
   }
 
-  /** Monday 00:00 through next Monday 00:00 in America/Bogota (UTC-5). */
-  private currentBogotaWeek(now: Date): { start: Date; end: Date } {
-    const bogotaOffsetMs = 5 * 60 * 60 * 1000;
-    const local = new Date(now.getTime() - bogotaOffsetMs);
-    const daysSinceMonday = (local.getUTCDay() + 6) % 7;
-    const startLocal = Date.UTC(
-      local.getUTCFullYear(),
-      local.getUTCMonth(),
-      local.getUTCDate() - daysSinceMonday,
-    );
-    const start = new Date(startLocal + bogotaOffsetMs);
-    const end = new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000);
-    return { start, end };
-  }
 }

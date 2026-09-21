@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../../auth/hooks/useAuth';
 import { isDirectorMercadeoRole } from '../../auth/lib/permission-catalog';
@@ -17,7 +18,7 @@ const tabClass = ({ isActive }: { isActive: boolean }) =>
  * Module tabs on the Leads inbox and sibling trays (Campañas, MQL, Dashboard).
  * Hidden on lead detail. On "OUV devueltas" (reciclaje) only a back link.
  */
-export function DemandNav() {
+export function DemandNav({ trailing }: { trailing?: ReactNode }) {
   const location = useLocation();
   const { user } = useAuth();
   const params = new URLSearchParams(location.search);
@@ -41,24 +42,24 @@ export function DemandNav() {
   }
 
   return (
-    <nav
-      className="mb-4 flex flex-wrap gap-1 border-b border-border"
-      aria-label="Leads"
-    >
-      <NavLink to="/demand" end className={tabClass}>
-        Leads
-      </NavLink>
-      <NavLink to="/demand/campaigns" end className={tabClass}>
-        Campañas
-      </NavLink>
-      {canSeeMqlInbox ? (
-        <NavLink to="/demand/mqls" className={tabClass}>
-          Bandeja MQL
+    <div className="mb-4 flex items-end justify-between gap-3 border-b border-border">
+      <nav className="flex min-w-0 flex-wrap gap-1" aria-label="Leads">
+        <NavLink to="/demand" end className={tabClass}>
+          Leads
         </NavLink>
-      ) : null}
-      <NavLink to="/demand/dashboard" className={tabClass}>
-        Dashboard
-      </NavLink>
-    </nav>
+        <NavLink to="/demand/campaigns" end className={tabClass}>
+          Campañas
+        </NavLink>
+        {canSeeMqlInbox ? (
+          <NavLink to="/demand/mqls" className={tabClass}>
+            Bandeja MQL
+          </NavLink>
+        ) : null}
+        <NavLink to="/demand/dashboard" className={tabClass}>
+          Dashboard
+        </NavLink>
+      </nav>
+      {trailing}
+    </div>
   );
 }

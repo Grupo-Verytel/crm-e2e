@@ -13,9 +13,11 @@ import { MqlsController } from './controllers/mqls.controller';
 import { SegmentsController } from './controllers/segments.controller';
 import { Campaign } from './models/campaign.model';
 import { Interaction } from './models/interaction.model';
+import { DirectorMercadeoGuard } from './guards/director-mercadeo.guard';
 import { Lead } from './models/lead.model';
 import { LeadContact } from './models/lead-contact.model';
 import { LeadChecklist } from './models/lead-checklist.model';
+import { MarketingDashboardTarget } from './models/marketing-dashboard-target.model';
 import { Mql } from './models/mql.model';
 import { Segment } from './models/segment.model';
 import { Sql } from './models/sql.model';
@@ -39,6 +41,7 @@ import { MqlsService } from './services/mqls.service';
       Campaign,
       Interaction,
       LeadChecklist,
+      MarketingDashboardTarget,
       Mql,
       Sql,
       Segment,
@@ -65,6 +68,7 @@ import { MqlsService } from './services/mqls.service';
     LeadStateMachineService,
     MqlsService,
     DashboardService,
+    DirectorMercadeoGuard,
     LeadImportJobService,
     DemandGenerationService,
     { provide: NOTIFICATION_PORT, useClass: LoggerNotificationAdapter },
