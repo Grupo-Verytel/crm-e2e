@@ -22,7 +22,7 @@ type Props = {
   editing: Person | 'new';
   presetAccount?: { account_id: string; name: string } | null;
   onClose: () => void;
-  onSaved: () => void;
+  onSaved: (person: Person) => void;
 };
 
 export function PersonFormModal({
@@ -92,8 +92,9 @@ export function PersonFormModal({
         if (influenciaTipo) {
           savePersonInfluenciaTipo(created.person_id, influenciaTipo);
         }
+        onSaved(created);
       } else {
-        await updatePerson(editing.person_id, {
+        const updated = await updatePerson(editing.person_id, {
           name: name.trim(),
           job_title: jobTitle.trim() || null,
           email: email.trim() || null,
@@ -103,8 +104,8 @@ export function PersonFormModal({
           editing.person_id,
           influenciaTipo || null,
         );
+        onSaved(updated);
       }
-      onSaved();
       onClose();
     } catch (err) {
       setError(
@@ -117,7 +118,7 @@ export function PersonFormModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4"
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-ink/40 p-4"
       role="dialog"
       aria-modal="true"
       aria-label={isNew ? 'Crear contacto' : 'Editar contacto'}

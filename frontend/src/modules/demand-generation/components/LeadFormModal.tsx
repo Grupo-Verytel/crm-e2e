@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
-import { Link } from 'react-router-dom';
 import { Plus, X } from 'lucide-react';
 import { AccountFormModal } from '../../accounts/components/AccountFormModal';
+import { PersonFormModal } from '../../accounts/components/PersonFormModal';
 import {
   fetchAccounts,
   fetchPeople,
@@ -187,6 +187,10 @@ export function LeadFormModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showCreateAccount, setShowCreateAccount] = useState(false);
+  const [showCreatePerson, setShowCreatePerson] = useState(false);
+  const [createPersonSlotIndex, setCreatePersonSlotIndex] = useState<
+    number | null
+  >(null);
 
   const canalOptions = canalOptionsForMode(mode);
   const selectedSegment = segments.find((segment) => segment.id === form.segment_id);
@@ -433,6 +437,32 @@ export function LeadFormModal({
 
   function addContactRow() {
     setContactSlots((current) => [...current, emptyContact()]);
+  }
+
+  function openCreatePerson(slotIndex?: number) {
+    if (!selectedAccount) {
+      return;
+    }
+    setCreatePersonSlotIndex(slotIndex ?? null);
+    setShowCreatePerson(true);
+  }
+
+  function handlePersonCreated(person: Person) {
+    setAccountPeople((current) => {
+      if (current.some((item) => item.person_id === person.person_id)) {
+        return current;
+      }
+      return [...current, person];
+    });
+    const targetIndex =
+      createPersonSlotIndex ??
+      activePersonSearch ??
+      contactSlots.findIndex((slot) => !slot.person_id);
+    if (targetIndex >= 0) {
+      selectPerson(targetIndex, person);
+    }
+    setShowCreatePerson(false);
+    setCreatePersonSlotIndex(null);
   }
 
   function removeContactRow(index: number) {
@@ -843,6 +873,20 @@ export function LeadFormModal({
             <p className="text-xs text-muted">
               Asocia al menos un contacto. El tipo (Económica, Técnica, Fábrica,
               Usuario o Coach) se puede marcar en la fila o dejar sin definir.
+              {selectedAccount ? (
+                <>
+                  {' '}
+                  En caso que el contacto no exista,{' '}
+                  <button
+                    type="button"
+                    className="font-bold text-accent hover:underline"
+                    onClick={() => openCreatePerson()}
+                  >
+                    créalo aquí
+                  </button>
+                  .
+                </>
+              ) : null}
             </p>
           </div>
 
@@ -915,7 +959,14 @@ export function LeadFormModal({
                               <li className="px-3 py-2 text-xs text-muted">
                                 {accountPeople.length === 0
                                   ? 'Esta empresa no tiene contactos.'
-                                  : 'Sin coincidencias.'}
+                                  : 'Sin coincidencias.'}{' '}
+                                <button
+                                  type="button"
+                                  className="font-bold text-accent hover:underline"
+                                  onClick={() => openCreatePerson(index)}
+                                >
+                                  Crear contacto
+                                </button>
                               </li>
                             ) : (
                               filteredPeople.map((person) => (
@@ -1009,13 +1060,13 @@ export function LeadFormModal({
                   <Plus size={14} strokeWidth={2.5} />
                   Agregar contacto
                 </button>
-                <Link
-                  to={`/accounts/contactos?account_id=${encodeURIComponent(selectedAccount.account_id)}&new=1`}
+                <button
+                  type="button"
                   className="text-xs font-bold text-accent hover:underline"
-                  onClick={onClose}
+                  onClick={() => openCreatePerson()}
                 >
                   Crear contacto
-                </Link>
+                </button>
               </div>
             </div>
           )}
@@ -1075,6 +1126,21 @@ export function LeadFormModal({
           selectAccount(account);
           setShowCreateAccount(false);
         }}
+      />
+    ) : null}
+
+    {showCreatePerson && selectedAccount ? (
+      <PersonFormModal
+        editing="new"
+        presetAccount={{
+          account_id: selectedAccount.account_id,
+          name: selectedAccount.name,
+        }}
+        onClose={() => {
+          setShowCreatePerson(false);
+          setCreatePersonSlotIndex(null);
+        }}
+        onSaved={handlePersonCreated}
       />
     ) : null}
     </>
