@@ -38,6 +38,7 @@ import { Ouv } from '../models/ouv.model';
 import { CriteriosZonaEvaluator } from './criterios-zona.evaluator';
 import { OuvChecklistService } from './ouv-checklist.service';
 import { OuvContactosService } from './ouv-contactos.service';
+import { OuvInteraccionesService } from './ouv-interacciones.service';
 import { OuvInfluenciasService } from './ouv-influencias.service';
 
 export type CrearDesdeSqlInput = {
@@ -79,6 +80,7 @@ export class OuvsService {
     private readonly contactosService: OuvContactosService,
     private readonly influenciasService: OuvInfluenciasService,
     private readonly checklistService: OuvChecklistService,
+    private readonly interaccionesService: OuvInteraccionesService,
     private readonly criteriosEvaluator: CriteriosZonaEvaluator,
     private readonly workflowEngine: WorkflowEngineService,
     private readonly statusHistoryService: StatusHistoryService,
@@ -513,6 +515,17 @@ export class OuvsService {
         transaction,
       );
 
+      await this.interaccionesService.registrarCierre(
+        {
+          ouv,
+          resultado: OuvResultado.Perdida,
+          motivoNombre: motivo.nombre,
+          motivoDetalle: ouv.motivoDetalle,
+          actorUserId,
+        },
+        transaction,
+      );
+
       return ouv;
     });
   }
@@ -570,6 +583,17 @@ export class OuvsService {
             motivo_snapshot: motivo.nombre,
           },
           entity: { estado: estadoAnterior },
+        },
+        transaction,
+      );
+
+      await this.interaccionesService.registrarCierre(
+        {
+          ouv,
+          resultado: OuvResultado.Descartada,
+          motivoNombre: motivo.nombre,
+          motivoDetalle: ouv.motivoDetalle,
+          actorUserId,
         },
         transaction,
       );

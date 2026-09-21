@@ -442,6 +442,7 @@ export class MepResponseService {
             {
               serviceResultId: created.id,
               url: deliverable.url,
+              type: deliverable.type ?? null,
               label: deliverable.label ?? null,
               publishedAt: deliverable.published_at
                 ? new Date(deliverable.published_at)

@@ -181,11 +181,12 @@ export interface ResponseContract {
     reason_code: string | null;
     deliverables: {
       url: string;
+      type: string | null;
       label: string | null;
       published_at: string | null;
     }[];
   }[];
-  operational_links: Record<string, string>;
+  operational_links: Record<string, string | null>;
   narrative_note: string | null;
   delivered_interaction_type: string | null;
   semantic_fingerprint: string;
@@ -199,16 +200,12 @@ export function presentResponseVersion(
     (a, b) => a.position - b.position,
   );
 
-  // `operational_links` solo lleva las claves que existen: es un objeto de
-  // enlaces opcionales por hito, no un registro de claves fijas nulables.
-  const operationalLinks: Record<string, string> = {};
-  if (version.plannerInteractionUrl) {
-    operationalLinks.planner_interaction_url = version.plannerInteractionUrl;
-  }
-  if (version.routeCapacityRegisterUrl) {
-    operationalLinks.route_capacity_register_url =
-      version.routeCapacityRegisterUrl;
-  }
+  // `operational_links` publica cada enlace conocido; los que aún no
+  // aplican al hito viajan como `null` explícito (R2 §6.1/§6.2).
+  const operationalLinks: Record<string, string | null> = {
+    planner_interaction_url: version.plannerInteractionUrl ?? null,
+    route_capacity_register_url: version.routeCapacityRegisterUrl ?? null,
+  };
 
   return {
     response_id: responseId,
@@ -260,6 +257,7 @@ export function presentResponseVersion(
       reason_code: result.reasonCode ?? null,
       deliverables: [...(result.deliverables ?? [])].map((deliverable) => ({
         url: deliverable.url,
+        type: deliverable.type ?? null,
         label: deliverable.label ?? null,
         published_at: toRfc3339(deliverable.publishedAt),
       })),

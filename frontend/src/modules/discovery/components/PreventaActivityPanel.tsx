@@ -1,8 +1,11 @@
+import { ChevronDown, ChevronRight, ExternalLink } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { ApiError } from '../../auth/types';
+import { SharePointPreviewModal } from '../../offer-closing/components/SharePointPreviewModal';
 import type { Ouv } from '../api/ouvs-api';
 import {
   fetchSolicitudesPreventa,
+  type SolicitudNarrativa,
   type SolicitudPreventa,
   type SolicitudServicio,
 } from '../api/solicitudes-preventa-api';
@@ -10,6 +13,10 @@ import {
   SOLICITUD_PREVENTA_FIELDS,
   SERVICE_LABELS,
 } from '../lib/opportunity-context-fields';
+import type {
+  BusinessMilestone,
+  ProcessingStatus,
+} from '../lib/preventa-vocab';
 import { sharePointDocumentName } from '../lib/sharepoint-document';
 import {
   derivarMepStatus,
@@ -23,6 +30,8 @@ import { badgeClass, cardClass, ghostButtonClass, labelClass } from './ui';
 type Props = {
   ouv: Ouv;
   commercialOwnerName?: string;
+  /** Sin `update Opportunity`: se listan las solicitudes pero no se crean. */
+  readOnly?: boolean;
 };
 
 export type { MepSolicitudStatus };
@@ -30,7 +39,7 @@ export type { MepSolicitudStatus };
 const MEP_STATUS_CLASS: Record<MepSolicitudStatus, string> = {
   Aceptado: 'bg-accent text-white',
   'En progreso': 'bg-brand text-white',
-  Aprobado: 'bg-success text-white',
+  Completado: 'bg-success text-white',
   Rechazado: 'bg-danger text-white',
   Pendiente: 'bg-border text-muted',
 };
@@ -122,10 +131,15 @@ function formatFieldValue(key: string, value: string): string {
     return '—';
   }
   if (key === 'source_created_at') {
-    const d = new Date(value);
-    return Number.isNaN(d.getTime()) ? value : d.toLocaleString('es-CO');
+    return formatDateTimeValue(value);
   }
   return value;
+}
+
+function formatDateTimeValue(value: string | null): string {
+  if (!value) return '—';
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? value : d.toLocaleString('es-CO');
 }
 
 function formatFechaEntrega(etaDate: string | null): string {
@@ -140,14 +154,22 @@ function formatFechaEntrega(etaDate: string | null): string {
     : parsed.toLocaleDateString('es-CO');
 }
 
-/** Link que Preventa publicó; si aún no hay respuesta, el adjunto de creación. */
+/**
+ * Link que Preventa publicó para el servicio; si aún no hay respuesta, el de
+ * otro servicio o el adjunto de creación. Un servicio bloqueado solo muestra
+ * su propio entregable.
+ */
 function linkSharePoint(
   solicitud: SolicitudPreventa,
+  service: ServiceCardView,
   resultado: SolicitudServicio | undefined,
 ): string | null {
   const delServicio = resultado?.entregables[0]?.url;
   if (delServicio) {
     return delServicio;
+  }
+  if (service.state === 'blocked') {
+    return null;
   }
   for (const servicio of solicitud.servicios) {
     const url = servicio.entregables[0]?.url;
@@ -156,6 +178,99 @@ function linkSharePoint(
     }
   }
   return solicitud.sharepoint_document_url;
+}
+
+type DetailTab = 'informacion' | 'historico';
+
+const detailTabClass = (active: boolean) =>
+  [
+    '-mb-px border-b-2 px-4 py-2 text-sm transition-colors',
+    active
+      ? 'border-accent font-bold text-accent'
+      : 'border-transparent text-muted hover:text-accent',
+  ].join(' ');
+
+const fieldValueClass =
+  'min-h-9 rounded border border-border bg-bg px-3 py-2 text-sm text-ink';
+
+/** `etag` es control de concurrencia del contrato; no es dato comercial. */
+const DETAIL_INFO_FIELDS = SOLICITUD_PREVENTA_FIELDS.filter(
+  (field) => field.key !== 'etag',
+);
+
+const MILESTONE_ACCION: Record<BusinessMilestone, string> = {
+  INTERACTION_RECEIVED: 'Recepción de la solicitud',
+  ENGINEER_ASSIGNED: 'Asignación de ingeniero',
+  ROUTE_CAPACITY_REGISTERED: 'Evaluación de ruta y capacidad',
+  INTERACTION_COMPLETED: 'Entrega de diseño y cierre',
+};
+
+const RESPONSE_STATUS_LABEL: Record<string, string> = {
+  RECEIVED: 'Recibida',
+  IN_PROGRESS: 'En progreso',
+  COMPLETED: 'Completada',
+  CANCELLED: 'Cancelada',
+};
+
+const PROCESSING_STATUS_LABEL: Record<ProcessingStatus, string> = {
+  ACCEPTED: 'Aceptado',
+  DUPLICATE: 'Duplicado',
+  QUARANTINED: 'En cuarentena',
+  REJECTED: 'Rechazado',
+};
+
+const VIABILIDAD_LABEL: Record<string, string> = {
+  VIABLE: 'Viable',
+  NOT_VIABLE: 'No viable',
+  PARTIAL: 'Parcial',
+  CONDITIONED: 'Condicionada',
+};
+
+function narrativaMessage(entrada: SolicitudNarrativa): string {
+  return (
+    entrada.narrative_note?.trim() ||
+    MILESTONE_ACCION[entrada.business_milestone] ||
+    entrada.business_milestone
+  );
+}
+
+/**
+ * Viabilidad del servicio: el `outcome` que MEP devolvió para ese servicio;
+ * para el diseño técnico, a falta de outcome, el estado de la ruta registrada.
+ */
+function resolveViabilidad(
+  solicitud: SolicitudPreventa,
+  service: ServiceCardView,
+  resultado: SolicitudServicio | undefined,
+): string {
+  if (resultado?.outcome) {
+    return VIABILIDAD_LABEL[resultado.outcome] ?? resultado.outcome;
+  }
+  const route = solicitud.ruta_capacidad?.route_status;
+  if (service.service === 'TECHNICAL_DESIGN' && route) {
+    return VIABILIDAD_LABEL[route] ?? route;
+  }
+  return '—';
+}
+
+/** Resumen del servicio; si no hay, la nota de la versión más reciente. */
+function resolveObservaciones(
+  solicitud: SolicitudPreventa,
+  resultado: SolicitudServicio | undefined,
+): string {
+  const summary = resultado?.summary?.trim();
+  if (summary) return summary;
+  const ultima = solicitud.narrativa.find((e) => e.narrative_note?.trim());
+  return ultima?.narrative_note?.trim() || 'Sin observaciones.';
+}
+
+function DetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <p>
+      <span className="font-bold text-ink">{label}: </span>
+      <span className="text-ink">{value}</span>
+    </p>
+  );
 }
 
 function ServiceCard({
@@ -218,154 +333,319 @@ function SolicitudDetailModal({
   service: ServiceCardView;
   onClose: () => void;
 }) {
+  const [tab, setTab] = useState<DetailTab>('informacion');
+  const [preview, setPreview] = useState<{ title: string; url: string } | null>(
+    null,
+  );
+  const [pistaOpen, setPistaOpen] = useState(false);
+  const [selectedVersion, setSelectedVersion] = useState<number | null>(null);
+
   const values = valoresDeSolicitud(solicitud);
   const resultado = solicitud.servicios.find(
     (s) => s.service === service.service,
   );
-  const sharePointUrl = linkSharePoint(solicitud, resultado);
+  const sharePointUrl = linkSharePoint(solicitud, service, resultado);
+  const entregablesExtra = (resultado?.entregables ?? []).slice(1);
+  const tipoNombre = nombreDelTipo(solicitud);
+  // Narrativa MEP: más reciente primero (T-302).
+  const history = solicitud.narrativa;
 
   return (
-    <ModalShell
-      title={`Detalle — ${service.label}`}
-      onClose={onClose}
-      size="wide"
-      headerAside={<MepStatusBadge status={derivarMepStatus(solicitud)} />}
-    >
-      <div className="mb-4 flex flex-wrap gap-2">
-        <span
-          className={[
-            badgeClass,
-            service.state === 'active'
-              ? 'bg-accent text-white'
-              : 'bg-border text-muted',
-          ].join(' ')}
-        >
-          {service.label}
-        </span>
-        {nombreDelTipo(solicitud) !== service.label ? (
-          <span className={`${badgeClass} bg-border text-ink`}>
-            {nombreDelTipo(solicitud)}
-          </span>
-        ) : null}
-        <span className={`${badgeClass} bg-accent/15 text-accent`}>
-          {solicitud.service_horizon === 'IMMEDIATE' ? 'ASAP' : 'Sombra'}
-        </span>
-        {service.state === 'blocked' ? (
-          <span className={`${badgeClass} bg-border text-muted`}>
-            Bloqueada — espera viabilidad Preventa
-          </span>
-        ) : null}
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-2">
-        {SOLICITUD_PREVENTA_FIELDS.map((field) => (
-          <div
-            key={field.key}
-            className={field.spanFull ? 'sm:col-span-2' : undefined}
-          >
-            <p className={labelClass}>{field.label}</p>
-            <p className="whitespace-pre-wrap text-sm text-ink">
-              {formatFieldValue(field.key, values[field.key] ?? '')}
-            </p>
-          </div>
-        ))}
-        <div>
-          <p className={labelClass}>Link de SharePoint</p>
-          {sharePointUrl ? (
-            <a
-              href={sharePointUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="break-all text-sm font-bold text-accent hover:underline"
+    <>
+      <ModalShell
+        title={`Detalle — ${service.label}`}
+        onClose={onClose}
+        size="wide"
+        headerAside={
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <span
+              className={[
+                badgeClass,
+                service.state === 'active'
+                  ? 'bg-accent text-white'
+                  : 'bg-border text-muted',
+              ].join(' ')}
             >
-              {sharePointDocumentName(sharePointUrl)}
-            </a>
-          ) : (
-            <p className="text-sm text-ink">—</p>
-          )}
-        </div>
-        <div>
-          <p className={labelClass}>Fecha de entrega</p>
-          <p className="text-sm text-ink">
-            {formatFechaEntrega(solicitud.estado.eta_date)}
-          </p>
-        </div>
-      </div>
+              {service.label}
+            </span>
+            {tipoNombre !== service.label ? (
+              <span className={`${badgeClass} bg-border text-ink`}>
+                {tipoNombre}
+              </span>
+            ) : null}
+            <span className={`${badgeClass} bg-accent/15 text-accent`}>
+              {solicitud.service_horizon === 'IMMEDIATE' ? 'ASAP' : 'Sombra'}
+            </span>
+            {service.state === 'blocked' ? (
+              <span className={`${badgeClass} bg-border text-muted`}>
+                Bloqueada
+              </span>
+            ) : null}
+            <MepStatusBadge status={derivarMepStatus(solicitud)} />
+          </div>
+        }
+      >
+        <nav
+          className="sticky top-0 z-10 mb-4 flex flex-wrap gap-1 border-b border-border bg-surface"
+          aria-label="Detalle de solicitud"
+        >
+          <button
+            type="button"
+            className={detailTabClass(tab === 'informacion')}
+            onClick={() => setTab('informacion')}
+            aria-current={tab === 'informacion' ? 'page' : undefined}
+          >
+            Información solicitud
+          </button>
+          <button
+            type="button"
+            className={detailTabClass(tab === 'historico')}
+            onClick={() => setTab('historico')}
+            aria-current={tab === 'historico' ? 'page' : undefined}
+          >
+            Histórico
+          </button>
+        </nav>
 
-      {resultado ? (
-        <div className="mt-4 rounded border border-border bg-bg p-3">
-          <p className={`${labelClass} mb-2`}>Respuesta de Preventa</p>
-          {resultado.summary ? (
-            <p className="text-sm text-ink">{resultado.summary}</p>
-          ) : null}
-          {/* Entregables: SharePoint Documents; el registro de ruta no lo es. */}
-          {resultado.entregables.length > 0 ? (
-            <ul className="mt-2 space-y-1">
-              {resultado.entregables.map((entregable) => (
-                <li key={entregable.url}>
-                  <a
-                    href={entregable.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-xs font-bold text-accent hover:underline"
+        {tab === 'informacion' ? (
+          <>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {DETAIL_INFO_FIELDS.map((field) => (
+                <div
+                  key={field.key}
+                  className={field.spanFull ? 'sm:col-span-2' : undefined}
+                >
+                  <p className={labelClass}>{field.label}</p>
+                  <p
+                    className={[
+                      fieldValueClass,
+                      'whitespace-pre-wrap',
+                      field.inputType === 'textarea' ? 'min-h-20' : '',
+                    ].join(' ')}
                   >
-                    {entregable.label ?? 'Entregable'}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-        </div>
-      ) : null}
-
-      {/* Narrativa MEP: más reciente primero (T-302). */}
-      {solicitud.narrativa.length > 0 ? (
-        <div className="mt-4">
-          <p className={`${labelClass} mb-2`}>Historial de Preventa</p>
-          <ol className="space-y-2">
-            {solicitud.narrativa.map((entrada) => (
-              <li
-                key={entrada.response_version}
-                className="border-l-2 border-accent pl-3"
-              >
-                <p className="text-xs text-muted">
-                  v{entrada.response_version} ·{' '}
-                  {entrada.responded_by.display_name}
-                </p>
-                {entrada.narrative_note ? (
-                  <p className="whitespace-pre-wrap text-sm text-ink">
-                    {entrada.narrative_note}
+                    {formatFieldValue(field.key, values[field.key] ?? '')}
                   </p>
+                </div>
+              ))}
+              <div>
+                <p className={labelClass}>Fecha de entrega</p>
+                <p className={fieldValueClass}>
+                  {formatFechaEntrega(solicitud.estado.eta_date)}
+                </p>
+              </div>
+              <div>
+                <p className={labelClass}>Preventa asignado</p>
+                <p className={fieldValueClass}>
+                  {solicitud.asignacion?.engineer.display_name ?? 'Sin asignar'}
+                </p>
+              </div>
+              <div>
+                <p className={labelClass}>Viabilidad</p>
+                <p className={fieldValueClass}>
+                  {resolveViabilidad(solicitud, service, resultado)}
+                </p>
+              </div>
+              <div>
+                <p className={labelClass}>Documento</p>
+                {sharePointUrl ? (
+                  <button
+                    type="button"
+                    className="inline-flex min-h-9 w-full max-w-full items-center gap-2 rounded border border-border bg-bg px-3 py-2 text-left text-sm font-bold text-accent hover:underline"
+                    onClick={() =>
+                      setPreview({
+                        title: sharePointDocumentName(sharePointUrl),
+                        url: sharePointUrl,
+                      })
+                    }
+                  >
+                    <ExternalLink size={15} aria-hidden />
+                    <span className="truncate text-accent">
+                      {sharePointDocumentName(sharePointUrl)}
+                    </span>
+                  </button>
+                ) : (
+                  <p className={`${fieldValueClass} text-muted`}>
+                    Sin documento vinculado
+                  </p>
+                )}
+                {/* Entregables: SharePoint Documents; el registro de ruta no lo es. */}
+                {entregablesExtra.length > 0 ? (
+                  <ul className="mt-2 space-y-1">
+                    {entregablesExtra.map((entregable) => (
+                      <li key={entregable.url}>
+                        <button
+                          type="button"
+                          className="text-xs font-bold text-accent hover:underline"
+                          onClick={() =>
+                            setPreview({
+                              title:
+                                entregable.label ??
+                                sharePointDocumentName(entregable.url),
+                              url: entregable.url,
+                            })
+                          }
+                        >
+                          {entregable.label ??
+                            sharePointDocumentName(entregable.url)}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
                 ) : null}
-              </li>
-            ))}
-          </ol>
-        </div>
-      ) : null}
+              </div>
+            </div>
 
-      {/* Pista técnica separada de la narrativa comercial (INV-12). */}
-      {solicitud.pista_tecnica.length > 0 ? (
-        <details className="mt-4 rounded bg-bg p-3">
-          <summary className="cursor-pointer text-xs font-bold text-muted">
-            Pista técnica · {solicitud.pista_tecnica.length} acuse(s)
-          </summary>
-          <ul className="mt-2 space-y-1 text-xs text-muted">
-            {solicitud.pista_tecnica.map((acuse) => (
-              <li key={`${acuse.receipt_id}#${acuse.receipt_version}`}>
-                {acuse.processing_status}
-                {acuse.reason_code ? ` · ${acuse.reason_code}` : ''}
-              </li>
-            ))}
-          </ul>
-        </details>
-      ) : null}
+            <div className="mt-4 rounded border border-border bg-bg p-3">
+              <p className={labelClass}>Observaciones</p>
+              <p className="min-h-20 whitespace-pre-wrap text-sm text-ink">
+                {resolveObservaciones(solicitud, resultado)}
+              </p>
+            </div>
+          </>
+        ) : (
+          <div>
+            <p className="mb-3 text-xs font-bold text-muted">
+              Historial de Preventa
+            </p>
+            {history.length === 0 ? (
+              <p className="rounded border border-dashed border-border bg-bg px-3 py-6 text-center text-sm text-muted">
+                MEP-LEAN aún no ha respondido esta solicitud.
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {history.map((entrada) => {
+                  const selected = entrada.response_version === selectedVersion;
+                  return (
+                    <li key={entrada.response_version}>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setSelectedVersion(
+                            selected ? null : entrada.response_version,
+                          )
+                        }
+                        className={[
+                          'w-full rounded border-l-2 px-3 py-2 text-left transition-colors',
+                          selected
+                            ? 'border-accent bg-accent/10'
+                            : 'border-accent/40 bg-bg hover:bg-accent/5',
+                        ].join(' ')}
+                        aria-pressed={selected}
+                      >
+                        <p className="text-sm">
+                          <span className="font-bold text-accent">
+                            v{entrada.response_version}
+                          </span>
+                          <span className="text-ink">
+                            {' '}
+                            · {entrada.responded_by.display_name}
+                          </span>
+                        </p>
+                        <p className="text-sm text-muted">
+                          {narrativaMessage(entrada)}
+                        </p>
+                      </button>
+                      {selected ? (
+                        <div className="mt-1 space-y-1 rounded border border-border bg-bg px-3 py-2 text-sm">
+                          <DetailRow
+                            label="Versión"
+                            value={`v${entrada.response_version}`}
+                          />
+                          <DetailRow
+                            label="Actor"
+                            value={entrada.responded_by.display_name}
+                          />
+                          <DetailRow
+                            label="Acción"
+                            value={
+                              MILESTONE_ACCION[entrada.business_milestone] ??
+                              entrada.business_milestone
+                            }
+                          />
+                          <DetailRow
+                            label="Resultado"
+                            value={
+                              RESPONSE_STATUS_LABEL[entrada.response_status] ??
+                              entrada.response_status
+                            }
+                          />
+                          <DetailRow label="Origen" value="MEP-LEAN" />
+                          <DetailRow
+                            label="Registrado"
+                            value={formatDateTimeValue(entrada.responded_at)}
+                          />
+                          <DetailRow
+                            label="Detalle"
+                            value={entrada.narrative_note?.trim() || '—'}
+                          />
+                        </div>
+                      ) : null}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
 
-      <div className="mt-6 flex justify-end">
-        <button type="button" className={ghostButtonClass} onClick={onClose}>
-          Cancelar
-        </button>
-      </div>
-    </ModalShell>
+            {/* Pista técnica separada de la narrativa comercial (INV-12). */}
+            <div className="mt-4 rounded border border-border bg-bg">
+              <button
+                type="button"
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-muted"
+                onClick={() => setPistaOpen((open) => !open)}
+                aria-expanded={pistaOpen}
+              >
+                {pistaOpen ? (
+                  <ChevronDown size={14} aria-hidden />
+                ) : (
+                  <ChevronRight size={14} aria-hidden />
+                )}
+                Pista técnica · {solicitud.pista_tecnica.length} acuse(s)
+              </button>
+              {pistaOpen ? (
+                <div className="border-t border-border px-3 py-3 text-sm">
+                  {solicitud.pista_tecnica.length === 0 ? (
+                    <p className="text-muted">
+                      Aún no hay acuses técnicos de MEP-LEAN.
+                    </p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {solicitud.pista_tecnica.map((acuse) => (
+                        <li
+                          key={`${acuse.receipt_id}#${acuse.receipt_version}`}
+                          className="space-y-0.5"
+                        >
+                          <DetailRow
+                            label="Acuse"
+                            value={`v${acuse.receipt_version} · ${
+                              PROCESSING_STATUS_LABEL[acuse.processing_status] ??
+                              acuse.processing_status
+                            }`}
+                          />
+                          {acuse.reason_code ? (
+                            <DetailRow label="Motivo" value={acuse.reason_code} />
+                          ) : null}
+                          <DetailRow
+                            label="Registrado"
+                            value={formatDateTimeValue(acuse.observed_at)}
+                          />
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        )}
+      </ModalShell>
+
+      <SharePointPreviewModal
+        open={Boolean(preview)}
+        title={preview?.title ?? ''}
+        url={preview?.url ?? ''}
+        onClose={() => setPreview(null)}
+      />
+    </>
   );
 }
 
@@ -442,7 +722,11 @@ function SolicitudListItem({
 }
 
 /** Listado de Solicitudes Preventa. La creación va en modal por fases. */
-export function PreventaActivityPanel({ ouv, commercialOwnerName }: Props) {
+export function PreventaActivityPanel({
+  ouv,
+  commercialOwnerName,
+  readOnly = false,
+}: Props) {
   const [items, setItems] = useState<SolicitudPreventa[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -513,14 +797,16 @@ export function PreventaActivityPanel({ ouv, commercialOwnerName }: Props) {
             Historial de solicitudes enviadas a Preventa para esta OUV.
           </p>
         </div>
-        <button
-          type="button"
-          className={ghostButtonClass}
-          disabled={loading}
-          onClick={() => setModalOpen(true)}
-        >
-          Nueva solicitud
-        </button>
+        {readOnly ? null : (
+          <button
+            type="button"
+            className={ghostButtonClass}
+            disabled={loading}
+            onClick={() => setModalOpen(true)}
+          >
+            Nueva solicitud
+          </button>
+        )}
       </div>
 
       {toast ? (
@@ -554,7 +840,9 @@ export function PreventaActivityPanel({ ouv, commercialOwnerName }: Props) {
         </p>
       ) : items.length === 0 ? (
         <p className="rounded border border-dashed border-border bg-bg px-3 py-8 text-center text-sm text-muted">
-          Aún no hay solicitudes. Usa &quot;Nueva solicitud&quot; para crear una.
+          {readOnly
+            ? 'Aún no hay solicitudes de Preventa para esta OUV.'
+            : 'Aún no hay solicitudes. Usa "Nueva solicitud" para crear una.'}
         </p>
       ) : (
         <ul className="space-y-3">
@@ -568,7 +856,7 @@ export function PreventaActivityPanel({ ouv, commercialOwnerName }: Props) {
         </ul>
       )}
 
-      {modalOpen ? (
+      {modalOpen && !readOnly ? (
         <SolicitudPreventaModal
           ouv={ouv}
           commercialOwnerName={commercialOwnerName}

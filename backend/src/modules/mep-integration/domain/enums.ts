@@ -53,6 +53,7 @@ export enum ServiceOutcome {
   VIABLE = 'VIABLE',
   NOT_VIABLE = 'NOT_VIABLE',
   PARTIAL = 'PARTIAL',
+  CONDITIONED = 'CONDITIONED',
 }
 
 export enum RouteStatus {

@@ -419,8 +419,12 @@ components:
       type: string
       enum: [RECEIVED, IN_PROGRESS, COMPLETED, CANCELLED]
     ServiceOutcome:
+      description: |
+        Enum de outcome del servicio. `CONDITIONED` permite representar
+        entregas hechas bajo una condición externa acordada, distinta de
+        una entrega parcial no acabada (R2 §6.4).
       type: [string, 'null']
-      enum: [VIABLE, NOT_VIABLE, PARTIAL, null]
+      enum: [VIABLE, NOT_VIABLE, PARTIAL, CONDITIONED, null]
     RouteStatus:
       type: string
       enum: [VIABLE, NOT_VIABLE, CONDITIONED]
@@ -601,6 +605,14 @@ components:
           type: string
           format: uri
           maxLength: 1024
+        type:
+          description: |
+            Tipo del entregable derivado del servicio (opcional).
+            Valores ilustrativos: `TECHNICAL_DELIVERABLE`, `FINANCIAL_DELIVERABLE`.
+            El CRM no impone taxonomía terminológica; sirve para desambiguar
+            entregables cuando el `service` de contexto no basta (R2 §6.4).
+          type: [string, 'null']
+          maxLength: 64
         label: { type: [string, 'null'], maxLength: 256 }
         published_at: { type: [string, 'null'], format: date-time }
 
@@ -644,15 +656,21 @@ components:
       additionalProperties: false
       properties:
         planner_interaction_url:
-          description: Obligatorio desde `ENGINEER_ASSIGNED`. Una interacción = una tarea Planner (P-11).
-          type: string
+          description: |
+            URL HTTPS de la tarea Planner. Puede publicarse desde
+            `INTERACTION_RECEIVED` cuando la materialización lo permite
+            (R2 §6.1); obligatorio no nulo desde `ENGINEER_ASSIGNED`.
+            Una interacción = una tarea Planner (P-11).
+          type: [string, 'null']
           format: uri
           maxLength: 1024
         route_capacity_register_url:
           description: |
-            Obligatorio desde `ROUTE_CAPACITY_REGISTERED`. Es el registro de
-            SharePoint List de ruta/capacidad; **nunca** un entregable (INV-23).
-          type: string
+            URL HTTPS del registro SharePoint List de ruta/capacidad.
+            Obligatorio no nulo desde `ROUTE_CAPACITY_REGISTERED`; antes
+            de ese hito puede publicarse como `null` (R2 §6.1/§6.2).
+            **Nunca** un entregable (INV-23).
+          type: [string, 'null']
           format: uri
           maxLength: 1024
 

@@ -97,13 +97,8 @@ const MATRIX = {
     'post-sales': 'CRU',
   },
   Preventa: {
+    // OUV solo lectura: las solicitudes se consultan dentro del detalle OUV.
     opportunities: 'R',
-    accounts: 'CRU',
-    presales: 'CRUA',
-    pricing: 'R',
-    kickoffs: 'R',
-    'won-sales': 'R',
-    'proposals/contracts': 'R',
   },
   Pricing: {
     opportunities: 'R',

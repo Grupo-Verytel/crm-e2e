@@ -2,12 +2,14 @@ import { Module, forwardRef } from '@nestjs/common';
 import { SequelizeModule } from '@nestjs/sequelize';
 import { AccountsModule } from '../accounts/accounts.module';
 import { AuthModule } from '../auth/auth.module';
+import { User } from '../auth/models/user.model';
 import { DemandGenerationModule } from '../demand-generation/demand-generation.module';
 import { WorkflowEngineModule } from '../workflow-engine/workflow-engine.module';
 import { DiscoveryCatalogosController } from './controllers/discovery-catalogos.controller';
 import { MotivosDescarteController } from './controllers/motivos-descarte.controller';
 import { MotivosPerdidaController } from './controllers/motivos-perdida.controller';
 import { OuvContactosController } from './controllers/ouv-contactos.controller';
+import { OuvInteraccionesController } from './controllers/ouv-interacciones.controller';
 import { OuvsController } from './controllers/ouvs.controller';
 import { ZonaChecklistTemplatesController } from './controllers/zona-checklist-templates.controller';
 import { MotivoDescarte } from './models/motivo-descarte.model';
@@ -15,6 +17,8 @@ import { MotivoPerdida } from './models/motivo-perdida.model';
 import { OuvChecklistItem } from './models/ouv-checklist-item.model';
 import { OuvContacto } from './models/ouv-contacto.model';
 import { OuvInfluencia } from './models/ouv-influencia.model';
+import { OuvInteraction } from './models/ouv-interaction.model';
+import { OuvInteractionReply } from './models/ouv-interaction-reply.model';
 import { Ouv } from './models/ouv.model';
 import { ZonaChecklistTemplate } from './models/zona-checklist-template.model';
 import { CatalogosOuvService } from './services/catalogos-ouv.service';
@@ -22,6 +26,7 @@ import { CriteriosZonaEvaluator } from './services/criterios-zona.evaluator';
 import { OuvChecklistService } from './services/ouv-checklist.service';
 import { OuvContactosService } from './services/ouv-contactos.service';
 import { OuvInfluenciasService } from './services/ouv-influencias.service';
+import { OuvInteraccionesService } from './services/ouv-interacciones.service';
 import { OuvMarketingMetricsService } from './services/ouv-marketing-metrics.service';
 import { OuvsService } from './services/ouvs.service';
 
@@ -32,9 +37,12 @@ import { OuvsService } from './services/ouvs.service';
       OuvContacto,
       OuvInfluencia,
       OuvChecklistItem,
+      OuvInteraction,
+      OuvInteractionReply,
       MotivoPerdida,
       MotivoDescarte,
       ZonaChecklistTemplate,
+      User,
     ]),
     AccountsModule,
     AuthModule,
@@ -44,6 +52,7 @@ import { OuvsService } from './services/ouvs.service';
   controllers: [
     OuvsController,
     OuvContactosController,
+    OuvInteraccionesController,
     DiscoveryCatalogosController,
     MotivosPerdidaController,
     MotivosDescarteController,
@@ -55,6 +64,7 @@ import { OuvsService } from './services/ouvs.service';
     OuvContactosService,
     OuvInfluenciasService,
     OuvChecklistService,
+    OuvInteraccionesService,
     CriteriosZonaEvaluator,
     CatalogosOuvService,
   ],
@@ -64,6 +74,7 @@ import { OuvsService } from './services/ouvs.service';
     OuvContactosService,
     OuvInfluenciasService,
     OuvChecklistService,
+    OuvInteraccionesService,
     CriteriosZonaEvaluator,
     CatalogosOuvService,
     SequelizeModule,

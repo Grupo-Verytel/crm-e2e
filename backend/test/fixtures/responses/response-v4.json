@@ -3,38 +3,47 @@
   "response_version": 4,
   "business_milestone": "ROUTE_CAPACITY_REGISTERED",
   "response_status": "IN_PROGRESS",
-  "eta_date": "2026-08-28",
-  "next_milestone": "Completar diseño técnico y financiero",
-  "responded_at": "2026-08-25T11:25:00Z",
-  "responded_by": { "ref": "engineer_15", "display_name": "Ingeniero Preventa" },
+  "eta_date": "2026-08-30",
+  "next_milestone": "Completar diseño técnico bajo la ruta renegociada",
+  "responded_at": "2026-08-23T13:00:00Z",
+  "responded_by": {
+    "ref": "engineer_15",
+    "display_name": "Ingeniero Preventa"
+  },
   "assignment": {
-    "engineer": { "ref": "engineer_15", "display_name": "Ingeniero Preventa" },
+    "engineer": {
+      "ref": "engineer_15",
+      "display_name": "Ingeniero Preventa"
+    },
     "assigned_at": "2026-08-21T14:59:30Z"
   },
   "route_capacity": {
     "version": "V2",
-    "route_status": "VIABLE",
+    "route_status": "CONDITIONED",
     "capacity_status": "PLANNED",
-    "summary": "Ruta y capacidad replanificadas en V2.",
-    "registered_at": "2026-08-25T11:20:00Z",
-    "registered_by": { "ref": "engineer_15", "display_name": "Ingeniero Preventa" }
+    "summary": "Ruta renegociada por una dependencia externa.",
+    "registered_at": "2026-08-23T12:59:30Z",
+    "registered_by": {
+      "ref": "engineer_15",
+      "display_name": "Ingeniero Preventa"
+    }
   },
   "service_results": [
     {
       "service": "TECHNICAL_DESIGN",
       "status": "IN_PROGRESS",
-      "outcome": "VIABLE",
+      "outcome": null,
       "dependency": "NONE",
-      "summary": "Diseño técnico en construcción sobre la ruta V2.",
-      "reason_code": null,
+      "summary": "Trabajo en curso; resultado técnico aún no registrado.",
+      "reason_code": "EXTERNAL_DEPENDENCY",
       "deliverables": []
     },
     {
       "service": "FINANCIAL_DESIGN",
-      "status": "IN_PROGRESS",
+      "status": "RECEIVED",
       "outcome": null,
       "dependency": "TECHNICAL_DESIGN",
-      "summary": "Modelo financiero iniciado tras la replanificación.",
+      "summary": "Pendiente del resultado técnico.",
       "reason_code": null,
       "deliverables": []
     }
@@ -43,7 +52,7 @@
     "planner_interaction_url": "https://tasks.office.com/verytel/Home/Task/task-20004",
     "route_capacity_register_url": "https://verytel.sharepoint.com/sites/preventa/Lists/Commitments/DispForm.aspx?ID=20004"
   },
-  "narrative_note": "Se replanificaron ruta y capacidad en V2 conservando la ETA acordada.",
+  "narrative_note": "La ruta viable fue actualizada a V2 y el ETA global cambió al 30 de agosto.",
   "delivered_interaction_type": null,
   "semantic_fingerprint": "4444444444444444444444444444444444444444444444444444444444444444"
 }

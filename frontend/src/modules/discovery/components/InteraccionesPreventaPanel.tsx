@@ -1,5 +1,14 @@
 import { useEffect, useState } from 'react';
+import { ApiError } from '../../auth/types';
 import type { Ouv } from '../api/ouvs-api';
+import {
+  crearOuvInteraccion,
+  eliminarOuvInteraccion,
+  eliminarOuvInteraccionHilo,
+  fetchOuvInteracciones,
+  responderOuvInteraccion,
+  type OuvInteraccion,
+} from '../api/ouv-interacciones-api';
 import { FloatingToast } from './FloatingToast';
 import { ModalShell } from './ModalShell';
 import {
@@ -11,63 +20,45 @@ import {
 } from './ui';
 
 /**
- * Registro de interacciones / actividades de la OUV — traído de `Design_JD`.
+ * Registro de interacciones / actividades de la OUV — pestaña «Interacciones».
  *
- * PENDIENTE DE BACKEND: sigue sobre `localStorage`, como en el diseño, porque
- * no existe API para esto. No es la narrativa de MEP (esa la publica MEP y se
- * ve en «Solicitudes Preventa»): es la bitácora propia del comercial, con
- * hilos de respuesta, y hoy el CRM solo tiene `interactions` atadas a `leadId`,
- * no a OUV. Conectarla exige modelo, migración y endpoints nuevos.
+ * Persiste en `ouv_interactions` + `ouv_interaction_replies`. La autoría la
+ * pone el backend leyendo el JWT: el formulario nunca envía nombre ni id,
+ * porque la bitácora debe reflejar quién quedó autenticado, no lo que el
+ * cliente diga.
  */
 
 type Props = {
   ouv: Ouv;
-};
-
-type InteraccionEntry = {
-  id: string;
-  titulo: string;
-  observaciones: string;
-  fechaRegistrada: string;
-  registradoPor: string;
-};
-
-type InteraccionRecord = InteraccionEntry & {
-  hilos: InteraccionEntry[];
+  /** Sin permiso de escritura: se lista la bitácora pero no se registra, responde ni elimina. */
+  readOnly?: boolean;
 };
 
 type ModalMode =
   | { kind: 'nueva' }
   | { kind: 'hilo'; parentId: string; parentTitulo: string };
 
-const STORAGE_PREFIX = 'crm-ouv-interacciones-v2-';
+type FormValues = { titulo: string; observaciones: string };
 
-function loadInteracciones(ouvId: string): InteraccionRecord[] {
-  try {
-    const raw = localStorage.getItem(`${STORAGE_PREFIX}${ouvId}`);
-    if (!raw) return [];
-    return JSON.parse(raw) as InteraccionRecord[];
-  } catch {
-    return [];
-  }
-}
-
-function saveInteracciones(ouvId: string, items: InteraccionRecord[]): void {
-  localStorage.setItem(`${STORAGE_PREFIX}${ouvId}`, JSON.stringify(items));
+function messageFromError(err: unknown, fallback: string): string {
+  if (err instanceof ApiError && err.message) return err.message;
+  if (err instanceof Error && err.message) return err.message;
+  return fallback;
 }
 
 function InteraccionFormModal({
   mode,
+  submitting,
   onClose,
   onSave,
 }: {
   mode: ModalMode;
+  submitting: boolean;
   onClose: () => void;
-  onSave: (entry: { titulo: string; observaciones: string }) => void;
+  onSave: (entry: FormValues) => void;
 }) {
   const [titulo, setTitulo] = useState('');
   const [observaciones, setObservaciones] = useState('');
-  const fechaAuto = new Date().toISOString();
 
   const isHilo = mode.kind === 'hilo';
   const title = isHilo ? 'Responder hilo' : 'Registrar interacción';
@@ -102,7 +93,7 @@ function InteraccionFormModal({
           <input
             id="int-fecha"
             className={inputClass}
-            value={new Date(fechaAuto).toLocaleString('es-CO')}
+            value={new Date().toLocaleString('es-CO')}
             disabled
             readOnly
           />
@@ -126,13 +117,18 @@ function InteraccionFormModal({
       </div>
 
       <div className="mt-6 flex justify-end gap-2">
-        <button type="button" className={ghostButtonClass} onClick={onClose}>
+        <button
+          type="button"
+          className={ghostButtonClass}
+          onClick={onClose}
+          disabled={submitting}
+        >
           Cancelar
         </button>
         <button
           type="button"
           className={primaryButtonClass}
-          disabled={!titulo.trim()}
+          disabled={submitting || !titulo.trim()}
           onClick={() =>
             onSave({
               titulo: titulo.trim(),
@@ -140,81 +136,146 @@ function InteraccionFormModal({
             })
           }
         >
-          {isHilo ? 'Registrar respuesta' : 'Registrar'}
+          {submitting
+            ? 'Guardando…'
+            : isHilo
+              ? 'Registrar respuesta'
+              : 'Registrar'}
         </button>
       </div>
     </ModalShell>
   );
 }
 
-/** Registro de interacciones / actividades realizadas con el proyecto. */
-export function InteraccionesPreventaPanel({ ouv }: Props) {
-  const [items, setItems] = useState<InteraccionRecord[]>(() =>
-    loadInteracciones(ouv.ouv_id),
+function Etiquetas({ tags }: { tags?: string[] }) {
+  if (!tags?.length) return null;
+  return (
+    <div className="mt-2 flex flex-wrap gap-1.5">
+      {tags.map((tag) => (
+        <span
+          key={tag}
+          className="rounded border border-accent/40 bg-accent/10 px-2 py-0.5 text-[11px] font-bold text-accent"
+        >
+          {tag}
+        </span>
+      ))}
+    </div>
   );
+}
+
+/** Registro de interacciones / actividades realizadas con el proyecto. */
+export function InteraccionesPreventaPanel({ ouv, readOnly = false }: Props) {
+  const [items, setItems] = useState<OuvInteraccion[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [modal, setModal] = useState<ModalMode | null>(null);
-  const [toast, setToast] = useState<string | null>(null);
-  const [ouvCargada, setOuvCargada] = useState(ouv.ouv_id);
+  const [submitting, setSubmitting] = useState(false);
+  const [toast, setToast] = useState<{
+    tone: 'success' | 'error';
+    message: string;
+  } | null>(null);
 
-  // Al cambiar de OUV se relee el almacenamiento local de esa OUV.
-  if (ouvCargada !== ouv.ouv_id) {
-    setOuvCargada(ouv.ouv_id);
-    setItems(loadInteracciones(ouv.ouv_id));
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setLoadError(null);
     setModal(null);
-    setToast(null);
-  }
-
-  useEffect(() => () => setToast(null), []);
-
-  function persist(list: InteraccionRecord[]) {
-    setItems(list);
-    saveInteracciones(ouv.ouv_id, list);
-  }
-
-  function showToast(message: string) {
-    setToast(message);
-    window.setTimeout(() => setToast(null), 3000);
-  }
-
-  function handleSave(data: { titulo: string; observaciones: string }) {
-    if (!modal) return;
-    const now = new Date().toISOString();
-    const entry: InteraccionEntry = {
-      id: `int-${Date.now()}`,
-      titulo: data.titulo,
-      observaciones: data.observaciones,
-      fechaRegistrada: now,
-      registradoPor: 'Usuario actual',
+    fetchOuvInteracciones(ouv.ouv_id)
+      .then((rows) => {
+        if (cancelled) return;
+        setItems(rows);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setLoadError(
+          messageFromError(err, 'No se pudieron cargar las interacciones.'),
+        );
+        setItems([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
     };
+  }, [ouv.ouv_id]);
 
-    if (modal.kind === 'nueva') {
-      persist([{ ...entry, hilos: [] }, ...items]);
-      showToast('Interacción registrada correctamente.');
-    } else {
-      persist(
-        items.map((item) =>
-          item.id === modal.parentId
-            ? { ...item, hilos: [...item.hilos, entry] }
-            : item,
-        ),
+  function showToast(tone: 'success' | 'error', message: string) {
+    setToast({ tone, message });
+    window.setTimeout(() => setToast(null), 3500);
+  }
+
+  async function handleSave(data: FormValues) {
+    if (!modal) return;
+    setSubmitting(true);
+    try {
+      if (modal.kind === 'nueva') {
+        const created = await crearOuvInteraccion(ouv.ouv_id, data);
+        setItems((prev) => [created, ...prev]);
+        showToast('success', 'Interacción registrada correctamente.');
+      } else {
+        const updated = await responderOuvInteraccion(
+          ouv.ouv_id,
+          modal.parentId,
+          data,
+        );
+        setItems((prev) =>
+          prev.map((item) =>
+            item.ouv_interaction_id === updated.ouv_interaction_id
+              ? updated
+              : item,
+          ),
+        );
+        showToast('success', 'Respuesta agregada al hilo.');
+      }
+      setModal(null);
+    } catch (err) {
+      showToast(
+        'error',
+        messageFromError(err, 'No se pudo guardar la interacción.'),
       );
-      showToast('Respuesta agregada al hilo.');
+    } finally {
+      setSubmitting(false);
     }
-    setModal(null);
   }
 
-  function handleDelete(id: string) {
-    persist(items.filter((i) => i.id !== id));
+  async function handleDelete(id: string) {
+    const snapshot = items;
+    setItems((prev) => prev.filter((i) => i.ouv_interaction_id !== id));
+    try {
+      await eliminarOuvInteraccion(ouv.ouv_id, id);
+    } catch (err) {
+      setItems(snapshot);
+      showToast(
+        'error',
+        messageFromError(err, 'No se pudo eliminar la interacción.'),
+      );
+    }
   }
 
-  function handleDeleteHilo(parentId: string, hiloId: string) {
-    persist(
-      items.map((item) =>
-        item.id === parentId
-          ? { ...item, hilos: item.hilos.filter((h) => h.id !== hiloId) }
+  async function handleDeleteHilo(parentId: string, hiloId: string) {
+    const snapshot = items;
+    setItems((prev) =>
+      prev.map((item) =>
+        item.ouv_interaction_id === parentId
+          ? {
+              ...item,
+              hilos: item.hilos.filter(
+                (h) => h.ouv_interaction_reply_id !== hiloId,
+              ),
+            }
           : item,
       ),
     );
+    try {
+      await eliminarOuvInteraccionHilo(ouv.ouv_id, parentId, hiloId);
+    } catch (err) {
+      setItems(snapshot);
+      showToast(
+        'error',
+        messageFromError(err, 'No se pudo eliminar la respuesta.'),
+      );
+    }
   }
 
   return (
@@ -227,39 +288,57 @@ export function InteraccionesPreventaPanel({ ouv }: Props) {
             operativo).
           </p>
         </div>
-        <button
-          type="button"
-          className={ghostButtonClass}
-          onClick={() => setModal({ kind: 'nueva' })}
-        >
-          Registrar interacción
-        </button>
+        {readOnly ? null : (
+          <button
+            type="button"
+            className={ghostButtonClass}
+            onClick={() => setModal({ kind: 'nueva' })}
+            disabled={loading}
+          >
+            Registrar interacción
+          </button>
+        )}
       </div>
 
       {toast ? (
         <FloatingToast
-          message={toast}
-          tone="success"
+          message={toast.message}
+          tone={toast.tone}
           onDismiss={() => setToast(null)}
         />
       ) : null}
 
-      {items.length === 0 ? (
+      {loading ? (
+        <p className="rounded border border-dashed border-border bg-bg px-3 py-6 text-center text-sm text-muted">
+          Cargando interacciones…
+        </p>
+      ) : loadError ? (
+        <p
+          className="rounded border border-danger bg-danger/10 px-3 py-3 text-sm text-danger"
+          role="alert"
+        >
+          {loadError}
+        </p>
+      ) : items.length === 0 ? (
         <p className="rounded border border-dashed border-border bg-bg px-3 py-6 text-center text-sm text-muted">
           Aún no hay interacciones registradas para esta OUV.
         </p>
       ) : (
         <ul className="space-y-3">
           {items.map((item) => (
-            <li key={item.id} className="rounded border border-border bg-bg p-3">
+            <li
+              key={item.ouv_interaction_id}
+              className="rounded border border-border bg-bg p-3"
+            >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-bold text-ink">{item.titulo}</p>
                   <p className="mt-0.5 text-xs text-muted">
-                    {new Date(item.fechaRegistrada).toLocaleString('es-CO')}
+                    {new Date(item.fecha_registrada).toLocaleString('es-CO')}
                     {' · '}
-                    {item.registradoPor}
+                    {item.registrado_por_nombre}
                   </p>
+                  <Etiquetas tags={item.etiquetas} />
                   {item.observaciones ? (
                     <p className="mt-2 whitespace-pre-wrap text-sm text-ink">
                       {item.observaciones}
@@ -267,34 +346,38 @@ export function InteraccionesPreventaPanel({ ouv }: Props) {
                   ) : (
                     <p className="mt-2 text-sm text-muted">Sin observaciones</p>
                   )}
+                  {readOnly ? null : (
+                    <button
+                      type="button"
+                      className="mt-2 text-sm font-bold text-accent hover:underline"
+                      onClick={() =>
+                        setModal({
+                          kind: 'hilo',
+                          parentId: item.ouv_interaction_id,
+                          parentTitulo: item.titulo,
+                        })
+                      }
+                    >
+                      Responder hilo
+                    </button>
+                  )}
+                </div>
+                {readOnly ? null : (
                   <button
                     type="button"
-                    className="mt-2 text-sm font-bold text-accent hover:underline"
-                    onClick={() =>
-                      setModal({
-                        kind: 'hilo',
-                        parentId: item.id,
-                        parentTitulo: item.titulo,
-                      })
-                    }
+                    className={ghostButtonClass}
+                    onClick={() => handleDelete(item.ouv_interaction_id)}
                   >
-                    Responder hilo
+                    Eliminar
                   </button>
-                </div>
-                <button
-                  type="button"
-                  className={ghostButtonClass}
-                  onClick={() => handleDelete(item.id)}
-                >
-                  Eliminar
-                </button>
+                )}
               </div>
 
               {item.hilos.length > 0 ? (
                 <ul className="mt-3 space-y-2 border-l-2 border-border pl-3">
                   {item.hilos.map((hilo) => (
                     <li
-                      key={hilo.id}
+                      key={hilo.ouv_interaction_reply_id}
                       className="rounded border border-border bg-surface p-2.5"
                     >
                       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -303,11 +386,11 @@ export function InteraccionesPreventaPanel({ ouv }: Props) {
                             {hilo.titulo}
                           </p>
                           <p className="mt-0.5 text-xs text-muted">
-                            {new Date(hilo.fechaRegistrada).toLocaleString(
+                            {new Date(hilo.fecha_registrada).toLocaleString(
                               'es-CO',
                             )}
                             {' · '}
-                            {hilo.registradoPor}
+                            {hilo.registrado_por_nombre}
                           </p>
                           {hilo.observaciones ? (
                             <p className="mt-1.5 whitespace-pre-wrap text-sm text-ink">
@@ -315,13 +398,20 @@ export function InteraccionesPreventaPanel({ ouv }: Props) {
                             </p>
                           ) : null}
                         </div>
-                        <button
-                          type="button"
-                          className="text-xs font-bold text-muted hover:text-danger"
-                          onClick={() => handleDeleteHilo(item.id, hilo.id)}
-                        >
-                          Eliminar
-                        </button>
+                        {readOnly ? null : (
+                          <button
+                            type="button"
+                            className="text-xs font-bold text-muted hover:text-danger"
+                            onClick={() =>
+                              handleDeleteHilo(
+                                item.ouv_interaction_id,
+                                hilo.ouv_interaction_reply_id,
+                              )
+                            }
+                          >
+                            Eliminar
+                          </button>
+                        )}
                       </div>
                     </li>
                   ))}
@@ -332,10 +422,11 @@ export function InteraccionesPreventaPanel({ ouv }: Props) {
         </ul>
       )}
 
-      {modal ? (
+      {modal && !readOnly ? (
         <InteraccionFormModal
           mode={modal}
-          onClose={() => setModal(null)}
+          submitting={submitting}
+          onClose={() => (submitting ? null : setModal(null))}
           onSave={handleSave}
         />
       ) : null}
