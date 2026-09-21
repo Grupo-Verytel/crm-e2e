@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, X } from 'lucide-react';
+import { AccountFormModal } from '../../accounts/components/AccountFormModal';
 import {
   fetchAccounts,
   fetchPeople,
@@ -185,6 +186,7 @@ export function LeadFormModal({
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showCreateAccount, setShowCreateAccount] = useState(false);
 
   const canalOptions = canalOptionsForMode(mode);
   const selectedSegment = segments.find((segment) => segment.id === form.segment_id);
@@ -459,7 +461,7 @@ export function LeadFormModal({
     }
 
     if (!selectedAccount) {
-      setError('Selecciona una empresa existente (créala desde Empresas si no está).');
+      setError('Selecciona una empresa existente o créala con el botón «Crear empresa».');
       return;
     }
 
@@ -558,19 +560,19 @@ export function LeadFormModal({
   }
 
   return (
+    <>
     <ModalShell title={modalTitle(mode)} onClose={onClose} size="wide">
       <form onSubmit={handleSubmit} className="space-y-4">
         <section className="space-y-3">
           <p className="text-xs text-muted">
-            La empresa debe existir en el catálogo.{' '}
-            <Link
-              to="/accounts/empresas"
+            En caso que la empresa no exista,{' '}
+            <button
+              type="button"
               className="font-bold text-accent hover:underline"
-              onClick={onClose}
+              onClick={() => setShowCreateAccount(true)}
             >
-              Crear o editar en Empresas
-            </Link>
-            .
+              créala aquí
+            </button>
           </p>
         </section>
 
@@ -633,15 +635,14 @@ export function LeadFormModal({
                 (empresaQuery.trim().length >= 2 || nitQuery.trim().length >= 2) &&
                 accountHits.length === 0 ? (
                   <p className="mt-1 text-xs text-muted">
-                    Sin coincidencias. Crea la empresa en{' '}
-                    <Link
-                      to="/accounts/empresas"
+                    Sin coincidencias.{' '}
+                    <button
+                      type="button"
                       className="font-bold text-accent hover:underline"
-                      onClick={onClose}
+                      onClick={() => setShowCreateAccount(true)}
                     >
-                      Empresas
-                    </Link>
-                    .
+                      Crear empresa
+                    </button>
                   </p>
                 ) : null}
               </div>
@@ -1065,6 +1066,18 @@ export function LeadFormModal({
         </div>
       </form>
     </ModalShell>
+
+    {showCreateAccount ? (
+      <AccountFormModal
+        editing="new"
+        onClose={() => setShowCreateAccount(false)}
+        onSaved={(account) => {
+          selectAccount(account);
+          setShowCreateAccount(false);
+        }}
+      />
+    ) : null}
+    </>
   );
 }
 
