@@ -36,14 +36,19 @@ type GraphUser = {
   accountEnabled?: boolean | null;
 };
 
+type GraphDateTimeTimeZone = {
+  dateTime?: string;
+  timeZone?: string;
+};
+
 type GraphScheduleInformation = {
   scheduleId?: string;
   availabilityView?: string;
   scheduleItems?: {
     status?: string;
     subject?: string;
-    start?: { dateTime?: string };
-    end?: { dateTime?: string };
+    start?: GraphDateTimeTimeZone;
+    end?: GraphDateTimeTimeZone;
   }[];
   error?: { message?: string; responseCode?: string } | null;
 };
@@ -241,7 +246,10 @@ export class GraphService {
     const event = await this.client.request<GraphEvent>(
       'POST',
       `/users/${draft.organizer.id}/events`,
-      { data: draft.payload },
+      {
+        data: draft.payload,
+        headers: outlookPreferHeader(draft.timeZone),
+      },
     );
     return this.toMeetingResponse(event, draft);
   }
@@ -268,7 +276,10 @@ export class GraphService {
     const event = await this.client.request<GraphEvent>(
       'PATCH',
       `/users/${draft.organizer.id}/events/${encodeURIComponent(eventId)}`,
-      { data: payload },
+      {
+        data: payload,
+        headers: outlookPreferHeader(draft.timeZone),
+      },
     );
     return this.toMeetingResponse(event, draft);
   }
@@ -340,11 +351,14 @@ export class GraphService {
 
     const isOnlineMeeting = dto.isOnlineMeeting !== false;
     const locationName = room?.nombre ?? dto.location?.trim() ?? null;
+    const outlookTimeZone = toOutlookTimeZone(timeZone);
 
     const payload: Record<string, unknown> = {
       subject: dto.subject.trim(),
-      start: { dateTime: startDateTime, timeZone },
-      end: { dateTime: endDateTime, timeZone },
+      start: { dateTime: startDateTime, timeZone: outlookTimeZone },
+      end: { dateTime: endDateTime, timeZone: outlookTimeZone },
+      originalStartTimeZone: outlookTimeZone,
+      originalEndTimeZone: outlookTimeZone,
       attendees: [...attendees.values()],
       isOnlineMeeting,
     };
@@ -584,8 +598,11 @@ export class GraphService {
         {
           data: {
             schedules: emails,
-            startTime: { dateTime: startTime, timeZone },
-            endTime: { dateTime: endTime, timeZone },
+            startTime: {
+              dateTime: startTime,
+              timeZone: toOutlookTimeZone(timeZone),
+            },
+            endTime: { dateTime: endTime, timeZone: toOutlookTimeZone(timeZone) },
             availabilityViewInterval: GRAPH_AVAILABILITY_INTERVAL,
           },
         },
@@ -596,7 +613,9 @@ export class GraphService {
           item,
         ]),
       );
-      return emails.map((email) => toScheduleDto(email, byId.get(email)));
+      return emails.map((email) =>
+        toScheduleDto(email, byId.get(email), timeZone),
+      );
     } catch (error) {
       this.logger.warn(
         `getSchedule desde ${organizerUpn} falló; se consulta buzón por buzón: ${
@@ -633,13 +652,19 @@ export class GraphService {
             {
               data: {
                 schedules: [email],
-                startTime: { dateTime: startTime, timeZone },
-                endTime: { dateTime: endTime, timeZone },
+                startTime: {
+                  dateTime: startTime,
+                  timeZone: toOutlookTimeZone(timeZone),
+                },
+                endTime: {
+                  dateTime: endTime,
+                  timeZone: toOutlookTimeZone(timeZone),
+                },
                 availabilityViewInterval: GRAPH_AVAILABILITY_INTERVAL,
               },
             },
           );
-          return toScheduleDto(email, (data.value ?? [])[0]);
+          return toScheduleDto(email, (data.value ?? [])[0], timeZone);
         } catch (error) {
           return {
             email,
@@ -660,6 +685,7 @@ export class GraphService {
 function toScheduleDto(
   email: string,
   info: GraphScheduleInformation | undefined,
+  targetTimeZone: string,
 ): GraphScheduleDto {
   return {
     email,
@@ -667,8 +693,8 @@ function toScheduleDto(
     items: (info?.scheduleItems ?? []).map((item) => ({
       status: item.status ?? 'busy',
       subject: item.subject ?? null,
-      start: item.start?.dateTime ?? '',
-      end: item.end?.dateTime ?? '',
+      start: toRequestedZoneDateTime(item.start, targetTimeZone),
+      end: toRequestedZoneDateTime(item.end, targetTimeZone),
     })),
     error: info?.error?.message ?? null,
   };
@@ -678,4 +704,114 @@ function toScheduleDto(
 function normalizeGraphDateTime(value: string): string {
   const raw = String(value ?? '').trim();
   return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(raw) ? `${raw}:00` : raw;
+}
+
+/**
+ * Outlook / Teams interpretan mal IANA `America/Bogota` en reuniones en
+ * línea y muestran UTC. El id de Windows para Colombia (UTC-5, sin DST)
+ * es el que Graph espera.
+ */
+function toOutlookTimeZone(timeZone: string): string {
+  const normalized = timeZone.trim();
+  if (
+    normalized === 'America/Bogota' ||
+    normalized === 'America/Bogotá' ||
+    normalized.toLowerCase() === 'bogota'
+  ) {
+    return 'SA Pacific Standard Time';
+  }
+  return normalized;
+}
+
+function outlookPreferHeader(timeZone: string): Record<string, string> {
+  return {
+    Prefer: `outlook.timezone="${toOutlookTimeZone(timeZone)}"`,
+  };
+}
+
+/**
+ * `getSchedule` returns scheduleItems in UTC (`timeZone: UTC`, no offset on
+ * dateTime). The CRM grid is America/Bogota; convert before the frontend
+ * paints the block or it shows 13:00 for an 08:00 Colombia meeting.
+ */
+function toRequestedZoneDateTime(
+  value: GraphDateTimeTimeZone | undefined,
+  targetTimeZone: string,
+): string {
+  const dateTime = value?.dateTime?.trim() ?? '';
+  if (!dateTime) return '';
+  const instant = parseGraphInstant(dateTime, value?.timeZone);
+  if (!instant) return dateTime;
+  return toWallClockInZone(instant, toIanaTimeZone(targetTimeZone));
+}
+
+function parseGraphInstant(
+  dateTime: string,
+  sourceTimeZone?: string,
+): Date | null {
+  const raw = dateTime.trim();
+  if (/[zZ]$/.test(raw) || /[+-]\d{2}:\d{2}(\.\d+)?$/.test(raw)) {
+    const parsed = new Date(raw);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?/.exec(
+    raw,
+  );
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const hour = Number(match[4]);
+  const minute = Number(match[5]);
+  const second = Number(match[6] ?? '0');
+  const tz = (sourceTimeZone ?? 'UTC').trim();
+
+  if (isColombiaTimeZone(tz)) {
+    const stamp = `${match[1]}-${match[2]}-${match[3]}T${match[4]}:${match[5]}:${String(second).padStart(2, '0')}-05:00`;
+    const parsed = new Date(stamp);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  return new Date(Date.UTC(year, month - 1, day, hour, minute, second));
+}
+
+function isColombiaTimeZone(timeZone: string): boolean {
+  const normalized = timeZone.trim().toLowerCase();
+  return (
+    normalized === 'america/bogota' ||
+    normalized === 'america/bogotá' ||
+    normalized === 'sa pacific standard time' ||
+    normalized === 'bogota'
+  );
+}
+
+function toIanaTimeZone(timeZone: string): string {
+  if (isColombiaTimeZone(timeZone)) {
+    return 'America/Bogota';
+  }
+  const normalized = timeZone.trim();
+  if (
+    normalized.toUpperCase() === 'UTC' ||
+    normalized.toUpperCase() === 'UTC STANDARD TIME'
+  ) {
+    return 'UTC';
+  }
+  return normalized || 'America/Bogota';
+}
+
+function toWallClockInZone(instant: Date, ianaTimeZone: string): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: ianaTimeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(instant);
+  const get = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value ?? '00';
+  return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}:${get('second')}`;
 }

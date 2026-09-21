@@ -1,7 +1,6 @@
 import {
   IsEnum,
   IsInt,
-  IsNotEmpty,
   IsOptional,
   IsString,
   IsUUID,
@@ -9,10 +8,11 @@ import {
   MaxLength,
   Min,
   MinLength,
-  ValidateIf,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { OrigenLead, TipoLead } from '../models/enums/lead.enums';
 import { Segmento } from '../models/enums/segment.enum';
+import { resolveSegmentoFromInput } from '../lib/segment-catalog';
 
 export class UpdateLeadDto {
   @IsOptional()
@@ -25,6 +25,9 @@ export class UpdateLeadDto {
   @IsEnum(TipoLead)
   tipo_lead?: TipoLead;
 
+  @Transform(({ value }) =>
+    value === 'Email' ? OrigenLead.EmailMarketing : value,
+  )
   @IsOptional()
   @IsEnum(OrigenLead)
   origen?: OrigenLead;
@@ -38,12 +41,12 @@ export class UpdateLeadDto {
   @IsUUID('4')
   campana_id?: string | null;
 
+  @Transform(({ value }) => resolveSegmentoFromInput(value))
   @IsOptional()
   @IsEnum(Segmento)
   segmento?: Segmento;
 
-  @ValidateIf((dto: UpdateLeadDto) => dto.segmento === Segmento.B2B)
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
   @MaxLength(80)
   industria?: string;

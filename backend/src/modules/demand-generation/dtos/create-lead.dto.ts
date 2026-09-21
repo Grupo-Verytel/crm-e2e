@@ -1,9 +1,7 @@
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 import {
-  ArrayMaxSize,
   ArrayMinSize,
   IsEnum,
-  IsNotEmpty,
   IsOptional,
   IsString,
   IsUUID,
@@ -18,20 +16,32 @@ import {
   TipoLead,
 } from '../models/enums/lead.enums';
 import { Segmento } from '../models/enums/segment.enum';
+import { resolveSegmentoFromInput } from '../lib/segment-catalog';
 import {
   DirectChecklistDto,
   LeadContactInputDto,
 } from './lead-contact.dto';
 
+function normalizeOrigenLead(value: unknown): unknown {
+  return value === 'Email' ? OrigenLead.EmailMarketing : value;
+}
+
 export class CreateLeadDto {
+  /** Optional: generated from the account name when omitted. */
+  @Transform(({ value }) =>
+    typeof value === 'string' && value.trim() === '' ? undefined : value,
+  )
+  @IsOptional()
   @IsString()
   @MinLength(1)
   @MaxLength(160)
-  name: string;
+  name?: string;
 
+  @IsOptional()
   @IsEnum(TipoLead)
-  tipo_lead: TipoLead;
+  tipo_lead?: TipoLead;
 
+  @Transform(({ value }) => normalizeOrigenLead(value))
   @IsEnum(OrigenLead)
   origen: OrigenLead;
 
@@ -47,11 +57,11 @@ export class CreateLeadDto {
   @IsUUID('4')
   campana_id?: string;
 
+  @Transform(({ value }) => resolveSegmentoFromInput(value))
   @IsEnum(Segmento)
   segmento: Segmento;
 
-  @ValidateIf((dto: CreateLeadDto) => dto.segmento === Segmento.B2B)
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
   @MaxLength(80)
   industria?: string;
@@ -60,7 +70,10 @@ export class CreateLeadDto {
   @IsUUID('4')
   segment_id?: string;
 
-  @IsOptional()
+  @ValidateIf(
+    (dto: CreateLeadDto) =>
+      dto.segmento === Segmento.Industria || Boolean(dto.subsegment_id),
+  )
   @IsUUID('4')
   subsegment_id?: string;
 
@@ -87,7 +100,6 @@ export class CreateLeadDto {
   nit?: string;
 
   @ArrayMinSize(1)
-  @ArrayMaxSize(3)
   @ValidateNested({ each: true })
   @Type(() => LeadContactInputDto)
   contacts: LeadContactInputDto[];
@@ -95,6 +107,7 @@ export class CreateLeadDto {
   @IsUUID('4')
   responsable_id: string;
 
+  @Transform(({ value }) => (value === '' ? undefined : value))
   @ValidateIf(
     (dto: CreateLeadDto) => dto.canal_origen === CanalOrigen.TraductorNegocio,
   )

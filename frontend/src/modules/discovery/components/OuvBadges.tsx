@@ -1,6 +1,6 @@
 import { badgeClass } from './ui';
 import type { OuvResultado, OuvZona } from '../lib/ouv-vocab';
-import { OUV_ZONA_LABEL } from '../lib/ouv-vocab';
+import { OUV_RESULTADO_LABEL, OUV_ZONA_LABEL } from '../lib/ouv-vocab';
 
 const ZONA_TONE: Record<OuvZona, string> = {
   UNIVERSO: 'bg-bg text-ink',
@@ -27,7 +27,7 @@ export function ZonaBadge({ zona }: { zona: OuvZona }) {
 export function ResultadoBadge({ resultado }: { resultado: OuvResultado }) {
   return (
     <span className={`${badgeClass} ${RESULTADO_TONE[resultado]}`}>
-      {resultado}
+      {OUV_RESULTADO_LABEL[resultado]}
     </span>
   );
 }

@@ -30,7 +30,6 @@ import {
 import { ExpectedRoute } from '../components/leads/ExpectedRoute';
 import { LeadConfigMenu } from '../components/leads/LeadConfigMenu';
 import { ChecklistModal } from '../components/leads/ChecklistModal';
-import { RegisterAppointmentModal } from '../components/leads/RegisterAppointmentModal';
 import { LeadInfluenciasPanel } from '../components/leads/LeadInfluenciasPanel';
 import { CANAL_ORIGEN_LABEL, leadDisplayName } from '../lib/lead-vocab';
 import { contactAccountName } from '../lib/contact-display';
@@ -42,8 +41,7 @@ function isChecklistComplete(checklist: Checklist | null): boolean {
     !!checklist &&
     checklist.criterio_sector_objetivo &&
     checklist.criterio_necesidad_portafolio &&
-    checklist.criterio_acceso_decisor &&
-    checklist.criterio_presupuesto_indicios
+    checklist.criterio_acceso_decisor
   );
 }
 
@@ -77,7 +75,6 @@ export function LeadDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [showDiscard, setShowDiscard] = useState(false);
-  const [showAppointment, setShowAppointment] = useState(false);
   const [showChecklist, setShowChecklist] = useState(false);
   const [detailTab, setDetailTab] = useState<LeadDetailTab>('detalle');
   const [editMode, setEditMode] = useState(false);
@@ -120,7 +117,7 @@ export function LeadDetailPage() {
   async function advanceToBofu() {
     setActionError(null);
     try {
-      const checklist = await fetchChecklist(lead!.lead_id);
+      const checklist = (await fetchChecklist(lead!.lead_id)) ?? null;
       if (isChecklistComplete(checklist)) {
         setLead(await transitionLeadToMql(lead!.lead_id));
         return;
@@ -139,19 +136,12 @@ export function LeadDetailPage() {
       void runAction(() => transitionLeadToMofu(lead.lead_id));
       return;
     }
-    if (
-      (lead.estado === 'MOFU' &&
-        lead.canal_origen !== 'GENERACION_DEMANDA_AGENCIA') ||
-      (lead.estado === 'TOFU' && lead.canal_origen === 'FABRICA')
-    ) {
+    if (lead.estado === 'MOFU') {
       void advanceToBofu();
       return;
     }
-    if (
-      lead.estado === 'MOFU' &&
-      lead.canal_origen === 'GENERACION_DEMANDA_AGENCIA'
-    ) {
-      setShowAppointment(true);
+    if (lead.estado === 'TOFU' && lead.canal_origen === 'FABRICA') {
+      void advanceToBofu();
     }
   }
 
@@ -227,24 +217,12 @@ export function LeadDetailPage() {
   const canPassToMofu =
     lead.estado === 'TOFU' && lead.canal_origen !== 'FABRICA';
 
-  const isAgencyMofu =
-    lead.estado === 'MOFU' &&
-    lead.canal_origen === 'GENERACION_DEMANDA_AGENCIA';
-
   const canAdvanceViaChecklist =
-    (lead.estado === 'MOFU' &&
-      lead.canal_origen !== 'GENERACION_DEMANDA_AGENCIA') ||
+    lead.estado === 'MOFU' ||
     (lead.estado === 'TOFU' && lead.canal_origen === 'FABRICA');
 
-  const canRegisterAppointment =
-    isAgencyMofu &&
-    (user?.role_name === 'SoporteComercial' ||
-      user?.role_name === 'GestorMercadeo' ||
-      user?.role_name === 'Admin');
-
   const canAvanzar =
-    !isTraductor &&
-    (canPassToMofu || canAdvanceViaChecklist || canRegisterAppointment);
+    !isTraductor && (canPassToMofu || canAdvanceViaChecklist);
 
   const primaryContact = lead.contacts[0];
   const headerCompany =
@@ -336,7 +314,7 @@ export function LeadDetailPage() {
             </div>
             <div>
               <label className={labelClass} htmlFor="lead-industria">
-                Industria
+                Sub-Segmento
               </label>
               <input
                 id="lead-industria"
@@ -436,7 +414,7 @@ export function LeadDetailPage() {
         ) : (
           <dl className="grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
             <Detail label="Segmento" value={lead.segmento} />
-            <Detail label="Industria" value={lead.industria ?? '—'} />
+            <Detail label="Sub-Segmento" value={lead.industria ?? '—'} />
             <Detail label="Ciudad" value={lead.city ?? '—'} />
             <Detail label="Región" value={lead.region} />
             <Detail label="Origen" value={lead.origen} />
@@ -469,17 +447,6 @@ export function LeadDetailPage() {
 
         {!isTraductor ? (
         <div className="mt-5 flex flex-wrap gap-2">
-          {isAgencyMofu && !canRegisterAppointment ? (
-            <p className="w-full text-sm text-muted">
-              Este lead de agencia avanza a BOFU registrando una cita (Gestor de
-              Mercadeo o Soporte Comercial) desde el detalle o la{' '}
-              <Link to="/demand/agenda" className="font-bold text-accent hover:underline">
-                Bandeja de Agenda
-              </Link>
-              .
-            </p>
-          ) : null}
-
           {(lead.estado === 'Descartado' || lead.estado === 'Reciclaje') && user ? (
             <button
               type="button"
@@ -529,17 +496,6 @@ export function LeadDetailPage() {
             navigate('/demand');
           }}
           onClose={() => setShowDiscard(false)}
-        />
-      ) : null}
-
-      {showAppointment ? (
-        <RegisterAppointmentModal
-          lead={lead}
-          onRegistered={(updated) => {
-            setLead(updated);
-            setShowAppointment(false);
-          }}
-          onClose={() => setShowAppointment(false)}
         />
       ) : null}
 

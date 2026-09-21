@@ -76,9 +76,10 @@ export function weekWindow(anchor: Date): { start: Date; end: Date } {
 }
 
 /**
- * Graph devuelve `2026-09-04T13:00:00.0000000` — sin offset y ya expresado en
- * el `timeZone` pedido. `new Date(...)` lo interpretaría como UTC en algunos
- * navegadores, así que se parsea componente a componente como hora local.
+ * Graph `getSchedule` returns UTC; the availability API converts items to the
+ * requested timezone (America/Bogota) before the frontend. Naive values are
+ * wall-clock in that zone. `new Date(...)` without offset would treat them as
+ * UTC in some browsers, so they are parsed component by component as local.
  */
 export function parseGraphDateTime(value: string): Date | null {
   const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?/.exec(

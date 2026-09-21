@@ -32,6 +32,8 @@ export const LEAD_INFLUENCIA_SLOTS = [
   { key: 'Economica', label: 'Económica' },
   { key: 'Tecnica', label: 'Técnica' },
   { key: 'Fabrica', label: 'Fábrica' },
+  { key: 'Usuario', label: 'Usuario' },
+  { key: 'Coach', label: 'Coach' },
 ] as const;
 
 export type LeadInfluenciaKey = (typeof LEAD_INFLUENCIA_SLOTS)[number]['key'];
@@ -40,6 +42,8 @@ export const LEAD_CONTACT_INFLUENCIA_LABEL: Record<LeadInfluenciaKey, string> = 
   Economica: 'Económica',
   Tecnica: 'Técnica',
   Fabrica: 'Fábrica',
+  Usuario: 'Usuario',
+  Coach: 'Coach',
 };
 
 export const CANAL_ORIGEN_LABEL: Record<CanalOrigen, string> = {
@@ -53,10 +57,10 @@ export const CANAL_ORIGEN_LABEL: Record<CanalOrigen, string> = {
 
 /** Segment palette — small categorical dot, built only from design tokens. */
 export const SEGMENTO_DOT: Record<Segmento, string> = {
-  Gobierno: 'bg-navy',
-  'D&S': 'bg-blue-500',
-  ProyectosEspeciales: 'bg-sky',
-  B2B: 'bg-muted',
+  'Gobierno central': 'bg-navy',
+  'Defensa y seguridad': 'bg-blue-500',
+  'Ciudades y gobernaciones': 'bg-sky',
+  Industria: 'bg-muted',
 };
 
 export function segmentoDot(segmento: string): string {
@@ -126,8 +130,9 @@ export const KANBAN_COLUMNS: KanbanColumn[] = [
 export const CHANNEL_ROUTES: Partial<Record<CanalOrigen, KanbanEstado[]>> = {
   CAMPANA_DIGITAL: ['TOFU', 'MOFU', 'MQL_PENDING', 'SQL'],
   BTL: ['TOFU', 'MOFU', 'MQL_PENDING', 'SQL'],
-  FABRICA: ['TOFU', 'MQL_PENDING', 'SQL'],
+  FABRICA: ['TOFU', 'MOFU', 'MQL_PENDING', 'SQL'],
   GENERACION_DEMANDA_AGENCIA: ['MOFU', 'MQL_PENDING', 'SQL'],
+  TRADUCTOR_NEGOCIO: ['TOFU', 'MOFU', 'MQL_PENDING', 'SQL'],
   EVENTOS: ['TOFU', 'MOFU', 'MQL_PENDING', 'SQL'],
 };
 

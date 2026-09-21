@@ -31,6 +31,16 @@
   --semaphore-verde: color-mix(in srgb, var(--brand-turquoise) 32%, var(--success) 68%);
   --warning: #E0A100;
   --danger: #C2362F;
+  /**
+   * Selected-chip pairs (pastel fill + contrasting text).
+   * Light: darker text on a soft fill. Dark overrides below with lighter text.
+   */
+  --estado-verde-fill: color-mix(in srgb, var(--semaphore-verde) 14%, transparent);
+  --estado-verde-fg: color-mix(in srgb, var(--semaphore-verde) 48%, black 52%);
+  --estado-amarillo-fill: color-mix(in srgb, var(--warning) 14%, transparent);
+  --estado-amarillo-fg: color-mix(in srgb, var(--warning) 50%, black 50%);
+  --estado-rojo-fill: color-mix(in srgb, var(--danger) 14%, transparent);
+  --estado-rojo-fg: color-mix(in srgb, var(--danger) 78%, black 22%);
 
   /* Shape & rhythm */
   --radius: 10px;
@@ -63,4 +73,10 @@
   --text: #D4D4D4;
   --text-muted: #A3A3A3;
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.35), 0 1px 3px rgba(0, 0, 0, 0.4);
+  --estado-verde-fill: color-mix(in srgb, var(--semaphore-verde) 16%, transparent);
+  --estado-verde-fg: color-mix(in srgb, var(--semaphore-verde) 42%, white 58%);
+  --estado-amarillo-fill: color-mix(in srgb, var(--warning) 16%, transparent);
+  --estado-amarillo-fg: color-mix(in srgb, var(--warning) 55%, white 45%);
+  --estado-rojo-fill: color-mix(in srgb, var(--danger) 16%, transparent);
+  --estado-rojo-fg: color-mix(in srgb, var(--danger) 45%, white 55%);
 }

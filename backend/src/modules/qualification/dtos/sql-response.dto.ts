@@ -23,9 +23,20 @@ export class SqlCitaResponseDto {
   fecha: string;
   hora: string;
   contacto_nombre: string;
+  contacto_email: string | null;
+  contacto_telefono: string | null;
+  contactos: Array<{
+    nombre: string;
+    email: string;
+    telefono: string;
+  }>;
   contacto_cargo: string | null;
   descripcion: string | null;
   agendada_por: string;
+  graph_event_id: string | null;
+  graph_organizer_upn: string | null;
+  teams_join_url: string | null;
+  duration_minutes: number;
   created_at: Date;
   updated_at: Date;
 }

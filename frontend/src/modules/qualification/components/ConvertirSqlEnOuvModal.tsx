@@ -9,6 +9,10 @@ import {
   type SqlDetail,
 } from '../api/sqls-api';
 import {
+  formatLeadOrigin,
+  formatLeadSourceChannel,
+} from '../lib/lead-source-labels';
+import {
   ghostButtonClass,
   inputClass,
   labelClass,
@@ -26,13 +30,21 @@ const VERTICALES = [
   'Otros',
 ] as const;
 
-/** Map segments.name → legacy OuvSegmento ENUM (coexistence). */
+/** Map segments.name → OuvSegmento ENUM. */
 function segmentNameToEnum(
   name: string,
 ): ConvertirSqlPayload['segmento'] {
-  if (name === 'Proyectos Especiales') return 'ProyectosEspeciales';
-  if (name === 'Gobierno' || name === 'D&S' || name === 'B2B') return name;
-  return 'B2B';
+  if (name === 'Gobierno' || name === 'Gobierno central') return 'Gobierno central';
+  if (name === 'D&S' || name === 'Defensa y seguridad') return 'Defensa y seguridad';
+  if (
+    name === 'Proyectos Especiales' ||
+    name === 'ProyectosEspeciales' ||
+    name === 'Ciudades y gobernaciones'
+  ) {
+    return 'Ciudades y gobernaciones';
+  }
+  if (name === 'B2B' || name === 'Industria') return 'Industria';
+  return name;
 }
 
 type Props = {
@@ -170,6 +182,19 @@ export function ConvertirSqlEnOuvModal({ sql, onClose, onConverted }: Props) {
               value={descripcion}
               onChange={(e) => setDescripcion(e.target.value)}
             />
+          </div>
+
+          <div>
+            <p className={labelClass}>Origen</p>
+            <p className="mt-0.5 text-sm font-medium text-ink">
+              {formatLeadOrigin(sql.lead.origen)}
+            </p>
+          </div>
+          <div>
+            <p className={labelClass}>Canal de origen</p>
+            <p className="mt-0.5 text-sm font-medium text-ink">
+              {formatLeadSourceChannel(sql.lead.canal_origen)}
+            </p>
           </div>
 
           <div>

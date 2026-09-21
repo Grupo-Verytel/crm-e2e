@@ -7,6 +7,7 @@ export const QUALIFICATION_ERROR_CODES = {
   CITA_NOT_FOUND: 'CITA_NOT_FOUND',
   FORBIDDEN: 'FORBIDDEN',
   USER_NOT_FOUND: 'USER_NOT_FOUND',
+  TEAMS_MEETING_FAILED: 'TEAMS_MEETING_FAILED',
 } as const;
 
 /** Role names matching auth seeder Role.name. */

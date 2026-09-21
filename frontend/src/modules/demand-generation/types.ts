@@ -17,8 +17,17 @@ export const LEAD_ESTADOS: LeadEstado[] = [
   'Descartado',
 ];
 
-export type Segmento = 'Gobierno' | 'D&S' | 'ProyectosEspeciales' | 'B2B';
-export const SEGMENTOS: Segmento[] = ['Gobierno', 'D&S', 'ProyectosEspeciales', 'B2B'];
+export type Segmento =
+  | 'Ciudades y gobernaciones'
+  | 'Gobierno central'
+  | 'Defensa y seguridad'
+  | 'Industria';
+export const SEGMENTOS: Segmento[] = [
+  'Ciudades y gobernaciones',
+  'Gobierno central',
+  'Defensa y seguridad',
+  'Industria',
+];
 
 export type SegmentoObjetivo = Segmento | 'Todos';
 export const SEGMENTOS_OBJETIVO: SegmentoObjetivo[] = [...SEGMENTOS, 'Todos'];
@@ -34,7 +43,9 @@ export const TIPOS_LEAD: TipoLead[] = [
 
 export type OrigenLead =
   | 'Web'
-  | 'Email'
+  | 'Email Marketing'
+  | 'Instagram & Facebook'
+  | 'Prospeccion directa'
   | 'LinkedIn'
   | 'Evento'
   | 'SECOP'
@@ -43,7 +54,9 @@ export type OrigenLead =
   | 'Referido';
 export const ORIGENES_LEAD: OrigenLead[] = [
   'Web',
-  'Email',
+  'Email Marketing',
+  'Instagram & Facebook',
+  'Prospeccion directa',
   'LinkedIn',
   'Evento',
   'SECOP',
@@ -63,6 +76,7 @@ export type CanalOrigen =
 export const CANALES_ORIGEN: CanalOrigen[] = [
   'CAMPANA_DIGITAL',
   'BTL',
+  'EVENTOS',
   'FABRICA',
   'GENERACION_DEMANDA_AGENCIA',
   'TRADUCTOR_NEGOCIO',
@@ -200,7 +214,12 @@ export const INTERACTION_RESULTADOS: InteractionResultado[] = [
   'SinRespuesta',
 ];
 
-export type LeadInfluenciaTipo = 'Economica' | 'Tecnica' | 'Fabrica';
+export type LeadInfluenciaTipo =
+  | 'Economica'
+  | 'Tecnica'
+  | 'Fabrica'
+  | 'Usuario'
+  | 'Coach';
 
 export type LeadContact = {
   contact_id: string;
@@ -241,7 +260,6 @@ export type CreateLeadChecklistInput = {
   criterio_sector_objetivo: boolean;
   criterio_necesidad_portafolio: boolean;
   criterio_acceso_decisor: boolean;
-  criterio_presupuesto_indicios: boolean;
 };
 
 export type LeadFormMode = 'standard' | 'product_manager' | 'ejecutivo';
@@ -276,6 +294,15 @@ export type Lead = {
   responsable_nombre: string | null;
   cita_agendada: boolean;
   fecha_cita: string | null;
+  cita_lugar: string | null;
+  cita_contacto_nombre: string | null;
+  cita_contacto_email: string | null;
+  cita_contacto_telefono: string | null;
+  cita_contactos?: Array<{
+    nombre: string;
+    email: string;
+    telefono: string;
+  }> | null;
   comercial_asignado_id: string | null;
   motivo_descarte: string | null;
   utm_source: string | null;
@@ -308,8 +335,8 @@ export type LeadsQuery = {
 };
 
 export type CreateLeadPayload = {
-  name: string;
-  tipo_lead: TipoLead;
+  name?: string;
+  tipo_lead?: TipoLead;
   origen: OrigenLead;
   canal_origen: CanalOrigen;
   segmento: Segmento;
@@ -328,6 +355,19 @@ export type CreateLeadPayload = {
   checklist?: CreateLeadChecklistInput;
 };
 
+export type ApproveAgencyMqlPayload = {
+  fecha_cita: string;
+  cita_contactos: Array<{
+    nombre: string;
+    email: string;
+    telefono: string;
+  }>;
+  cita_contacto_nombre: string;
+  cita_contacto_email: string;
+  cita_contacto_telefono: string;
+  cita_lugar?: string;
+};
+
 export type RegisterAppointmentPayload = {
   fecha_cita: string;
   comercial_asignado_id: string;
@@ -336,6 +376,7 @@ export type RegisterAppointmentPayload = {
 export type CommercialOption = {
   user_id: string;
   full_name: string;
+  email: string;
 };
 
 export type Interaction = {
@@ -369,7 +410,6 @@ export type Checklist = {
   criterio_sector_objetivo: boolean;
   criterio_necesidad_portafolio: boolean;
   criterio_acceso_decisor: boolean;
-  criterio_presupuesto_indicios: boolean;
   resultado: 'Calificado' | 'NoCalificado';
   completado_por: string;
   fecha_completado: string | null;
@@ -381,7 +421,6 @@ export type UpdateChecklistPayload = {
   criterio_sector_objetivo?: boolean;
   criterio_necesidad_portafolio?: boolean;
   criterio_acceso_decisor?: boolean;
-  criterio_presupuesto_indicios?: boolean;
 };
 
 export type Campaign = {
@@ -494,4 +533,46 @@ export type MarketingDashboard = {
   average_cpl: number | null;
   pending_mqls: number;
   funnel: { estado: string; count: number }[];
+  average_conversion_days: number | null;
+  weekly: {
+    interactions: number;
+    new_leads: number;
+    quarter_leads: number;
+    quarter: number;
+    leads_by_channel: { canal_origen: string; count: number }[];
+    interactions_by_channel: { canal_origen: string; count: number }[];
+    quarter_leads_by_channel: { canal_origen: string; count: number }[];
+    converted_ouvs: number;
+  };
+};
+
+export type MarketingDashboardDetailKind =
+  | 'interactions'
+  | 'period_leads'
+  | 'quarter_leads'
+  | 'ouvs'
+  | 'funnel';
+
+export type MarketingDashboardDetailItem = {
+  entity: 'lead' | 'ouv';
+  id: string;
+  interaction_id: string | null;
+  empresa: string | null;
+  segmento: string | null;
+  origen: string | null;
+  canal_origen: string | null;
+  tipo_comunicacion: string | null;
+  canal: string | null;
+  consecutivo: string | null;
+  estado: string | null;
+  created_at: string | null;
+  dias_transcurridos: number | null;
+};
+
+export type MarketingDashboardDetails = {
+  kind: MarketingDashboardDetailKind;
+  items: MarketingDashboardDetailItem[];
+  total: number;
+  page: number;
+  limit: number;
 };

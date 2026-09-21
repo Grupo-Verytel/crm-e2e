@@ -4,7 +4,6 @@ import { Pagination } from '../../../components/Pagination';
 import { AppLayout } from '../../../layout/AppLayout';
 import { fetchLeads } from '../api/leads-api';
 import { DemandNav } from '../components/DemandNav';
-import { RegisterAppointmentModal } from '../components/leads/RegisterAppointmentModal';
 import {
   cardClass,
   inputClass,
@@ -30,7 +29,6 @@ export function AgendaInboxPage() {
   const [responsible, setResponsible] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selected, setSelected] = useState<Lead | null>(null);
 
   const load = useCallback(async () => {
     setIsLoading(true);
@@ -67,6 +65,14 @@ export function AgendaInboxPage() {
     <AppLayout title="Bandeja de Agenda">
       <DemandNav />
       <h1 className="mb-4 text-lg font-bold text-ink">Bandeja de Agenda</h1>
+      <p className="mb-4 text-sm text-muted">
+        Los leads de agencia avanzan a BOFU con el mismo checklist que el resto de
+        canales. La cita se registra en la{' '}
+        <Link to="/demand/mqls" className="font-bold text-accent hover:underline">
+          Bandeja MQL
+        </Link>{' '}
+        al aprobar el SQL.
+      </p>
 
       <form
         onSubmit={applyFilter}
@@ -95,7 +101,7 @@ export function AgendaInboxPage() {
         ) : error ? (
           <StateMessage>{error}</StateMessage>
         ) : items.length === 0 ? (
-          <StateMessage>No hay leads pendientes de agendar.</StateMessage>
+          <StateMessage>No hay leads de agencia en MOFU.</StateMessage>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
@@ -129,13 +135,12 @@ export function AgendaInboxPage() {
                       {lead.responsable_nombre ?? lead.responsable_id}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <button
-                        type="button"
-                        onClick={() => setSelected(lead)}
-                        className={primaryButtonClass}
+                      <Link
+                        to={`/demand/leads/${lead.lead_id}`}
+                        className="text-sm font-bold text-accent hover:underline"
                       >
-                        Registrar Cita Agendada
-                      </button>
+                        Abrir lead
+                      </Link>
                     </td>
                   </tr>
                 ))}
@@ -151,14 +156,6 @@ export function AgendaInboxPage() {
           onPageChange={setPage}
         />
       </div>
-
-      {selected ? (
-        <RegisterAppointmentModal
-          lead={selected}
-          onRegistered={() => void load()}
-          onClose={() => setSelected(null)}
-        />
-      ) : null}
     </AppLayout>
   );
 }

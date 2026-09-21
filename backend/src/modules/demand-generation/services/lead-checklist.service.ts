@@ -68,10 +68,6 @@ export class LeadChecklistService {
         false,
       criterioAccesoDecisor:
         dto.criterio_acceso_decisor ?? existing?.criterioAccesoDecisor ?? false,
-      criterioPresupuestoIndicios:
-        dto.criterio_presupuesto_indicios ??
-        existing?.criterioPresupuestoIndicios ??
-        false,
     };
 
     const resultado = computeChecklistResult(criteria);
@@ -155,7 +151,6 @@ export class LeadChecklistService {
       criterio_sector_objetivo: checklist.criterioSectorObjetivo,
       criterio_necesidad_portafolio: checklist.criterioNecesidadPortafolio,
       criterio_acceso_decisor: checklist.criterioAccesoDecisor,
-      criterio_presupuesto_indicios: checklist.criterioPresupuestoIndicios,
       resultado: checklist.resultado,
       completado_por: checklist.completadoPor,
       fecha_completado: checklist.fechaCompletado,

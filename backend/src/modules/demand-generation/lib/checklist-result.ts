@@ -4,22 +4,19 @@ export interface ChecklistCriteria {
   criterioSectorObjetivo: boolean;
   criterioNecesidadPortafolio: boolean;
   criterioAccesoDecisor: boolean;
-  criterioPresupuestoIndicios: boolean;
 }
 
-/** The 4 criteria that must all be true to qualify a lead (DG-13). */
+/** The 3 criteria that must all be true to qualify a lead (DG-13). */
 export function allChecklistCriteriaMet(criteria: ChecklistCriteria): boolean {
   return (
     criteria.criterioSectorObjetivo &&
     criteria.criterioNecesidadPortafolio &&
-    criteria.criterioAccesoDecisor &&
-    criteria.criterioPresupuestoIndicios
+    criteria.criterioAccesoDecisor
   );
 }
 
 /**
- * Result is recalculated in the service layer (never in the DB) whenever any
- * of the 4 booleans change — Calificado only when all four are true.
+ * Result is recalculated in the service layer whenever any criterion changes.
  */
 export function computeChecklistResult(
   criteria: ChecklistCriteria,
@@ -39,7 +36,5 @@ export function missingChecklistCriteria(
   if (!criteria.criterioNecesidadPortafolio)
     missing.push('criterio_necesidad_portafolio');
   if (!criteria.criterioAccesoDecisor) missing.push('criterio_acceso_decisor');
-  if (!criteria.criterioPresupuestoIndicios)
-    missing.push('criterio_presupuesto_indicios');
   return missing;
 }

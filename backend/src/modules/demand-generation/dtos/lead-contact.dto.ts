@@ -9,7 +9,10 @@ import {
 import { LeadContactInfluenciaTipo } from '../models/enums/lead.enums';
 
 export class LeadContactInputDto {
-  @IsUUID('4')
+  @Transform(({ value }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
+  @IsUUID()
   person_id: string;
 
   @IsOptional()
@@ -18,9 +21,14 @@ export class LeadContactInputDto {
 }
 
 export class AssignLeadInfluenciaDto {
-  @Transform(({ value }) => (value === '' ? null : value))
+  @Transform(({ value }) => {
+    if (value === '' || value === undefined) {
+      return null;
+    }
+    return typeof value === 'string' ? value.trim() : value;
+  })
   @ValidateIf((_, value) => value !== null)
-  @IsUUID('4')
+  @IsUUID()
   person_id: string | null;
 }
 
@@ -33,9 +41,6 @@ export class DirectChecklistDto {
 
   @IsBoolean()
   criterio_acceso_decisor: boolean;
-
-  @IsBoolean()
-  criterio_presupuesto_indicios: boolean;
 }
 
 export class LeadContactResponseDto {

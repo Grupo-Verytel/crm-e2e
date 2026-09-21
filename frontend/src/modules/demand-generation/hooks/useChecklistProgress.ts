@@ -4,7 +4,7 @@ import type { Checklist, Lead, LeadEstado } from '../types';
 
 export type ChecklistProgress = { checked: number; total: number };
 
-export const CHECKLIST_TOTAL = 4;
+export const CHECKLIST_TOTAL = 3;
 
 /** Only these states can carry a (partial) checklist worth showing. */
 const CHECKLIST_STATES = new Set<LeadEstado>([
@@ -19,7 +19,6 @@ function countChecked(checklist: Checklist): number {
     checklist.criterio_sector_objetivo,
     checklist.criterio_necesidad_portafolio,
     checklist.criterio_acceso_decisor,
-    checklist.criterio_presupuesto_indicios,
   ].filter(Boolean).length;
 }
 
@@ -40,7 +39,7 @@ export function needsChecklistProgress(lead: Lead): boolean {
 
 /**
  * Non-blocking enrichment: the table/board render immediately with the leads,
- * and the "2/4" progress fills in as each checklist resolves. Returns a reader
+ * and the "2/3" progress fills in as each checklist resolves. Returns a reader
  * so callers do `progress(lead.lead_id)`.
  */
 export function useChecklistProgress(

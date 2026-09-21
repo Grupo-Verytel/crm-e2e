@@ -1,23 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { X } from 'lucide-react';
+import { Plus, X } from 'lucide-react';
 import {
   fetchAccounts,
   fetchPeople,
 } from '../../accounts/api/accounts-api';
 import type { Account, Person } from '../../accounts/types';
-import { createLead, checkLeadNameAvailable } from '../api/leads-api';
+import { createLead } from '../api/leads-api';
 import { fetchSegments } from '../api/segments-api';
 import { fetchTraductorReferrers } from '../api/traductores-api';
-import type { User } from '../../auth/types';
 import { ColombiaCitySearchField } from '../../discovery/components/ColombiaCitySearchField';
 import {
   CANALES_ORIGEN,
   ORIGENES_LEAD,
-  SEGMENTOS,
-  TIPOS_LEAD,
   type CanalOrigen,
+  type CommercialOption,
   type CreateLeadChecklistInput,
   type CreateLeadPayload,
   type Lead,
@@ -25,23 +23,31 @@ import {
   type OrigenLead,
   type Segment,
   type Segmento,
-  type TipoLead,
 } from '../types';
 import { CANAL_ORIGEN_LABEL, LEAD_INFLUENCIA_SLOTS } from '../lib/lead-vocab';
 import type { LeadInfluenciaKey } from '../lib/lead-vocab';
 import { ModalShell } from './ModalShell';
 import {
+  contactTableHeaderClass,
   ghostButtonClass,
+  influenceChipClass,
+  influenceChipPressedClass,
+  influenceTableRowClass,
   inputClass,
   labelClass,
   primaryButtonClass,
 } from './ui';
 
 const SEGMENT_NAME_TO_ENUM: Record<string, Segmento> = {
-  Gobierno: 'Gobierno',
-  'D&S': 'D&S',
-  'Proyectos Especiales': 'ProyectosEspeciales',
-  B2B: 'B2B',
+  'Gobierno central': 'Gobierno central',
+  'Defensa y seguridad': 'Defensa y seguridad',
+  'Ciudades y gobernaciones': 'Ciudades y gobernaciones',
+  Industria: 'Industria',
+  Gobierno: 'Gobierno central',
+  'D&S': 'Defensa y seguridad',
+  'Proyectos Especiales': 'Ciudades y gobernaciones',
+  ProyectosEspeciales: 'Ciudades y gobernaciones',
+  B2B: 'Industria',
 };
 
 const CHECKLIST_CRITERIA: {
@@ -57,59 +63,51 @@ const CHECKLIST_CRITERIA: {
     key: 'criterio_acceso_decisor',
     label: '¿Acceso a decisor o influencia hacia el decisor?',
   },
-  {
-    key: 'criterio_presupuesto_indicios',
-    label: '¿Indicios de presupuesto o capacidad de inversión?',
-  },
 ];
 
 type FormState = {
-  name: string;
-  tipo_lead: TipoLead;
   origen: OrigenLead;
   canal_origen: CanalOrigen;
   segmento: Segmento;
   segment_id: string;
   subsegment_id: string;
-  industria: string;
   city: string;
   region: string;
   business_referrer_id: string;
 };
 
 type ContactSlot = {
+  slotId: string;
   person_id: string | null;
   label: string;
-  tipo_influencia: LeadInfluenciaKey | null;
+  tipos_influencia: LeadInfluenciaKey[];
 };
 
-const CONTACT_SLOT_COUNT = 3;
-
 const emptyContact = (): ContactSlot => ({
+  slotId: crypto.randomUUID(),
   person_id: null,
   label: '',
-  tipo_influencia: null,
+  tipos_influencia: [],
 });
 
-const emptyContactSlots = (): ContactSlot[] =>
-  Array.from({ length: CONTACT_SLOT_COUNT }, emptyContact);
+const emptyContactSlots = (): ContactSlot[] => [emptyContact()];
+
+function rowLabel(index: number): string {
+  return index === 0 ? 'Principal' : `Contacto ${index + 1}`;
+}
 
 const emptyChecklist = (): CreateLeadChecklistInput => ({
   criterio_sector_objetivo: false,
   criterio_necesidad_portafolio: false,
   criterio_acceso_decisor: false,
-  criterio_presupuesto_indicios: false,
 });
 
 const initialState: FormState = {
-  name: '',
-  tipo_lead: 'Inbound',
   origen: 'Web',
   canal_origen: 'CAMPANA_DIGITAL',
-  segmento: 'Gobierno',
+  segmento: 'Gobierno central',
   segment_id: '',
   subsegment_id: '',
-  industria: '',
   city: '',
   region: '',
   business_referrer_id: '',
@@ -143,7 +141,8 @@ function modalTitle(mode: LeadFormMode): string {
 }
 
 function personLabel(person: Person): string {
-  return `${person.name}${person.email ? ` · ${person.email}` : ''}`;
+  const role = person.job_title?.trim();
+  return role ? `${person.name} · ${role}` : person.name;
 }
 
 export function LeadFormModal({
@@ -162,7 +161,7 @@ export function LeadFormModal({
     canal_origen: defaultCanalForMode(mode),
   }));
   const [segments, setSegments] = useState<Segment[]>([]);
-  const [traductores, setTraductores] = useState<User[]>([]);
+  const [traductores, setTraductores] = useState<CommercialOption[]>([]);
   const [checklist, setChecklist] = useState<CreateLeadChecklistInput>(emptyChecklist);
 
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
@@ -184,15 +183,14 @@ export function LeadFormModal({
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [nameAvailable, setNameAvailable] = useState<
-    boolean | 'checking' | null
-  >(null);
 
   const canalOptions = canalOptionsForMode(mode);
   const selectedSegment = segments.find((segment) => segment.id === form.segment_id);
+  const requiresSubsegment =
+    !!selectedSegment &&
+    SEGMENT_NAME_TO_ENUM[selectedSegment.name] === 'Industria';
   const requiresChecklist = mode === 'product_manager' || mode === 'ejecutivo';
-  const showTraductorSelect =
-    mode === 'ejecutivo' && form.canal_origen === 'TRADUCTOR_NEGOCIO';
+  const showTraductorSelect = form.canal_origen === 'TRADUCTOR_NEGOCIO';
 
   const takenPersonIds = useMemo(
     () =>
@@ -236,35 +234,6 @@ export function LeadFormModal({
       active = false;
     };
   }, []);
-
-  useEffect(() => {
-    const trimmed = form.name.trim();
-    if (trimmed.length < 1) {
-      setNameAvailable(null);
-      return;
-    }
-
-    let active = true;
-    setNameAvailable('checking');
-    const timer = window.setTimeout(() => {
-      void checkLeadNameAvailable(trimmed)
-        .then((result) => {
-          if (active) {
-            setNameAvailable(result.available);
-          }
-        })
-        .catch(() => {
-          if (active) {
-            setNameAvailable(null);
-          }
-        });
-    }, 350);
-
-    return () => {
-      active = false;
-      window.clearTimeout(timer);
-    };
-  }, [form.name]);
 
   useEffect(() => {
     if (!showTraductorSelect) {
@@ -374,24 +343,24 @@ export function LeadFormModal({
   }
 
   function syncSegmentoFromId(segmentId: string) {
+    if (!segmentId) {
+      setForm((prev) => ({
+        ...prev,
+        segment_id: '',
+        subsegment_id: '',
+      }));
+      return;
+    }
     const segment = segments.find((item) => item.id === segmentId);
     if (!segment) {
       return;
     }
     const enumValue = SEGMENT_NAME_TO_ENUM[segment.name];
-    if (enumValue) {
-      setForm((prev) => ({
-        ...prev,
-        segment_id: segmentId,
-        subsegment_id: '',
-        segmento: enumValue,
-      }));
-      return;
-    }
     setForm((prev) => ({
       ...prev,
       segment_id: segmentId,
       subsegment_id: '',
+      ...(enumValue ? { segmento: enumValue } : {}),
     }));
   }
 
@@ -442,32 +411,45 @@ export function LeadFormModal({
     }
   }
 
-  function setSlotTipo(index: number, tipo: LeadInfluenciaKey | null) {
+  function toggleSlotTipo(index: number, tipo: LeadInfluenciaKey) {
     setContactSlots((current) =>
       current.map((slot, slotIndex) => {
-        if (slotIndex === index) {
-          return { ...slot, tipo_influencia: tipo };
+        if (slotIndex !== index) {
+          return slot;
         }
-        if (tipo && slot.tipo_influencia === tipo) {
-          return { ...slot, tipo_influencia: null };
-        }
-        return slot;
+        const selected = slot.tipos_influencia[0] === tipo;
+        return {
+          ...slot,
+          tipos_influencia: selected ? [] : [tipo],
+        };
       }),
     );
+  }
+
+  function addContactRow() {
+    setContactSlots((current) => [...current, emptyContact()]);
+  }
+
+  function removeContactRow(index: number) {
+    if (index === 0) {
+      return;
+    }
+    setContactSlots((current) =>
+      current.filter((_, slotIndex) => slotIndex !== index),
+    );
+    if (activePersonSearch === index) {
+      resetContactDraft();
+      return;
+    }
+    if (activePersonSearch !== null && activePersonSearch > index) {
+      setActivePersonSearch(activePersonSearch - 1);
+    }
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
 
-    if (!form.name.trim()) {
-      setError('Ingresa el nombre del lead.');
-      return;
-    }
-    if (nameAvailable === false) {
-      setError('Ya existe un lead con ese nombre.');
-      return;
-    }
     if (!form.city.trim() || !form.region.trim()) {
       setError('Selecciona la ciudad (la región se completa automáticamente).');
       return;
@@ -485,15 +467,15 @@ export function LeadFormModal({
       return [
         {
           person_id: slot.person_id,
-          ...(slot.tipo_influencia
-            ? { tipo_influencia: slot.tipo_influencia }
+          ...(slot.tipos_influencia[0]
+            ? { tipo_influencia: slot.tipos_influencia[0] }
             : {}),
         },
       ];
     });
     if (contacts.length === 0) {
       setError(
-        'Asocia al menos un contacto. El tipo (Económica, Técnica o Fábrica) es opcional.',
+        'Asocia al menos un contacto. El tipo (Económica, Técnica, Fábrica, Usuario o Coach) es opcional.',
       );
       return;
     }
@@ -501,7 +483,7 @@ export function LeadFormModal({
     if (requiresChecklist) {
       const allChecked = CHECKLIST_CRITERIA.every(({ key }) => checklist[key]);
       if (!allChecked) {
-        setError('Marca los cuatro criterios del checklist para crear el lead.');
+        setError('Marca los tres criterios del checklist para crear el lead.');
         return;
       }
     }
@@ -511,24 +493,41 @@ export function LeadFormModal({
       return;
     }
 
+    if (!form.segment_id) {
+      setError('Selecciona un segmento.');
+      return;
+    }
+
+    const catalogSegment = segments.find(
+      (segment) => segment.id === form.segment_id,
+    );
+    const segmentoEnum = catalogSegment
+      ? SEGMENT_NAME_TO_ENUM[catalogSegment.name]
+      : undefined;
+    if (!segmentoEnum) {
+      setError('El segmento seleccionado no es válido.');
+      return;
+    }
+
+    if (segmentoEnum === 'Industria' && !form.subsegment_id) {
+      setError('Selecciona un subsegmento.');
+      return;
+    }
+
     setIsSubmitting(true);
 
     const payload: CreateLeadPayload = {
-      name: form.name.trim(),
-      tipo_lead: form.tipo_lead,
+      tipo_lead: 'Inbound',
       origen: form.origen,
       canal_origen: form.canal_origen,
-      segmento: form.segmento,
+      segmento: segmentoEnum,
       city: form.city.trim(),
       region: form.region,
       pais: 'CO',
       contacts,
       responsable_id: responsableId,
-      ...(form.segment_id ? { segment_id: form.segment_id } : {}),
+      segment_id: form.segment_id,
       ...(form.subsegment_id ? { subsegment_id: form.subsegment_id } : {}),
-      ...(form.segmento === 'B2B' && form.industria
-        ? { industria: form.industria }
-        : {}),
       ...(selectedAccount.tax_id ? { nit: selectedAccount.tax_id } : {}),
       ...(showTraductorSelect && form.business_referrer_id
         ? { business_referrer_id: form.business_referrer_id }
@@ -555,29 +554,6 @@ export function LeadFormModal({
     <ModalShell title={modalTitle(mode)} onClose={onClose} size="wide">
       <form onSubmit={handleSubmit} className="space-y-4">
         <section className="space-y-3">
-          <div>
-            <label className={labelClass} htmlFor="lead-name">
-              Nombre del lead
-            </label>
-            <input
-              id="lead-name"
-              value={form.name}
-              onChange={(event) => update('name', event.target.value)}
-              className={inputClass}
-              placeholder="Nombre único del lead"
-              required
-              autoComplete="off"
-            />
-            {nameAvailable === false ? (
-              <p className="mt-1 text-xs text-danger">
-                Ya existe un lead con ese nombre.
-              </p>
-            ) : null}
-            {nameAvailable === true && form.name.trim() ? (
-              <p className="mt-1 text-xs text-muted">Nombre disponible.</p>
-            ) : null}
-          </div>
-
           <p className="text-xs text-muted">
             La empresa debe existir en el catálogo.{' '}
             <Link
@@ -691,9 +667,17 @@ export function LeadFormModal({
             <Field label="Canal de origen">
               <select
                 value={form.canal_origen}
-                onChange={(event) =>
-                  update('canal_origen', event.target.value as CanalOrigen)
-                }
+                onChange={(event) => {
+                  const canal = event.target.value as CanalOrigen;
+                  setForm((prev) => ({
+                    ...prev,
+                    canal_origen: canal,
+                    business_referrer_id:
+                      canal === 'TRADUCTOR_NEGOCIO'
+                        ? prev.business_referrer_id
+                        : '',
+                  }));
+                }}
                 className={inputClass}
                 required
               >
@@ -729,13 +713,14 @@ export function LeadFormModal({
               </Field>
             ) : null}
 
-            <Field label="Segmento (catálogo)">
+            <Field label="Segmento">
               <select
                 value={form.segment_id}
                 onChange={(event) => syncSegmentoFromId(event.target.value)}
                 className={inputClass}
+                required
               >
-                <option value="">Usar segmento legacy</option>
+                <option value="">Seleccionar segmento</option>
                 {segments.map((segment) => (
                   <option key={segment.id} value={segment.id}>
                     {segment.name}
@@ -744,55 +729,34 @@ export function LeadFormModal({
               </select>
             </Field>
 
-            {selectedSegment && selectedSegment.subsegments.length > 0 ? (
-              <Field label="Subsegmento">
-                <select
-                  value={form.subsegment_id}
-                  onChange={(event) =>
-                    update('subsegment_id', event.target.value)
-                  }
-                  className={inputClass}
-                >
-                  <option value="">Sin subsegmento</option>
-                  {selectedSegment.subsegments.map((subsegment) => (
-                    <option key={subsegment.id} value={subsegment.id}>
-                      {subsegment.name}
+            <Field label="Subsegmento">
+              <select
+                value={form.subsegment_id}
+                onChange={(event) =>
+                  update('subsegment_id', event.target.value)
+                }
+                className={inputClass}
+                disabled={!selectedSegment}
+                required={requiresSubsegment}
+              >
+                {!selectedSegment ? (
+                  <option value="">Selecciona un segmento primero</option>
+                ) : selectedSegment.subsegments.length === 0 ? (
+                  <option value="">Sin subsegmentos</option>
+                ) : (
+                  <>
+                    <option value="">
+                      {requiresSubsegment
+                        ? 'Seleccionar subsegmento'
+                        : 'Sin subsegmento'}
                     </option>
-                  ))}
-                </select>
-              </Field>
-            ) : null}
-
-            <Field label="Segmento (legacy)">
-              <select
-                value={form.segmento}
-                onChange={(event) =>
-                  update('segmento', event.target.value as Segmento)
-                }
-                className={inputClass}
-                required
-              >
-                {SEGMENTOS.map((segmento) => (
-                  <option key={segmento} value={segmento}>
-                    {segmento}
-                  </option>
-                ))}
-              </select>
-            </Field>
-
-            <Field label="Tipo de lead">
-              <select
-                value={form.tipo_lead}
-                onChange={(event) =>
-                  update('tipo_lead', event.target.value as TipoLead)
-                }
-                className={inputClass}
-              >
-                {TIPOS_LEAD.map((tipo) => (
-                  <option key={tipo} value={tipo}>
-                    {tipo}
-                  </option>
-                ))}
+                    {selectedSegment.subsegments.map((subsegment) => (
+                      <option key={subsegment.id} value={subsegment.id}>
+                        {subsegment.name}
+                      </option>
+                    ))}
+                  </>
+                )}
               </select>
             </Field>
 
@@ -811,17 +775,6 @@ export function LeadFormModal({
                 ))}
               </select>
             </Field>
-
-            {form.segmento === 'B2B' ? (
-              <Field label="Industria (requerida para B2B)">
-                <input
-                  value={form.industria}
-                  onChange={(event) => update('industria', event.target.value)}
-                  className={inputClass}
-                  required
-                />
-              </Field>
-            ) : null}
 
             <Field label="Ciudad">
               <ColombiaCitySearchField
@@ -863,8 +816,8 @@ export function LeadFormModal({
               Contactos
             </h3>
             <p className="text-xs text-muted">
-              Asocia al menos un contacto. El tipo (Económica, Técnica o
-              Fábrica) se puede marcar en la tarjeta o dejar sin definir.
+              Asocia al menos un contacto. El tipo (Económica, Técnica, Fábrica,
+              Usuario o Coach) se puede marcar en la fila o dejar sin definir.
             </p>
           </div>
 
@@ -873,60 +826,66 @@ export function LeadFormModal({
               Selecciona una empresa para asignar contactos.
             </p>
           ) : (
-            <div className="grid gap-3 md:grid-cols-3">
+            <div className="overflow-hidden rounded border border-border bg-bg">
+              <div className={`${influenceTableRowClass} border-b border-border`}>
+                <span className={contactTableHeaderClass}>#</span>
+                <span className={contactTableHeaderClass}>Persona</span>
+                <span className={`${contactTableHeaderClass} text-right`}>
+                  Tipo (opcional)
+                </span>
+                <span />
+              </div>
+
               {contactSlots.map((slot, index) => {
                 const searching = activePersonSearch === index;
+                const label = rowLabel(index);
 
                 return (
                   <div
-                    key={index}
-                    className="space-y-2 rounded border border-border bg-bg p-3"
+                    key={slot.slotId}
+                    className={`${influenceTableRowClass} border-b border-border`}
                   >
-                    <p className="text-sm font-bold text-ink">
-                      Contacto {index + 1}
-                      {index === 0 ? (
-                        <span className="ml-1 text-xs font-normal text-muted">
-                          (principal)
-                        </span>
-                      ) : null}
+                    <p
+                      className={`truncate text-sm ${
+                        index === 0 ? 'font-bold text-ink' : 'text-muted'
+                      }`}
+                    >
+                      {label}
                     </p>
-                    <span className={labelClass}>Persona</span>
 
-                    {slot.person_id ? (
-                      <div className="relative rounded border border-border bg-surface p-2.5 pr-8 text-xs">
+                    <div className="relative min-w-0">
+                      {slot.person_id ? (
                         <button
                           type="button"
-                          className="icon-btn absolute right-1 top-1 grid h-6 w-6 place-items-center rounded text-muted"
-                          aria-label={`Quitar contacto ${index + 1}`}
-                          onClick={() => clearPerson(index)}
-                        >
-                          <X size={14} strokeWidth={2.5} />
-                        </button>
-                        <p className="font-bold text-ink">{slot.label}</p>
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        <input
-                          value={searching ? personQuery : ''}
-                          onChange={(event) => {
-                            setActivePersonSearch(index);
-                            setPersonQuery(event.target.value);
-                          }}
-                          onFocus={() => {
+                          className="truncate text-left text-sm font-bold text-ink hover:text-accent"
+                          onClick={() => {
+                            clearPerson(index);
                             setActivePersonSearch(index);
                             setPersonQuery('');
                           }}
-                          className={inputClass}
-                          placeholder={
-                            peopleLoading
-                              ? 'Cargando contactos…'
-                              : 'Buscar contacto'
-                          }
-                          disabled={peopleLoading}
-                          autoComplete="off"
-                        />
-                        {searching ? (
-                          <ul className="max-h-40 overflow-y-auto rounded border border-border bg-surface">
+                        >
+                          {slot.label}
+                        </button>
+                      ) : searching ? (
+                        <>
+                          <input
+                            value={personQuery}
+                            onChange={(event) => {
+                              setActivePersonSearch(index);
+                              setPersonQuery(event.target.value);
+                            }}
+                            className={inputClass}
+                            placeholder={
+                              peopleLoading
+                                ? 'Cargando contactos…'
+                                : 'Buscar contacto...'
+                            }
+                            disabled={peopleLoading}
+                            autoComplete="off"
+                            autoFocus
+                            aria-label={`Buscar persona para ${label}`}
+                          />
+                          <ul className="absolute z-20 mt-1 max-h-40 w-full overflow-y-auto rounded border border-border bg-surface shadow-card">
                             {filteredPeople.length === 0 ? (
                               <li className="px-3 py-2 text-xs text-muted">
                                 {accountPeople.length === 0
@@ -938,7 +897,9 @@ export function LeadFormModal({
                                 <li key={person.person_id}>
                                   <button
                                     type="button"
-                                    onClick={() => selectPerson(index, person)}
+                                    onClick={() =>
+                                      selectPerson(index, person)
+                                    }
                                     className="flex w-full flex-col px-3 py-2 text-left text-sm hover:bg-bg"
                                   >
                                     <span className="font-bold text-ink">
@@ -947,50 +908,90 @@ export function LeadFormModal({
                                     <span className="text-xs text-muted">
                                       {[person.job_title, person.email]
                                         .filter(Boolean)
-                                        .join(' · ') || 'Sin datos adicionales'}
+                                        .join(' · ') ||
+                                        'Sin datos adicionales'}
                                     </span>
                                   </button>
                                 </li>
                               ))
                             )}
                           </ul>
-                        ) : null}
-                        <Link
-                          to={`/accounts/contactos?account_id=${encodeURIComponent(selectedAccount.account_id)}&new=1`}
-                          className="text-xs font-bold text-accent hover:underline"
-                          onClick={onClose}
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          className="truncate text-left text-sm text-muted hover:text-ink"
+                          onClick={() => {
+                            setActivePersonSearch(index);
+                            setPersonQuery('');
+                          }}
+                          disabled={peopleLoading}
                         >
-                          Crear contacto
-                        </Link>
-                      </div>
-                    )}
+                          {peopleLoading
+                            ? 'Cargando contactos…'
+                            : 'Buscar contacto...'}
+                        </button>
+                      )}
+                    </div>
 
-                    <fieldset className="space-y-1.5">
-                      <legend className={labelClass}>Tipo (opcional)</legend>
-                      <div className="flex flex-col gap-1.5">
-                        {LEAD_INFLUENCIA_SLOTS.map(({ key, label }) => (
-                          <label
+                    <div
+                      className="flex flex-wrap content-center justify-end gap-1"
+                      role="group"
+                      aria-label={`Tipo de ${label}`}
+                    >
+                      {LEAD_INFLUENCIA_SLOTS.map(({ key, label: chipLabel }) => {
+                        const pressed = slot.tipos_influencia[0] === key;
+                        return (
+                          <button
                             key={key}
-                            className="flex cursor-pointer items-center gap-2 text-xs text-ink"
+                            type="button"
+                            aria-pressed={pressed}
+                            onClick={() => toggleSlotTipo(index, key)}
+                            className={
+                              pressed
+                                ? influenceChipPressedClass
+                                : influenceChipClass
+                            }
                           >
-                            <input
-                              type="checkbox"
-                              checked={slot.tipo_influencia === key}
-                              onChange={() =>
-                                setSlotTipo(
-                                  index,
-                                  slot.tipo_influencia === key ? null : key,
-                                )
-                              }
-                            />
-                            {label}
-                          </label>
-                        ))}
-                      </div>
-                    </fieldset>
+                            {chipLabel}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {index === 0 ? (
+                      <span />
+                    ) : (
+                      <button
+                        type="button"
+                        className="icon-btn grid h-7 w-7 place-items-center rounded text-muted hover:text-danger"
+                        aria-label={`Quitar ${label}`}
+                        onClick={() => removeContactRow(index)}
+                      >
+                        <X size={14} strokeWidth={2.5} />
+                      </button>
+                    )}
                   </div>
                 );
               })}
+
+              <div className="flex items-center gap-3 px-3 py-2.5">
+                <button
+                  type="button"
+                  onClick={addContactRow}
+                  className="inline-flex items-center gap-1 text-xs font-bold text-accent hover:underline"
+                >
+                  <Plus size={14} strokeWidth={2.5} />
+                  Agregar contacto
+                </button>
+                <Link
+                  to={`/accounts/contactos?account_id=${encodeURIComponent(selectedAccount.account_id)}&new=1`}
+                  className="text-xs font-bold text-accent hover:underline"
+                  onClick={onClose}
+                >
+                  Crear contacto
+                </Link>
+              </div>
             </div>
           )}
         </section>
@@ -1032,11 +1033,7 @@ export function LeadFormModal({
           </button>
           <button
             type="submit"
-            disabled={
-              isSubmitting ||
-              nameAvailable === false ||
-              nameAvailable === 'checking'
-            }
+            disabled={isSubmitting}
             className={primaryButtonClass}
           >
             Crear lead

@@ -1,22 +1,37 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { X } from 'lucide-react';
+import { Plus, X } from 'lucide-react';
 import { fetchPeople } from '../../../accounts/api/accounts-api';
 import type { Person } from '../../../accounts/types';
 import { assignLeadInfluencia } from '../../api/leads-api';
 import {
-  contactAccountName,
-  contactEmail,
+  contactInfluenciaTipo,
   contactJobTitle,
   contactPersonName,
-  contactPhone,
 } from '../../lib/contact-display';
 import {
   LEAD_INFLUENCIA_SLOTS,
   type LeadInfluenciaKey,
 } from '../../lib/lead-vocab';
 import type { Lead } from '../../types';
-import { inputClass, labelClass } from '../ui';
+import {
+  contactTableHeaderClass,
+  influenceChipClass,
+  influenceChipPressedClass,
+  influenceTableRowClass,
+  inputClass,
+} from '../ui';
+
+type EligiblePerson = {
+  person_id: string;
+  name: string;
+  job_title: string | null;
+};
+
+type DraftRow = {
+  id: string;
+  person: EligiblePerson | null;
+};
 
 type Props = {
   lead: Lead;
@@ -25,6 +40,10 @@ type Props = {
   onError: (message: string | null) => void;
 };
 
+function rowLabel(index: number): string {
+  return index === 0 ? 'Principal' : `Contacto ${index + 1}`;
+}
+
 export function LeadInfluenciasPanel({
   lead,
   canEdit,
@@ -32,10 +51,19 @@ export function LeadInfluenciasPanel({
   onError,
 }: Props) {
   const [accountPeople, setAccountPeople] = useState<Person[]>([]);
-  const [savingTipo, setSavingTipo] = useState<LeadInfluenciaKey | null>(null);
-  const saveSeq = useRef<Partial<Record<LeadInfluenciaKey, number>>>({});
+  const [savingKey, setSavingKey] = useState<string | null>(null);
+  const [drafts, setDrafts] = useState<DraftRow[]>([]);
+  const [activeSearch, setActiveSearch] = useState<string | null>(null);
+  const [personQuery, setPersonQuery] = useState('');
+  const listRef = useRef<HTMLDivElement>(null);
+  const saveSeq = useRef(0);
 
-  const accountId = lead.contacts[0]?.account_id ?? null;
+  const contacts = useMemo(
+    () =>
+      [...(lead.contacts ?? [])].sort((a, b) => a.position - b.position),
+    [lead.contacts],
+  );
+  const accountId = contacts[0]?.account_id ?? null;
 
   useEffect(() => {
     if (!accountId) {
@@ -55,38 +83,69 @@ export function LeadInfluenciasPanel({
     return () => {
       active = false;
     };
-  }, [accountId, lead.contacts.length]);
+  }, [accountId, contacts.length]);
+
+  useEffect(() => {
+    function onPointerDown(event: MouseEvent) {
+      if (!listRef.current?.contains(event.target as Node)) {
+        setActiveSearch(null);
+        setPersonQuery('');
+      }
+    }
+    document.addEventListener('mousedown', onPointerDown);
+    return () => document.removeEventListener('mousedown', onPointerDown);
+  }, []);
+
+  const takenPersonIds = useMemo(() => {
+    const ids = new Set(contacts.map((contact) => contact.person_id));
+    for (const draft of drafts) {
+      if (draft.person) {
+        ids.add(draft.person.person_id);
+      }
+    }
+    return ids;
+  }, [contacts, drafts]);
 
   const peopleOptions = useMemo(() => {
-    const assignedElsewhere = new Set(
-      lead.contacts
-        .filter((contact) => contact.tipo_influencia)
-        .map((contact) => contact.person_id),
-    );
-    const byId = new Map<string, { person_id: string; name: string }>();
+    const byId = new Map<string, EligiblePerson>();
     for (const person of accountPeople) {
       byId.set(person.person_id, {
         person_id: person.person_id,
         name: person.name,
+        job_title: person.job_title,
       });
     }
-    for (const contact of lead.contacts) {
+    for (const contact of contacts) {
       if (!byId.has(contact.person_id)) {
         byId.set(contact.person_id, {
           person_id: contact.person_id,
           name: contactPersonName(contact),
+          job_title: contactJobTitle(contact),
         });
       }
     }
     return [...byId.values()]
-      .filter((person) => !assignedElsewhere.has(person.person_id))
+      .filter((person) => !takenPersonIds.has(person.person_id))
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, [accountPeople, lead.contacts]);
+  }, [accountPeople, contacts, takenPersonIds]);
+
+  const filteredPeople = useMemo(() => {
+    const q = personQuery.trim().toLowerCase();
+    if (!q) {
+      return peopleOptions;
+    }
+    return peopleOptions.filter((person) => {
+      const haystack = [person.name, person.job_title]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [peopleOptions, personQuery]);
 
   async function persist(tipo: LeadInfluenciaKey, personId: string | null) {
-    const seq = (saveSeq.current[tipo] ?? 0) + 1;
-    saveSeq.current[tipo] = seq;
-    setSavingTipo(tipo);
+    const seq = ++saveSeq.current;
+    setSavingKey(personId ?? tipo);
     onError(null);
     try {
       const updated = await assignLeadInfluencia(
@@ -94,19 +153,61 @@ export function LeadInfluenciasPanel({
         tipo,
         personId,
       );
-      if (saveSeq.current[tipo] !== seq) return;
+      if (saveSeq.current !== seq) return;
       onLeadChange(updated);
+      if (personId) {
+        setDrafts((current) =>
+          current.filter((row) => row.person?.person_id !== personId),
+        );
+      }
+      setActiveSearch(null);
+      setPersonQuery('');
     } catch (err) {
-      if (saveSeq.current[tipo] !== seq) return;
+      if (saveSeq.current !== seq) return;
       onError(
         err instanceof Error
           ? err.message
           : 'No se pudo guardar el contacto de la influencia.',
       );
     } finally {
-      if (saveSeq.current[tipo] === seq) {
-        setSavingTipo(null);
+      if (saveSeq.current === seq) {
+        setSavingKey(null);
       }
+    }
+  }
+
+  function toggleTipo(personId: string, next: LeadInfluenciaKey) {
+    const contact = contacts.find((item) => item.person_id === personId);
+    const current = contact ? contactInfluenciaTipo(contact) : null;
+    if (current === next) {
+      void persist(next, null);
+      return;
+    }
+    void persist(next, personId);
+  }
+
+  function addDraftRow() {
+    setDrafts((current) => [
+      ...current,
+      { id: crypto.randomUUID(), person: null },
+    ]);
+  }
+
+  function selectDraftPerson(draftId: string, person: EligiblePerson) {
+    setDrafts((current) =>
+      current.map((row) =>
+        row.id === draftId ? { ...row, person } : row,
+      ),
+    );
+    setActiveSearch(null);
+    setPersonQuery('');
+  }
+
+  function removeDraft(draftId: string) {
+    setDrafts((current) => current.filter((row) => row.id !== draftId));
+    if (activeSearch === draftId) {
+      setActiveSearch(null);
+      setPersonQuery('');
     }
   }
 
@@ -114,103 +215,226 @@ export function LeadInfluenciasPanel({
     <section className="mt-5 border-t border-border pt-4">
       <h2 className="mb-1 text-sm font-bold text-ink">Influencias</h2>
       <p className="mb-3 text-xs text-muted">
-        El contacto se guarda al instante. En cada influencia solo aparecen
-        contactos de la empresa que aún no están en otro rol.
+        Los contactos del lead y su tipo (Económica, Técnica, Fábrica, Usuario
+        o Coach) se muestran aquí. El tipo se guarda al instante. Un contacto
+        solo puede ocupar un rol a la vez.
       </p>
-      <div className="grid gap-3 md:grid-cols-3">
-        {LEAD_INFLUENCIA_SLOTS.map(({ key, label }) => {
-          const assigned = lead.contacts.find(
-            (contact) => contact.tipo_influencia === key,
-          );
-          const isUnassigned = !assigned;
-          const isSaving = savingTipo === key;
+      <div
+        ref={listRef}
+        className="overflow-hidden rounded border border-border bg-bg"
+      >
+        <div className={`${influenceTableRowClass} border-b border-border`}>
+          <span className={contactTableHeaderClass}>#</span>
+          <span className={contactTableHeaderClass}>Persona</span>
+          <span className={`${contactTableHeaderClass} text-right`}>
+            Tipo (opcional)
+          </span>
+          <span />
+        </div>
 
+        {contacts.length === 0 && drafts.length === 0 ? (
+          <p className="px-3 py-3 text-sm text-muted">
+            Este lead no tiene contactos asociados.
+          </p>
+        ) : null}
+
+        {contacts.map((contact, index) => {
+          const tipo = contactInfluenciaTipo(contact);
+          const busy = savingKey === contact.person_id;
           return (
             <div
-              key={key}
-              className={[
-                'rounded border p-3',
-                isUnassigned
-                  ? 'border-border bg-bg/80 opacity-75'
-                  : 'border-border bg-bg',
-              ].join(' ')}
+              key={contact.contact_id}
+              className={`${influenceTableRowClass} border-b border-border`}
             >
-              <div className="mb-3 flex items-center justify-between gap-2">
-                <p
-                  className={`text-sm font-bold ${isUnassigned ? 'text-muted' : 'text-ink'}`}
-                >
-                  {label}
-                </p>
-                {isSaving ? (
-                  <span className="text-xs font-bold text-accent">
+              <p
+                className={`truncate text-sm ${
+                  index === 0 ? 'font-bold text-ink' : 'text-muted'
+                }`}
+              >
+                {rowLabel(index)}
+              </p>
+              <p className="truncate text-sm font-bold text-ink">
+                {contactPersonName(contact)}
+                {contactJobTitle(contact) ? (
+                  <span className="font-normal text-muted">
+                    {' '}
+                    · {contactJobTitle(contact)}
+                  </span>
+                ) : null}
+                {busy ? (
+                  <span className="ml-2 font-bold text-accent">
                     Guardando…
                   </span>
                 ) : null}
-              </div>
-
-              <label className={labelClass}>Contacto</label>
-              {assigned ? (
-                <div className="relative rounded border border-border bg-surface p-2.5 pr-8 text-xs">
-                  {canEdit ? (
-                    <button
-                      type="button"
-                      className="icon-btn absolute right-1 top-1 grid h-6 w-6 place-items-center rounded text-muted hover:text-danger"
-                      aria-label={`Quitar contacto de ${label}`}
-                      onClick={() => void persist(key, null)}
-                    >
-                      <X size={14} strokeWidth={2.5} />
-                    </button>
-                  ) : null}
-                  <p className="font-bold text-ink">
-                    {contactPersonName(assigned)}
-                  </p>
-                  {contactJobTitle(assigned) ? (
-                    <p className="mt-0.5 text-muted">
-                      {contactJobTitle(assigned)}
-                    </p>
-                  ) : null}
-                  {contactEmail(assigned) ? (
-                    <p className="mt-0.5 text-ink">{contactEmail(assigned)}</p>
-                  ) : null}
-                  {contactPhone(assigned) ? (
-                    <p className="mt-0.5 text-ink">{contactPhone(assigned)}</p>
-                  ) : null}
-                  <p className="mt-0.5 text-muted">
-                    {contactAccountName(assigned, lead.empresa_nombre)}
-                  </p>
-                </div>
-              ) : (
-                <>
-                  <select
-                    className={`${inputClass} text-muted`}
-                    disabled={!canEdit || isSaving}
-                    value=""
-                    onChange={(event) => {
-                      const next = event.target.value;
-                      if (next) void persist(key, next);
-                    }}
-                  >
-                    <option value="">Sin asignar</option>
-                    {peopleOptions.map((person) => (
-                      <option key={person.person_id} value={person.person_id}>
-                        {person.name}
-                      </option>
-                    ))}
-                  </select>
-                  {canEdit && accountId ? (
-                    <Link
-                      to={`/accounts/contactos?account_id=${encodeURIComponent(accountId)}&new=1`}
-                      className="mt-2 inline-block text-xs font-bold text-accent hover:underline"
-                    >
-                      + Agregar contacto
-                    </Link>
-                  ) : null}
-                </>
-              )}
+              </p>
+              <TipoChips
+                selected={tipo}
+                disabled={!canEdit || busy}
+                onToggle={(next) => toggleTipo(contact.person_id, next)}
+                ariaLabel={`Tipo de ${contactPersonName(contact)}`}
+              />
+              <span />
             </div>
           );
         })}
+
+        {drafts.map((draft, draftIndex) => {
+          const searching = activeSearch === draft.id;
+          const label = rowLabel(contacts.length + draftIndex);
+          const busy = savingKey === draft.person?.person_id;
+          return (
+            <div
+              key={draft.id}
+              className={`${influenceTableRowClass} border-b border-border`}
+            >
+              <p className="truncate text-sm text-muted">{label}</p>
+              <div className="relative min-w-0">
+                {draft.person ? (
+                  <p className="truncate text-sm font-bold text-ink">
+                    {draft.person.name}
+                    {draft.person.job_title ? (
+                      <span className="font-normal text-muted">
+                        {' '}
+                        · {draft.person.job_title}
+                      </span>
+                    ) : null}
+                  </p>
+                ) : searching ? (
+                  <>
+                    <input
+                      value={personQuery}
+                      onChange={(event) => setPersonQuery(event.target.value)}
+                      className={inputClass}
+                      placeholder="Buscar contacto..."
+                      autoComplete="off"
+                      autoFocus
+                      aria-label={`Buscar persona para ${label}`}
+                    />
+                    <ul className="absolute z-20 mt-1 max-h-40 w-full overflow-y-auto rounded border border-border bg-surface shadow-card">
+                      {filteredPeople.length === 0 ? (
+                        <li className="px-3 py-2 text-xs text-muted">
+                          {peopleOptions.length === 0
+                            ? 'Esta empresa no tiene más contactos.'
+                            : 'Sin coincidencias.'}
+                        </li>
+                      ) : (
+                        filteredPeople.map((option) => (
+                          <li key={option.person_id}>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                selectDraftPerson(draft.id, option)
+                              }
+                              className="flex w-full flex-col px-3 py-2 text-left text-sm hover:bg-bg"
+                            >
+                              <span className="font-bold text-ink">
+                                {option.name}
+                              </span>
+                              {option.job_title ? (
+                                <span className="text-xs text-muted">
+                                  {option.job_title}
+                                </span>
+                              ) : null}
+                            </button>
+                          </li>
+                        ))
+                      )}
+                    </ul>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    className="truncate text-left text-sm text-muted hover:text-ink"
+                    onClick={() => {
+                      setActiveSearch(draft.id);
+                      setPersonQuery('');
+                    }}
+                  >
+                    Buscar contacto...
+                  </button>
+                )}
+              </div>
+              <TipoChips
+                selected={null}
+                disabled={!canEdit || !draft.person || busy}
+                onToggle={(tipo) => {
+                  if (draft.person) {
+                    void persist(tipo, draft.person.person_id);
+                  }
+                }}
+                ariaLabel={`Tipo de ${label}`}
+              />
+              <button
+                type="button"
+                className="icon-btn grid h-7 w-7 place-items-center rounded text-muted hover:text-danger"
+                aria-label={`Quitar ${label}`}
+                onClick={() => removeDraft(draft.id)}
+              >
+                <X size={14} strokeWidth={2.5} />
+              </button>
+            </div>
+          );
+        })}
+
+        {canEdit ? (
+          <div className="flex items-center gap-3 px-3 py-2.5">
+            <button
+              type="button"
+              onClick={addDraftRow}
+              className="inline-flex items-center gap-1 text-xs font-bold text-accent hover:underline"
+            >
+              <Plus size={14} strokeWidth={2.5} />
+              Agregar contacto
+            </button>
+            {accountId ? (
+              <Link
+                to={`/accounts/contactos?account_id=${encodeURIComponent(accountId)}&new=1`}
+                className="text-xs font-bold text-accent hover:underline"
+              >
+                Crear contacto
+              </Link>
+            ) : null}
+          </div>
+        ) : null}
       </div>
     </section>
+  );
+}
+
+function TipoChips({
+  selected,
+  disabled,
+  onToggle,
+  ariaLabel,
+}: {
+  selected: LeadInfluenciaKey | null;
+  disabled: boolean;
+  onToggle: (tipo: LeadInfluenciaKey) => void;
+  ariaLabel: string;
+}) {
+  return (
+    <div
+      className="flex flex-wrap content-center justify-end gap-1"
+      role="group"
+      aria-label={ariaLabel}
+    >
+      {LEAD_INFLUENCIA_SLOTS.map(({ key, label }) => {
+        const pressed = selected === key;
+        return (
+          <button
+            key={key}
+            type="button"
+            aria-pressed={pressed}
+            disabled={disabled}
+            onClick={() => onToggle(key)}
+            className={
+              pressed ? influenceChipPressedClass : influenceChipClass
+            }
+          >
+            {label}
+          </button>
+        );
+      })}
+    </div>
   );
 }

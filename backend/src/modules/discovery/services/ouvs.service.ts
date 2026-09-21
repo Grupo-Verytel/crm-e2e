@@ -24,6 +24,7 @@ import type { CrearOuvDto } from '../dtos/crear-ouv.dto';
 import type { ListarOuvsQueryDto } from '../dtos/listar-ouvs-query.dto';
 import type { OuvResponseDto } from '../dtos/ouv-response.dto';
 import { assertCanMutateOuvEnCurso, canReadAllOuvs } from '../lib/ouv-access';
+import { snapshotLeadSource } from '../lib/ouv-lead-source-snapshot';
 import {
   computeOuvZonaDays,
   parseZonaValue,
@@ -120,12 +121,15 @@ export class OuvsService {
     const consecutivo = await this.nextOuvConsecutivo(transaction);
     const city = firstNonEmpty(input.dto.city, lead.city);
     const region = firstNonEmpty(input.dto.region, lead.region);
+    const leadSource = snapshotLeadSource(lead);
 
     const ouv = await this.ouvModel.create(
       {
         consecutivo,
         sqlIdOrigen: input.sqlId,
         origenVia: OuvOrigenVia.DesdeSql,
+        origin: leadSource.origin,
+        sourceChannel: leadSource.sourceChannel,
         comercialId: input.comercialId,
         accountId: person.account_id,
         titulo: input.dto.titulo.trim(),
@@ -193,6 +197,8 @@ export class OuvsService {
           consecutivo,
           sqlIdOrigen: null,
           origenVia: OuvOrigenVia.Directa,
+          origin: null,
+          sourceChannel: null,
           comercialId: actorUserId,
           accountId,
           titulo: dto.titulo.trim(),
@@ -928,6 +934,8 @@ export class OuvsService {
       consecutivo: ouv.consecutivo,
       sql_id_origen: ouv.sqlIdOrigen,
       origen_via: ouv.origenVia,
+      origin: ouv.origin ?? null,
+      source_channel: ouv.sourceChannel ?? null,
       comercial_id: ouv.comercialId,
       account_id: ouv.accountId ?? null,
       titulo: ouv.titulo,

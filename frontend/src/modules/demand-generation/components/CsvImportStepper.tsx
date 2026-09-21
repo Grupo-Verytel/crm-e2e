@@ -19,8 +19,9 @@ const EXPECTED_HEADERS = [
   'cargo',
   'email',
   'telefono',
-  'responsable_id',
-  'campana_id',
+  'tipo_influencia',
+  'traductor',
+  'campana',
 ];
 
 type Step = 'upload' | 'mapping' | 'processing' | 'done';

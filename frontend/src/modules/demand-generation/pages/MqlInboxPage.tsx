@@ -8,11 +8,17 @@ import { fetchLead } from '../api/leads-api';
 import { approveMql, fetchMqls, rejectMql } from '../api/mqls-api';
 import { DemandNav } from '../components/DemandNav';
 import { MotivoModal } from '../components/MotivoModal';
+import { RegisterAppointmentModal } from '../components/leads/RegisterAppointmentModal';
 import { cardClass, ghostButtonClass, primaryButtonClass } from '../components/ui';
-import type { Lead, Mql } from '../types';
+import { leadDisplayName } from '../lib/lead-vocab';
+import type { ApproveAgencyMqlPayload, Lead, Mql } from '../types';
 
 /** Same role the workflow guard checks for lead.mql_aprobado. */
-const MQL_DECISION_ROLES = new Set(['DirectorMercadeo', 'Director Mercadeo']);
+const MQL_DECISION_ROLES = new Set([
+  'DirectorMercadeo',
+  'Director Mercadeo',
+  'Admin',
+]);
 
 export function MqlInboxPage() {
   const { user } = useAuth();
@@ -26,6 +32,7 @@ export function MqlInboxPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [rejecting, setRejecting] = useState<Mql | null>(null);
+  const [approving, setApproving] = useState<Mql | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const loadMqls = useCallback(async () => {
@@ -57,17 +64,36 @@ export function MqlInboxPage() {
     void loadMqls();
   }, [loadMqls]);
 
-  async function handleApprove(mql: Mql) {
+  async function handleApprove(
+    mql: Mql,
+    appointment?: ApproveAgencyMqlPayload,
+  ) {
     setBusyId(mql.mql_id);
     setError(null);
     try {
-      await approveMql(mql.mql_id);
+      await approveMql(mql.mql_id, appointment);
+      setApproving(null);
       await loadMqls();
-    } catch {
-      setError('No se pudo aprobar el MQL.');
+    } catch (err) {
+      const message =
+        err instanceof Error && err.message
+          ? err.message
+          : 'No se pudo aprobar el MQL.';
+      setError(message);
+      throw err instanceof Error ? err : new Error(message);
     } finally {
       setBusyId(null);
     }
+  }
+
+  function requestApprove(mql: Mql) {
+    if (!canDecideMql) return;
+    const lead = leads[mql.lead_id];
+    if (lead?.canal_origen === 'GENERACION_DEMANDA_AGENCIA') {
+      setApproving(mql);
+      return;
+    }
+    void handleApprove(mql).catch(() => undefined);
   }
 
   return (
@@ -99,15 +125,19 @@ export function MqlInboxPage() {
                           to={`/demand/leads/${lead.lead_id}`}
                           className="hover:text-accent"
                         >
-                          {lead.empresa_nombre}
+                          {leadDisplayName(lead)}
                         </Link>
                       ) : (
                         mql.lead_id
                       )}
                     </p>
                     <p className="text-sm text-muted">
-                      {lead ? `${lead.contacto_nombre} · ${lead.segmento}` : '—'} ·
-                      calificado {formatDateTime(mql.fecha_calificacion)}
+                      {lead
+                        ? [lead.empresa_nombre, lead.contacto_nombre, lead.segmento]
+                            .filter(Boolean)
+                            .join(' · ')
+                        : '—'}{' '}
+                      · calificado {formatDateTime(mql.fecha_calificacion)}
                     </p>
                   </div>
                   <div className="flex shrink-0 gap-2">
@@ -119,10 +149,7 @@ export function MqlInboxPage() {
                           ? undefined
                           : 'Solo el Director de Mercadeo puede aprobar un MQL'
                       }
-                      onClick={() => {
-                        if (!canDecideMql) return;
-                        void handleApprove(mql);
-                      }}
+                      onClick={() => requestApprove(mql)}
                       className={primaryButtonClass}
                     >
                       Aprobar → SQL
@@ -152,6 +179,15 @@ export function MqlInboxPage() {
         <Pagination page={page} limit={limit} total={total} onPageChange={setPage} />
       </div>
 
+      {approving && leads[approving.lead_id] ? (
+        <RegisterAppointmentModal
+          lead={leads[approving.lead_id]}
+          title="Cita para aprobar SQL"
+          submitLabel="Aprobar → SQL"
+          onConfirm={(payload) => handleApprove(approving, payload)}
+          onClose={() => setApproving(null)}
+        />
+      ) : null}
       {rejecting ? (
         <MotivoModal
           title="Rechazar MQL"

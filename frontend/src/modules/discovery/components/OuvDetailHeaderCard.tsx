@@ -5,11 +5,13 @@ import type { Ouv } from '../api/ouvs-api';
 import type { OuvDetailExtensions } from '../lib/ouv-detail-extensions';
 import {
   buildOuvMetaFields,
+  formatOuvOrigin,
+  formatOuvSourceChannel,
   SEGMENTO_LABEL,
 } from '../lib/ouv-detail-meta';
 import { SEGMENTOS, VERTICALES } from '../lib/ouv-vocab';
 import { ColombiaCitySearchField } from './ColombiaCitySearchField';
-import { GapBadge } from './OuvBadges';
+import { GapBadge, ResultadoBadge } from './OuvBadges';
 import { OuvConfigMenu } from './OuvConfigMenu';
 import { cardClass, inputClass, labelClass } from './ui';
 
@@ -206,6 +208,7 @@ export function OuvDetailHeaderCard({
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
+          <ResultadoBadge resultado={ouv.resultado} />
           <button
             type="button"
             className="icon-btn relative grid h-9 w-9 place-items-center rounded"
@@ -306,6 +309,18 @@ export function OuvDetailHeaderCard({
                   </option>
                 ))}
               </select>
+            </div>
+            <div>
+              <dt className="text-xs font-bold text-muted">Origen</dt>
+              <dd className="mt-0.5 font-medium text-ink">
+                {formatOuvOrigin(ouv.origin)}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs font-bold text-muted">Canal de origen</dt>
+              <dd className="mt-0.5 font-medium text-ink">
+                {formatOuvSourceChannel(ouv.source_channel)}
+              </dd>
             </div>
             <div>
               <label className={labelClass} htmlFor="ouv-proyecto">

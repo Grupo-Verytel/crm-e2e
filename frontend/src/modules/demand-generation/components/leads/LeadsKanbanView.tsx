@@ -18,7 +18,6 @@ import type { LeadFilterValues } from '../../lib/lead-filters';
 import { ChecklistModal } from './ChecklistModal';
 import { LeadCard } from './LeadCard';
 import { QuickInteractionModal } from './QuickInteractionModal';
-import { RegisterAppointmentModal } from './RegisterAppointmentModal';
 
 const PAGE_SIZE = 15;
 
@@ -50,8 +49,7 @@ function isChecklistComplete(checklist: Checklist | null): boolean {
     !!checklist &&
     checklist.criterio_sector_objetivo &&
     checklist.criterio_necesidad_portafolio &&
-    checklist.criterio_acceso_decisor &&
-    checklist.criterio_presupuesto_indicios
+    checklist.criterio_acceso_decisor
   );
 }
 
@@ -87,7 +85,6 @@ export function LeadsKanbanView({
   const [busyLeadId, setBusyLeadId] = useState<string | null>(null);
   const [interactionFor, setInteractionFor] = useState<Lead | null>(null);
   const [checklistFor, setChecklistFor] = useState<Lead | null>(null);
-  const [appointmentFor, setAppointmentFor] = useState<Lead | null>(null);
 
   const filtersKey = JSON.stringify(filters);
 
@@ -171,7 +168,7 @@ export function LeadsKanbanView({
       }
 
       if (dragged.canal_origen === 'FABRICA' && column.estado === 'MQL_PENDING') {
-        return dragged.estado === 'TOFU';
+        return dragged.estado === 'TOFU' || dragged.estado === 'MOFU';
       }
 
       if (
@@ -201,13 +198,6 @@ export function LeadsKanbanView({
 
   function handleDropToMofu(lead: Lead) {
     setCardError(lead.lead_id, null);
-    if (lead.segmento === 'B2B' && !lead.industria) {
-      setCardError(
-        lead.lead_id,
-        'Falta la industria (requerida para B2B). Ábrelo para completarla.',
-      );
-      return;
-    }
     if (!lead.fecha_ultima_interaccion) {
       setInteractionFor(lead);
       return;
@@ -218,14 +208,16 @@ export function LeadsKanbanView({
   async function handleDropToMql(lead: Lead) {
     setCardError(lead.lead_id, null);
 
-    if (lead.canal_origen === 'GENERACION_DEMANDA_AGENCIA') {
-      setAppointmentFor(lead);
-      return;
-    }
-
     setBusyLeadId(lead.lead_id);
     try {
-      const checklist = await fetchChecklist(lead.lead_id);
+      let checklist: Checklist | null = null;
+      try {
+        checklist = (await fetchChecklist(lead.lead_id)) ?? null;
+      } catch (error) {
+        if (error instanceof ApiError && error.status !== 404) {
+          throw error;
+        }
+      }
       if (isChecklistComplete(checklist)) {
         await transitionLeadToMql(lead.lead_id);
         reloadAll();
@@ -392,23 +384,12 @@ export function LeadsKanbanView({
           onQualified={() => reloadAll()}
           onSaved={() =>
             loadColumn(
-              checklistFor.canal_origen === 'FABRICA' ? 'TOFU' : 'MOFU',
+              checklistFor.estado === 'TOFU' ? 'TOFU' : 'MOFU',
               1,
               false,
             )
           }
           onClose={() => setChecklistFor(null)}
-        />
-      ) : null}
-
-      {appointmentFor ? (
-        <RegisterAppointmentModal
-          lead={appointmentFor}
-          onRegistered={() => {
-            setAppointmentFor(null);
-            reloadAll();
-          }}
-          onClose={() => setAppointmentFor(null)}
         />
       ) : null}
     </>

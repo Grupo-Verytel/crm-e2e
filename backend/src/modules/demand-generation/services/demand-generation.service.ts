@@ -20,6 +20,8 @@ import { CreateCampaignDto } from '../dtos/create-campaign.dto';
 import { CreateInteractionDto } from '../dtos/create-interaction.dto';
 import { CreateLeadDto } from '../dtos/create-lead.dto';
 import {
+  MarketingDashboardDetailsQueryDto,
+  MarketingDashboardDetailsResponseDto,
   MarketingDashboardQueryDto,
   MarketingDashboardResponseDto,
 } from '../dtos/dashboard-response.dto';
@@ -156,6 +158,19 @@ export class DemandGenerationService {
     return users.map((user) => ({
       user_id: user.user_id,
       full_name: user.full_name,
+      email: user.email,
+    }));
+  }
+
+  async listTraductorReferrers(): Promise<CommercialOptionDto[]> {
+    const users = await this.usersService.findActiveByRoleName(
+      DEMAND_GENERATION_ROLES.TRADUCTOR_DE_NEGOCIO,
+    );
+
+    return users.map((user) => ({
+      user_id: user.user_id,
+      full_name: user.full_name,
+      email: user.email,
     }));
   }
 
@@ -351,6 +366,12 @@ export class DemandGenerationService {
     query: MarketingDashboardQueryDto,
   ): Promise<MarketingDashboardResponseDto> {
     return this.dashboardService.getMarketingDashboard(query);
+  }
+
+  async getMarketingDashboardDetails(
+    query: MarketingDashboardDetailsQueryDto,
+  ): Promise<MarketingDashboardDetailsResponseDto> {
+    return this.dashboardService.getMarketingDashboardDetails(query);
   }
 
   private assertTraductorCannotWriteCampaigns(roleName?: string): void {

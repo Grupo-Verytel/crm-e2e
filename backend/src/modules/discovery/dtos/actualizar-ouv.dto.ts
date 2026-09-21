@@ -20,6 +20,7 @@ import {
  * (account, segment/subsegment, comercial). Los campos con flujo dedicado
  * (zona_actual, resultado, motivos, presupuesto_*) NO viajan por aquí —
  * tienen sus propios endpoints con guardas y auditoría distintas.
+ * `origin` / `source_channel` son snapshot inmutable (v1.5) — no se aceptan aquí.
  */
 export class ActualizarOuvDto {
   @IsOptional()

@@ -1,14 +1,37 @@
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  IsArray,
   IsDateString,
+  IsEmail,
+  IsInt,
   IsNotEmpty,
   IsOptional,
   IsString,
   IsUUID,
   Matches,
+  Max,
   MaxLength,
+  Min,
   ValidateNested,
 } from 'class-validator';
+
+export class CitaContactoDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(120)
+  nombre!: string;
+
+  @IsEmail()
+  @MaxLength(160)
+  email!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(40)
+  telefono!: string;
+}
 
 export class CreateSqlCitaDto {
   @IsString()
@@ -24,10 +47,28 @@ export class CreateSqlCitaDto {
   @Matches(/^\d{2}:\d{2}(:\d{2})?$/)
   hora!: string;
 
+  @IsOptional()
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(8)
+  @ValidateNested({ each: true })
+  @Type(() => CitaContactoDto)
+  contactos?: CitaContactoDto[];
+
   @IsString()
   @IsNotEmpty()
   @MaxLength(120)
   contacto_nombre!: string;
+
+  @IsOptional()
+  @IsEmail()
+  @MaxLength(160)
+  contacto_email?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  contacto_telefono?: string;
 
   @IsOptional()
   @IsString()
@@ -37,6 +78,14 @@ export class CreateSqlCitaDto {
   @IsOptional()
   @IsString()
   descripcion?: string;
+
+  /** Duration of the Teams meeting in minutes. Default 60. */
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(15)
+  @Max(180)
+  duration_minutes?: number;
 }
 
 export class AssignSqlDto {
@@ -79,4 +128,11 @@ export class UpdateSqlCitaDto {
   @IsOptional()
   @IsString()
   descripcion?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(15)
+  @Max(180)
+  duration_minutes?: number;
 }

@@ -21,15 +21,11 @@ const CRITERIA: { key: CriterionKey; label: string }[] = [
     key: 'criterio_acceso_decisor',
     label: '¿Acceso a decisor o influencia hacia el decisor?',
   },
-  {
-    key: 'criterio_presupuesto_indicios',
-    label: '¿Indicios de presupuesto o capacidad de inversión?',
-  },
 ];
 
 /**
  * Checklist gate for MOFU → BOFU (DG-13 / EARS-19 for FABRICA TOFU → BOFU).
- * Saving all four criteria as true both persists the checklist and promotes;
+ * Saving all three criteria as true both persists the checklist and promotes;
  * partial progress can be saved without promoting.
  */
 export function ChecklistModal({
@@ -49,7 +45,6 @@ export function ChecklistModal({
     criterio_sector_objetivo: false,
     criterio_necesidad_portafolio: false,
     criterio_acceso_decisor: false,
-    criterio_presupuesto_indicios: false,
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -66,7 +61,6 @@ export function ChecklistModal({
           criterio_sector_objetivo: checklist.criterio_sector_objetivo,
           criterio_necesidad_portafolio: checklist.criterio_necesidad_portafolio,
           criterio_acceso_decisor: checklist.criterio_acceso_decisor,
-          criterio_presupuesto_indicios: checklist.criterio_presupuesto_indicios,
         });
       })
       .finally(() => {
@@ -128,7 +122,7 @@ export function ChecklistModal({
     <ModalShell title="Checklist de calificación" onClose={onClose}>
       <div className="space-y-4">
         <p className="text-sm text-muted">
-          {leadName} — marca los cuatro criterios para avanzar a BOFU
+          {leadName} — marca los tres criterios para avanzar a BOFU
           (aprobación del Director).
         </p>
 

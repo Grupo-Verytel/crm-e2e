@@ -1,3 +1,4 @@
+import { Calendar } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Pagination } from '../../../components/Pagination';
@@ -12,6 +13,7 @@ import { useAuth } from '../../auth/hooks/useAuth';
 import { fetchAssignedSqls, type SqlDetail } from '../api/sqls-api';
 import { QualificationNav } from '../components/QualificationNav';
 import { cardClass } from '../components/ui';
+import { sqlLeadName } from '../lib/agency-cita';
 
 const PAGE_SIZE = 20;
 
@@ -88,7 +90,9 @@ export function AssignedSqlsPage() {
           <table className="w-full text-left text-sm">
             <thead className="border-b border-border text-xs text-muted">
               <tr>
+                <th className="px-4 py-3 font-bold">Lead</th>
                 <th className="px-4 py-3 font-bold">Empresa</th>
+                <th className="px-4 py-3 font-bold">Cita</th>
                 <th className="px-4 py-3 font-bold">Estado</th>
                 <th className="px-4 py-3 font-bold">Origen</th>
                 <th className="px-4 py-3 font-bold">Asignado</th>
@@ -102,8 +106,44 @@ export function AssignedSqlsPage() {
                       to={`/qualification/sqls/${sql.sql_id}`}
                       className="font-bold text-accent hover:underline"
                     >
-                      {String(sql.lead.empresa_nombre ?? '—')}
+                      {sqlLeadName(sql.lead)}
                     </Link>
+                  </td>
+                  <td className="px-4 py-3 text-ink">
+                    {String(sql.lead.empresa_nombre ?? '—')}
+                  </td>
+                  <td className="px-4 py-3">
+                    {sql.cita ? (
+                      <span className="inline-flex items-start gap-2">
+                        <Calendar
+                          size={16}
+                          className="mt-0.5 shrink-0 text-turquoise"
+                          aria-hidden
+                        />
+                        <span className="inline-flex flex-col gap-0.5">
+                          <span className="inline-flex w-fit items-center rounded-sm border border-turquoise px-2 py-0.5 text-xs font-bold text-ink">
+                            {sql.cita.teams_join_url
+                              ? 'Reunión Teams'
+                              : 'Reunión agendada'}
+                          </span>
+                          <span className="text-xs text-muted">
+                            {sql.cita.fecha} {sql.cita.hora.slice(0, 5)}
+                          </span>
+                          {sql.cita.teams_join_url ? (
+                            <a
+                              href={sql.cita.teams_join_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-xs font-bold text-accent hover:underline"
+                            >
+                              Unirse a Teams
+                            </a>
+                          ) : null}
+                        </span>
+                      </span>
+                    ) : (
+                      <span className="text-sm text-muted">Sin cita</span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-ink">{sql.estado}</td>
                   <td className="px-4 py-3">

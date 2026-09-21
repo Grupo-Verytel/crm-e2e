@@ -1,4 +1,3 @@
-import { ConflictException } from '@nestjs/common';
 import { Sequelize } from 'sequelize';
 import { AccountsService } from '../../accounts/services/accounts.service';
 import { User } from '../../auth/models/user.model';
@@ -63,15 +62,15 @@ describe('LeadsService channel flows', () => {
     );
   });
 
-  it('keeps TRADUCTOR_NEGOCIO blocked on standard create path', () => {
+  it('resolves TRADUCTOR_NEGOCIO to TOFU on standard create', () => {
     const service = createService();
 
-    expect(() =>
-      service.resolveInitialState(CanalOrigen.TraductorNegocio),
-    ).toThrow(ConflictException);
+    expect(service.resolveInitialState(CanalOrigen.TraductorNegocio)).toBe(
+      LeadEstado.TOFU,
+    );
   });
 
-  it('EARS-21: registers an agency appointment and moves the lead to MQL_PENDING', async () => {
+  it('EARS-21: stores an agency appointment without promoting the lead to MQL_PENDING', async () => {
     const lead = {
       leadId: 'lead-1',
       canalOrigen: CanalOrigen.GeneracionDemandaAgencia,
@@ -117,7 +116,7 @@ describe('LeadsService channel flows', () => {
     });
     jest
       .spyOn(service, 'toResponseDto')
-      .mockResolvedValue({ estado: LeadEstado.MqlPending } as never);
+      .mockResolvedValue({ estado: LeadEstado.MOFU } as never);
 
     const dto: RegisterAppointmentDto = {
       fecha_cita: '2026-07-20T10:00:00.000Z',
@@ -130,22 +129,18 @@ describe('LeadsService channel flows', () => {
       'SoporteComercial',
     );
 
-    expect(mqlCreate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        leadId: 'lead-1',
-        checklistId: null,
-        calificadoPor: 'support-1',
-      }),
-      expect.any(Object),
-    );
+    expect(mqlCreate).not.toHaveBeenCalled();
     expect(lead.update).toHaveBeenCalledWith(
       expect.objectContaining({
         citaAgendada: true,
-        estado: LeadEstado.MqlPending,
+        comercialAsignadoId: 'commercial-1',
       }),
-      expect.any(Object),
     );
-    expect(notify).toHaveBeenCalled();
-    expect(result.estado).toBe(LeadEstado.MqlPending);
+    expect(lead.update).not.toHaveBeenCalledWith(
+      expect.objectContaining({ estado: LeadEstado.MqlPending }),
+      expect.anything(),
+    );
+    expect(notify).not.toHaveBeenCalled();
+    expect(result.estado).toBe(LeadEstado.MOFU);
   });
 });

@@ -11,10 +11,15 @@ import { EntityType } from '../../workflow-engine/enums/entity-type.enum';
 import { StatusHistoryTrigger } from '../../workflow-engine/lib/status-history-trigger';
 import { StatusHistoryService } from '../../workflow-engine/services/status-history.service';
 import { WorkflowEngineService } from '../../workflow-engine/workflow-engine.service';
+import { ApproveMqlDto } from '../dtos/approve-mql.dto';
 import {
   DEMAND_GENERATION_ERROR_CODES,
   DEMAND_GENERATION_ROLES,
 } from '../constants/demand-generation.constants';
+import {
+  isCompleteCitaContacto,
+  normalizeCitaContactos,
+} from '../lib/cita-contactos';
 import {
   allChecklistCriteriaMet,
   missingChecklistCriteria,
@@ -24,7 +29,6 @@ import { CanalOrigen, LeadEstado } from '../models/enums/lead.enums';
 import { MqlEstado } from '../models/enums/mql.enums';
 import { SqlOrigenCreacion } from '../models/enums/sql-origen.enum';
 import { SqlEstado } from '../models/enums/sql.enums';
-import { Segmento } from '../models/enums/segment.enum';
 import { LeadContact } from '../models/lead-contact.model';
 import { Lead } from '../models/lead.model';
 import { LeadChecklist } from '../models/lead-checklist.model';
@@ -85,20 +89,13 @@ export class LeadStateMachineService {
 
   /**
    * TOFU → MOFU. DG-12: at least one interaction AND the lead classified
-   * (segmento, industria when B2B). Rejects with the explicit missing criterion.
+   * (segmento). Rejects with the explicit missing criterion.
    */
   // userId is part of the spec signature and captured centrally by the audit
   // hooks; kept for parity with the other transitions.
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async transitionToMofu(leadId: string, _userId: string): Promise<Lead> {
     const lead = await this.findLeadOrFail(leadId);
-
-    if (lead.canalOrigen === CanalOrigen.Fabrica) {
-      throw new BadRequestException({
-        code: DEMAND_GENERATION_ERROR_CODES.INVALID_TRANSITION,
-        message: 'FABRICA leads skip MOFU and are evaluated directly in TOFU',
-      });
-    }
 
     assertValidLeadTransition(lead.estado, LeadEstado.MOFU);
 
@@ -111,10 +108,6 @@ export class LeadStateMachineService {
 
     if (!lead.segmento) {
       missing.push('segmento');
-    }
-
-    if (lead.segmento === Segmento.B2B && !lead.industria?.trim()) {
-      missing.push('industria (requerida para segmento B2B)');
     }
 
     if (missing.length > 0) {
@@ -216,15 +209,16 @@ export class LeadStateMachineService {
   async approveMql(
     mqlId: string,
     userId: string,
-    comentario?: string,
+    dto: ApproveMqlDto = {},
   ): Promise<{ mql: Mql; sql: Sql; lead: Lead }> {
     const mql = await this.findMqlOrFail(mqlId);
     this.assertMqlActive(mql);
 
     const lead = await this.findLeadOrFail(mql.leadId);
     const leadEstadoAnterior = lead.estado;
+    const agencyAppointment = await this.resolveAgencyAppointment(lead, dto);
 
-    return this.sequelize.transaction(async (transaction) => {
+    const result = await this.sequelize.transaction(async (transaction) => {
       const sql = await this.sqlModel.create(
         {
           mqlId: mql.mqlId,
@@ -238,18 +232,24 @@ export class LeadStateMachineService {
       await mql.update(
         {
           estado: MqlEstado.ConvertidoSQL,
-          ...(comentario ? { motivoCalificacion: comentario } : {}),
+          ...(dto.comentario ? { motivoCalificacion: dto.comentario } : {}),
         },
         { transaction },
       );
-      await lead.update({ estado: LeadEstado.SQL }, { transaction });
+      await lead.update(
+        {
+          estado: LeadEstado.SQL,
+          ...(agencyAppointment ?? {}),
+        },
+        { transaction },
+      );
 
       const entityLabel = await this.getLeadDisplayLabel(lead);
       const payload = {
         leadId: lead.leadId,
         mqlId: mql.mqlId,
         sqlId: sql.sqlId,
-        ...(comentario ? { comentario } : {}),
+        ...(dto.comentario ? { comentario: dto.comentario } : {}),
       };
 
       await this.workflowEngine.transition(
@@ -283,6 +283,8 @@ export class LeadStateMachineService {
 
       return { mql, sql, lead };
     });
+
+    return result;
   }
 
   /**
@@ -425,6 +427,62 @@ export class LeadStateMachineService {
         message: `MQL is not in Activo state (current: ${mql.estado})`,
       });
     }
+  }
+
+  private async resolveAgencyAppointment(
+    lead: Lead,
+    dto: ApproveMqlDto,
+  ): Promise<{
+    citaAgendada: true;
+    fechaCita: Date;
+    citaLugar: string | null;
+    citaContactoNombre: string;
+    citaContactoEmail: string;
+    citaContactoTelefono: string;
+    citaContactos: Array<{
+      nombre: string;
+      email: string;
+      telefono: string;
+    }>;
+  } | null> {
+    if (lead.canalOrigen !== CanalOrigen.GeneracionDemandaAgencia) {
+      return null;
+    }
+
+    const contactos = normalizeCitaContactos(
+      dto.cita_contactos ??
+        (dto.cita_contacto_nombre
+          ? [
+              {
+                nombre: dto.cita_contacto_nombre,
+                email: dto.cita_contacto_email ?? '',
+                telefono: dto.cita_contacto_telefono ?? '',
+              },
+            ]
+          : []),
+    );
+    const principal = contactos[0];
+    if (
+      !dto.fecha_cita ||
+      !principal ||
+      !contactos.every(isCompleteCitaContacto)
+    ) {
+      throw new BadRequestException({
+        code: DEMAND_GENERATION_ERROR_CODES.VALIDATION_ERROR,
+        message:
+          'fecha_cita and at least one complete cita contact (nombre, email, telefono) are required to approve an agency MQL',
+      });
+    }
+
+    return {
+      citaAgendada: true,
+      fechaCita: new Date(dto.fecha_cita),
+      citaLugar: dto.cita_lugar?.trim() || null,
+      citaContactoNombre: principal.nombre,
+      citaContactoEmail: principal.email,
+      citaContactoTelefono: principal.telefono,
+      citaContactos: contactos,
+    };
   }
 
   private async getLeadDisplayLabel(lead: Lead): Promise<string> {

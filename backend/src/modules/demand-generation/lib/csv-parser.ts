@@ -3,6 +3,16 @@ export interface ParsedCsvRow {
   values: Record<string, string>;
 }
 
+const CSV_HEADER_ALIASES: Record<string, string> = {
+  empresa: 'account_name',
+  nit: 'tax_id',
+};
+
+function canonicalHeader(header: string): string {
+  const normalized = header.trim().toLowerCase();
+  return CSV_HEADER_ALIASES[normalized] ?? normalized;
+}
+
 function parseCsvLine(line: string): string[] {
   const values: string[] = [];
   let current = '';
@@ -39,6 +49,7 @@ export function parseCsvContent(
   expectedHeaders: readonly string[],
 ): ParsedCsvRow[] {
   const lines = content
+    .replace(/^\uFEFF/, '')
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter((line) => line.length > 0);
@@ -48,7 +59,7 @@ export function parseCsvContent(
   }
 
   const headerCells = parseCsvLine(lines[0]).map((header) =>
-    header.trim().toLowerCase(),
+    canonicalHeader(header),
   );
   const expected = expectedHeaders.map((header) => header.toLowerCase());
 

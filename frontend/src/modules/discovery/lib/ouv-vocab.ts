@@ -75,13 +75,21 @@ export const OUV_RESULTADO_LABEL: Record<OuvResultado, string> = {
   Descartada: 'Descartada',
 };
 
-export const INFLUENCIA_TIPOS = ['Economica', 'Tecnica', 'Fabrica'] as const;
+export const INFLUENCIA_TIPOS = [
+  'Economica',
+  'Tecnica',
+  'Fabrica',
+  'Usuario',
+  'Coach',
+] as const;
 export type InfluenciaTipo = (typeof INFLUENCIA_TIPOS)[number];
 
 export const INFLUENCIA_TIPO_LABEL: Record<InfluenciaTipo, string> = {
   Economica: 'Económica',
   Tecnica: 'Técnica',
   Fabrica: 'Fábrica',
+  Usuario: 'Usuario',
+  Coach: 'Coach',
 };
 
 export const INFLUENCIA_ESTADOS = [
@@ -138,6 +146,26 @@ export const INFLUENCIA_ESTADO_CARD: Record<InfluenciaEstado, string> = {
   Rojo: 'border-danger/70 bg-danger/15',
 };
 
+/** Ring around the compact-card avatar (estado is also in aria-label / title). */
+export function influenciaAvatarRingClass(
+  estado: InfluenciaEstado,
+  hasContact: boolean,
+): string {
+  if (!hasContact) {
+    return 'border-dashed border-muted text-muted';
+  }
+  if (estado === 'Verde') {
+    return 'border-solid border-semaphore-verde text-semaphore-verde';
+  }
+  if (estado === 'Amarillo') {
+    return 'border-solid border-warning text-warning';
+  }
+  if (estado === 'Rojo') {
+    return 'border-solid border-danger text-danger';
+  }
+  return 'border-solid border-muted text-ink';
+}
+
 export const VERTICALES = [
   'Seguridad Ciudadana',
   'Defensa',
@@ -150,10 +178,10 @@ export const VERTICALES = [
 ] as const;
 
 export const SEGMENTOS = [
-  'Gobierno',
-  'D&S',
-  'ProyectosEspeciales',
-  'B2B',
+  'Ciudades y gobernaciones',
+  'Gobierno central',
+  'Defensa y seguridad',
+  'Industria',
 ] as const;
 
 export const OUV_EVENT_PREFIX = 'ouv.';

@@ -54,6 +54,27 @@ export class SqlCita extends Model {
   declare contactoNombre: string;
 
   @Column({
+    type: DataType.STRING(160),
+    field: 'contacto_email',
+    allowNull: true,
+  })
+  declare contactoEmail: string | null;
+
+  @Column({
+    type: DataType.STRING(40),
+    field: 'contacto_telefono',
+    allowNull: true,
+  })
+  declare contactoTelefono: string | null;
+
+  @Column({ type: DataType.JSON, allowNull: true })
+  declare contactos: Array<{
+    nombre: string;
+    email: string;
+    telefono: string;
+  }> | null;
+
+  @Column({
     type: DataType.STRING(100),
     field: 'contacto_cargo',
     allowNull: true,
@@ -73,6 +94,31 @@ export class SqlCita extends Model {
 
   @BelongsTo(() => User, { foreignKey: 'agendadaPor', as: 'agendador' })
   declare agendador: User;
+
+  @Column({
+    type: DataType.STRING(512),
+    field: 'graph_event_id',
+    allowNull: true,
+  })
+  declare graphEventId: string | null;
+
+  @Column({
+    type: DataType.STRING(255),
+    field: 'graph_organizer_upn',
+    allowNull: true,
+  })
+  declare graphOrganizerUpn: string | null;
+
+  @Column({ type: DataType.TEXT, field: 'teams_join_url', allowNull: true })
+  declare teamsJoinUrl: string | null;
+
+  @Default(60)
+  @Column({
+    type: DataType.INTEGER,
+    field: 'duration_minutes',
+    allowNull: false,
+  })
+  declare durationMinutes: number;
 
   @CreatedAt
   @Column({ type: DataType.DATE, field: 'created_at' })

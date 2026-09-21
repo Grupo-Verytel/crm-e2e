@@ -40,7 +40,7 @@ export function ModalShell({
         className={[
           // Columna: el encabezado queda fijo y solo scrollea el contenido.
           'flex max-h-[90vh] w-full flex-col rounded bg-surface shadow-card',
-          size === 'wide' ? 'max-w-3xl' : 'max-w-lg',
+          size === 'wide' ? 'max-w-4xl' : 'max-w-lg',
         ].join(' ')}
       >
         <div className="shrink-0 px-6 pb-4 pt-6">

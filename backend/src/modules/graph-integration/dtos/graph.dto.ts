@@ -88,6 +88,7 @@ export class GraphAvailabilityDto {
 export class GraphScheduleItemDto {
   status: string;
   subject: string | null;
+  /** Wall-clock in the availability response `timeZone` (America/Bogota). */
   start: string;
   end: string;
 }

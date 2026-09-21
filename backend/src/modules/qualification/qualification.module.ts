@@ -6,6 +6,7 @@ import { Lead } from '../demand-generation/models/lead.model';
 import { Mql } from '../demand-generation/models/mql.model';
 import { Sql } from '../demand-generation/models/sql.model';
 import { DiscoveryModule } from '../discovery/discovery.module';
+import { GraphIntegrationModule } from '../graph-integration/graph-integration.module';
 import { WorkflowEngineModule } from '../workflow-engine/workflow-engine.module';
 import { SqlsController } from './controllers/sqls.controller';
 import { SqlCita } from './models/sql-cita.model';
@@ -17,6 +18,7 @@ import { SqlsService } from './services/sqls.service';
     AuthModule,
     DemandGenerationModule,
     DiscoveryModule,
+    GraphIntegrationModule,
     WorkflowEngineModule,
   ],
   controllers: [SqlsController],

@@ -8,7 +8,9 @@ export enum TipoLead {
 
 export enum OrigenLead {
   Web = 'Web',
-  Email = 'Email',
+  EmailMarketing = 'Email Marketing',
+  InstagramFacebook = 'Instagram & Facebook',
+  ProspeccionDirecta = 'Prospeccion directa',
   LinkedIn = 'LinkedIn',
   Evento = 'Evento',
   SECOP = 'SECOP',
@@ -39,6 +41,8 @@ export enum LeadContactInfluenciaTipo {
   Economica = 'Economica',
   Tecnica = 'Tecnica',
   Fabrica = 'Fabrica',
+  Usuario = 'Usuario',
+  Coach = 'Coach',
 }
 
 export enum LeadEstado {

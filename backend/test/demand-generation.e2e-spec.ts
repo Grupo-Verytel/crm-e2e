@@ -49,7 +49,7 @@ describe('Demand generation module (EARS DG-01..DG-18)', () => {
       tipo_lead: 'Inbound',
       origen: 'Web',
       canal_origen: 'CAMPANA_DIGITAL',
-      segmento: 'Gobierno',
+      segmento: 'Gobierno central',
       city: 'Bogota',
       region: 'Bogota',
       pais: 'CO',
@@ -158,7 +158,6 @@ describe('Demand generation module (EARS DG-01..DG-18)', () => {
         criterio_sector_objetivo: true,
         criterio_necesidad_portafolio: true,
         criterio_acceso_decisor: true,
-        criterio_presupuesto_indicios: true,
       })
       .expect(200);
   }
@@ -283,7 +282,7 @@ describe('Demand generation module (EARS DG-01..DG-18)', () => {
       .send({
         tipo_lead: 'Inbound',
         origen: 'Web',
-        segmento: 'Gobierno',
+        segmento: 'Gobierno central',
         region: 'Bogota',
         pais: 'CO',
         contacts: [
@@ -324,13 +323,13 @@ describe('Demand generation module (EARS DG-01..DG-18)', () => {
       .expect(400);
   });
 
-  it('DG-02: requires industria when segmento is B2B', async () => {
+  it('DG-02: requires subsegment when segmento is Industria', async () => {
     const response = await request(app.getHttpServer())
       .post('/api/v1/leads')
       .set('Authorization', `Bearer ${marketingToken}`)
-      .send(buildLeadPayload({ segmento: 'B2B' }))
+      .send(buildLeadPayload({ segmento: 'Industria' }))
       .expect(400);
-    expect(JSON.stringify(response.body.message)).toMatch(/industria/i);
+    expect(JSON.stringify(response.body.message)).toMatch(/subsegment/i);
   });
 
   it('DG-04: registering an interaction updates fecha_ultima_interaccion', async () => {
@@ -500,11 +499,9 @@ describe('Demand generation module (EARS DG-01..DG-18)', () => {
     const email = uniqueTestEmail('csv-import');
     const csvHeader = CSV_LEAD_HEADERS.join(',');
     const rowNew = buildCsvRow({
-      name: `CSV Lead ${Date.now()}-a`,
-      tipo_lead: 'Outbound',
-      origen: 'Email',
+      origen: 'Email Marketing',
       canal_origen: 'CAMPANA_DIGITAL',
-      segmento: 'Gobierno',
+      segmento: 'Gobierno central',
       city: 'Bogota',
       region: 'Bogota',
       pais: 'CO',
@@ -513,7 +510,6 @@ describe('Demand generation module (EARS DG-01..DG-18)', () => {
       contacto_nombre: 'CSV User',
       email,
       telefono: '3001234567',
-      responsable_id: marketingUserId,
     });
 
     const dupEmail = uniqueTestEmail('csv-dup');
@@ -531,11 +527,9 @@ describe('Demand generation module (EARS DG-01..DG-18)', () => {
       ],
     });
     const rowDup = buildCsvRow({
-      name: `CSV Lead ${Date.now()}-b`,
-      tipo_lead: 'Outbound',
-      origen: 'Email',
+      origen: 'Email Marketing',
       canal_origen: 'CAMPANA_DIGITAL',
-      segmento: 'Gobierno',
+      segmento: 'Gobierno central',
       city: 'Bogota',
       region: 'Bogota',
       pais: 'CO',
@@ -543,7 +537,6 @@ describe('Demand generation module (EARS DG-01..DG-18)', () => {
       tax_id: dupNit,
       contacto_nombre: 'Dup User',
       email: dupEmail,
-      responsable_id: marketingUserId,
     });
 
     const csvContent = `${csvHeader}\n${rowNew}\n${rowDup}`;

@@ -28,15 +28,14 @@ import {
   type OuvContacto,
   type OuvInfluencia,
 } from '../api/ouvs-api';
-import { X } from 'lucide-react';
 import { AvanceZonaModal } from '../components/AvanceZonaModal';
+import { InfluenciasSection } from '../components/InfluenciasSection';
 import {
   CierreOuvModal,
   type OuvClosedEvent,
 } from '../components/CierreOuvModal';
 import { ContactoFormModal } from '../components/ContactoFormModal';
 import { ContactosSidePanel } from '../components/ContactosSidePanel';
-import { DiscoveryNav } from '../components/DiscoveryNav';
 import { FloatingToast } from '../components/FloatingToast';
 import {
   OuvDetailHeaderCard,
@@ -59,13 +58,8 @@ import {
 } from '../components/ui';
 import { backLinkForResultado } from '../lib/ouv-bandejas';
 import {
-  INFLUENCIA_ESTADO_CARD,
-  INFLUENCIA_ESTADO_DOT,
-  INFLUENCIA_ESTADOS,
   INFLUENCIA_TIPO_LABEL,
-  INFLUENCIA_TIPOS,
   isOuvNotificationEvent,
-  type InfluenciaEstado,
   type InfluenciaTipo,
 } from '../lib/ouv-vocab';
 import {
@@ -354,6 +348,21 @@ export function OuvDetailPage() {
     }, 500);
   }
 
+  function handleInfluenciaNotasBlur(tipo: InfluenciaTipo) {
+    const pending = notasDebounceTimers.current[tipo];
+    if (!pending) return;
+    clearTimeout(pending);
+    notasDebounceTimers.current[tipo] = undefined;
+    const latest = influenciasRef.current.find((row) => row.tipo === tipo);
+    if (!latest) return;
+    void persistInfluencia(tipo, {
+      estado: latest.estado,
+      contacto_ouv_id: latest.contacto_ouv_id,
+      notas: latest.notas,
+      motivo_estado: latest.motivo_estado,
+    });
+  }
+
   async function handleSaveContacto(
     payload: ContactoPayload,
     meta?: { influenciaTipo?: InfluenciaTipo | null },
@@ -556,7 +565,6 @@ export function OuvDetailPage() {
 
   return (
     <AppLayout title={ouv.consecutivo}>
-      <DiscoveryNav />
       <div className="mb-4">
         <Link to={backLink.to} className="text-sm text-accent hover:underline">
           {backLink.label}
@@ -622,199 +630,17 @@ export function OuvDetailPage() {
       ) : null}
 
       {/* Influencias — primary workspace */}
-      <section className={`${cardClass} mb-4 p-4`}>
-        <h2 className="mb-1 text-sm font-bold text-ink">Influencias</h2>
-        <p className="mb-3 text-xs text-muted">
-          Estado y contacto se guardan al instante (sin bloquear la tarjeta).
-          Notas se guardan medio segundo después de dejar de escribir. Los
-          contactos se gestionan desde cada influencia. Una influencia en Verde
-          solo cuenta para avanzar si tiene contacto asignado.
-        </p>
-        <div className="grid gap-3 md:grid-cols-3">
-          {INFLUENCIA_TIPOS.map((tipo) => {
-            const inf = influencias.find((x) => x.tipo === tipo);
-            const assignedContact = contactos.find(
-              (c) => c.contacto_ouv_id === inf?.contacto_ouv_id,
-            );
-            const estado =
-              (inf?.estado as InfluenciaEstado | undefined) ?? 'SinEvaluar';
-            const missingContactForVerde =
-              estado === 'Verde' && !inf?.contacto_ouv_id;
-            const cardTone = missingContactForVerde
-              ? 'border-warning/70 bg-warning/15 text-ink'
-              : INFLUENCIA_ESTADO_CARD[estado] ??
-                INFLUENCIA_ESTADO_CARD.SinEvaluar;
-            const isUnassigned = !assignedContact;
-            const isSaving = Boolean(savingTipos[tipo]);
-            const justSaved = influenciaFlash === tipo;
-            return (
-              <div
-                key={tipo}
-                className={[
-                  'rounded border p-3 transition-[border-color,box-shadow,opacity] duration-300',
-                  missingContactForVerde
-                    ? cardTone
-                    : isUnassigned
-                      ? 'border-border bg-bg/80 opacity-75'
-                      : cardTone,
-                  justSaved
-                    ? 'border-positive shadow-[0_0_0_1px_var(--positive)]'
-                    : isSaving
-                      ? 'border-accent'
-                      : '',
-                ].join(' ')}
-                aria-live="polite"
-              >
-                <div className="mb-3 flex items-center justify-between gap-2">
-                  <p
-                    className={`text-sm font-bold ${isUnassigned ? 'text-muted' : 'text-ink'}`}
-                  >
-                    {tipo}
-                  </p>
-                  {isSaving ? (
-                    <span className="text-xs font-bold text-accent">
-                      Guardando…
-                    </span>
-                  ) : null}
-                  {!isSaving && justSaved ? (
-                    <span className="text-xs font-bold text-positive">
-                      Guardado
-                    </span>
-                  ) : null}
-                </div>
-
-                <label className={labelClass}>Contacto</label>
-                {assignedContact ? (
-                  <div className="relative rounded border border-border bg-surface p-2.5 pr-8 text-xs">
-                    {editable ? (
-                      <button
-                        type="button"
-                        className="icon-btn absolute right-1 top-1 grid h-6 w-6 place-items-center rounded text-muted hover:text-danger"
-                        aria-label={`Quitar contacto de ${tipo}`}
-                        onClick={() =>
-                          handleInfluenciaFieldChange(tipo, {
-                            contacto_ouv_id: null,
-                          })
-                        }
-                      >
-                        <X size={14} strokeWidth={2.5} />
-                      </button>
-                    ) : null}
-                    <p className="font-bold text-ink">{assignedContact.name}</p>
-                    {assignedContact.job_title ? (
-                      <p className="mt-0.5 text-muted">
-                        {assignedContact.job_title}
-                      </p>
-                    ) : null}
-                    {assignedContact.email ? (
-                      <p className="mt-0.5 text-ink">{assignedContact.email}</p>
-                    ) : null}
-                    {assignedContact.phone ? (
-                      <p className="mt-0.5 text-ink">{assignedContact.phone}</p>
-                    ) : null}
-                    {assignedContact.account_name ? (
-                      <p className="mt-0.5 text-muted">
-                        {assignedContact.account_name}
-                      </p>
-                    ) : null}
-                    {assignedContact.notas ? (
-                      <p className="mt-1 text-muted">{assignedContact.notas}</p>
-                    ) : null}
-                  </div>
-                ) : (
-                  <>
-                    <select
-                      className={`${inputClass} text-muted`}
-                      disabled={!editable}
-                      value={inf?.contacto_ouv_id ?? ''}
-                      onChange={(e) =>
-                        handleInfluenciaFieldChange(tipo, {
-                          contacto_ouv_id: e.target.value || null,
-                        })
-                      }
-                    >
-                      <option value="">Sin asignar</option>
-                      {contactos.map((c) => (
-                        <option
-                          key={c.contacto_ouv_id}
-                          value={c.contacto_ouv_id}
-                        >
-                          {c.name}
-                        </option>
-                      ))}
-                    </select>
-                    {editable ? (
-                      <button
-                        type="button"
-                        className="mt-2 text-xs font-bold text-accent hover:underline"
-                        onClick={() => openContactoModal('new', tipo)}
-                      >
-                        + Agregar contacto
-                      </button>
-                    ) : null}
-                  </>
-                )}
-
-                <label className={`${labelClass} mt-3`}>Estado</label>
-                <div className="relative">
-                  <span
-                    className={`pointer-events-none absolute left-3 top-1/2 h-2 w-2 -translate-y-1/2 rounded-full ${INFLUENCIA_ESTADO_DOT[estado] ?? INFLUENCIA_ESTADO_DOT.SinEvaluar}`}
-                    aria-hidden
-                  />
-                  <select
-                    className={`${inputClass} pl-7 disabled:opacity-60`}
-                    disabled={!editable}
-                    value={estado}
-                    onChange={(e) =>
-                      handleInfluenciaFieldChange(tipo, {
-                        estado: e.target.value,
-                      })
-                    }
-                  >
-                    {INFLUENCIA_ESTADOS.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                {missingContactForVerde ? (
-                  <p className="mt-1 text-xs text-warning" role="status">
-                    Asigna un contacto para que esta influencia cuente al
-                    avanzar.
-                  </p>
-                ) : null}
-                <label className={`${labelClass} mt-2`}>Notas</label>
-                <textarea
-                  className={`${inputClass} h-16 py-2`}
-                  disabled={!editable}
-                  value={inf?.notas ?? ''}
-                  onChange={(e) =>
-                    handleInfluenciaNotasChange(tipo, e.target.value)
-                  }
-                  onBlur={() => {
-                    const pending = notasDebounceTimers.current[tipo];
-                    if (pending) {
-                      clearTimeout(pending);
-                      notasDebounceTimers.current[tipo] = undefined;
-                      const latest = influenciasRef.current.find(
-                        (row) => row.tipo === tipo,
-                      );
-                      if (!latest) return;
-                      void persistInfluencia(tipo, {
-                        estado: latest.estado,
-                        contacto_ouv_id: latest.contacto_ouv_id,
-                        notas: latest.notas,
-                        motivo_estado: latest.motivo_estado,
-                      });
-                    }
-                  }}
-                />
-              </div>
-            );
-          })}
-        </div>
-      </section>
+      <InfluenciasSection
+        influencias={influencias}
+        contactos={contactos}
+        editable={editable}
+        savingTipos={savingTipos}
+        justSavedTipo={influenciaFlash}
+        onFieldChange={handleInfluenciaFieldChange}
+        onNotasChange={handleInfluenciaNotasChange}
+        onNotasBlur={handleInfluenciaNotasBlur}
+        onAddContact={(tipo) => openContactoModal('new', tipo)}
+      />
 
       {/* Presupuesto */}
       <section className={`${cardClass} mb-4 p-4`}>

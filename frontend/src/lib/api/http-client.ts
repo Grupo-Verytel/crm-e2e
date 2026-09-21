@@ -155,7 +155,12 @@ export async function apiRequest<T>(
     return undefined as T;
   }
 
-  return (await response.json()) as T;
+  const text = await response.text();
+  if (!text.trim()) {
+    return undefined as T;
+  }
+
+  return JSON.parse(text) as T;
 }
 
 export { API_BASE };
