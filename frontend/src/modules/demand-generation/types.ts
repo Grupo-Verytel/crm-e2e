@@ -554,7 +554,8 @@ export type MarketingDashboard = {
     interactions: number;
     new_leads: number;
     quarter_leads: number;
-    quarter: number;
+    quarter: number | null;
+    year: number | null;
     leads_by_channel: { canal_origen: string; count: number }[];
     interactions_by_channel: { canal_origen: string; count: number }[];
     quarter_leads_by_channel: { canal_origen: string; count: number }[];

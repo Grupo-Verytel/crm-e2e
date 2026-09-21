@@ -67,11 +67,20 @@ export class OuvMarketingMetricsService {
     };
   }
 
-  async averageLeadToOuvDays(): Promise<number | null> {
+  async averageLeadToOuvDays(
+    start?: Date,
+    end?: Date,
+  ): Promise<number | null> {
     const sequelize = this.ouvModel.sequelize;
     if (!sequelize) {
       return null;
     }
+    const dateFilter =
+      start && end
+        ? `
+        AND COALESCE(leads.fecha_captura, leads.created_at) >= :start
+        AND COALESCE(leads.fecha_captura, leads.created_at) < :end`
+        : '';
     const [row] = await sequelize.query<{ avg_days: string | number | null }>(
       `
       SELECT AVG(
@@ -92,10 +101,14 @@ export class OuvMarketingMetricsService {
         ON leads.lead_id = mqls.lead_id
         AND leads.deleted_at IS NULL
       WHERE ouvs.origen_via = :origenVia
+      ${dateFilter}
       `,
       {
         type: QueryTypes.SELECT,
-        replacements: { origenVia: OuvOrigenVia.DesdeSql },
+        replacements: {
+          origenVia: OuvOrigenVia.DesdeSql,
+          ...(start && end ? { start, end } : {}),
+        },
       },
     );
     if (row?.avg_days == null) {

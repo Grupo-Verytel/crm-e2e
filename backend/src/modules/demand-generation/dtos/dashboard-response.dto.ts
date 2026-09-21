@@ -1,4 +1,4 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsDateString,
   IsEnum,
@@ -10,6 +10,14 @@ import {
 } from 'class-validator';
 import { LeadEstado } from '../models/enums/lead.enums';
 
+function toOptionalInt({ value }: { value: unknown }): number | undefined {
+  if (value === '' || value === null || value === undefined) {
+    return undefined;
+  }
+  const parsed = Number(value);
+  return Number.isInteger(parsed) ? parsed : Number.NaN;
+}
+
 export class MarketingDashboardQueryDto {
   @IsOptional()
   @IsDateString()
@@ -20,6 +28,7 @@ export class MarketingDashboardQueryDto {
   to?: string;
 
   @IsOptional()
+  @Transform(toOptionalInt)
   @Type(() => Number)
   @IsInt()
   @Min(1)
@@ -33,6 +42,15 @@ export class MarketingDashboardQueryDto {
   @IsOptional()
   @IsDateString()
   period_to?: string;
+
+  /** Fiscal year for accumulated leads (Feb→Jan, independent of period dates). */
+  @IsOptional()
+  @Transform(toOptionalInt)
+  @Type(() => Number)
+  @IsInt()
+  @Min(2000)
+  @Max(2100)
+  year?: number;
 }
 
 export class LeadsBySegmentDto {
@@ -49,7 +67,8 @@ export class WeeklyMarketingMetricsDto {
   interactions: number;
   new_leads: number;
   quarter_leads: number;
-  quarter: number;
+  quarter: number | null;
+  year: number | null;
   leads_by_channel: LeadsByChannelDto[];
   interactions_by_channel: LeadsByChannelDto[];
   quarter_leads_by_channel: LeadsByChannelDto[];
@@ -72,6 +91,7 @@ export class MarketingDashboardDetailsQueryDto {
   estado?: LeadEstado;
 
   @IsOptional()
+  @Transform(toOptionalInt)
   @Type(() => Number)
   @IsInt()
   @Min(1)
@@ -85,6 +105,14 @@ export class MarketingDashboardDetailsQueryDto {
   @IsOptional()
   @IsDateString()
   period_to?: string;
+
+  @IsOptional()
+  @Transform(toOptionalInt)
+  @Type(() => Number)
+  @IsInt()
+  @Min(2000)
+  @Max(2100)
+  year?: number;
 
   @IsOptional()
   @Type(() => Number)

@@ -23,6 +23,8 @@ type Props = {
   onChange: (yyyyMmDd: string) => void;
   className?: string;
   'aria-label'?: string;
+  displayValue?: string;
+  align?: 'start' | 'end';
 };
 
 function parseYmd(value: string): Date | null {
@@ -67,6 +69,8 @@ export function DatePickerField({
   onChange,
   className = '',
   'aria-label': ariaLabel,
+  displayValue,
+  align = 'start',
 }: Props) {
   const selected = parseYmd(value);
   const [open, setOpen] = useState(false);
@@ -112,14 +116,16 @@ export function DatePickerField({
         onClick={() => setOpen((v) => !v)}
       >
         <Calendar size={15} className="shrink-0 text-accent" strokeWidth={2} />
-        <span className={selected ? 'text-ink' : 'text-muted'}>
-          {formatDisplay(value)}
+        <span className={selected || displayValue ? 'text-ink' : 'text-muted'}>
+          {displayValue || formatDisplay(value)}
         </span>
       </button>
 
       {open ? (
         <div
-          className="absolute left-0 z-50 mt-1 w-[17.5rem] rounded border border-border bg-surface p-3 shadow-card"
+          className={`absolute z-50 mt-1 w-[17.5rem] rounded border border-border bg-surface p-3 shadow-card ${
+            align === 'end' ? 'right-0' : 'left-0'
+          }`}
           role="dialog"
           aria-label="Calendario"
         >

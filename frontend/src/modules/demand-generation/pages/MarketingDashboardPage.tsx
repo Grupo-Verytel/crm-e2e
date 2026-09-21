@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { List } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { DatePickerField } from '../../../components/DatePickerField';
 import { Pagination } from '../../../components/Pagination';
 import { AppLayout } from '../../../layout/AppLayout';
 import {
@@ -32,87 +33,46 @@ const FUNNEL_LABELS: Record<string, string> = {
   SQL: 'SQL',
 };
 
-type PeriodMode = 'Semana' | 'Quincenal';
-type PeriodOption = { label: string; from: string; to: string };
 type DetailView = {
   kind: MarketingDashboardDetailKind;
   title: string;
   estado?: string;
 };
 
-function dateValue(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+function buildAccumulatedYearOptions(): number[] {
+  const currentYear = new Date().getFullYear();
+  return [currentYear, currentYear - 1, currentYear - 2];
 }
 
-function shortDate(date: Date): string {
-  return new Intl.DateTimeFormat('es-CO', {
-    day: 'numeric',
-    month: 'short',
-  }).format(date);
+function parseYmd(value: string): Date | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const [year, month, day] = value.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+  return Number.isNaN(date.getTime()) ? null : date;
 }
 
-function buildPeriodOptions(
-  quarter: number,
-  mode: PeriodMode,
-): PeriodOption[] {
-  const year = new Date().getFullYear();
-  const startMonth = (quarter - 1) * 3;
-  const quarterEnd = new Date(year, startMonth + 3, 0);
+function daysInclusive(from: string, to: string): number | null {
+  const start = parseYmd(from);
+  const end = parseYmd(to);
+  if (!start || !end) return null;
+  return Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1;
+}
 
-  if (mode === 'Quincenal') {
-    return [0, 1, 2].flatMap((monthOffset) => {
-      const month = startMonth + monthOffset;
-      const firstStart = new Date(year, month, 1);
-      const firstEnd = new Date(year, month, 15);
-      const secondStart = new Date(year, month, 16);
-      const secondEnd = new Date(year, month + 1, 0);
-      return [
-        {
-          label: `15 días · ${shortDate(firstStart)}–${shortDate(firstEnd)}`,
-          from: dateValue(firstStart),
-          to: dateValue(firstEnd),
-        },
-        {
-          label: `15 días · ${shortDate(secondStart)}–${shortDate(secondEnd)}`,
-          from: dateValue(secondStart),
-          to: dateValue(secondEnd),
-        },
-      ];
-    });
-  }
-
-  const options: PeriodOption[] = [];
-  let start = new Date(year, startMonth, 1);
-  let week = 1;
-  while (start <= quarterEnd) {
-    const end = new Date(start);
-    end.setDate(end.getDate() + 6);
-    if (end > quarterEnd) end.setTime(quarterEnd.getTime());
-    options.push({
-      label: `Semana ${week} · ${shortDate(start)}–${shortDate(end)}`,
-      from: dateValue(start),
-      to: dateValue(end),
-    });
-    start = new Date(end);
-    start.setDate(start.getDate() + 1);
-    week += 1;
-  }
-  return options;
+function periodLeadsLabelFromRange(from: string, to: string): string {
+  const days = daysInclusive(from, to);
+  if (days == null) return 'Leads del periodo';
+  if (days <= 7) return 'Leads de la semana';
+  if (days <= 15) return 'Leads de los 15 días';
+  return 'Leads del periodo';
 }
 
 export function MarketingDashboardPage() {
-  const currentQuarter = Math.floor(new Date().getMonth() / 3) + 1;
-  const [period, setPeriod] = useState<PeriodMode>('Semana');
-  const [quarter, setQuarter] = useState(currentQuarter);
-  const [periodIndex, setPeriodIndex] = useState(0);
-  const periodOptions = useMemo(
-    () => buildPeriodOptions(quarter, period),
-    [quarter, period],
-  );
-  const selectedPeriod = periodOptions[periodIndex] ?? periodOptions[0];
+  const accumulatedYearOptions = useMemo(() => buildAccumulatedYearOptions(), []);
+  const [accumulatedYear, setAccumulatedYear] = useState<number | null>(null);
+  const [quarter, setQuarter] = useState<number | null>(null);
+  const [periodFrom, setPeriodFrom] = useState('');
+  const [periodTo, setPeriodTo] = useState('');
+  const periodRangeActive = Boolean(periodFrom && periodTo);
   const [data, setData] = useState<MarketingDashboard | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -124,8 +84,37 @@ export function MarketingDashboardPage() {
   const [detailTotal, setDetailTotal] = useState(0);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
-  const periodLeadsLabel =
-    period === 'Semana' ? 'Leads de la semana' : 'Leads de los 15 días';
+  const periodLeadsLabel = useMemo(() => {
+    if (periodRangeActive) {
+      return periodLeadsLabelFromRange(periodFrom, periodTo);
+    }
+    if (accumulatedYear != null && quarter != null) {
+      return `Leads del Q${quarter} ${accumulatedYear}`;
+    }
+    if (accumulatedYear != null) {
+      return `Leads del ${accumulatedYear}`;
+    }
+    return 'Leads del periodo';
+  }, [
+    accumulatedYear,
+    periodFrom,
+    periodRangeActive,
+    periodTo,
+    quarter,
+  ]);
+  const channelBarsData = useMemo(() => {
+    if (!data) return [];
+    if (periodRangeActive) return data.weekly.leads_by_channel ?? [];
+    if (accumulatedYear != null) {
+      return data.weekly.quarter_leads_by_channel ?? [];
+    }
+    return [];
+  }, [accumulatedYear, data, periodRangeActive]);
+  const channelBarsTitle = periodRangeActive
+    ? 'Leads creados por canal de origen'
+    : accumulatedYear != null
+      ? 'Leads acumulados por canal de origen'
+      : 'Leads por canal de origen';
 
   const openDetail = (view: DetailView) => {
     setDetail(view);
@@ -140,15 +129,56 @@ export function MarketingDashboardPage() {
     setDetailPage(1);
   }, []);
 
+  const clearPeriodDates = () => {
+    setPeriodFrom('');
+    setPeriodTo('');
+  };
+
+  const clearAccumulatedFilters = () => {
+    setAccumulatedYear(null);
+    setQuarter(null);
+  };
+
+  const handleYearChange = (value: string) => {
+    setAccumulatedYear(value ? Number(value) : null);
+    setQuarter(null);
+    clearPeriodDates();
+    setDetail(null);
+  };
+
+  const handleQuarterChange = (value: string) => {
+    setQuarter(value ? Number(value) : null);
+    clearPeriodDates();
+    setDetail(null);
+  };
+
+  const handlePeriodFromChange = (value: string) => {
+    setPeriodFrom(value);
+    if (value) {
+      clearAccumulatedFilters();
+      setDetail(null);
+    }
+  };
+
+  const handlePeriodToChange = (value: string) => {
+    setPeriodTo(value);
+    if (value) {
+      clearAccumulatedFilters();
+      setDetail(null);
+    }
+  };
+
   const loadDashboard = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
       setData(
         await fetchMarketingDashboard({
-          quarter,
-          period_from: selectedPeriod?.from,
-          period_to: selectedPeriod?.to,
+          ...(accumulatedYear != null ? { year: accumulatedYear } : {}),
+          ...(quarter != null ? { quarter } : {}),
+          ...(periodRangeActive
+            ? { period_from: periodFrom, period_to: periodTo }
+            : {}),
         }),
       );
     } catch {
@@ -156,7 +186,7 @@ export function MarketingDashboardPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [quarter, selectedPeriod?.from, selectedPeriod?.to]);
+  }, [quarter, periodFrom, periodTo, periodRangeActive, accumulatedYear]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetch on mount
@@ -173,9 +203,11 @@ export function MarketingDashboardPage() {
     void fetchMarketingDashboardDetails({
       kind: detail.kind,
       estado: detail.estado,
-      quarter,
-      period_from: selectedPeriod?.from,
-      period_to: selectedPeriod?.to,
+      ...(accumulatedYear != null ? { year: accumulatedYear } : {}),
+      ...(quarter != null ? { quarter } : {}),
+      ...(periodRangeActive
+        ? { period_from: periodFrom, period_to: periodTo }
+        : {}),
       page: detailPage,
       limit: 20,
     })
@@ -200,8 +232,10 @@ export function MarketingDashboardPage() {
     detail,
     detailPage,
     quarter,
-    selectedPeriod?.from,
-    selectedPeriod?.to,
+    periodFrom,
+    periodTo,
+    periodRangeActive,
+    accumulatedYear,
   ]);
 
   return (
@@ -210,60 +244,73 @@ export function MarketingDashboardPage() {
 
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <h1 className="text-lg font-bold text-ink">Indicadores de mercadeo</h1>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-3">
+          <div>
+            <label className={labelClass} htmlFor="dashboard-accumulated-year">
+              Año
+            </label>
+            <select
+              id="dashboard-accumulated-year"
+              className={`${inputClass} min-w-24`}
+              value={accumulatedYear ?? ''}
+              title="Año del acumulado (independiente)"
+              onChange={(event) => handleYearChange(event.target.value)}
+            >
+              <option value="">—</option>
+              {accumulatedYearOptions.map((year) => (
+                <option key={year} value={year}>
+                  {year}
+                </option>
+              ))}
+            </select>
+          </div>
           <div>
             <label className={labelClass} htmlFor="dashboard-quarter">
               Trimestre
             </label>
             <select
               id="dashboard-quarter"
-              className={`${inputClass} min-w-24`}
-              value={quarter}
-              onChange={(event) => {
-                setQuarter(Number(event.target.value));
-                setPeriodIndex(0);
-              }}
+              className={`${inputClass} min-w-52 disabled:cursor-not-allowed disabled:opacity-50`}
+              value={quarter ?? ''}
+              disabled={accumulatedYear == null}
+              title={
+                accumulatedYear == null
+                  ? 'Selecciona un año primero'
+                  : 'Trimestre del año seleccionado'
+              }
+              onChange={(event) => handleQuarterChange(event.target.value)}
             >
-              {[1, 2, 3, 4].map((value) => (
-                <option key={value} value={value}>
-                  Q{value}
-                </option>
-              ))}
+              <option value="">Todo el año fiscal</option>
+              <option value="1">Q1 · 01 feb – 30 abr</option>
+              <option value="2">Q2 · 01 may – 31 jul</option>
+              <option value="3">Q3 · 01 ago – 31 oct</option>
+              <option value="4">Q4 · 01 nov – 31 ene</option>
             </select>
           </div>
           <div>
-            <label className={labelClass} htmlFor="dashboard-period">
-              Agrupación
+            <label className={labelClass} htmlFor="dashboard-period-from">
+              Desde
             </label>
-            <select
-              id="dashboard-period"
-              className={`${inputClass} min-w-32`}
-              value={period}
-              onChange={(event) => {
-                setPeriod(event.target.value as PeriodMode);
-                setPeriodIndex(0);
-              }}
-            >
-              <option value="Semana">Semana</option>
-              <option value="Quincenal">15 días</option>
-            </select>
+            <DatePickerField
+              id="dashboard-period-from"
+              className="min-w-36"
+              value={periodFrom}
+              aria-label="Fecha desde"
+              onChange={handlePeriodFromChange}
+            />
           </div>
           <div>
-            <label className={labelClass} htmlFor="dashboard-period-range">
-              Periodo
+            <label className={labelClass} htmlFor="dashboard-period-to">
+              Hasta
             </label>
-            <select
-              id="dashboard-period-range"
-              className={`${inputClass} min-w-56`}
-              value={periodIndex}
-              onChange={(event) => setPeriodIndex(Number(event.target.value))}
-            >
-              {periodOptions.map((option, index) => (
-                <option key={`${option.from}-${option.to}`} value={index}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+            <DatePickerField
+              id="dashboard-period-to"
+              className="min-w-36"
+              value={periodTo}
+              aria-label="Fecha hasta"
+              align="end"
+              onChange={handlePeriodToChange}
+            />
           </div>
         </div>
       </div>
@@ -339,7 +386,7 @@ export function MarketingDashboardPage() {
             >
               Indicadores del periodo
             </h2>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <DonutMetric
                 label="Interacciones"
                 value={data.weekly.interactions}
@@ -357,17 +404,6 @@ export function MarketingDashboardPage() {
                 }
               />
               <DonutMetric
-                label={`Leads Q${data.weekly.quarter}`}
-                value={data.weekly.quarter_leads}
-                target={50}
-                onViewData={() =>
-                  openDetail({
-                    kind: 'quarter_leads',
-                    title: `Leads Q${data.weekly.quarter}`,
-                  })
-                }
-              />
-              <DonutMetric
                 label="OUV convertidas"
                 value={data.weekly.converted_ouvs ?? 0}
                 target={3}
@@ -380,9 +416,9 @@ export function MarketingDashboardPage() {
 
           <section className={`${cardClass} p-5`}>
             <h2 className="mb-4 text-sm font-bold text-ink">
-              Leads creados por canal de origen
+              {channelBarsTitle}
             </h2>
-            <ChannelHorizontalBars channels={data.weekly.leads_by_channel} />
+            <ChannelHorizontalBars channels={channelBarsData} />
           </section>
 
           <section className={`${cardClass} p-5`}>

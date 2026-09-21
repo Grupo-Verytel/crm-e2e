@@ -13,6 +13,7 @@ export async function fetchMarketingDashboard(
     quarter?: number;
     period_from?: string;
     period_to?: string;
+    year?: number;
   } = {},
 ): Promise<MarketingDashboard> {
   return apiRequest<MarketingDashboard>(
@@ -26,6 +27,7 @@ export async function fetchMarketingDashboardDetails(query: {
   quarter?: number;
   period_from?: string;
   period_to?: string;
+  year?: number;
   page?: number;
   limit?: number;
 }): Promise<MarketingDashboardDetails> {
