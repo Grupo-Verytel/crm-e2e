@@ -16,9 +16,6 @@ export function needsAgencyCitaGeneration(sql: SqlDetail): boolean {
   if (sql.cita) {
     return false;
   }
-  if (!isAgencyLead(sql.lead)) {
-    return false;
-  }
   return Boolean(sql.lead.cita_agendada || sql.lead.fecha_cita);
 }
 

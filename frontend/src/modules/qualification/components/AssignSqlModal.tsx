@@ -276,8 +276,8 @@ export function AssignSqlModal({ sql, onClose, onAssigned }: Props) {
         </p>
         {pendingAgencyCita ? (
           <p className="mt-2 rounded bg-accent/10 px-3 py-2 text-sm text-ink">
-            Canal agencia: al asignar debes generar la cita en Teams con el
-            comercial
+            Hay una posible reunión registrada al aprobar el MQL. Al asignar
+            debes generar la cita en Teams con el comercial
             {sql.lead.fecha_cita
               ? ` (${formatDateTime(String(sql.lead.fecha_cita))})`
               : ''}

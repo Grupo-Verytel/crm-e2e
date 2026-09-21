@@ -34,12 +34,12 @@ export class ApproveMqlDto {
   @MaxLength(2000)
   comentario?: string;
 
-  /** Required when the lead canal is GENERACION_DEMANDA_AGENCIA. */
+  /** Required for GENERACION_DEMANDA_AGENCIA; optional proposed meeting for other canals. */
   @IsOptional()
   @IsDateString()
   fecha_cita?: string;
 
-  /** Required when the lead canal is GENERACION_DEMANDA_AGENCIA. */
+  /** Required for GENERACION_DEMANDA_AGENCIA; optional proposed meeting for other canals. */
   @IsOptional()
   @IsArray()
   @ArrayMinSize(1)

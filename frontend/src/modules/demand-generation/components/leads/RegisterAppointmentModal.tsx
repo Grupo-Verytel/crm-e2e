@@ -32,12 +32,14 @@ function initialContactos(lead: Lead): CitaContactoInput[] {
 export function RegisterAppointmentModal({
   lead,
   title = 'Cita para aprobar SQL',
+  description,
   submitLabel = 'Aprobar → SQL',
   onConfirm,
   onClose,
 }: {
   lead: Lead;
   title?: string;
+  description?: string;
   submitLabel?: string;
   onConfirm: (payload: ApproveAgencyMqlPayload) => Promise<void>;
   onClose: () => void;
@@ -73,7 +75,6 @@ export function RegisterAppointmentModal({
         ...(lugar.trim() ? { cita_lugar: lugar.trim() } : {}),
       };
       await onConfirm(payload);
-      onClose();
     } catch (submitError) {
       setError(
         submitError instanceof Error
@@ -91,6 +92,9 @@ export function RegisterAppointmentModal({
         <p className="text-sm text-muted">
           {lead.contacto_nombre} · {lead.empresa_nombre}
         </p>
+        {description ? (
+          <p className="text-sm text-ink">{description}</p>
+        ) : null}
 
         <div>
           <label htmlFor="appointment-date" className={labelClass}>

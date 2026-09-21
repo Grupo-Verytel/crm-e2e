@@ -8,9 +8,10 @@ import { fetchLead } from '../api/leads-api';
 import { approveMql, fetchMqls, rejectMql } from '../api/mqls-api';
 import { DemandNav } from '../components/DemandNav';
 import { MotivoModal } from '../components/MotivoModal';
+import { ModalShell } from '../components/ModalShell';
 import { RegisterAppointmentModal } from '../components/leads/RegisterAppointmentModal';
 import { cardClass, ghostButtonClass, primaryButtonClass } from '../components/ui';
-import { leadDisplayName } from '../lib/lead-vocab';
+import { CANAL_ORIGEN_LABEL, leadDisplayName } from '../lib/lead-vocab';
 import type { ApproveAgencyMqlPayload, Lead, Mql } from '../types';
 
 /** Same role the workflow guard checks for lead.mql_aprobado. */
@@ -32,6 +33,7 @@ export function MqlInboxPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [rejecting, setRejecting] = useState<Mql | null>(null);
+  const [choosing, setChoosing] = useState<Mql | null>(null);
   const [approving, setApproving] = useState<Mql | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -73,6 +75,7 @@ export function MqlInboxPage() {
     try {
       await approveMql(mql.mql_id, appointment);
       setApproving(null);
+      setChoosing(null);
       await loadMqls();
     } catch (err) {
       const message =
@@ -93,8 +96,13 @@ export function MqlInboxPage() {
       setApproving(mql);
       return;
     }
-    void handleApprove(mql).catch(() => undefined);
+    setChoosing(mql);
   }
+
+  const choosingLead = choosing ? leads[choosing.lead_id] : undefined;
+  const approvingLead = approving ? leads[approving.lead_id] : undefined;
+  const isAgencyApprove =
+    approvingLead?.canal_origen === 'GENERACION_DEMANDA_AGENCIA';
 
   return (
     <AppLayout title="Bandeja de MQL">
@@ -179,13 +187,69 @@ export function MqlInboxPage() {
         <Pagination page={page} limit={limit} total={total} onPageChange={setPage} />
       </div>
 
-      {approving && leads[approving.lead_id] ? (
+      {choosing && !approving ? (
+        <ModalShell title="Aprobar MQL" onClose={() => setChoosing(null)}>
+          <p className="text-sm text-muted">
+            {choosingLead
+              ? [
+                  leadDisplayName(choosingLead),
+                  choosingLead.canal_origen
+                    ? (CANAL_ORIGEN_LABEL[choosingLead.canal_origen] ??
+                      choosingLead.canal_origen)
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')
+              : choosing.lead_id}
+          </p>
+          <p className="mt-3 text-sm text-ink">
+            Puedes registrar fecha, lugar y contactos de una posible reunión.
+            No se agenda en Teams aquí: Soporte Comercial usa esos datos al
+            asignar el SQL.
+          </p>
+          <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <button
+              type="button"
+              className={ghostButtonClass}
+              disabled={busyId === choosing.mql_id}
+              onClick={() => {
+                void handleApprove(choosing).catch(() => undefined);
+              }}
+            >
+              Aprobar sin reunión
+            </button>
+            <button
+              type="button"
+              className={primaryButtonClass}
+              disabled={!choosingLead}
+              onClick={() => setApproving(choosing)}
+            >
+              Registrar posible reunión
+            </button>
+          </div>
+        </ModalShell>
+      ) : null}
+      {approving && approvingLead ? (
         <RegisterAppointmentModal
-          lead={leads[approving.lead_id]}
-          title="Cita para aprobar SQL"
+          lead={approvingLead}
+          title={
+            isAgencyApprove
+              ? 'Cita para aprobar SQL'
+              : 'Posible reunión para el SQL'
+          }
+          description={
+            isAgencyApprove
+              ? undefined
+              : 'Se guarda la propuesta de reunión. La cita de Teams la genera Soporte Comercial al asignar el SQL.'
+          }
           submitLabel="Aprobar → SQL"
           onConfirm={(payload) => handleApprove(approving, payload)}
-          onClose={() => setApproving(null)}
+          onClose={() => {
+            setApproving(null);
+            if (!isAgencyApprove) {
+              setChoosing(approving);
+            }
+          }}
         />
       ) : null}
       {rejecting ? (

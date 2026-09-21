@@ -216,7 +216,7 @@ export class LeadStateMachineService {
 
     const lead = await this.findLeadOrFail(mql.leadId);
     const leadEstadoAnterior = lead.estado;
-    const agencyAppointment = await this.resolveAgencyAppointment(lead, dto);
+    const proposedAppointment = this.resolveProposedAppointment(lead, dto);
 
     const result = await this.sequelize.transaction(async (transaction) => {
       const sql = await this.sqlModel.create(
@@ -239,7 +239,7 @@ export class LeadStateMachineService {
       await lead.update(
         {
           estado: LeadEstado.SQL,
-          ...(agencyAppointment ?? {}),
+          ...(proposedAppointment ?? {}),
         },
         { transaction },
       );
@@ -429,10 +429,10 @@ export class LeadStateMachineService {
     }
   }
 
-  private async resolveAgencyAppointment(
+  private resolveProposedAppointment(
     lead: Lead,
     dto: ApproveMqlDto,
-  ): Promise<{
+  ): {
     citaAgendada: true;
     fechaCita: Date;
     citaLugar: string | null;
@@ -444,11 +444,9 @@ export class LeadStateMachineService {
       email: string;
       telefono: string;
     }>;
-  } | null> {
-    if (lead.canalOrigen !== CanalOrigen.GeneracionDemandaAgencia) {
-      return null;
-    }
-
+  } | null {
+    const isAgency =
+      lead.canalOrigen === CanalOrigen.GeneracionDemandaAgencia;
     const contactos = normalizeCitaContactos(
       dto.cita_contactos ??
         (dto.cita_contacto_nombre
@@ -462,6 +460,14 @@ export class LeadStateMachineService {
           : []),
     );
     const principal = contactos[0];
+    const hasAppointmentPayload = Boolean(
+      dto.fecha_cita || principal || dto.cita_lugar,
+    );
+
+    if (!isAgency && !hasAppointmentPayload) {
+      return null;
+    }
+
     if (
       !dto.fecha_cita ||
       !principal ||
@@ -469,8 +475,9 @@ export class LeadStateMachineService {
     ) {
       throw new BadRequestException({
         code: DEMAND_GENERATION_ERROR_CODES.VALIDATION_ERROR,
-        message:
-          'fecha_cita and at least one complete cita contact (nombre, email, telefono) are required to approve an agency MQL',
+        message: isAgency
+          ? 'fecha_cita and at least one complete cita contact (nombre, email, telefono) are required to approve an agency MQL'
+          : 'fecha_cita and at least one complete cita contact (nombre, email, telefono) are required to register a proposed meeting',
       });
     }
 
