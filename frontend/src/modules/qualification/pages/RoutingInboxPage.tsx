@@ -1,32 +1,37 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Pagination } from '../../../components/Pagination';
 import { AppLayout } from '../../../layout/AppLayout';
 import { useModuleSearch } from '../../../layout/module-search';
-import { formatDateTime } from '../../../lib/format';
 import {
   IN_APP_NOTIFICATION_EVENT,
   type InAppNotificationEventDetail,
 } from '../../../lib/notification-events';
 import { useAuth } from '../../auth/hooks/useAuth';
 import { hasPermission } from '../../auth/lib/permission-catalog';
-import { fetchSqlInbox } from '../api/sqls-api';
+import {
+  fetchCommercials,
+  fetchSqlInbox,
+  type CommercialOption,
+  type SqlDetail,
+} from '../api/sqls-api';
 import { AssignSqlModal } from '../components/AssignSqlModal';
 import { QualificationNav } from '../components/QualificationNav';
+import { SqlRoutingPlannedCitaCell } from '../components/SqlRoutingPlannedCitaCell';
 import { primaryButtonClass } from '../components/ui';
-import type { SqlDetail } from '../api/sqls-api';
+import { splitDateTimeLines } from '../lib/sql-appointments';
 
 const PAGE_SIZE = 20;
 
-function sqlAccentId(sql: SqlDetail): string {
-  const raw = sql.sql_id.replace(/-/g, '').slice(0, 6).toUpperCase();
-  return `SQL-${raw}`;
+function leadLabel(sql: SqlDetail): string {
+  return String(sql.lead.empresa_nombre ?? sql.lead.contacto_nombre ?? '—');
 }
 
 export function RoutingInboxPage() {
   const { user } = useAuth();
   const { query } = useModuleSearch();
   const [items, setItems] = useState<SqlDetail[]>([]);
+  const [commercials, setCommercials] = useState<CommercialOption[]>([]);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
@@ -36,6 +41,20 @@ export function RoutingInboxPage() {
   const canAssign =
     user?.role_name === 'Admin' ||
     hasPermission(user?.permissions, 'assign', 'Sql');
+
+  const commercialNames = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const commercial of commercials) {
+      map.set(commercial.user_id, commercial.full_name);
+    }
+    return map;
+  }, [commercials]);
+
+  useEffect(() => {
+    fetchCommercials()
+      .then(setCommercials)
+      .catch(() => setCommercials([]));
+  }, []);
 
   const load = useCallback(async (opts?: { silent?: boolean }) => {
     if (!opts?.silent) {
@@ -89,12 +108,20 @@ export function RoutingInboxPage() {
       window.removeEventListener(IN_APP_NOTIFICATION_EVENT, onNotification);
   }, [load]);
 
+  function resolveCommercialName(sql: SqlDetail): string | null {
+    const id =
+      sql.cita_planificada?.comercial_asignado_id ??
+      (typeof sql.lead.comercial_asignado_id === 'string'
+        ? sql.lead.comercial_asignado_id
+        : null);
+    if (!id) return null;
+    return commercialNames.get(id) ?? null;
+  }
+
   return (
     <AppLayout title="Calificación">
       <QualificationNav />
-      <h1 className="mb-4 text-lg font-bold text-ink">
-        Bandeja de enrutamiento
-      </h1>
+      <h1 className="mb-4 text-lg font-bold text-ink">Bandeja de enrutamiento</h1>
 
       {error ? <p className="mb-3 text-sm text-danger">{error}</p> : null}
 
@@ -107,39 +134,66 @@ export function RoutingInboxPage() {
       ) : items.length === 0 ? (
         <p className="text-sm text-muted">No hay SQL pendientes de asignación.</p>
       ) : (
-        <ul className="space-y-2">
-          {items.map((sql) => (
-            <li key={sql.sql_id}>
-              <div className="flex flex-wrap items-center gap-3 rounded border border-border bg-bg p-2 hover:border-accent">
-                <Link
-                  to={`/qualification/sqls/${sql.sql_id}`}
-                  className="min-w-0 flex-1"
-                >
-                  <p className="text-xs font-bold text-accent">
-                    {sqlAccentId(sql)}
-                  </p>
-                  <p className="text-sm text-ink">
-                    {String(sql.lead.empresa_nombre ?? '—')}
-                  </p>
-                  <p className="text-xs text-muted">
-                    {String(sql.lead.contacto_nombre ?? '—')}
-                    {' · '}
-                    {formatDateTime(sql.fecha_creacion)}
-                  </p>
-                </Link>
-                {canAssign ? (
-                  <button
-                    type="button"
-                    className={primaryButtonClass}
-                    onClick={() => setSelected(sql)}
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[880px] text-left text-sm">
+            <thead>
+              <tr className="border-b border-border text-xs uppercase tracking-wide text-muted">
+                <th className="px-4 py-3 font-bold">Lead</th>
+                <th className="px-4 py-3 font-bold">Empresa</th>
+                <th className="px-4 py-3 font-bold">Cita</th>
+                <th className="px-4 py-3 font-bold">Creado</th>
+                <th className="px-4 py-3 font-bold">Acción</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((sql) => {
+                const label = leadLabel(sql);
+                const created = splitDateTimeLines(sql.fecha_creacion);
+                return (
+                  <tr
+                    key={sql.sql_id}
+                    className="border-b border-border hover:bg-bg"
                   >
-                    Asignar
-                  </button>
-                ) : null}
-              </div>
-            </li>
-          ))}
-        </ul>
+                    <td className="px-4 py-3">
+                      <Link
+                        to={`/qualification/sqls/${sql.sql_id}`}
+                        className="font-bold text-accent hover:underline"
+                      >
+                        {label}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3 text-ink">{label}</td>
+                    <td className="px-4 py-3">
+                      <SqlRoutingPlannedCitaCell
+                        citaPlanificada={sql.cita_planificada}
+                        comercialName={resolveCommercialName(sql)}
+                      />
+                    </td>
+                    <td className="px-4 py-3 text-ink">
+                      <span className="block">{created.primary}</span>
+                      {created.secondary ? (
+                        <span className="block text-muted">{created.secondary}</span>
+                      ) : null}
+                    </td>
+                    <td className="px-4 py-3">
+                      {canAssign ? (
+                        <button
+                          type="button"
+                          className={primaryButtonClass}
+                          onClick={() => setSelected(sql)}
+                        >
+                          Asignar
+                        </button>
+                      ) : (
+                        <span className="text-muted">—</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
 
       <div className="mt-4">
@@ -155,7 +209,7 @@ export function RoutingInboxPage() {
         <AssignSqlModal
           sql={selected}
           onClose={() => setSelected(null)}
-          onAssigned={() => void load()}
+          onAssigned={() => void load({ silent: true })}
         />
       ) : null}
     </AppLayout>

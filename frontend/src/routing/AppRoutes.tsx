@@ -36,6 +36,9 @@ const QualificationHomePage = lazy(
 const AssignedSqlsPage = lazy(
   () => import('../modules/qualification/pages/AssignedSqlsPageLazy'),
 );
+const SupportAssignedSqlsPage = lazy(
+  () => import('../modules/qualification/pages/SupportAssignedSqlsPageLazy'),
+);
 const SqlDetailPage = lazy(
   () => import('../modules/qualification/pages/SqlDetailPageLazy'),
 );
@@ -226,6 +229,16 @@ export function AppRoutes() {
         <ProtectedRoute>
           <RoleRoute role="EjecutivoComercial">
             <AssignedSqlsPage />
+          </RoleRoute>
+        </ProtectedRoute>
+      ),
+    },
+    {
+      path: '/qualification/assigned-sqls',
+      element: (
+        <ProtectedRoute>
+          <RoleRoute roles={['SoporteComercial', 'Admin']}>
+            <SupportAssignedSqlsPage />
           </RoleRoute>
         </ProtectedRoute>
       ),

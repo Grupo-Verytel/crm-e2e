@@ -42,9 +42,14 @@ export function QualificationNav() {
       aria-label="Calificación"
     >
       {canAssign ? (
-        <NavLink to="/qualification" end className={navLinkClass}>
-          Me llegaron
-        </NavLink>
+        <>
+          <NavLink to="/qualification" end className={navLinkClass}>
+            Enrutamiento
+          </NavLink>
+          <NavLink to="/qualification/assigned-sqls" className={navLinkClass}>
+            SQL asignados
+          </NavLink>
+        </>
       ) : null}
       {canCreateOuv && !canAssign ? (
         <Link

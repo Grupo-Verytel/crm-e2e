@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 
 const WEEKDAYS = ['Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sá', 'Do'];
@@ -16,6 +17,14 @@ const MONTHS = [
   'noviembre',
   'diciembre',
 ];
+
+const PANEL_WIDTH_PX = 280;
+const PANEL_HEIGHT_PX = 320;
+
+type PanelPosition = {
+  top: number;
+  left: number;
+};
 
 type Props = {
   id?: string;
@@ -77,20 +86,68 @@ export function DatePickerField({
   const selected = parseYmd(value);
   const [open, setOpen] = useState(false);
   const [view, setView] = useState(() => selected ?? new Date());
-  const rootRef = useRef<HTMLDivElement>(null);
+  const [panelPosition, setPanelPosition] = useState<PanelPosition | null>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  const updatePanelPosition = useCallback(() => {
+    const trigger = triggerRef.current;
+    if (!trigger) return;
+
+    const rect = trigger.getBoundingClientRect();
+    let left =
+      align === 'end' ? rect.right - PANEL_WIDTH_PX : rect.left;
+    left = Math.max(8, Math.min(left, window.innerWidth - PANEL_WIDTH_PX - 8));
+
+    let top = rect.bottom + 4;
+    if (top + PANEL_HEIGHT_PX > window.innerHeight - 8) {
+      top = Math.max(8, rect.top - PANEL_HEIGHT_PX - 4);
+    }
+
+    setPanelPosition({ top, left });
+  }, [align]);
 
   useEffect(() => {
     if (selected) setView(selected);
-  }, [value]);
+  }, [value, selected]);
+
+  useEffect(() => {
+    if (!open) {
+      setPanelPosition(null);
+      return;
+    }
+
+    updatePanelPosition();
+
+    function onScroll() {
+      updatePanelPosition();
+    }
+
+    window.addEventListener('scroll', onScroll, true);
+    window.addEventListener('resize', updatePanelPosition);
+    return () => {
+      window.removeEventListener('scroll', onScroll, true);
+      window.removeEventListener('resize', updatePanelPosition);
+    };
+  }, [open, updatePanelPosition]);
 
   useEffect(() => {
     if (!open) return;
+
     function onPointerDown(event: MouseEvent) {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+      const target = event.target as Node;
+      if (triggerRef.current?.contains(target)) return;
+      if (panelRef.current?.contains(target)) return;
+      setOpen(false);
     }
+
     function onKey(event: KeyboardEvent) {
-      if (event.key === 'Escape') setOpen(false);
+      if (event.key === 'Escape') {
+        event.stopPropagation();
+        setOpen(false);
+      }
     }
+
     document.addEventListener('mousedown', onPointerDown);
     document.addEventListener('keydown', onKey);
     return () => {
@@ -106,122 +163,134 @@ export function DatePickerField({
 
   const todayYmd = toYmd(new Date());
 
-  return (
-    <div className={`relative ${className}`} ref={rootRef}>
-      <button
-        id={id}
-        type="button"
-        aria-label={ariaLabel ?? 'Fecha'}
-        aria-expanded={open}
-        aria-haspopup="dialog"
-        className="flex h-9 w-full items-center gap-2 rounded border border-border bg-bg px-3 text-left text-sm text-ink outline-none hover:border-accent focus:border-accent focus:bg-surface"
-        onClick={() => setOpen((v) => !v)}
-      >
-        <Calendar size={15} className="shrink-0 text-accent" strokeWidth={2} />
-        <span className={selected || displayValue ? 'text-ink' : 'text-muted'}>
-          {displayValue || formatDisplay(value)}
-        </span>
-      </button>
-
-      {open ? (
-        <div
-          className={`absolute z-50 mt-1 w-[17.5rem] rounded border border-border bg-surface p-3 shadow-card ${
-            align === 'end' ? 'right-0' : 'left-0'
-          }`}
-          role="dialog"
-          aria-label="Calendario"
-        >
-          <div className="mb-2 flex items-center justify-between gap-2">
-            <button
-              type="button"
-              className="icon-btn grid h-8 w-8 place-items-center rounded"
-              aria-label="Mes anterior"
-              onClick={() =>
-                setView(new Date(view.getFullYear(), view.getMonth() - 1, 1))
-              }
-            >
-              <ChevronLeft size={16} />
-            </button>
-            <p className="text-sm font-bold capitalize text-ink">
-              {MONTHS[view.getMonth()]} {view.getFullYear()}
-            </p>
-            <button
-              type="button"
-              className="icon-btn grid h-8 w-8 place-items-center rounded"
-              aria-label="Mes siguiente"
-              onClick={() =>
-                setView(new Date(view.getFullYear(), view.getMonth() + 1, 1))
-              }
-            >
-              <ChevronRight size={16} />
-            </button>
-          </div>
-
-          <div className="mb-1 grid grid-cols-7 gap-0.5 text-center text-[10px] font-bold text-muted">
-            {WEEKDAYS.map((d) => (
-              <span key={d} className="py-1">
-                {d}
-              </span>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-7 gap-0.5">
-            {rows.flatMap((row, ri) =>
-              row.map((day, di) => {
-                if (!day) {
-                  return <span key={`${ri}-${di}`} className="h-8" />;
+  const calendarPanel =
+    open && panelPosition
+      ? createPortal(
+          <div
+            ref={panelRef}
+            data-datepicker-portal=""
+            className="fixed z-[100] w-[17.5rem] rounded border border-border bg-surface p-3 shadow-card"
+            style={{
+              top: panelPosition.top,
+              left: panelPosition.left,
+            }}
+            role="dialog"
+            aria-label="Calendario"
+          >
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <button
+                type="button"
+                className="icon-btn grid h-8 w-8 place-items-center rounded"
+                aria-label="Mes anterior"
+                onClick={() =>
+                  setView(new Date(view.getFullYear(), view.getMonth() - 1, 1))
                 }
-                const ymd = toYmd(day);
-                const isSelected = ymd === value;
-                const isToday = ymd === todayYmd;
-                return (
-                  <button
-                    key={ymd}
-                    type="button"
-                    className={[
-                      'grid h-8 place-items-center rounded text-sm font-bold transition-colors',
-                      isSelected
-                        ? 'bg-accent text-white'
-                        : isToday
-                          ? 'bg-accent/15 text-accent'
-                          : 'text-ink hover:bg-bg',
-                    ].join(' ')}
-                    onClick={() => {
-                      onChange(ymd);
-                      setOpen(false);
-                    }}
-                  >
-                    {day.getDate()}
-                  </button>
-                );
-              }),
-            )}
-          </div>
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <p className="text-sm font-bold capitalize text-ink">
+                {MONTHS[view.getMonth()]} {view.getFullYear()}
+              </p>
+              <button
+                type="button"
+                className="icon-btn grid h-8 w-8 place-items-center rounded"
+                aria-label="Mes siguiente"
+                onClick={() =>
+                  setView(new Date(view.getFullYear(), view.getMonth() + 1, 1))
+                }
+              >
+                <ChevronRight size={16} />
+              </button>
+            </div>
 
-          <div className="mt-2 flex justify-between border-t border-border pt-2">
-            <button
-              type="button"
-              className="text-xs font-bold text-muted hover:text-accent"
-              onClick={() => {
-                onChange('');
-                setOpen(false);
-              }}
-            >
-              Borrar
-            </button>
-            <button
-              type="button"
-              className="text-xs font-bold text-accent hover:underline"
-              onClick={() => {
-                onChange(todayYmd);
-                setOpen(false);
-              }}
-            >
-              Hoy
-            </button>
-          </div>
-        </div>
-      ) : null}
-    </div>
+            <div className="mb-1 grid grid-cols-7 gap-0.5 text-center text-[10px] font-bold text-muted">
+              {WEEKDAYS.map((d) => (
+                <span key={d} className="py-1">
+                  {d}
+                </span>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-7 gap-0.5">
+              {rows.flatMap((row, ri) =>
+                row.map((day, di) => {
+                  if (!day) {
+                    return <span key={`${ri}-${di}`} className="h-8" />;
+                  }
+                  const ymd = toYmd(day);
+                  const isSelected = ymd === value;
+                  const isToday = ymd === todayYmd;
+                  return (
+                    <button
+                      key={ymd}
+                      type="button"
+                      className={[
+                        'grid h-8 place-items-center rounded text-sm font-bold transition-colors',
+                        isSelected
+                          ? 'bg-accent text-white'
+                          : isToday
+                            ? 'bg-accent/15 text-accent'
+                            : 'text-ink hover:bg-bg',
+                      ].join(' ')}
+                      onClick={() => {
+                        onChange(ymd);
+                        setOpen(false);
+                      }}
+                    >
+                      {day.getDate()}
+                    </button>
+                  );
+                }),
+              )}
+            </div>
+
+            <div className="mt-2 flex justify-between border-t border-border pt-2">
+              <button
+                type="button"
+                className="text-xs font-bold text-muted hover:text-accent"
+                onClick={() => {
+                  onChange('');
+                  setOpen(false);
+                }}
+              >
+                Borrar
+              </button>
+              <button
+                type="button"
+                className="text-xs font-bold text-accent hover:underline"
+                onClick={() => {
+                  onChange(todayYmd);
+                  setOpen(false);
+                }}
+              >
+                Hoy
+              </button>
+            </div>
+          </div>,
+          document.body,
+        )
+      : null;
+
+  return (
+    <>
+      <div className={`relative ${className}`}>
+        <button
+          ref={triggerRef}
+          id={id}
+          type="button"
+          aria-label={ariaLabel ?? 'Fecha'}
+          aria-expanded={open}
+          aria-haspopup="dialog"
+          className="flex h-9 w-full items-center gap-2 rounded border border-border bg-bg px-3 text-left text-sm text-ink outline-none hover:border-accent focus:border-accent focus:bg-surface"
+          onClick={() => setOpen((v) => !v)}
+        >
+          <Calendar size={15} className="shrink-0 text-accent" strokeWidth={2} />
+          <span className={selected || displayValue ? 'text-ink' : 'text-muted'}>
+            {displayValue || formatDisplay(value)}
+          </span>
+        </button>
+      </div>
+      {calendarPanel}
+    </>
   );
 }

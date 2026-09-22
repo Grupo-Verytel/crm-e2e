@@ -15,6 +15,11 @@ export type SqlCita = {
   updated_at: string;
 };
 
+export type SqlCitaPlanificada = {
+  fecha_cita: string | null;
+  comercial_asignado_id: string | null;
+};
+
 export type SqlDetail = {
   sql_id: string;
   mql_id: string;
@@ -39,6 +44,7 @@ export type SqlDetail = {
     [key: string]: unknown;
   };
   interactions: unknown[];
+  cita_planificada: SqlCitaPlanificada | null;
   cita: SqlCita | null;
 };
 

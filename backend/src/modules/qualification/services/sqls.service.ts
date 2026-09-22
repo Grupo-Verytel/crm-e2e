@@ -100,7 +100,7 @@ export class SqlsService {
     return { items, total: count, page, limit };
   }
 
-  /** Assigned SQLs for the current Ejecutivo. Admin only lists ConvertidoOUV (org-wide). */
+  /** Assigned SQLs — Ejecutivo sees own tray; Soporte/Admin see org-wide overview. */
   async listAssigned(
     comercialUserId: string,
     query: SqlsQueryDto,
@@ -111,6 +111,10 @@ export class SqlsService {
     const offset = (page - 1) * limit;
     const adminConvertedTray =
       viewerRoleName === 'Admin' && query.estado === 'ConvertidoOUV';
+    const orgWideAssigned =
+      viewerRoleName === 'SoporteComercial' ||
+      adminConvertedTray ||
+      (viewerRoleName === 'Admin' && !query.estado);
 
     const estadoFilter =
       query.estado === 'ConvertidoOUV'
@@ -122,7 +126,7 @@ export class SqlsService {
     const leadWhere = this.leadSearchWhere(query.q);
     const { rows, count } = await this.sqlModel.findAndCountAll({
       where: {
-        ...(adminConvertedTray ? {} : { comercialAsignadoId: comercialUserId }),
+        ...(orgWideAssigned ? {} : { comercialAsignadoId: comercialUserId }),
         estado: estadoFilter,
       },
       include: [
@@ -217,9 +221,11 @@ export class SqlsService {
         );
       }
 
-      const lead = await this.demandGenerationService.findLeadById(sql.mql.leadId);
-      const interactions =
-        await this.demandGenerationService.listInteractions(sql.mql.leadId);
+      const lead = await this.demandGenerationService.findLeadById(
+        sql.mql.leadId,
+        soporteUserId,
+        soporteRoleName,
+      );
       const citaDto = cita ? this.toCitaResponse(cita) : null;
 
       await this.workflowEngine.transition(
@@ -234,20 +240,21 @@ export class SqlsService {
               sql.sqlId,
           ),
           actorUserId: soporteUserId,
-          payload: {
-            comercial_asignado_id: dto.comercial_asignado_id,
+          payload: this.buildAssignWorkflowPayload({
+            dto,
             sqlId: sql.sqlId,
             leadId: sql.mql.leadId,
             mqlId: sql.mqlId,
             assignedBy: soporteUserId,
-            lead,
-            interactions,
-            ...(citaDto ? { cita: citaDto } : {}),
-          },
+            cita: citaDto,
+          }),
           entity: { estado: estadoAnterior },
         },
         transaction,
       );
+
+      const interactions =
+        await this.demandGenerationService.listInteractions(sql.mql.leadId);
 
       const detail = await this.toDetailResponse(
         sql,
@@ -553,6 +560,63 @@ export class SqlsService {
     return hora.length === 5 ? `${hora}:00` : hora;
   }
 
+  /** JSON-safe workflow payload — no full lead/interaction graphs. */
+  private buildAssignWorkflowPayload(input: {
+    dto: AssignSqlDto;
+    sqlId: string;
+    leadId: string;
+    mqlId: string;
+    assignedBy: string;
+    cita: SqlCitaResponseDto | null;
+  }): Record<string, unknown> {
+    return {
+      comercial_asignado_id: input.dto.comercial_asignado_id,
+      sqlId: input.sqlId,
+      leadId: input.leadId,
+      mqlId: input.mqlId,
+      assignedBy: input.assignedBy,
+      ...(input.cita
+        ? {
+            cita: {
+              cita_id: input.cita.cita_id,
+              sql_id: input.cita.sql_id,
+              lugar: input.cita.lugar,
+              fecha: input.cita.fecha,
+              hora: input.cita.hora,
+              contacto_nombre: input.cita.contacto_nombre,
+              contacto_cargo: input.cita.contacto_cargo,
+              agendada_por: input.cita.agendada_por,
+            },
+          }
+        : {}),
+    };
+  }
+
+  private toCitaPlanificadaResponse(
+    lead: Record<string, unknown>,
+  ): SqlDetailDto['cita_planificada'] {
+    const fechaCita = lead.fecha_cita;
+    const comercialId = lead.comercial_asignado_id;
+    const hasFecha =
+      fechaCita instanceof Date ||
+      (typeof fechaCita === 'string' && fechaCita.length > 0);
+    const hasComercial =
+      typeof comercialId === 'string' && comercialId.length > 0;
+    if (!hasFecha && !hasComercial) {
+      return null;
+    }
+    return {
+      fecha_cita:
+        fechaCita instanceof Date
+          ? fechaCita
+          : typeof fechaCita === 'string'
+            ? new Date(fechaCita)
+            : null,
+      comercial_asignado_id:
+        typeof comercialId === 'string' ? comercialId : null,
+    };
+  }
+
   private toCitaResponse(cita: SqlCita): SqlCitaResponseDto {
     return {
       cita_id: cita.citaId,
@@ -618,6 +682,7 @@ export class SqlsService {
       ouv: ouvSummary,
       lead: lead as unknown as Record<string, unknown>,
       interactions,
+      cita_planificada: this.toCitaPlanificadaResponse(lead),
       cita: cita ? this.toCitaResponse(cita) : null,
     };
   }

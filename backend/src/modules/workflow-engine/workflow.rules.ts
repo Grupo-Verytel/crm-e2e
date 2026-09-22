@@ -50,10 +50,7 @@ export const workflowRules: WorkflowRule[] = [
   },
   {
     eventType: 'sql.asignado',
-    guards: [
-      guardEntidadEnEstado(EntityType.SQL, 'PendienteAsignacion'),
-      guardUsuarioTieneRol('SoporteComercial'),
-    ],
+    guards: [guardEntidadEnEstado(EntityType.SQL, 'PendienteAsignacion')],
     destinatarios: [
       {
         tipo: 'usuario',

@@ -1,5 +1,13 @@
 import { Type } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import {
+  IsIn,
+  IsInt,
+  IsOptional,
+  IsString,
+  Max,
+  MaxLength,
+  Min,
+} from 'class-validator';
 
 export const SQL_ASSIGNED_TRAY_ESTADOS = ['Asignado', 'ConvertidoOUV'] as const;
 export type SqlAssignedTrayEstado = (typeof SQL_ASSIGNED_TRAY_ESTADOS)[number];
@@ -27,6 +35,7 @@ export class SqlsQueryDto {
   @IsString()
   @MaxLength(200)
   q?: string;
+
 }
 
 export class SqlCitaResponseDto {
@@ -41,6 +50,12 @@ export class SqlCitaResponseDto {
   agendada_por: string;
   created_at: Date;
   updated_at: Date;
+}
+
+/** MQL / Calificación — possible meeting captured on lead approval. */
+export class SqlCitaPlanificadaResponseDto {
+  fecha_cita: Date | null;
+  comercial_asignado_id: string | null;
 }
 
 export class SqlOuvSummaryDto {
@@ -61,6 +76,7 @@ export class SqlDetailDto {
   ouv: SqlOuvSummaryDto | null;
   lead: Record<string, unknown>;
   interactions: unknown[];
+  cita_planificada: SqlCitaPlanificadaResponseDto | null;
   cita: SqlCitaResponseDto | null;
 }
 
