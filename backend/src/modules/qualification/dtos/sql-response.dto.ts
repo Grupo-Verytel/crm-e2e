@@ -1,4 +1,7 @@
 import { Type } from 'class-transformer';
+import { SqlInteractionResponseDto } from './sql-interaction-response.dto';
+
+export { SqlInteractionResponseDto };
 import {
   IsIn,
   IsInt,
@@ -47,6 +50,7 @@ export class SqlCitaResponseDto {
   contacto_nombre: string;
   contacto_cargo: string | null;
   descripcion: string | null;
+  estado: string;
   agendada_por: string;
   created_at: Date;
   updated_at: Date;
@@ -56,6 +60,7 @@ export class SqlCitaResponseDto {
 export class SqlCitaPlanificadaResponseDto {
   fecha_cita: Date | null;
   comercial_asignado_id: string | null;
+  cita_estado: string | null;
 }
 
 export class SqlOuvSummaryDto {
@@ -75,7 +80,7 @@ export class SqlDetailDto {
   ouv_id: string | null;
   ouv: SqlOuvSummaryDto | null;
   lead: Record<string, unknown>;
-  interactions: unknown[];
+  interactions: SqlInteractionResponseDto[];
   cita_planificada: SqlCitaPlanificadaResponseDto | null;
   cita: SqlCitaResponseDto | null;
 }

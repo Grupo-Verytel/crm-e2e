@@ -2,11 +2,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { X } from 'lucide-react';
 import { DatePickerField } from '../../../components/DatePickerField';
 import { TimePickerField } from '../../../components/TimePickerField';
+import { fetchLead } from '../../demand-generation/api/leads-api';
 import { ApiError } from '../../auth/types';
+import { useAuth } from '../../auth/hooks/useAuth';
 import { KickoffAvailabilityGrid } from '../../offer-closing/components/KickoffAvailabilityGrid';
 import type { SlotValidation } from '../../offer-closing/lib/kickoff-scheduling';
 import {
   assignSql,
+  createSqlCita,
   fetchCommercials,
   type CommercialOption,
   type SqlCita,
@@ -23,6 +26,7 @@ import {
   dateFromIso,
   formatLeadAppointmentHint,
   formatSqlAppointmentRange,
+  leadContactsToDrafts,
   resolveSqlLugar,
   timeFromIso,
   validateCommercialSlot,
@@ -42,6 +46,11 @@ type Props = {
   sql: SqlDetail;
   onClose: () => void;
   onAssigned: () => void;
+  /** Hides Ejecutivo Comercial selector (EjecutivoComercial scheduling own SQL). */
+  hideCommercialField?: boolean;
+  fixedCommercialId?: string;
+  /** Creates cita on an already-assigned SQL instead of assigning. */
+  scheduleOnly?: boolean;
 };
 
 type ScheduleTab = 'datos' | 'disponibilidad' | 'contactos' | 'confirmacion';
@@ -79,7 +88,15 @@ function resolveAssignError(err: unknown): string {
   return 'No se pudo asignar el SQL. Revisa los datos e inténtalo de nuevo.';
 }
 
-export function AssignSqlModal({ sql, onClose, onAssigned }: Props) {
+export function AssignSqlModal({
+  sql,
+  onClose,
+  onAssigned,
+  hideCommercialField = false,
+  fixedCommercialId,
+  scheduleOnly = false,
+}: Props) {
+  const { user } = useAuth();
   const [commercials, setCommercials] = useState<CommercialOption[]>([]);
   const [comercialId, setComercialId] = useState('');
   const [registerCita, setRegisterCita] = useState(true);
@@ -89,15 +106,15 @@ export function AssignSqlModal({ sql, onClose, onAssigned }: Props) {
   const [fecha, setFecha] = useState('');
   const [horaInicio, setHoraInicio] = useState('09:00');
   const [horaFin, setHoraFin] = useState('10:00');
-  const initialContactsBundle = useMemo(() => {
+  const fallbackContactsBundle = useMemo(() => {
     const first = initialContact(sql);
     return { contacts: [first], selectedId: first.id };
   }, [sql.sql_id]);
   const [contacts, setContacts] = useState<MeetingContactDraft[]>(
-    initialContactsBundle.contacts,
+    fallbackContactsBundle.contacts,
   );
   const [selectedContactId, setSelectedContactId] = useState(
-    initialContactsBundle.selectedId,
+    fallbackContactsBundle.selectedId,
   );
   const [validation, setValidation] = useState<SlotValidation | null>(null);
   const [contactsUnlocked, setContactsUnlocked] = useState(false);
@@ -111,10 +128,18 @@ export function AssignSqlModal({ sql, onClose, onAssigned }: Props) {
   const leadComercialId = leadString(sql.lead, 'comercial_asignado_id');
   const appointmentHint = formatLeadAppointmentHint(leadFechaCita || undefined);
 
-  const selectedCommercial = useMemo(
-    () => commercials.find((c) => c.user_id === comercialId) ?? null,
-    [commercials, comercialId],
-  );
+  const selectedCommercial = useMemo(() => {
+    const fromList = commercials.find((c) => c.user_id === comercialId);
+    if (fromList) return fromList;
+    if (hideCommercialField && comercialId) {
+      return {
+        user_id: comercialId,
+        full_name: user?.full_name ?? 'Ejecutivo Comercial',
+        email: user?.email,
+      };
+    }
+    return null;
+  }, [commercials, comercialId, hideCommercialField, user?.email, user?.full_name]);
 
   const inicio = combineSameDay(fecha, horaInicio);
   const fin = combineSameDay(fecha, horaFin);
@@ -125,14 +150,56 @@ export function AssignSqlModal({ sql, onClose, onAssigned }: Props) {
     void fetchCommercials()
       .then((items) => {
         setCommercials(items);
+        if (hideCommercialField) {
+          const resolved =
+            fixedCommercialId ??
+            sql.comercial_asignado_id ??
+            user?.user_id ??
+            '';
+          setComercialId(resolved);
+          return;
+        }
         const preferred =
           leadComercialId && items.some((c) => c.user_id === leadComercialId)
             ? leadComercialId
             : items[0]?.user_id ?? '';
         setComercialId(preferred);
       })
-      .catch(() => setError('No se pudo cargar la lista de comerciales.'));
-  }, [leadComercialId]);
+      .catch(() => {
+        if (!hideCommercialField) {
+          setError('No se pudo cargar la lista de comerciales.');
+        }
+      });
+  }, [
+    fixedCommercialId,
+    hideCommercialField,
+    leadComercialId,
+    sql.comercial_asignado_id,
+    user?.user_id,
+  ]);
+
+  useEffect(() => {
+    const leadId =
+      typeof sql.lead.lead_id === 'string' ? sql.lead.lead_id : null;
+    if (!leadId) return;
+
+    let active = true;
+    void fetchLead(leadId)
+      .then((lead) => {
+        if (!active) return;
+        const drafts = leadContactsToDrafts(lead.contacts ?? []);
+        if (drafts.length === 0) return;
+        setContacts(drafts);
+        setSelectedContactId(drafts[0].id);
+      })
+      .catch(() => {
+        // Keep denormalized fallback contact when lead detail is unavailable.
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [sql.lead.lead_id, sql.sql_id]);
 
   useEffect(() => {
     if (leadFechaCita) {
@@ -208,8 +275,11 @@ export function AssignSqlModal({ sql, onClose, onAssigned }: Props) {
   }
 
   function validateDatosStep(): string | null {
-    if (!comercialId) {
+    if (!hideCommercialField && !comercialId) {
       return 'Selecciona un Ejecutivo Comercial.';
+    }
+    if (hideCommercialField && !comercialId) {
+      return 'No se pudo determinar el Ejecutivo Comercial asignado.';
     }
     if (!fecha || !horaInicio || !horaFin) {
       return 'Completa fecha, hora de inicio y hora fin.';
@@ -338,6 +408,65 @@ export function AssignSqlModal({ sql, onClose, onAssigned }: Props) {
     }
   }
 
+  async function handleScheduleOnlyWithCita() {
+    const datosError = validateDatosStep();
+    if (datosError) {
+      setError(datosError);
+      setTab('datos');
+      return;
+    }
+    const contactsError = validateContactsStep();
+    if (contactsError) {
+      setError(contactsError);
+      setTab('contactos');
+      return;
+    }
+    if (!validation?.ok) {
+      setError('Valida la disponibilidad antes de agendar.');
+      setTab('datos');
+      return;
+    }
+    if (!confirmacionUnlocked) {
+      setError('Revisa la confirmación antes de agendar.');
+      setTab('confirmacion');
+      return;
+    }
+
+    const primary = contacts[0];
+    setBusy(true);
+    setError(null);
+    try {
+      const cita = await createSqlCita(sql.sql_id, {
+        lugar: resolveSqlLugar(ubicacion, lugarDetalle),
+        fecha,
+        hora: horaInicio,
+        contacto_nombre: primary.nombre.trim(),
+        ...(primary.cargo.trim()
+          ? { contacto_cargo: primary.cargo.trim() }
+          : {}),
+        ...(buildMeetingDescription(contacts, ubicacion === 'Teams')
+          ? {
+              descripcion: buildMeetingDescription(
+                contacts,
+                ubicacion === 'Teams',
+              ),
+            }
+          : {}),
+      });
+      setResult({
+        withCita: true,
+        cita,
+        commercialName: resolveCommercialName(comercialId),
+      });
+      setPhase('done');
+      onAssigned();
+    } catch (err) {
+      setError(resolveAssignError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleAssignWithCita() {
     const datosError = validateDatosStep();
     if (datosError) {
@@ -422,13 +551,15 @@ export function AssignSqlModal({ sql, onClose, onAssigned }: Props) {
   }
 
   const modalWidth = registerCita ? 'max-w-[54rem]' : 'max-w-lg';
+  const modalTitle = scheduleOnly ? 'Agendar cita' : 'Asignar SQL';
+  const showSimpleAssign = !scheduleOnly && !registerCita;
 
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-ink/50 p-4"
       role="dialog"
       aria-modal="true"
-      aria-label="Asignar SQL"
+      aria-label={modalTitle}
     >
       <div
         className={`flex max-h-[92vh] w-full flex-col overflow-hidden rounded bg-surface shadow-card ${modalWidth}`}
@@ -436,7 +567,7 @@ export function AssignSqlModal({ sql, onClose, onAssigned }: Props) {
       >
         <header className="flex items-start justify-between gap-3 border-b border-border px-5 py-4">
           <div>
-            <h2 className="text-base font-bold text-ink">Asignar SQL</h2>
+            <h2 className="text-base font-bold text-ink">{modalTitle}</h2>
             <p className="mt-1 text-sm text-muted">
               {leadString(sql.lead, 'empresa_nombre') || sql.sql_id}
               {leadString(sql.lead, 'contacto_nombre')
@@ -476,10 +607,16 @@ export function AssignSqlModal({ sql, onClose, onAssigned }: Props) {
           {phase === 'done' && result ? (
             <div className="space-y-4">
               <div className="rounded border border-success/40 bg-success/10 px-4 py-3 text-sm text-ink">
-                <p className="font-bold">SQL asignado correctamente</p>
-                <p className="mt-1 text-muted">
-                  Ejecutivo: {result.commercialName}
+                <p className="font-bold">
+                  {scheduleOnly
+                    ? 'Cita agendada correctamente'
+                    : 'SQL asignado correctamente'}
                 </p>
+                {!hideCommercialField ? (
+                  <p className="mt-1 text-muted">
+                    Ejecutivo: {result.commercialName}
+                  </p>
+                ) : null}
               </div>
 
               {result.withCita ? (
@@ -528,47 +665,51 @@ export function AssignSqlModal({ sql, onClose, onAssigned }: Props) {
                     </div>
                   ) : null}
 
-                  <label className="flex items-center gap-2 text-sm text-ink">
-                    <input
-                      type="checkbox"
-                      checked={registerCita}
-                      onChange={(event) => {
-                        setRegisterCita(event.target.checked);
-                        setError(null);
-                        setTab('datos');
-                        setValidation(null);
-                        setContactsUnlocked(false);
-                        setConfirmacionUnlocked(false);
-                      }}
-                    />
-                    Registrar cita al asignar
-                  </label>
-
-                  <div>
-                    <label className={labelClass} htmlFor="assign-commercial">
-                      Ejecutivo Comercial
+                  {!scheduleOnly ? (
+                    <label className="flex items-center gap-2 text-sm text-ink">
+                      <input
+                        type="checkbox"
+                        checked={registerCita}
+                        onChange={(event) => {
+                          setRegisterCita(event.target.checked);
+                          setError(null);
+                          setTab('datos');
+                          setValidation(null);
+                          setContactsUnlocked(false);
+                          setConfirmacionUnlocked(false);
+                        }}
+                      />
+                      Registrar cita al asignar
                     </label>
-                    <select
-                      id="assign-commercial"
-                      className={inputClass}
-                      value={comercialId}
-                      onChange={(event) => {
-                        setComercialId(event.target.value);
-                        invalidateAvailability();
-                      }}
-                    >
-                      <option value="">Seleccionar…</option>
-                      {commercials.map((commercial) => (
-                        <option
-                          key={commercial.user_id}
-                          value={commercial.user_id}
-                        >
-                          {commercial.full_name}
-                          {commercial.email ? ` · ${commercial.email}` : ''}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  ) : null}
+
+                  {!hideCommercialField ? (
+                    <div>
+                      <label className={labelClass} htmlFor="assign-commercial">
+                        Ejecutivo Comercial
+                      </label>
+                      <select
+                        id="assign-commercial"
+                        className={inputClass}
+                        value={comercialId}
+                        onChange={(event) => {
+                          setComercialId(event.target.value);
+                          invalidateAvailability();
+                        }}
+                      >
+                        <option value="">Seleccionar…</option>
+                        {commercials.map((commercial) => (
+                          <option
+                            key={commercial.user_id}
+                            value={commercial.user_id}
+                          >
+                            {commercial.full_name}
+                            {commercial.email ? ` · ${commercial.email}` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : null}
 
                   <div>
                     <span className={labelClass}>Lugar</span>
@@ -820,19 +961,21 @@ export function AssignSqlModal({ sql, onClose, onAssigned }: Props) {
                           {leadString(sql.lead, 'empresa_nombre') || '—'}
                         </dd>
                       </div>
-                      <div>
-                        <dt className="text-xs text-muted">
-                          Ejecutivo Comercial
-                        </dt>
-                        <dd className="font-bold text-ink">
-                          {selectedCommercial?.full_name ?? '—'}
-                          {selectedCommercial?.email ? (
-                            <span className="block text-xs font-normal text-muted">
-                              {selectedCommercial.email}
-                            </span>
-                          ) : null}
-                        </dd>
-                      </div>
+                      {!hideCommercialField ? (
+                        <div>
+                          <dt className="text-xs text-muted">
+                            Ejecutivo Comercial
+                          </dt>
+                          <dd className="font-bold text-ink">
+                            {selectedCommercial?.full_name ?? '—'}
+                            {selectedCommercial?.email ? (
+                              <span className="block text-xs font-normal text-muted">
+                                {selectedCommercial.email}
+                              </span>
+                            ) : null}
+                          </dd>
+                        </div>
+                      ) : null}
                     </dl>
                   </div>
 
@@ -927,15 +1070,27 @@ export function AssignSqlModal({ sql, onClose, onAssigned }: Props) {
                       type="button"
                       className={primaryButtonClass}
                       disabled={busy}
-                      onClick={() => void handleAssignWithCita()}
+                      onClick={() =>
+                        void (
+                          scheduleOnly
+                            ? handleScheduleOnlyWithCita()
+                            : handleAssignWithCita()
+                        )
+                      }
                     >
-                      {busy ? 'Asignando…' : 'Asignar y registrar cita'}
+                      {busy
+                        ? scheduleOnly
+                          ? 'Agendando…'
+                          : 'Asignando…'
+                        : scheduleOnly
+                          ? 'Agendar cita'
+                          : 'Asignar y registrar cita'}
                     </button>
                   </div>
                 </div>
               ) : null}
             </>
-          ) : (
+          ) : showSimpleAssign ? (
             <div className="space-y-4">
               {appointmentHint ? (
                 <div className="rounded border border-accent/40 bg-accent/10 px-4 py-3 text-sm text-ink">
@@ -944,25 +1099,27 @@ export function AssignSqlModal({ sql, onClose, onAssigned }: Props) {
                 </div>
               ) : null}
 
-              <div>
-                <label className={labelClass} htmlFor="assign-commercial-simple">
-                  Ejecutivo Comercial
-                </label>
-                <select
-                  id="assign-commercial-simple"
-                  className={inputClass}
-                  value={comercialId}
-                  onChange={(event) => setComercialId(event.target.value)}
-                >
-                  <option value="">Seleccionar…</option>
-                  {commercials.map((commercial) => (
-                    <option key={commercial.user_id} value={commercial.user_id}>
-                      {commercial.full_name}
-                      {commercial.email ? ` · ${commercial.email}` : ''}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {!hideCommercialField ? (
+                <div>
+                  <label className={labelClass} htmlFor="assign-commercial-simple">
+                    Ejecutivo Comercial
+                  </label>
+                  <select
+                    id="assign-commercial-simple"
+                    className={inputClass}
+                    value={comercialId}
+                    onChange={(event) => setComercialId(event.target.value)}
+                  >
+                    <option value="">Seleccionar…</option>
+                    {commercials.map((commercial) => (
+                      <option key={commercial.user_id} value={commercial.user_id}>
+                        {commercial.full_name}
+                        {commercial.email ? ` · ${commercial.email}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : null}
 
               <label className="flex items-center gap-2 text-sm text-ink">
                 <input
@@ -1005,7 +1162,7 @@ export function AssignSqlModal({ sql, onClose, onAssigned }: Props) {
                 </button>
               </div>
             </div>
-          )}
+          ) : null}
         </div>
       </div>
     </div>

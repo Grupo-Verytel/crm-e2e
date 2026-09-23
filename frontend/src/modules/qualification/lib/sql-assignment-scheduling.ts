@@ -1,3 +1,10 @@
+import {
+  contactEmail,
+  contactJobTitle,
+  contactPersonName,
+  contactPhone,
+} from '../../demand-generation/lib/contact-display';
+import type { LeadContact } from '../../demand-generation/types';
 import type { KickoffInvitee } from '../../shared/project/types';
 import {
   buildAvailabilityGrid,
@@ -20,6 +27,21 @@ export const SQL_DURACION_OPTIONS = [30, 45, 60, 90] as const;
 
 export function createContactId(): string {
   return `contact-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
+export function leadContactsToDrafts(
+  contacts: LeadContact[],
+): MeetingContactDraft[] {
+  if (contacts.length === 0) return [];
+
+  return contacts.map((contact) => ({
+    id: createContactId(),
+    nombre: contactPersonName(contact),
+    email: contactEmail(contact) ?? '',
+    telefono: contactPhone(contact) ?? '',
+    cargo: contactJobTitle(contact) ?? '',
+    descripcion: '',
+  }));
 }
 
 export function combineSameDay(date: string, time: string): Date | null {

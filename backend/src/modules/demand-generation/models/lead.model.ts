@@ -158,6 +158,19 @@ export class Lead extends Model {
   @Column({ type: DataType.DATE, field: 'fecha_cita', allowNull: true })
   declare fechaCita: Date | null;
 
+  @Column({
+    type: DataType.ENUM(
+      'Agendada',
+      'Reagendada',
+      'Realizada',
+      'Cancelada',
+      'NoAsistio',
+    ),
+    field: 'cita_estado',
+    allowNull: true,
+  })
+  declare citaEstado: string | null;
+
   @ForeignKey(() => User)
   @Column({
     type: DataType.CHAR(36),

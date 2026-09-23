@@ -1,4 +1,99 @@
-import type { SqlCita, SqlCitaPlanificada, SqlDetail } from '../api/sqls-api';
+import type {
+  SqlCita,
+  SqlCitaEstado,
+  SqlCitaPlanificada,
+  SqlDetail,
+} from '../api/sqls-api';
+
+export type SqlMeetingStatus =
+  | 'sin_agendar'
+  | 'agendada'
+  | 'reagendada'
+  | 'cancelada'
+  | 'realizada'
+  | 'no_asistio';
+
+export const SQL_MEETING_STATUS_LABELS: Record<SqlMeetingStatus, string> = {
+  sin_agendar: 'Sin agendar',
+  agendada: 'Agendada',
+  reagendada: 'Reagendada',
+  cancelada: 'Cancelada',
+  realizada: 'Realizada',
+  no_asistio: 'No asistió',
+};
+
+export const SQL_MEETING_STATUS_TONE: Record<SqlMeetingStatus, string> = {
+  sin_agendar: 'bg-muted/20 text-muted',
+  agendada: 'bg-brand/15 text-brand',
+  reagendada: 'bg-warning/15 text-ink',
+  cancelada: 'bg-border text-muted',
+  realizada: 'bg-positive/15 text-positive',
+  no_asistio: 'bg-danger/15 text-danger',
+};
+
+const MEETING_STATUS_TO_API: Record<
+  Exclude<SqlMeetingStatus, 'sin_agendar'>,
+  SqlCitaEstado
+> = {
+  agendada: 'Agendada',
+  reagendada: 'Reagendada',
+  cancelada: 'Cancelada',
+  realizada: 'Realizada',
+  no_asistio: 'NoAsistio',
+};
+
+export function sqlMeetingStatusToApi(
+  status: SqlMeetingStatus,
+): SqlCitaEstado | null {
+  if (status === 'sin_agendar') return null;
+  return MEETING_STATUS_TO_API[status];
+}
+
+export function apiEstadoToSqlMeetingStatus(
+  estado: SqlCitaEstado | null | undefined,
+): SqlMeetingStatus {
+  switch (estado) {
+    case 'Agendada':
+      return 'agendada';
+    case 'Reagendada':
+      return 'reagendada';
+    case 'Cancelada':
+      return 'cancelada';
+    case 'Realizada':
+      return 'realizada';
+    case 'NoAsistio':
+      return 'no_asistio';
+    default:
+      return 'sin_agendar';
+  }
+}
+
+export function resolveSqlMeetingStatus(sql: SqlDetail): SqlMeetingStatus {
+  const scheduledEstado = sql.cita?.estado;
+  if (scheduledEstado) {
+    return apiEstadoToSqlMeetingStatus(scheduledEstado);
+  }
+
+  const plannedEstado = sql.cita_planificada?.cita_estado;
+  if (plannedEstado) {
+    return apiEstadoToSqlMeetingStatus(plannedEstado);
+  }
+
+  if (sql.cita_planificada?.fecha_cita) {
+    return 'agendada';
+  }
+
+  return 'sin_agendar';
+}
+
+export const SQL_MEETING_STATUS_OPTIONS: SqlMeetingStatus[] = [
+  'sin_agendar',
+  'agendada',
+  'reagendada',
+  'cancelada',
+  'realizada',
+  'no_asistio',
+];
 
 export type SqlAgendaSeguimientoStatus =
   | 'sin_datos'

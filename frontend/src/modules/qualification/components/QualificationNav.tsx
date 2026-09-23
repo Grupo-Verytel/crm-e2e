@@ -12,16 +12,8 @@ const tabClass = (isActive: boolean) =>
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) => tabClass(isActive);
 
-function assignedTray(
-  pathname: string,
-  search: string,
-): 'nuevos' | 'convertidos' | null {
-  if (pathname !== '/qualification/assigned') {
-    return null;
-  }
-  return new URLSearchParams(search).get('bandeja') === 'convertidos'
-    ? 'convertidos'
-    : 'nuevos';
+function isAssignedTray(pathname: string): boolean {
+  return pathname === '/qualification/assigned';
 }
 
 export function QualificationNav() {
@@ -33,8 +25,7 @@ export function QualificationNav() {
   const canCreateOuv =
     user?.role_name === 'Admin' ||
     hasPermission(user?.permissions, 'create', 'Sql');
-  const canSeeConverted = canCreateOuv;
-  const tray = assignedTray(location.pathname, location.search);
+  const assignedActive = isAssignedTray(location.pathname);
 
   return (
     <nav
@@ -54,19 +45,10 @@ export function QualificationNav() {
       {canCreateOuv && !canAssign ? (
         <Link
           to="/qualification/assigned"
-          className={tabClass(tray === 'nuevos')}
-          aria-current={tray === 'nuevos' ? 'page' : undefined}
+          className={tabClass(assignedActive)}
+          aria-current={assignedActive ? 'page' : undefined}
         >
           Me llegaron
-        </Link>
-      ) : null}
-      {canSeeConverted ? (
-        <Link
-          to="/qualification/assigned?bandeja=convertidos"
-          className={tabClass(tray === 'convertidos')}
-          aria-current={tray === 'convertidos' ? 'page' : undefined}
-        >
-          Convertidos a OUV
         </Link>
       ) : null}
     </nav>

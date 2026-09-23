@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { CalendarClock, CalendarX2, UserPlus } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Pagination } from '../../../components/Pagination';
 import { AppLayout } from '../../../layout/AppLayout';
@@ -10,6 +11,7 @@ import {
 import { useAuth } from '../../auth/hooks/useAuth';
 import { hasPermission } from '../../auth/lib/permission-catalog';
 import {
+  cancelPlannedCita,
   fetchCommercials,
   fetchSqlInbox,
   type CommercialOption,
@@ -17,11 +19,15 @@ import {
 } from '../api/sqls-api';
 import { AssignSqlModal } from '../components/AssignSqlModal';
 import { QualificationNav } from '../components/QualificationNav';
+import { ReschedulePlannedCitaModal } from '../components/ReschedulePlannedCitaModal';
+import { RoutingLeadInteractionsCell } from '../components/RoutingLeadInteractionsCell';
+import { SqlMeetingStatusSelect } from '../components/SqlMeetingStatusSelect';
 import { SqlRoutingPlannedCitaCell } from '../components/SqlRoutingPlannedCitaCell';
-import { primaryButtonClass } from '../components/ui';
 import { splitDateTimeLines } from '../lib/sql-appointments';
 
 const PAGE_SIZE = 20;
+
+type ModalMode = 'assign' | 'reschedule' | null;
 
 function leadLabel(sql: SqlDetail): string {
   return String(sql.lead.empresa_nombre ?? sql.lead.contacto_nombre ?? '—');
@@ -37,6 +43,9 @@ export function RoutingInboxPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<SqlDetail | null>(null);
+  const [modalMode, setModalMode] = useState<ModalMode>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [busySqlId, setBusySqlId] = useState<string | null>(null);
 
   const canAssign =
     user?.role_name === 'Admin' ||
@@ -118,12 +127,61 @@ export function RoutingInboxPage() {
     return commercialNames.get(id) ?? null;
   }
 
+  function openAssign(sql: SqlDetail) {
+    setActionError(null);
+    setSelected(sql);
+    setModalMode('assign');
+  }
+
+  function openReschedule(sql: SqlDetail) {
+    setActionError(null);
+    setSelected(sql);
+    setModalMode('reschedule');
+  }
+
+  async function handleDelete(sql: SqlDetail) {
+    const label = leadLabel(sql);
+    const confirmed = window.confirm(
+      `¿Eliminar la cita planificada de ${label}?`,
+    );
+    if (!confirmed) return;
+
+    setBusySqlId(sql.sql_id);
+    setActionError(null);
+    try {
+      await cancelPlannedCita(sql.sql_id);
+      await load({ silent: true });
+    } catch (err) {
+      setActionError(
+        err instanceof Error && err.message
+          ? err.message
+          : 'No se pudo eliminar la cita.',
+      );
+    } finally {
+      setBusySqlId(null);
+    }
+  }
+
+  function closeModal() {
+    setSelected(null);
+    setModalMode(null);
+  }
+
+  function patchSqlInList(updated: SqlDetail) {
+    setItems((prev) =>
+      prev.map((item) => (item.sql_id === updated.sql_id ? updated : item)),
+    );
+  }
+
   return (
     <AppLayout title="Calificación">
       <QualificationNav />
       <h1 className="mb-4 text-lg font-bold text-ink">Bandeja de enrutamiento</h1>
 
       {error ? <p className="mb-3 text-sm text-danger">{error}</p> : null}
+      {actionError ? (
+        <p className="mb-3 text-sm text-danger">{actionError}</p>
+      ) : null}
 
       {isLoading ? (
         <p className="text-sm text-muted">Cargando…</p>
@@ -135,20 +193,24 @@ export function RoutingInboxPage() {
         <p className="text-sm text-muted">No hay SQL pendientes de asignación.</p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[880px] text-left text-sm">
+          <table className="w-full min-w-[1080px] text-left text-sm">
             <thead>
               <tr className="border-b border-border text-xs uppercase tracking-wide text-muted">
-                <th className="px-4 py-3 font-bold">Lead</th>
-                <th className="px-4 py-3 font-bold">Empresa</th>
-                <th className="px-4 py-3 font-bold">Cita</th>
-                <th className="px-4 py-3 font-bold">Creado</th>
-                <th className="px-4 py-3 font-bold">Acción</th>
+                <th className="px-4 py-3 text-center font-bold">Lead</th>
+                <th className="px-4 py-3 text-center font-bold">Cita</th>
+                <th className="px-4 py-3 text-center font-bold">Estado</th>
+                <th className="px-4 py-3 text-center font-bold">
+                  Interacciones
+                </th>
+                <th className="px-4 py-3 text-center font-bold">Creado</th>
+                <th className="px-4 py-3 text-center font-bold">Acción</th>
               </tr>
             </thead>
             <tbody>
               {items.map((sql) => {
                 const label = leadLabel(sql);
                 const created = splitDateTimeLines(sql.fecha_creacion);
+                const rowBusy = busySqlId === sql.sql_id;
                 return (
                   <tr
                     key={sql.sql_id}
@@ -162,11 +224,27 @@ export function RoutingInboxPage() {
                         {label}
                       </Link>
                     </td>
-                    <td className="px-4 py-3 text-ink">{label}</td>
                     <td className="px-4 py-3">
                       <SqlRoutingPlannedCitaCell
                         citaPlanificada={sql.cita_planificada}
                         comercialName={resolveCommercialName(sql)}
+                      />
+                    </td>
+                    <td className="px-4 py-3">
+                      {canAssign ? (
+                        <SqlMeetingStatusSelect
+                          sql={sql}
+                          disabled={rowBusy}
+                          onUpdated={patchSqlInList}
+                          onError={setActionError}
+                        />
+                      ) : (
+                        <span className="text-sm text-muted">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <RoutingLeadInteractionsCell
+                        interactions={sql.interactions}
                       />
                     </td>
                     <td className="px-4 py-3 text-ink">
@@ -177,13 +255,35 @@ export function RoutingInboxPage() {
                     </td>
                     <td className="px-4 py-3">
                       {canAssign ? (
-                        <button
-                          type="button"
-                          className={primaryButtonClass}
-                          onClick={() => setSelected(sql)}
-                        >
-                          Asignar
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            className="icon-btn grid h-9 w-9 place-items-center rounded text-accent"
+                            aria-label={`Asignar ${label}`}
+                            disabled={rowBusy}
+                            onClick={() => openAssign(sql)}
+                          >
+                            <UserPlus size={16} strokeWidth={2} />
+                          </button>
+                          <button
+                            type="button"
+                            className="icon-btn grid h-9 w-9 place-items-center rounded"
+                            aria-label={`Reagendar cita de ${label}`}
+                            disabled={rowBusy}
+                            onClick={() => openReschedule(sql)}
+                          >
+                            <CalendarClock size={16} strokeWidth={2} />
+                          </button>
+                          <button
+                            type="button"
+                            className="icon-btn grid h-9 w-9 place-items-center rounded text-danger"
+                            aria-label={`Eliminar agenda de ${label}`}
+                            disabled={rowBusy}
+                            onClick={() => void handleDelete(sql)}
+                          >
+                            <CalendarX2 size={16} strokeWidth={2} />
+                          </button>
+                        </div>
                       ) : (
                         <span className="text-muted">—</span>
                       )}
@@ -205,11 +305,19 @@ export function RoutingInboxPage() {
         />
       </div>
 
-      {selected ? (
+      {selected && modalMode === 'assign' ? (
         <AssignSqlModal
           sql={selected}
-          onClose={() => setSelected(null)}
+          onClose={closeModal}
           onAssigned={() => void load({ silent: true })}
+        />
+      ) : null}
+
+      {selected && modalMode === 'reschedule' ? (
+        <ReschedulePlannedCitaModal
+          sql={selected}
+          onClose={closeModal}
+          onRescheduled={() => void load({ silent: true })}
         />
       ) : null}
     </AppLayout>

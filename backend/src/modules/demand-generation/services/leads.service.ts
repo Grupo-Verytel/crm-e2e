@@ -940,6 +940,7 @@ export class LeadsService {
       responsable_nombre: lead.responsable?.fullName ?? null,
       cita_agendada: lead.citaAgendada,
       fecha_cita: lead.fechaCita,
+      cita_estado: lead.citaEstado,
       comercial_asignado_id: lead.comercialAsignadoId,
       motivo_descarte: lead.motivoDescarte,
       utm_source: lead.utmSource,

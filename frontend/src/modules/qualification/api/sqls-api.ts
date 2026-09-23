@@ -1,5 +1,13 @@
 import { apiRequest } from '../../../lib/api/http-client';
 import { buildQueryString } from '../../../lib/format';
+import type { SqlInteraction } from '../types/sql-interaction.types';
+
+export type SqlCitaEstado =
+  | 'Agendada'
+  | 'Reagendada'
+  | 'Realizada'
+  | 'Cancelada'
+  | 'NoAsistio';
 
 export type SqlCita = {
   cita_id: string;
@@ -10,6 +18,7 @@ export type SqlCita = {
   contacto_nombre: string;
   contacto_cargo: string | null;
   descripcion: string | null;
+  estado: SqlCitaEstado;
   agendada_por: string;
   created_at: string;
   updated_at: string;
@@ -18,6 +27,7 @@ export type SqlCita = {
 export type SqlCitaPlanificada = {
   fecha_cita: string | null;
   comercial_asignado_id: string | null;
+  cita_estado: SqlCitaEstado | null;
 };
 
 export type SqlDetail = {
@@ -43,7 +53,7 @@ export type SqlDetail = {
     segmento?: string;
     [key: string]: unknown;
   };
-  interactions: unknown[];
+  interactions: SqlInteraction[];
   cita_planificada: SqlCitaPlanificada | null;
   cita: SqlCita | null;
 };
@@ -55,16 +65,18 @@ export type PaginatedSqls = {
   limit: number;
 };
 
+export type SqlCitaPayload = {
+  lugar: string;
+  fecha: string;
+  hora: string;
+  contacto_nombre: string;
+  contacto_cargo?: string;
+  descripcion?: string;
+};
+
 export type AssignSqlPayload = {
   comercial_asignado_id: string;
-  cita?: {
-    lugar: string;
-    fecha: string;
-    hora: string;
-    contacto_nombre: string;
-    contacto_cargo?: string;
-    descripcion?: string;
-  };
+  cita?: SqlCitaPayload;
 };
 
 export async function fetchSqlInbox(params: {
@@ -104,9 +116,51 @@ export async function assignSql(
 
 export async function updateSqlCita(
   sqlId: string,
-  payload: Partial<AssignSqlPayload['cita']>,
+  payload: Partial<SqlCitaPayload & { estado: SqlCitaEstado }>,
 ): Promise<SqlCita> {
   return apiRequest(`/qualification/sqls/${sqlId}/cita`, {
+    method: 'PATCH',
+    body: payload,
+  });
+}
+
+export async function createSqlCita(
+  sqlId: string,
+  payload: SqlCitaPayload,
+): Promise<SqlCita> {
+  return apiRequest(`/qualification/sqls/${sqlId}/cita`, {
+    method: 'POST',
+    body: payload,
+  });
+}
+
+export async function cancelSqlCita(sqlId: string): Promise<SqlCita> {
+  return apiRequest(`/qualification/sqls/${sqlId}/cita`, {
+    method: 'DELETE',
+  });
+}
+
+export async function reschedulePlannedCita(
+  sqlId: string,
+  payload: { fecha_cita: string; comercial_asignado_id?: string },
+): Promise<SqlDetail> {
+  return apiRequest(`/qualification/sqls/${sqlId}/cita-planificada`, {
+    method: 'PATCH',
+    body: payload,
+  });
+}
+
+export async function cancelPlannedCita(sqlId: string): Promise<SqlDetail> {
+  return apiRequest(`/qualification/sqls/${sqlId}/cita-planificada`, {
+    method: 'DELETE',
+  });
+}
+
+export async function updateMeetingStatus(
+  sqlId: string,
+  payload: { estado: SqlCitaEstado | null },
+): Promise<SqlDetail> {
+  return apiRequest(`/qualification/sqls/${sqlId}/meeting-status`, {
     method: 'PATCH',
     body: payload,
   });

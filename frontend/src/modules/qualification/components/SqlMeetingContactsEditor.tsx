@@ -65,7 +65,7 @@ export function SqlMeetingContactsEditor({
                 className={[
                   'grid h-11 w-11 place-items-center rounded-full text-xs font-bold',
                   hasName
-                    ? 'bg-success text-white'
+                    ? 'border border-border bg-bg text-ink'
                     : 'border border-dashed border-muted text-muted',
                 ].join(' ')}
               >
@@ -106,7 +106,7 @@ export function SqlMeetingContactsEditor({
         <div className="rounded border border-border bg-bg p-4">
           <div className="mb-4 flex items-start justify-between gap-3">
             <div className="flex min-w-0 items-start gap-3">
-              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-success text-xs font-bold text-white">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-border bg-bg text-xs font-bold text-ink">
                 {contactInitials(selected.nombre)}
               </span>
               <div className="min-w-0">

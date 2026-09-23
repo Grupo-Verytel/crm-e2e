@@ -12,6 +12,7 @@ import {
 } from 'sequelize-typescript';
 import { User } from '../../auth/models/user.model';
 import { Sql } from '../../demand-generation/models/sql.model';
+import { SqlCitaEstado } from './enums/sql-cita-estado.enum';
 
 @Table({
   tableName: 'sql_citas',
@@ -62,6 +63,13 @@ export class SqlCita extends Model {
 
   @Column({ type: DataType.TEXT, allowNull: true })
   declare descripcion: string | null;
+
+  @Default(SqlCitaEstado.Agendada)
+  @Column({
+    type: DataType.ENUM(...Object.values(SqlCitaEstado)),
+    allowNull: false,
+  })
+  declare estado: SqlCitaEstado;
 
   @ForeignKey(() => User)
   @Column({

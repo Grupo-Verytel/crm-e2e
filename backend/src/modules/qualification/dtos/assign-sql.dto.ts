@@ -1,6 +1,7 @@
 import { Type } from 'class-transformer';
 import {
   IsDateString,
+  IsEnum,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -9,6 +10,7 @@ import {
   MaxLength,
   ValidateNested,
 } from 'class-validator';
+import { SqlCitaEstado } from '../models/enums/sql-cita-estado.enum';
 
 export class CreateSqlCitaDto {
   @IsString()
@@ -40,14 +42,17 @@ export class CreateSqlCitaDto {
 }
 
 export class AssignSqlDto {
+  @IsOptional()
   @IsUUID()
-  comercial_asignado_id!: string;
+  comercial_asignado_id?: string;
 
   @IsOptional()
   @ValidateNested()
   @Type(() => CreateSqlCitaDto)
   cita?: CreateSqlCitaDto;
 }
+
+export class CreateAssignedSqlCitaDto extends CreateSqlCitaDto {}
 
 export class UpdateSqlCitaDto {
   @IsOptional()
@@ -79,4 +84,8 @@ export class UpdateSqlCitaDto {
   @IsOptional()
   @IsString()
   descripcion?: string;
+
+  @IsOptional()
+  @IsEnum(SqlCitaEstado)
+  estado?: SqlCitaEstado;
 }

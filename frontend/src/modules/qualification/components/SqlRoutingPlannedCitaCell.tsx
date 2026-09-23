@@ -15,10 +15,7 @@ export function SqlRoutingPlannedCitaCell({
   }
 
   return (
-    <div className="space-y-1">
-      <span className="inline-block rounded bg-accent/15 px-2 py-0.5 text-xs font-bold text-accent">
-        Generar cita
-      </span>
+    <div className="space-y-0.5">
       <p className="text-sm text-ink">
         {formatSqlDateTime(citaPlanificada?.fecha_cita)}
       </p>

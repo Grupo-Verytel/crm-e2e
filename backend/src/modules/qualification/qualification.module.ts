@@ -9,18 +9,20 @@ import { DiscoveryModule } from '../discovery/discovery.module';
 import { WorkflowEngineModule } from '../workflow-engine/workflow-engine.module';
 import { SqlsController } from './controllers/sqls.controller';
 import { SqlCita } from './models/sql-cita.model';
+import { SqlInteraction } from './models/sql-interaction.model';
+import { SqlInteractionsService } from './services/sql-interactions.service';
 import { SqlsService } from './services/sqls.service';
 
 @Module({
   imports: [
-    SequelizeModule.forFeature([Sql, Mql, Lead, SqlCita]),
+    SequelizeModule.forFeature([Sql, Mql, Lead, SqlCita, SqlInteraction]),
     AuthModule,
     DemandGenerationModule,
     DiscoveryModule,
     WorkflowEngineModule,
   ],
   controllers: [SqlsController],
-  providers: [SqlsService],
-  exports: [SqlsService],
+  providers: [SqlsService, SqlInteractionsService],
+  exports: [SqlsService, SqlInteractionsService],
 })
 export class QualificationModule {}
