@@ -140,24 +140,23 @@ export function listProyectosEnImplementacion(): VentaGanadaRecord[] {
   return listVentasGanadas().filter((v) => v.envioPmo.estado === 'Enviado');
 }
 
-/** Simulated Control de Proyectos accept — returns CP + SER consecutivos. */
 /**
  * Deja constancia del proyecto que el PMO acaba de abrir para esta OUV.
  *
  * El `projectId` es el `PRO_NCODE` real que devuelve Control de Proyectos, no
  * un consecutivo inventado: es la única llave con la que después se consultan
  * indicadores e historial.
+ *
+ * Trabaja sobre el registro que ya está en pantalla y no toca `localStorage`:
+ * el expediente vive en el backend, y buscarlo en el almacenamiento local
+ * fallaba en cualquier navegador que no lo tuviera — después de crear el
+ * proyecto en el PMO, dejando la OUV sin marcar como enviada.
  */
 export function registrarProyectoPmo(
-  ouvId: string,
+  record: VentaGanadaRecord,
   projectId: number,
   opciones?: { yaExistia?: boolean },
 ): VentaGanadaRecord {
-  const record = getVentaGanada(ouvId);
-  if (!record) {
-    throw new Error('Registro no encontrado');
-  }
-
   const ahora = new Date().toISOString();
   const cpId = `CP-${projectId}`;
   const origen = 'Control de Proyectos';
@@ -184,9 +183,10 @@ export function registrarProyectoPmo(
       },
     ],
     alertas: record.alertas.filter((a) => !a.descripcion.includes('bloqueado')),
+    updatedAt: ahora,
   };
 
-  return upsertVentaGanada(updated);
+  return updated;
 }
 
 export function validateDatosBase(d: DatosBaseProyecto): string[] {

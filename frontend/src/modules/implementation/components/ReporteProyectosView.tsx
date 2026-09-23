@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useModuleSearch } from '../../../layout/useModuleSearch';
 import { useAuth } from '../../auth/hooks/useAuth';
 import { listVentasGanadas } from '../../shared/project/mock-store';
 import { AlertaBadge } from '../../shared/project/AlertaBadge';
@@ -16,8 +17,9 @@ type Tab = 'trazabilidad' | 'ejecucion';
 /** C5 — HU-F05 + HU-F07 shared reportes view. */
 export function ReporteProyectosView() {
   const { user } = useAuth();
+  const { query } = useModuleSearch();
   const [tab, setTab] = useState<Tab>('trazabilidad');
-  const [draft, setDraft] = useState({ q: '', oportunidad: '', cliente: '', vendedor: '' });
+  const [draft, setDraft] = useState({ oportunidad: '', cliente: '', vendedor: '' });
   const [applied, setApplied] = useState(draft);
 
   const all = useMemo(
@@ -27,13 +29,20 @@ export function ReporteProyectosView() {
 
   const filtered = useMemo(() => {
     let list = all;
-    const q = applied.q.toLowerCase();
+    const q = query.trim().toLowerCase();
     if (q) {
-      list = list.filter(
-        (v) =>
-          v.consecutivo.toLowerCase().includes(q) ||
-          v.datosBase.nombreProyecto.toLowerCase().includes(q),
-      );
+      list = list.filter((v) => {
+        const haystack = [
+          v.consecutivo,
+          v.datosBase.nombreProyecto,
+          v.empresaNombre,
+          v.envioPmo.serConsecutivo,
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
+        return haystack.includes(q);
+      });
     }
     if (applied.oportunidad) {
       list = list.filter((v) => v.consecutivo.includes(applied.oportunidad));
@@ -52,7 +61,7 @@ export function ReporteProyectosView() {
       list = list.filter((v) => v.vendedorNombre === user.full_name);
     }
     return list;
-  }, [all, applied, user]);
+  }, [all, applied, query, user]);
 
   const tabClass = (t: Tab) =>
     `-mb-px border-b-2 px-4 py-2 text-sm ${
@@ -70,36 +79,30 @@ export function ReporteProyectosView() {
         </button>
       </div>
 
-      <div className={`${cardClass} mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4`}>
-        <div>
-          <label className={labelClass}>Buscar</label>
-          <input className={inputClass} value={draft.q} onChange={(e) => setDraft({ ...draft, q: e.target.value })} />
+      {tab === 'ejecucion' ? (
+        <div className={`${cardClass} mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4`}>
+          <div>
+            <label className={labelClass}>Oportunidad</label>
+            <input className={inputClass} value={draft.oportunidad} onChange={(e) => setDraft({ ...draft, oportunidad: e.target.value })} />
+          </div>
+          <div>
+            <label className={labelClass}>Cliente</label>
+            <input className={inputClass} value={draft.cliente} onChange={(e) => setDraft({ ...draft, cliente: e.target.value })} />
+          </div>
+          <div>
+            <label className={labelClass}>Vendedor</label>
+            <input className={inputClass} value={draft.vendedor} onChange={(e) => setDraft({ ...draft, vendedor: e.target.value })} />
+          </div>
+          <div className="flex items-end gap-2">
+            <button type="button" className={primaryButtonClass} onClick={() => setApplied({ ...draft })}>
+              Aplicar filtros
+            </button>
+            <button type="button" className={ghostButtonClass} onClick={() => { setDraft({ oportunidad: '', cliente: '', vendedor: '' }); setApplied({ oportunidad: '', cliente: '', vendedor: '' }); }}>
+              Limpiar
+            </button>
+          </div>
         </div>
-        {tab === 'ejecucion' ? (
-          <>
-            <div>
-              <label className={labelClass}>Oportunidad</label>
-              <input className={inputClass} value={draft.oportunidad} onChange={(e) => setDraft({ ...draft, oportunidad: e.target.value })} />
-            </div>
-            <div>
-              <label className={labelClass}>Cliente</label>
-              <input className={inputClass} value={draft.cliente} onChange={(e) => setDraft({ ...draft, cliente: e.target.value })} />
-            </div>
-            <div>
-              <label className={labelClass}>Vendedor</label>
-              <input className={inputClass} value={draft.vendedor} onChange={(e) => setDraft({ ...draft, vendedor: e.target.value })} />
-            </div>
-          </>
-        ) : null}
-        <div className="flex items-end gap-2">
-          <button type="button" className={primaryButtonClass} onClick={() => setApplied({ ...draft })}>
-            Aplicar filtros
-          </button>
-          <button type="button" className={ghostButtonClass} onClick={() => { setDraft({ q: '', oportunidad: '', cliente: '', vendedor: '' }); setApplied({ q: '', oportunidad: '', cliente: '', vendedor: '' }); }}>
-            Limpiar
-          </button>
-        </div>
-      </div>
+      ) : null}
 
       <div className={`${cardClass} overflow-x-auto p-0`}>
         <table className="w-full min-w-[800px] text-left text-sm">

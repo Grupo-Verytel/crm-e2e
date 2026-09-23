@@ -21,6 +21,7 @@ import {
   updateGraphMeeting,
   type GraphSchedule,
   type GraphStatus,
+  type KickoffInvitationContext,
 } from '../api/graph-api';
 import {
   KICKOFF_SALAS_VERYTEL,
@@ -67,6 +68,8 @@ type Props = {
   empresaNombre?: string | null;
   kickoff: KickoffRecord;
   onChange: (kickoff: KickoffRecord) => void;
+  /** Contexto para la plantilla del correo de invitación. */
+  invitationContext?: KickoffInvitationContext;
 };
 
 /** Correos ficticios de los mocks (`…@cuenta.local`) no se invitan en Graph. */
@@ -165,9 +168,26 @@ function timeFromIso(iso: string | undefined): string {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-function inviteeTipoLabel(tipo: KickoffInviteeTipo): string {
-  if (tipo === 'Interno') return 'Verytel / Frisson';
-  if (tipo === 'ContactoOuv') return 'Empresa OUV';
+function inviteeOrgFromEmail(email: string): 'Frisson' | 'Verytel' | null {
+  const domain = email.split('@')[1]?.trim().toLowerCase() ?? '';
+  if (domain === 'frisson.net.co' || domain.endsWith('.frisson.net.co')) {
+    return 'Frisson';
+  }
+  if (
+    domain === 'grupoverytel.com' ||
+    domain === 'verytel.com' ||
+    domain.endsWith('.grupoverytel.com') ||
+    domain.endsWith('.verytel.com')
+  ) {
+    return 'Verytel';
+  }
+  return null;
+}
+
+function inviteeTipoLabel(inv: KickoffInvitee): string {
+  if (inv.tipo === 'Interno') {
+    return inviteeOrgFromEmail(inv.email) ?? 'Interno';
+  }
   return 'Empresa OUV';
 }
 
@@ -187,6 +207,7 @@ export function KickoffScheduleModal({
   empresaNombre = null,
   kickoff,
   onChange,
+  invitationContext,
 }: Props) {
   const { user } = useAuth();
   const [tab, setTab] = useState<ScheduleTab>('datos');
@@ -236,7 +257,12 @@ export function KickoffScheduleModal({
         ? [...kickoff.agenda.ubicaciones]
         : ['Teams'],
     );
-    setSalaVerytel(kickoff.agenda?.salaVerytel ?? '');
+    setSalaVerytel(
+      kickoff.agenda?.salaVerytel ??
+        (kickoff.agenda?.ubicaciones?.includes('Presencial')
+          ? KICKOFF_SALAS_VERYTEL[0]
+          : ''),
+    );
     setUbicacionDetalle(kickoff.agenda?.ubicacionDetalle ?? '');
     setObservaciones(kickoff.agenda?.observacionesInvitados ?? '');
     setInvitados(kickoff.agenda?.invitados ?? []);
@@ -534,6 +560,9 @@ export function KickoffScheduleModal({
       if (prev.includes(tipo)) {
         return prev.filter((t) => t !== tipo);
       }
+      if (tipo === 'Presencial' && !salaVerytel) {
+        setSalaVerytel(KICKOFF_SALAS_VERYTEL[0]);
+      }
       return [...prev, tipo];
     });
     invalidateAvailability();
@@ -618,6 +647,7 @@ export function KickoffScheduleModal({
           : undefined,
       body: observaciones.trim() || undefined,
       isOnlineMeeting: asTeams,
+      kickoff: invitationContext ?? {},
     };
 
     // Reprogramar = actualizar el mismo evento. Así los invitados reciben una
@@ -656,12 +686,15 @@ export function KickoffScheduleModal({
         });
       }
 
+      const joinUrl =
+        meeting.joinUrl?.trim() || kickoff.agenda?.joinUrl?.trim() || '';
+
       onChange({
         ...kickoff,
         sesionNombre: nombreReunion.trim(),
         sesionFecha: fecha,
-        enlace: meeting.joinUrl ?? meeting.webLink ?? '',
-        estado: 'Programado',
+        enlace: joinUrl,
+        estado: previousEventId ? 'Reagendado' : 'Programado',
         fechaRealizacion: null,
         validadoTeams: false,
         agendamientoConfirmado: true,
@@ -677,7 +710,7 @@ export function KickoffScheduleModal({
           confirmadaEn: new Date().toISOString(),
           graphEventId: meeting.eventId,
           organizerUpn: meeting.organizer.email,
-          joinUrl: meeting.joinUrl,
+          joinUrl: joinUrl || null,
         },
       });
       setTab('confirmacion');
@@ -915,7 +948,7 @@ export function KickoffScheduleModal({
                       >
                         <span className="font-bold text-ink">{inv.nombre}</span>
                         <span className="text-muted">
-                          · {inviteeTipoLabel(inv.tipo)}
+                          · {inviteeTipoLabel(inv)}
                         </span>
                         <button
                           type="button"
@@ -957,36 +990,20 @@ export function KickoffScheduleModal({
                     </label>
                   </div>
                   {ubicaciones.includes('Presencial') ? (
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      <select
-                        className={inputClass}
-                        value={salaVerytel}
-                        onChange={(e) => {
-                          setSalaVerytel(
-                            e.target.value as KickoffSalaVerytel | '',
-                          );
-                          invalidateAvailability();
-                        }}
-                      >
-                        <option value="">Otra ubicación</option>
-                        {KICKOFF_SALAS_VERYTEL.map((s) => (
-                          <option key={s} value={s}>
-                            {s}
-                          </option>
-                        ))}
-                      </select>
-                      {!salaVerytel ? (
-                        <input
-                          className={inputClass}
-                          value={ubicacionDetalle}
-                          onChange={(e) => {
-                            setUbicacionDetalle(e.target.value);
-                            invalidateAvailability();
-                          }}
-                          placeholder="Dirección"
-                        />
-                      ) : null}
-                    </div>
+                    <select
+                      className={inputClass}
+                      value={salaVerytel || KICKOFF_SALAS_VERYTEL[0]}
+                      onChange={(e) => {
+                        setSalaVerytel(e.target.value as KickoffSalaVerytel);
+                        invalidateAvailability();
+                      }}
+                    >
+                      {KICKOFF_SALAS_VERYTEL.map((s) => (
+                        <option key={s} value={s}>
+                          {s}
+                        </option>
+                      ))}
+                    </select>
                   ) : null}
                 </div>
                 <div>

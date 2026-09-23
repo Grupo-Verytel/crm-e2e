@@ -81,6 +81,15 @@ export type CreateGraphMeetingPayload = {
   location?: string;
   body?: string;
   isOnlineMeeting?: boolean;
+  /** Solo kickoff: el backend arma la invitación con la plantilla HTML. */
+  kickoff?: KickoffInvitationContext;
+};
+
+/** Datos de negocio que la plantilla de invitación del kickoff muestra. */
+export type KickoffInvitationContext = {
+  consecutivo?: string;
+  proyecto?: string;
+  cliente?: string;
 };
 
 export async function fetchGraphStatus(): Promise<GraphStatus> {

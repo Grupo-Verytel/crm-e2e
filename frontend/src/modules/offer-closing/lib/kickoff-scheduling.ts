@@ -106,14 +106,18 @@ export function resourcesFor(params: {
 }): KickoffResource[] {
   const resources: KickoffResource[] = [];
 
+  const seenEmails = new Set<string>();
   for (const inv of params.invitados) {
     // Solo los buzones del tenant tienen calendario legible por la app.
     if (inv.tipo === 'Externo') continue;
     if (!inv.email.includes('@')) continue;
+    const email = inv.email.toLowerCase();
+    if (seenEmails.has(email)) continue;
+    seenEmails.add(email);
     resources.push({
       id: inv.id,
-      email: inv.email.toLowerCase(),
-      label: inv.nombre.split(' ')[0] ?? inv.email,
+      email,
+      label: inv.nombre.trim() || inv.email,
       kind: 'persona',
     });
   }
@@ -164,7 +168,10 @@ export function buildAvailabilityBlocks(params: {
       blocks.push({
         id: `${resource.id}-${index}-${item.start}`,
         resourceId: resource.id,
-        label: item.subject?.trim() || resource.label,
+        label:
+          resource.kind === 'sala'
+            ? item.subject?.trim() || resource.label
+            : resource.label,
         dayIndex,
         // Un bloque que cruza medianoche se recorta al final del día.
         startHour: toHourFloat(start),

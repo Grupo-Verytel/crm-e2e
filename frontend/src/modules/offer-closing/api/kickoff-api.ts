@@ -92,7 +92,7 @@ export function kickoffFromDto(dto: KickoffDto): KickoffRecord {
   return {
     sesionNombre: dto.name,
     sesionFecha: dateOnly(dto.startsAt),
-    enlace: dto.joinUrl ?? dto.webLink ?? '',
+    enlace: dto.joinUrl ?? '',
     estado: dto.status,
     fechaRealizacion: dto.heldAt,
     aprobaciones,

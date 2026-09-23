@@ -2,6 +2,7 @@ import { Moon, Sun } from 'lucide-react';
 import { NotificationBell } from '../modules/auth/components/NotificationBell';
 import { useAuth } from '../modules/auth/hooks/useAuth';
 import { useTheme } from '../theme/useTheme';
+import { useModuleSearch } from './useModuleSearch';
 
 function getInitials(fullName: string): string {
   const parts = fullName.trim().split(/\s+/).filter(Boolean);
@@ -18,23 +19,27 @@ function getInitials(fullName: string): string {
 export function Header({ title }: { title: string }) {
   const { user } = useAuth();
   const { theme, setTheme } = useTheme();
+  const { draft, setDraft, placeholder, enabled } = useModuleSearch();
   const initials = user ? getInitials(user.full_name) : '?';
   const isDark = theme === 'dark';
 
   return (
-    <header className="flex h-14 items-center gap-4 border-b border-border bg-surface px-6">
-      <h1 className="text-sm font-bold text-ink">{title}</h1>
+    <header className="grid h-14 grid-cols-[minmax(0,1fr)_minmax(12rem,28rem)_minmax(0,1fr)] items-center gap-4 border-b border-border bg-surface px-6">
+      <h1 className="truncate text-sm font-bold text-ink">{title}</h1>
 
-      <div className="relative ml-2 max-w-md flex-1">
+      <div className="w-full min-w-0 -translate-x-10 justify-self-center">
         <input
           type="search"
-          placeholder="Buscar oportunidades, cuentas, contactos…"
-          className="h-9 w-full rounded border border-border bg-bg pl-3 pr-3 text-sm text-ink outline-none focus:border-accent focus:bg-surface"
-          aria-label="Buscar"
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          placeholder={placeholder}
+          disabled={!enabled}
+          className="h-9 w-full rounded border border-border bg-bg pl-3 pr-3 text-sm text-ink outline-none focus:border-accent focus:bg-surface disabled:cursor-not-allowed disabled:opacity-60"
+          aria-label="Buscar en este módulo"
         />
       </div>
 
-      <div className="ml-auto flex items-center gap-3">
+      <div className="flex items-center justify-end gap-3">
         <NotificationBell />
 
         <button

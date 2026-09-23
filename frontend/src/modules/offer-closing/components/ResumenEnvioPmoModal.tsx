@@ -60,7 +60,7 @@ export function ResumenEnvioPmoModal({ record, open, onClose, onSent }: Props) {
         projectId = (await fetchProyectoEjecucion(record.ouvId)).projectId;
       }
 
-      onSent(registrarProyectoPmo(record.ouvId, projectId, { yaExistia }));
+      onSent(registrarProyectoPmo(record, projectId, { yaExistia }));
       onClose();
     } catch (e) {
       setError(

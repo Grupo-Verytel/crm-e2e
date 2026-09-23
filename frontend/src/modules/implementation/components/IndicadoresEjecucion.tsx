@@ -95,6 +95,43 @@ function fechaCorte(
   return resumen?.lastDate ?? null;
 }
 
+type RealVsProyectado = { real: string; proyectado: string };
+
+/**
+ * Par Real / Proyectado de la tarjeta (diseño Design_JD), en la unidad del
+ * bloque: pesos acumulados en Facturación y Costos, semanas en Tiempo y
+ * entregables en Alcance. `null` cuando el PMO no envía el agregado.
+ */
+function realVsProyectado(
+  key: BloqueKey,
+  indicador: IndicadorEjecucion | IndicadorAlcance,
+): RealVsProyectado | null {
+  if (key === 'scope') {
+    const alcance = indicador.summary as IndicadorAlcance['summary'];
+    if (!alcance || alcance.total === 0) return null;
+    return {
+      real: `${alcance.completed} entregables`,
+      proyectado: `${alcance.total} entregables`,
+    };
+  }
+
+  const serie = indicador.summary as IndicadorEjecucion['summary'];
+  if (!serie || serie.totalWeeks === 0) return null;
+  if (key === 'schedule') {
+    return {
+      real: serie.lastWeek != null ? `Semana ${serie.lastWeek}` : '—',
+      proyectado: `${serie.totalWeeks} semanas`,
+    };
+  }
+  return {
+    real: formatPesos(serie.actualTotal),
+    proyectado: formatPesos(serie.projectedTotal),
+  };
+}
+
+const metaLabelClass =
+  'text-[11px] font-bold uppercase tracking-wide text-muted';
+
 function Bloque({
   bloqueKey,
   label,
@@ -105,10 +142,13 @@ function Bloque({
   indicador: IndicadorEjecucion | IndicadorAlcance;
 }) {
   const corte = fechaCorte(indicador);
+  const par = indicador.available
+    ? realVsProyectado(bloqueKey, indicador)
+    : null;
 
   return (
     <div className={cardClass}>
-      <div className="mb-2 flex items-center justify-between">
+      <div className="flex items-center justify-between">
         <h3 className="text-sm font-bold text-ink">{label}</h3>
         <Lock
           size={14}
@@ -117,6 +157,7 @@ function Bloque({
         />
       </div>
 
+      <p className={`mt-2 ${metaLabelClass}`}>Actual</p>
       {indicador.available ? (
         <>
           <p className="text-2xl font-bold text-accent">
@@ -140,15 +181,29 @@ function Bloque({
         </>
       )}
 
-      {corte ? (
-        <p className="mt-2 text-xs text-muted">
-          Actualizado: {formatFecha(corte)}
-        </p>
+      {par ? (
+        <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border pt-3">
+          <div>
+            <p className={metaLabelClass}>Real</p>
+            <p className="mt-0.5 text-sm font-bold text-ink">{par.real}</p>
+          </div>
+          <div>
+            <p className={metaLabelClass}>Proyectado</p>
+            <p className="mt-0.5 text-sm font-bold text-ink">
+              {par.proyectado}
+            </p>
+          </div>
+        </div>
       ) : null}
 
-      <p className="mt-1 text-xs text-muted">
-        Fuente: Control de Proyectos · {indicador.source}
-      </p>
+      <div className="mt-3 border-t border-border pt-2">
+        {corte ? (
+          <p className="text-xs text-muted">Actualizado: {formatFecha(corte)}</p>
+        ) : null}
+        <p className="text-xs text-muted">
+          Fuente: Control de Proyectos · {indicador.source}
+        </p>
+      </div>
     </div>
   );
 }

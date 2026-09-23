@@ -64,6 +64,8 @@ export type OuvsQuery = {
   created_to?: string;
   all?: boolean;
   comercial_id?: string;
+  /** true: solo OUV ya enviadas al PMO (/services); false: las que no (/offers). */
+  pmo_enviado?: boolean;
 };
 
 export type OuvContacto = {

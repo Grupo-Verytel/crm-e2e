@@ -26,6 +26,7 @@ import {
   GraphUsersResponseDto,
 } from '../dtos/graph.dto';
 import { GraphClientService } from './graph-client.service';
+import { renderKickoffInvitationHtml } from '../templates/kickoff-invitation.template';
 
 type GraphUser = {
   id: string;
@@ -84,8 +85,16 @@ type GraphEvent = {
   }[];
   location?: { displayName?: string };
   onlineMeeting?: { joinUrl?: string };
+  onlineMeetingUrl?: string;
   webLink?: string;
 };
+
+function joinUrlFromEvent(event: GraphEvent): string | null {
+  const fromMeeting = event.onlineMeeting?.joinUrl?.trim();
+  if (fromMeeting) return fromMeeting;
+  const fromUrl = event.onlineMeetingUrl?.trim();
+  return fromUrl || null;
+}
 
 const USER_SELECT =
   'id,displayName,mail,userPrincipalName,jobTitle,accountEnabled';
@@ -243,13 +252,16 @@ export class GraphService {
     dto: CreateGraphMeetingDto,
   ): Promise<GraphMeetingResponseDto> {
     const draft = await this.buildEventDraft(dto);
-    const event = await this.client.request<GraphEvent>(
-      'POST',
-      `/users/${draft.organizer.id}/events`,
-      {
-        data: draft.payload,
-        headers: outlookPreferHeader(draft.timeZone),
-      },
+    const event = await this.hydrateMeetingEvent(
+      draft.organizer.id,
+      await this.client.request<GraphEvent>(
+        'POST',
+        `/users/${draft.organizer.id}/events`,
+        {
+          data: draft.payload,
+          headers: outlookPreferHeader(draft.timeZone),
+        },
+      ),
     );
     return this.toMeetingResponse(event, draft);
   }
@@ -273,13 +285,16 @@ export class GraphService {
     const payload = { ...draft.payload };
     delete payload.onlineMeetingProvider;
 
-    const event = await this.client.request<GraphEvent>(
-      'PATCH',
-      `/users/${draft.organizer.id}/events/${encodeURIComponent(eventId)}`,
-      {
-        data: payload,
-        headers: outlookPreferHeader(draft.timeZone),
-      },
+    const event = await this.hydrateMeetingEvent(
+      draft.organizer.id,
+      await this.client.request<GraphEvent>(
+        'PATCH',
+        `/users/${draft.organizer.id}/events/${encodeURIComponent(eventId)}`,
+        {
+          data: payload,
+          headers: outlookPreferHeader(draft.timeZone),
+        },
+      ),
     );
     return this.toMeetingResponse(event, draft);
   }
@@ -365,7 +380,29 @@ export class GraphService {
     if (isOnlineMeeting) {
       payload.onlineMeetingProvider = 'teamsForBusiness';
     }
-    if (dto.body?.trim()) {
+    if (dto.kickoff) {
+      // Kickoff: invitación con la plantilla de marca; `body` queda como la
+      // sección de observaciones dentro del HTML.
+      payload.body = {
+        contentType: 'HTML',
+        content: renderKickoffInvitationHtml({
+          subject: dto.subject.trim(),
+          startDateTime,
+          endDateTime,
+          timeZone,
+          consecutivo: dto.kickoff.consecutivo,
+          proyecto: dto.kickoff.proyecto,
+          cliente: dto.kickoff.cliente,
+          organizerName: organizer.displayName ?? organizer.mail ?? null,
+          locationName,
+          isOnlineMeeting,
+          attendeeNames: (dto.attendees ?? []).map(
+            (a) => a.name?.trim() || a.email,
+          ),
+          observaciones: dto.body,
+        }),
+      };
+    } else if (dto.body?.trim()) {
       payload.body = { contentType: 'Text', content: dto.body.trim() };
     }
     if (locationName) {
@@ -383,6 +420,31 @@ export class GraphService {
       endDateTime,
       locationName,
     };
+  }
+
+  /**
+   * PATCH/POST a veces omiten `onlineMeeting.joinUrl`. Se relee el evento
+   * para no devolver el `webLink` de Outlook en su lugar.
+   */
+  private async hydrateMeetingEvent(
+    organizerId: string,
+    event: GraphEvent,
+  ): Promise<GraphEvent> {
+    if (joinUrlFromEvent(event) || !event.id) return event;
+    try {
+      return await this.client.request<GraphEvent>(
+        'GET',
+        `/users/${organizerId}/events/${encodeURIComponent(event.id)}`,
+        {
+          params: {
+            $select:
+              'id,subject,start,end,attendees,location,onlineMeeting,onlineMeetingUrl,webLink',
+          },
+        },
+      );
+    } catch {
+      return event;
+    }
   }
 
   private toMeetingResponse(
@@ -413,7 +475,7 @@ export class GraphService {
         email: attendee.emailAddress?.address ?? null,
         type: attendee.type ?? 'required',
       })),
-      joinUrl: event.onlineMeeting?.joinUrl ?? null,
+      joinUrl: joinUrlFromEvent(event),
       webLink: event.webLink ?? null,
       location: event.location?.displayName ?? draft.locationName,
     };
