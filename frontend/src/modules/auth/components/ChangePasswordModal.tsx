@@ -1,5 +1,6 @@
-import type { FormEvent, ReactNode } from 'react';
+import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
+import { Eye, EyeOff } from 'lucide-react';
 import { changePasswordRequest } from '../api/auth-api';
 import { getFormErrorMessage } from '../lib/form-errors';
 
@@ -101,31 +102,19 @@ function ChangePasswordModalBody({ onClose }: { onClose: () => void }) {
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4 px-6 py-4">
-            <Field label="Nueva contraseña" id="new-password">
-              <input
-                id="new-password"
-                type="password"
-                autoComplete="new-password"
-                required
-                minLength={8}
-                value={newPassword}
-                onChange={(event) => setNewPassword(event.target.value)}
-                className={inputClass}
-              />
-            </Field>
+            <PasswordField
+              label="Nueva contraseña"
+              id="new-password"
+              value={newPassword}
+              onChange={setNewPassword}
+            />
 
-            <Field label="Confirmar nueva contraseña" id="confirm-password">
-              <input
-                id="confirm-password"
-                type="password"
-                autoComplete="new-password"
-                required
-                minLength={8}
-                value={confirmPassword}
-                onChange={(event) => setConfirmPassword(event.target.value)}
-                className={inputClass}
-              />
-            </Field>
+            <PasswordField
+              label="Confirmar nueva contraseña"
+              id="confirm-password"
+              value={confirmPassword}
+              onChange={setConfirmPassword}
+            />
 
             {error ? (
               <p className="rounded-sm bg-bg px-3 py-2 text-sm text-danger" role="alert">
@@ -156,21 +145,49 @@ function ChangePasswordModalBody({ onClose }: { onClose: () => void }) {
   );
 }
 
-function Field({
+function PasswordField({
   label,
   id,
-  children,
+  value,
+  onChange,
 }: {
   label: string;
   id: string;
-  children: ReactNode;
+  value: string;
+  onChange: (value: string) => void;
 }) {
+  const [visible, setVisible] = useState(false);
+
   return (
     <div>
       <label htmlFor={id} className="mb-1 block text-sm font-bold text-ink">
         {label}
       </label>
-      {children}
+      <div className="relative">
+        <input
+          id={id}
+          type={visible ? 'text' : 'password'}
+          autoComplete="new-password"
+          required
+          minLength={8}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          className={`${inputClass} pr-10`}
+        />
+        <button
+          type="button"
+          onClick={() => setVisible((current) => !current)}
+          className="icon-btn absolute inset-y-0 right-0 grid w-10 place-items-center rounded"
+          aria-label={visible ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+          aria-pressed={visible}
+        >
+          {visible ? (
+            <EyeOff size={16} strokeWidth={1.75} />
+          ) : (
+            <Eye size={16} strokeWidth={1.75} />
+          )}
+        </button>
+      </div>
     </div>
   );
 }
