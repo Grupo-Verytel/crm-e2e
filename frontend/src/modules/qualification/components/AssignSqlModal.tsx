@@ -844,7 +844,14 @@ export function AssignSqlModal({
                         id="assign-hora-inicio"
                         value={horaInicio}
                         onChange={(next) => {
+                          const span =
+                            durationMinutesBetween(
+                              fecha || '2000-01-01',
+                              horaInicio,
+                              horaFin,
+                            ) ?? 60;
                           setHoraInicio(next);
+                          setHoraFin(addMinutesToTime(next, span));
                           invalidateAvailability();
                         }}
                       />
@@ -856,6 +863,7 @@ export function AssignSqlModal({
                       <TimePickerField
                         id="assign-hora-fin"
                         value={horaFin}
+                        durationFrom={horaInicio}
                         onChange={(next) => {
                           setHoraFin(next);
                           invalidateAvailability();
