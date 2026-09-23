@@ -23,6 +23,15 @@ export async function fetchMe(): Promise<MeResponse> {
   return apiRequest<MeResponse>('/auth/me');
 }
 
+export async function changePasswordRequest(payload: {
+  new_password: string;
+}): Promise<{ message: string }> {
+  return apiRequest<{ message: string }>('/auth/change-password', {
+    method: 'POST',
+    body: payload,
+  });
+}
+
 export async function logoutRequest(): Promise<void> {
   const refreshToken = getRefreshToken();
   if (refreshToken) {

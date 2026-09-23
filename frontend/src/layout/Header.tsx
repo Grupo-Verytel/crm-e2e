@@ -1,24 +1,11 @@
 import { Moon, Sun } from 'lucide-react';
 import { NotificationBell } from '../modules/auth/components/NotificationBell';
-import { useAuth } from '../modules/auth/hooks/useAuth';
+import { UserMenu } from '../modules/auth/components/UserMenu';
 import { useTheme } from '../theme/useTheme';
-
-function getInitials(fullName: string): string {
-  const parts = fullName.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) {
-    return '?';
-  }
-  if (parts.length === 1) {
-    return parts[0].slice(0, 2).toUpperCase();
-  }
-  return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
-}
 
 /** Top header: global search, theme toggle and authenticated user. */
 export function Header({ title }: { title: string }) {
-  const { user } = useAuth();
   const { theme, setTheme } = useTheme();
-  const initials = user ? getInitials(user.full_name) : '?';
   const isDark = theme === 'dark';
 
   return (
@@ -51,17 +38,7 @@ export function Header({ title }: { title: string }) {
           )}
         </button>
 
-        <div className="hidden text-right sm:block">
-          <p className="text-xs font-bold text-ink">{user?.full_name}</p>
-          <p className="text-[11px] text-muted">{user?.role_name}</p>
-        </div>
-
-        <div
-          className="grid h-8 w-8 place-items-center rounded-full bg-accent text-xs font-bold text-white"
-          aria-hidden
-        >
-          {initials}
-        </div>
+        <UserMenu />
       </div>
     </header>
   );

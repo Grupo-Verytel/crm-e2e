@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   ServiceUnavailableException,
@@ -18,6 +19,7 @@ import {
   MeResponseDto,
   PermissionRuleDto,
 } from '../dtos/auth-response.dto';
+import { ChangePasswordDto } from '../dtos/change-password.dto';
 import { LoginDto } from '../dtos/login.dto';
 import { isDatabaseUnavailableError } from '../lib/is-database-unavailable-error';
 import { Role, User } from '../models';
@@ -143,6 +145,37 @@ export class AuthService {
     }
 
     return { message: 'Logged out successfully' };
+  }
+
+  async changePassword(
+    userId: string,
+    dto: ChangePasswordDto,
+  ): Promise<{ message: string }> {
+    const user = await this.userModel.findByPk(userId);
+
+    if (!user || !user.isActive) {
+      throw new UnauthorizedException({
+        code: AUTH_ERROR_CODES.UNAUTHORIZED,
+        message: 'User not found',
+      });
+    }
+
+    const reusesCurrent = await this.passwordService.compare(
+      dto.new_password,
+      user.passwordHash,
+    );
+
+    if (reusesCurrent) {
+      throw new BadRequestException({
+        code: AUTH_ERROR_CODES.PASSWORD_REUSE,
+        message: 'New password must be different from the current password',
+      });
+    }
+
+    const passwordHash = await this.passwordService.hash(dto.new_password);
+    await user.update({ passwordHash });
+
+    return { message: 'Password updated' };
   }
 
   async getMe(userId: string): Promise<MeResponseDto> {
