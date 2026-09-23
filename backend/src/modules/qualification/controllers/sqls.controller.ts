@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -103,6 +104,20 @@ export class SqlsController {
     @Body() dto: UpdateSqlCitaDto,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<SqlCitaResponseDto> {
-    return this.sqlsService.updateCita(id, dto, user.userId);
+    return this.sqlsService.updateCita(id, dto, user.userId, user.roleName);
+  }
+
+  @Delete(':id/cita')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @CheckAbility({ action: 'update', subject: 'Opportunity' })
+  cancelCita(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<void> {
+    return this.sqlsService.cancelCitaForAssignedSql(
+      id,
+      user.userId,
+      user.roleName,
+    );
   }
 }

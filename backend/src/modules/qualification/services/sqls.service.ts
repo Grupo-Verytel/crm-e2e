@@ -264,17 +264,12 @@ export class SqlsService {
   async updateCita(
     sqlId: string,
     dto: UpdateSqlCitaDto,
-    comercialUserId: string,
+    actorUserId: string,
+    actorRoleName?: string,
   ): Promise<SqlCitaResponseDto> {
     return this.sequelize.transaction(async (transaction) => {
       const sql = await this.findSqlOrFail(sqlId);
-
-      if (sql.comercialAsignadoId !== comercialUserId) {
-        throw new ForbiddenException({
-          code: QUALIFICATION_ERROR_CODES.FORBIDDEN,
-          message: 'Only the assigned Ejecutivo Comercial can reschedule the cita',
-        });
-      }
+      this.assertCanScheduleAssignedCita(sql, actorUserId, actorRoleName);
 
       if (
         sql.estado === SqlEstado.PendienteAsignacion ||
@@ -323,29 +318,82 @@ export class SqlsService {
         await this.updateTeamsMeetingForCita(cita, sql);
       }
 
-      const lead = await this.demandGenerationService.findLeadById(sql.mql.leadId);
-
-      await this.workflowEngine.transition(
-        EntityType.SQL,
-        sql.sqlId,
-        'sql.cita_reagendada',
-        {
-          estadoAnterior: sql.estado,
-          estadoNuevo: sql.estado,
-          entityLabel: String(
-            (lead as { empresa_nombre?: string }).empresa_nombre ?? sql.sqlId,
-          ),
-          actorUserId: comercialUserId,
-          payload: {
-            sqlId: sql.sqlId,
-            cita: this.toCitaResponse(cita),
+      if (
+        isQualificationRole(
+          actorRoleName,
+          QUALIFICATION_ROLES.EJECUTIVO_COMERCIAL,
+        )
+      ) {
+        const lead = await this.demandGenerationService.findLeadById(
+          sql.mql.leadId,
+        );
+        await this.workflowEngine.transition(
+          EntityType.SQL,
+          sql.sqlId,
+          'sql.cita_reagendada',
+          {
+            estadoAnterior: sql.estado,
+            estadoNuevo: sql.estado,
+            entityLabel: String(
+              (lead as { empresa_nombre?: string }).empresa_nombre ?? sql.sqlId,
+            ),
+            actorUserId,
+            payload: {
+              sqlId: sql.sqlId,
+              cita: this.toCitaResponse(cita),
+            },
+            entity: { estado: sql.estado },
           },
-          entity: { estado: sql.estado },
-        },
-        transaction,
-      );
+          transaction,
+        );
+      }
 
       return this.toCitaResponse(cita);
+    });
+  }
+
+  /**
+   * Removes the programmed cita so the row can be scheduled again.
+   * sql_citas has no estado column; the Teams event is left in place.
+   */
+  async cancelCitaForAssignedSql(
+    sqlId: string,
+    actorUserId: string,
+    actorRoleName?: string,
+  ): Promise<void> {
+    await this.sequelize.transaction(async (transaction) => {
+      const sql = await this.sqlModel.findByPk(sqlId, {
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+        include: [{ model: Mql, required: true }],
+      });
+      if (!sql) {
+        throw new NotFoundException({
+          code: QUALIFICATION_ERROR_CODES.NOT_FOUND,
+          message: `SQL ${sqlId} not found`,
+        });
+      }
+      if (sql.estado !== SqlEstado.Asignado) {
+        throw new BadRequestException({
+          code: QUALIFICATION_ERROR_CODES.SQL_NOT_ASSIGNED,
+          message: 'SQL must be Asignado to cancel the cita',
+        });
+      }
+      this.assertCanScheduleAssignedCita(sql, actorUserId, actorRoleName);
+
+      const cita = await this.sqlCitaModel.findOne({
+        where: { sqlId },
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+      if (!cita) {
+        throw new NotFoundException({
+          code: QUALIFICATION_ERROR_CODES.CITA_NOT_FOUND,
+          message: `No cita found for SQL ${sqlId}`,
+        });
+      }
+
+      await cita.destroy({ transaction });
     });
   }
 

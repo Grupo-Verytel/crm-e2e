@@ -8,9 +8,12 @@ import { ghostButtonClass, inputClass, labelClass } from './ui';
 export function CitaContactosFields({
   contacts,
   onChange,
+  lockEmailPhone = false,
 }: {
   contacts: CitaContactoInput[];
   onChange: (next: CitaContactoInput[]) => void;
+  /** Reagendar: email, teléfono y contactos extra no viajan en PATCH. */
+  lockEmailPhone?: boolean;
 }) {
   function update(index: number, patch: Partial<CitaContactoInput>) {
     onChange(
@@ -32,7 +35,7 @@ export function CitaContactosFields({
             <p className="text-xs font-bold text-ink">
               {index === 0 ? 'Contacto principal' : `Contacto ${index + 1}`}
             </p>
-            {index > 0 ? (
+            {index > 0 && !lockEmailPhone ? (
               <button
                 type="button"
                 className="text-xs font-bold text-accent"
@@ -53,7 +56,9 @@ export function CitaContactosFields({
               value={contacto.nombre}
               onChange={(event) => update(index, { nombre: event.target.value })}
               className={inputClass}
-              required
+              required={index === 0}
+              readOnly={lockEmailPhone && index > 0}
+              aria-readonly={lockEmailPhone && index > 0 ? true : undefined}
             />
           </div>
           <div>
@@ -66,7 +71,9 @@ export function CitaContactosFields({
               value={contacto.email}
               onChange={(event) => update(index, { email: event.target.value })}
               className={inputClass}
-              required
+              required={!lockEmailPhone}
+              readOnly={lockEmailPhone}
+              aria-readonly={lockEmailPhone ? true : undefined}
             />
           </div>
           <div>
@@ -81,12 +88,14 @@ export function CitaContactosFields({
                 update(index, { telefono: event.target.value })
               }
               className={inputClass}
-              required
+              required={!lockEmailPhone}
+              readOnly={lockEmailPhone}
+              aria-readonly={lockEmailPhone ? true : undefined}
             />
           </div>
         </div>
       ))}
-      {contacts.length < MAX_CITA_CONTACTOS ? (
+      {!lockEmailPhone && contacts.length < MAX_CITA_CONTACTOS ? (
         <button
           type="button"
           className={ghostButtonClass}

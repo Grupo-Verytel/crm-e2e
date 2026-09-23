@@ -150,6 +150,12 @@ export async function updateSqlCita(
   });
 }
 
+export async function cancelSqlCita(sqlId: string): Promise<void> {
+  await apiRequest<void>(`/qualification/sqls/${sqlId}/cita`, {
+    method: 'DELETE',
+  });
+}
+
 export type ConvertirSqlPayload = {
   titulo: string;
   descripcion?: string;

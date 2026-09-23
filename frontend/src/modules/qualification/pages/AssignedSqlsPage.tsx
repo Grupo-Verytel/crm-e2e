@@ -1,4 +1,4 @@
-import { Calendar, CalendarClock, UserPlus } from 'lucide-react';
+import { Calendar, CalendarClock, CalendarX2, UserPlus } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Pagination } from '../../../components/Pagination';
@@ -10,7 +10,11 @@ import {
 } from '../../../lib/notification-events';
 import { isRoleName } from '../../../lib/roles';
 import { useAuth } from '../../auth/hooks/useAuth';
-import { fetchAssignedSqls, type SqlDetail } from '../api/sqls-api';
+import {
+  cancelSqlCita,
+  fetchAssignedSqls,
+  type SqlDetail,
+} from '../api/sqls-api';
 import { QualificationNav } from '../components/QualificationNav';
 import { SqlCitaScheduleModal } from '../components/SqlCitaScheduleModal';
 import { cardClass } from '../components/ui';
@@ -36,6 +40,7 @@ export function AssignedSqlsPage() {
     sql: SqlDetail;
     mode: 'create' | 'update';
   } | null>(null);
+  const [busySqlId, setBusySqlId] = useState<string | null>(null);
 
   const load = useCallback(async (opts?: { silent?: boolean }) => {
     if (!opts?.silent) {
@@ -73,7 +78,7 @@ export function AssignedSqlsPage() {
       window.removeEventListener(IN_APP_NOTIFICATION_EVENT, onNotification);
   }, [load]);
 
-  function rowAction(sql: SqlDetail): 'agendar' | 'reagendar' | 'none' {
+  function rowAction(sql: SqlDetail): 'agendar' | 'programada' | 'none' {
     if (sql.estado !== 'Asignado') {
       return 'none';
     }
@@ -81,13 +86,29 @@ export function AssignedSqlsPage() {
       isRoleName(user?.role_name, 'EjecutivoComercial') &&
       sql.comercial_asignado_id === user?.user_id;
     const isSoporte = isRoleName(user?.role_name, 'SoporteComercial');
-    if (sql.cita?.vigente === true) {
-      return isOwner ? 'reagendar' : 'none';
+    if (!isSoporte && !isOwner) {
+      return 'none';
     }
-    if (isSoporte || isOwner) {
-      return 'agendar';
+    return sql.cita ? 'programada' : 'agendar';
+  }
+
+  async function handleCancel(sql: SqlDetail) {
+    const label = sqlLeadName(sql.lead);
+    if (!window.confirm(`¿Cancelar la cita de ${label}?`)) {
+      return;
     }
-    return 'none';
+    setBusySqlId(sql.sql_id);
+    setError(null);
+    try {
+      await cancelSqlCita(sql.sql_id);
+      await load({ silent: true });
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'No se pudo cancelar la cita.',
+      );
+    } finally {
+      setBusySqlId(null);
+    }
   }
 
   return (
@@ -191,20 +212,34 @@ export function AssignedSqlsPage() {
                         className="icon-btn grid h-9 w-9 place-items-center rounded text-accent"
                         title="Agendar"
                         aria-label={`Agendar ${label}`}
+                        disabled={busySqlId === sql.sql_id}
                         onClick={() => setSchedule({ sql, mode: 'create' })}
                       >
                         <UserPlus size={16} strokeWidth={2} />
                       </button>
-                    ) : action === 'reagendar' ? (
-                      <button
-                        type="button"
-                        className="icon-btn grid h-9 w-9 place-items-center rounded"
-                        title="Reagendar"
-                        aria-label={`Reagendar ${label}`}
-                        onClick={() => setSchedule({ sql, mode: 'update' })}
-                      >
-                        <CalendarClock size={16} strokeWidth={2} />
-                      </button>
+                    ) : action === 'programada' ? (
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          className="icon-btn grid h-9 w-9 place-items-center rounded"
+                          title="Reagendar"
+                          aria-label={`Reagendar ${label}`}
+                          disabled={busySqlId === sql.sql_id}
+                          onClick={() => setSchedule({ sql, mode: 'update' })}
+                        >
+                          <CalendarClock size={16} strokeWidth={2} />
+                        </button>
+                        <button
+                          type="button"
+                          className="icon-btn grid h-9 w-9 place-items-center rounded text-danger"
+                          title="Cancelar"
+                          aria-label={`Cancelar ${label}`}
+                          disabled={busySqlId === sql.sql_id}
+                          onClick={() => void handleCancel(sql)}
+                        >
+                          <CalendarX2 size={16} strokeWidth={2} />
+                        </button>
+                      </div>
                     ) : (
                       <span className="text-sm text-muted">—</span>
                     )}

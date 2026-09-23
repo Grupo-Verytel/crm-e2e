@@ -288,11 +288,6 @@ export function SqlCitaScheduleModal({
         <p className="mt-2 text-sm text-ink">
           Comercial asignado: {selectedCommercial?.full_name ?? 'el ejecutivo del SQL'}
         </p>
-        {mode === 'update' ? (
-          <p className="mt-2 text-sm text-muted">
-            Reagendar actualiza fecha, hora y el nombre del contacto principal de la reunión existente.
-          </p>
-        ) : null}
 
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           {graphWarning ? (
@@ -369,7 +364,11 @@ export function SqlCitaScheduleModal({
               El comercial está ocupado: {conflicts.join(' · ')}
             </p>
           ) : null}
-          <CitaContactosFields contacts={contactos} onChange={setContactos} />
+          <CitaContactosFields
+            contacts={contactos}
+            onChange={setContactos}
+            lockEmailPhone={mode === 'update'}
+          />
           <label className={`${labelClass} sm:col-span-2`}>
             Cargo (opcional)
             <input
