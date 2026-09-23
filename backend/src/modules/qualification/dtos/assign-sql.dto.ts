@@ -88,6 +88,9 @@ export class CreateSqlCitaDto {
   duration_minutes?: number;
 }
 
+/** Schedule a cita on an SQL that is already Asignado. Does not reassign. */
+export class CreateAssignedSqlCitaDto extends CreateSqlCitaDto {}
+
 export class AssignSqlDto {
   @IsUUID()
   comercial_asignado_id!: string;

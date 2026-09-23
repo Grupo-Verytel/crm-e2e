@@ -13,7 +13,11 @@ import { CheckAbility } from '../../auth/casl/check-ability.decorator';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../../auth/interfaces/authenticated-user.interface';
 import { CrearOuvDto } from '../../discovery/dtos/crear-ouv.dto';
-import { AssignSqlDto, UpdateSqlCitaDto } from '../dtos/assign-sql.dto';
+import {
+  AssignSqlDto,
+  CreateAssignedSqlCitaDto,
+  UpdateSqlCitaDto,
+} from '../dtos/assign-sql.dto';
 import {
   AssignSqlResponseDto,
   ConvertirSqlResponseDto,
@@ -74,6 +78,22 @@ export class SqlsController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<ConvertirSqlResponseDto> {
     return this.sqlsService.convertirEnOuv(id, dto, user.userId);
+  }
+
+  @Post(':id/cita')
+  @HttpCode(HttpStatus.CREATED)
+  @CheckAbility({ action: 'update', subject: 'Opportunity' })
+  createCita(
+    @Param('id') id: string,
+    @Body() dto: CreateAssignedSqlCitaDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<SqlCitaResponseDto> {
+    return this.sqlsService.createCitaForAssignedSql(
+      id,
+      dto,
+      user.userId,
+      user.roleName,
+    );
   }
 
   @Patch(':id/cita')

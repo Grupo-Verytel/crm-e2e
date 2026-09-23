@@ -1,4 +1,4 @@
-import { Calendar } from 'lucide-react';
+import { Calendar, CalendarClock, UserPlus } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Pagination } from '../../../components/Pagination';
@@ -12,6 +12,7 @@ import { isRoleName } from '../../../lib/roles';
 import { useAuth } from '../../auth/hooks/useAuth';
 import { fetchAssignedSqls, type SqlDetail } from '../api/sqls-api';
 import { QualificationNav } from '../components/QualificationNav';
+import { SqlCitaScheduleModal } from '../components/SqlCitaScheduleModal';
 import { cardClass } from '../components/ui';
 import { sqlLeadName } from '../lib/agency-cita';
 
@@ -31,6 +32,10 @@ export function AssignedSqlsPage() {
   const [total, setTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [schedule, setSchedule] = useState<{
+    sql: SqlDetail;
+    mode: 'create' | 'update';
+  } | null>(null);
 
   const load = useCallback(async (opts?: { silent?: boolean }) => {
     if (!opts?.silent) {
@@ -68,6 +73,23 @@ export function AssignedSqlsPage() {
       window.removeEventListener(IN_APP_NOTIFICATION_EVENT, onNotification);
   }, [load]);
 
+  function rowAction(sql: SqlDetail): 'agendar' | 'reagendar' | 'none' {
+    if (sql.estado !== 'Asignado') {
+      return 'none';
+    }
+    const isOwner =
+      isRoleName(user?.role_name, 'EjecutivoComercial') &&
+      sql.comercial_asignado_id === user?.user_id;
+    const isSoporte = isRoleName(user?.role_name, 'SoporteComercial');
+    if (sql.cita?.vigente === true) {
+      return isOwner ? 'reagendar' : 'none';
+    }
+    if (isSoporte || isOwner) {
+      return 'agendar';
+    }
+    return 'none';
+  }
+
   return (
     <AppLayout title="Calificación">
       <QualificationNav />
@@ -96,10 +118,14 @@ export function AssignedSqlsPage() {
                 <th className="px-4 py-3 font-bold">Estado</th>
                 <th className="px-4 py-3 font-bold">Origen</th>
                 <th className="px-4 py-3 font-bold">Asignado</th>
+                <th className="px-4 py-3 font-bold">Acción</th>
               </tr>
             </thead>
             <tbody>
-              {items.map((sql) => (
+              {items.map((sql) => {
+                const action = rowAction(sql);
+                const label = sqlLeadName(sql.lead);
+                return (
                 <tr key={sql.sql_id} className="border-b border-border">
                   <td className="px-4 py-3">
                     <Link
@@ -158,8 +184,34 @@ export function AssignedSqlsPage() {
                   <td className="px-4 py-3 text-muted">
                     {formatDateTime(sql.fecha_asignacion)}
                   </td>
+                  <td className="px-4 py-3">
+                    {action === 'agendar' ? (
+                      <button
+                        type="button"
+                        className="icon-btn grid h-9 w-9 place-items-center rounded text-accent"
+                        title="Agendar"
+                        aria-label={`Agendar ${label}`}
+                        onClick={() => setSchedule({ sql, mode: 'create' })}
+                      >
+                        <UserPlus size={16} strokeWidth={2} />
+                      </button>
+                    ) : action === 'reagendar' ? (
+                      <button
+                        type="button"
+                        className="icon-btn grid h-9 w-9 place-items-center rounded"
+                        title="Reagendar"
+                        aria-label={`Reagendar ${label}`}
+                        onClick={() => setSchedule({ sql, mode: 'update' })}
+                      >
+                        <CalendarClock size={16} strokeWidth={2} />
+                      </button>
+                    ) : (
+                      <span className="text-sm text-muted">—</span>
+                    )}
+                  </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         )}
@@ -173,6 +225,18 @@ export function AssignedSqlsPage() {
           onPageChange={setPage}
         />
       </div>
+      {schedule ? (
+        <SqlCitaScheduleModal
+          sql={schedule.sql}
+          mode={schedule.mode}
+          onClose={() => setSchedule(null)}
+          onSaved={() => {
+            setSchedule(null);
+            void load({ silent: true });
+          }}
+          onVigenteConflict={() => void load({ silent: true })}
+        />
+      ) : null}
     </AppLayout>
   );
 }
