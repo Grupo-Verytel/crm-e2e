@@ -354,7 +354,7 @@ export class SqlsService {
 
   /**
    * Removes the programmed cita so the row can be scheduled again.
-   * sql_citas has no estado column; the Teams event is left in place.
+   * Also cancels the Teams event so it leaves the organizer calendar.
    */
   async cancelCitaForAssignedSql(
     sqlId: string,
@@ -391,6 +391,24 @@ export class SqlsService {
           code: QUALIFICATION_ERROR_CODES.CITA_NOT_FOUND,
           message: `No cita found for SQL ${sqlId}`,
         });
+      }
+
+      if (cita.graphEventId) {
+        try {
+          await this.graphService.cancelMeeting(
+            cita.graphEventId,
+            cita.graphOrganizerUpn ?? undefined,
+            'Cita cancelada desde el CRM.',
+          );
+        } catch (error) {
+          throw new BadRequestException({
+            code: QUALIFICATION_ERROR_CODES.TEAMS_MEETING_FAILED,
+            message:
+              error instanceof Error
+                ? error.message
+                : 'No se pudo quitar la reunión del calendario. La cita no se eliminó.',
+          });
+        }
       }
 
       await cita.destroy({ transaction });

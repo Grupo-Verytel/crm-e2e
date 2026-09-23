@@ -761,7 +761,13 @@ export function AssignSqlModal({
                       id="assign-commercial"
                       className={inputClass}
                       value={comercialId}
-                      disabled={!commercialsLoaded}
+                      disabled={scheduleOnly || !commercialsLoaded}
+                      aria-disabled={scheduleOnly || !commercialsLoaded}
+                      title={
+                        scheduleOnly
+                          ? 'El ejecutivo ya está asignado a este SQL'
+                          : undefined
+                      }
                       onChange={(event) => {
                         setComercialId(event.target.value);
                         invalidateAvailability();

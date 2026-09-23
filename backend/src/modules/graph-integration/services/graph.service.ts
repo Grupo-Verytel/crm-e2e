@@ -514,8 +514,12 @@ export class GraphService {
     return meetingId;
   }
 
-  /** Cancela (elimina) el evento creado para el Kickoff. */
-  async cancelMeeting(eventId: string, organizerUpn?: string): Promise<void> {
+  /** Cancela el evento y, si Graph no acepta /cancel, lo borra del calendario. */
+  async cancelMeeting(
+    eventId: string,
+    organizerUpn?: string,
+    comment = 'Kickoff cancelado desde el CRM.',
+  ): Promise<void> {
     const upn = organizerUpn?.trim() || this.organizerUpn;
     if (!upn) {
       throw new BadRequestException(
@@ -532,7 +536,7 @@ export class GraphService {
       // `/cancel` avisa a los invitados; solo aplica si el evento es una
       // reunión con asistentes y el buzón es el organizador.
       await this.client.request('POST', `${eventPath}/cancel`, {
-        data: { comment: 'Kickoff cancelado desde el CRM.' },
+        data: { comment },
       });
     } catch (error) {
       this.logger.warn(
