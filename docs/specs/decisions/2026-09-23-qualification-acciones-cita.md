@@ -24,7 +24,7 @@ En SQL asignados la columna Acción usa `vigente` del API:
 
 Cancelar no se muestra. Una cita pasada sigue visible en la columna Cita; la acción pasa a Agendar.
 
-En Reagendar, email, teléfono y contactos adicionales se muestran en solo lectura. Solo se editan los campos que acepta `PATCH /qualification/sqls/:id/cita`: fecha, hora, lugar, duración, nombre del contacto principal, cargo y descripción.
+Reagendar no usa el wizard de Agendar. Abre `RescheduleSqlCitaModal` y llama a `PATCH /qualification/sqls/:id/cita` con `fecha` y `hora`. El Ejecutivo Comercial se muestra en solo lectura: el diseño lo envía como `comercial_asignado_id` y este DTO no lo acepta. Lugar, duración, contactos, cargo y descripción no aparecen en la vista; el PATCH parcial no los cambia.
 
 ### `POST /qualification/sqls/:id/cita`
 

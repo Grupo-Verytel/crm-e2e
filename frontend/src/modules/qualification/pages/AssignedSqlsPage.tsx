@@ -15,8 +15,9 @@ import {
   fetchAssignedSqls,
   type SqlDetail,
 } from '../api/sqls-api';
+import { AssignSqlModal } from '../components/AssignSqlModal';
 import { QualificationNav } from '../components/QualificationNav';
-import { SqlCitaScheduleModal } from '../components/SqlCitaScheduleModal';
+import { RescheduleSqlCitaModal } from '../components/RescheduleSqlCitaModal';
 import { cardClass } from '../components/ui';
 import { sqlLeadName } from '../lib/agency-cita';
 
@@ -36,10 +37,8 @@ export function AssignedSqlsPage() {
   const [total, setTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [schedule, setSchedule] = useState<{
-    sql: SqlDetail;
-    mode: 'create' | 'update';
-  } | null>(null);
+  const [scheduleSql, setScheduleSql] = useState<SqlDetail | null>(null);
+  const [rescheduleSql, setRescheduleSql] = useState<SqlDetail | null>(null);
   const [busySqlId, setBusySqlId] = useState<string | null>(null);
 
   const load = useCallback(async (opts?: { silent?: boolean }) => {
@@ -213,7 +212,7 @@ export function AssignedSqlsPage() {
                         title="Agendar"
                         aria-label={`Agendar ${label}`}
                         disabled={busySqlId === sql.sql_id}
-                        onClick={() => setSchedule({ sql, mode: 'create' })}
+                        onClick={() => setScheduleSql(sql)}
                       >
                         <UserPlus size={16} strokeWidth={2} />
                       </button>
@@ -225,7 +224,7 @@ export function AssignedSqlsPage() {
                           title="Reagendar"
                           aria-label={`Reagendar ${label}`}
                           disabled={busySqlId === sql.sql_id}
-                          onClick={() => setSchedule({ sql, mode: 'update' })}
+                          onClick={() => setRescheduleSql(sql)}
                         >
                           <CalendarClock size={16} strokeWidth={2} />
                         </button>
@@ -260,16 +259,20 @@ export function AssignedSqlsPage() {
           onPageChange={setPage}
         />
       </div>
-      {schedule ? (
-        <SqlCitaScheduleModal
-          sql={schedule.sql}
-          mode={schedule.mode}
-          onClose={() => setSchedule(null)}
-          onSaved={() => {
-            setSchedule(null);
-            void load({ silent: true });
-          }}
+      {scheduleSql ? (
+        <AssignSqlModal
+          sql={scheduleSql}
+          scheduleOnly
+          onClose={() => setScheduleSql(null)}
+          onAssigned={() => void load({ silent: true })}
           onVigenteConflict={() => void load({ silent: true })}
+        />
+      ) : null}
+      {rescheduleSql ? (
+        <RescheduleSqlCitaModal
+          sql={rescheduleSql}
+          onClose={() => setRescheduleSql(null)}
+          onRescheduled={() => void load({ silent: true })}
         />
       ) : null}
     </AppLayout>
