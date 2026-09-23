@@ -202,11 +202,7 @@ export class SqlsService {
       if (cita && dto.cita) {
         const meeting = await this.createTeamsMeetingForCita({
           comercial,
-          leadLabel: String(
-            (lead as { name?: string; empresa_nombre?: string }).name ??
-              (lead as { empresa_nombre?: string }).empresa_nombre ??
-              sql.sqlId,
-          ),
+          leadLabel: this.citaLeadLabel(lead, sql.sqlId),
           dto: dto.cita,
           contactos: this.resolveCitaContactos(dto.cita),
         });
@@ -314,8 +310,15 @@ export class SqlsService {
         { transaction },
       );
 
+      const lead = await this.demandGenerationService.findLeadById(
+        sql.mql.leadId,
+      );
+
       if (cita.graphEventId && cita.graphOrganizerUpn) {
-        await this.updateTeamsMeetingForCita(cita, sql);
+        await this.updateTeamsMeetingForCita(
+          cita,
+          this.citaLeadLabel(lead, sql.sqlId),
+        );
       }
 
       if (
@@ -324,9 +327,6 @@ export class SqlsService {
           QUALIFICATION_ROLES.EJECUTIVO_COMERCIAL,
         )
       ) {
-        const lead = await this.demandGenerationService.findLeadById(
-          sql.mql.leadId,
-        );
         await this.workflowEngine.transition(
           EntityType.SQL,
           sql.sqlId,
@@ -475,11 +475,7 @@ export class SqlsService {
       );
       const meeting = await this.createTeamsMeetingForCita({
         comercial,
-        leadLabel: String(
-          (lead as { name?: string; empresa_nombre?: string }).name ??
-            (lead as { empresa_nombre?: string }).empresa_nombre ??
-            sql.sqlId,
-        ),
+        leadLabel: this.citaLeadLabel(lead, sql.sqlId),
         dto,
         contactos,
       });
@@ -776,9 +772,20 @@ export class SqlsService {
     }
   }
 
+  private citaLeadLabel(
+    lead: { name?: string | null; empresa_nombre?: string | null },
+    fallbackSqlId: string,
+  ): string {
+    const name = lead.name?.trim();
+    if (name) return name;
+    const empresa = lead.empresa_nombre?.trim();
+    if (empresa) return empresa;
+    return fallbackSqlId;
+  }
+
   private async updateTeamsMeetingForCita(
     cita: SqlCita,
-    sql: Sql,
+    leadLabel: string,
   ): Promise<void> {
     if (!cita.graphEventId || !cita.graphOrganizerUpn) {
       return;
@@ -792,7 +799,7 @@ export class SqlsService {
     try {
       await this.graphService.updateMeeting(cita.graphEventId, {
         organizerUpn: cita.graphOrganizerUpn,
-        subject: `Cita SQL — ${sql.sqlId}`,
+        subject: `Cita SQL — ${leadLabel}`,
         startTime,
         endTime,
         timeZone: this.graphService.timeZone,
