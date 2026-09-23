@@ -5,6 +5,9 @@ export function getFormErrorMessage(error: unknown, fallback: string): string {
     if (error.code === 'EMAIL_CONFLICT') {
       return 'Ese correo ya está registrado. Usa otro correo.';
     }
+    if (error.code === 'PASSWORD_REUSE') {
+      return 'La nueva contraseña debe ser distinta de la actual.';
+    }
     return error.message;
   }
 

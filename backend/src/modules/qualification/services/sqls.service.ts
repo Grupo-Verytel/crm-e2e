@@ -26,6 +26,7 @@ import {
 } from '../constants/qualification.constants';
 import {
   AssignSqlDto,
+  CreateAssignedSqlCitaDto,
   CreateSqlCitaDto,
   UpdateSqlCitaDto,
 } from '../dtos/assign-sql.dto';
@@ -42,6 +43,7 @@ import {
   isCompleteCitaContacto,
   normalizeCitaContactos,
 } from '../lib/cita-contactos';
+import { isCitaVigente } from '../lib/cita-vigencia';
 
 @Injectable()
 export class SqlsService {
@@ -200,11 +202,7 @@ export class SqlsService {
       if (cita && dto.cita) {
         const meeting = await this.createTeamsMeetingForCita({
           comercial,
-          leadLabel: String(
-            (lead as { name?: string; empresa_nombre?: string }).name ??
-              (lead as { empresa_nombre?: string }).empresa_nombre ??
-              sql.sqlId,
-          ),
+          leadLabel: this.citaLeadLabel(lead, sql.sqlId),
           dto: dto.cita,
           contactos: this.resolveCitaContactos(dto.cita),
         });
@@ -262,17 +260,12 @@ export class SqlsService {
   async updateCita(
     sqlId: string,
     dto: UpdateSqlCitaDto,
-    comercialUserId: string,
+    actorUserId: string,
+    actorRoleName?: string,
   ): Promise<SqlCitaResponseDto> {
     return this.sequelize.transaction(async (transaction) => {
       const sql = await this.findSqlOrFail(sqlId);
-
-      if (sql.comercialAsignadoId !== comercialUserId) {
-        throw new ForbiddenException({
-          code: QUALIFICATION_ERROR_CODES.FORBIDDEN,
-          message: 'Only the assigned Ejecutivo Comercial can reschedule the cita',
-        });
-      }
+      this.assertCanScheduleAssignedCita(sql, actorUserId, actorRoleName);
 
       if (
         sql.estado === SqlEstado.PendienteAsignacion ||
@@ -317,33 +310,215 @@ export class SqlsService {
         { transaction },
       );
 
-      if (cita.graphEventId && cita.graphOrganizerUpn) {
-        await this.updateTeamsMeetingForCita(cita, sql);
-      }
-
-      const lead = await this.demandGenerationService.findLeadById(sql.mql.leadId);
-
-      await this.workflowEngine.transition(
-        EntityType.SQL,
-        sql.sqlId,
-        'sql.cita_reagendada',
-        {
-          estadoAnterior: sql.estado,
-          estadoNuevo: sql.estado,
-          entityLabel: String(
-            (lead as { empresa_nombre?: string }).empresa_nombre ?? sql.sqlId,
-          ),
-          actorUserId: comercialUserId,
-          payload: {
-            sqlId: sql.sqlId,
-            cita: this.toCitaResponse(cita),
-          },
-          entity: { estado: sql.estado },
-        },
-        transaction,
+      const lead = await this.demandGenerationService.findLeadById(
+        sql.mql.leadId,
       );
 
+      if (cita.graphEventId && cita.graphOrganizerUpn) {
+        await this.updateTeamsMeetingForCita(
+          cita,
+          this.citaLeadLabel(lead, sql.sqlId),
+        );
+      }
+
+      if (
+        isQualificationRole(
+          actorRoleName,
+          QUALIFICATION_ROLES.EJECUTIVO_COMERCIAL,
+        )
+      ) {
+        await this.workflowEngine.transition(
+          EntityType.SQL,
+          sql.sqlId,
+          'sql.cita_reagendada',
+          {
+            estadoAnterior: sql.estado,
+            estadoNuevo: sql.estado,
+            entityLabel: String(
+              (lead as { empresa_nombre?: string }).empresa_nombre ?? sql.sqlId,
+            ),
+            actorUserId,
+            payload: {
+              sqlId: sql.sqlId,
+              cita: this.toCitaResponse(cita),
+            },
+            entity: { estado: sql.estado },
+          },
+          transaction,
+        );
+      }
+
       return this.toCitaResponse(cita);
+    });
+  }
+
+  /**
+   * Removes the programmed cita so the row can be scheduled again.
+   * Also cancels the Teams event so it leaves the organizer calendar.
+   */
+  async cancelCitaForAssignedSql(
+    sqlId: string,
+    actorUserId: string,
+    actorRoleName?: string,
+  ): Promise<void> {
+    await this.sequelize.transaction(async (transaction) => {
+      const sql = await this.sqlModel.findByPk(sqlId, {
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+        include: [{ model: Mql, required: true }],
+      });
+      if (!sql) {
+        throw new NotFoundException({
+          code: QUALIFICATION_ERROR_CODES.NOT_FOUND,
+          message: `SQL ${sqlId} not found`,
+        });
+      }
+      if (sql.estado !== SqlEstado.Asignado) {
+        throw new BadRequestException({
+          code: QUALIFICATION_ERROR_CODES.SQL_NOT_ASSIGNED,
+          message: 'SQL must be Asignado to cancel the cita',
+        });
+      }
+      this.assertCanScheduleAssignedCita(sql, actorUserId, actorRoleName);
+
+      const cita = await this.sqlCitaModel.findOne({
+        where: { sqlId },
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+      if (!cita) {
+        throw new NotFoundException({
+          code: QUALIFICATION_ERROR_CODES.CITA_NOT_FOUND,
+          message: `No cita found for SQL ${sqlId}`,
+        });
+      }
+
+      if (cita.graphEventId) {
+        try {
+          await this.graphService.cancelMeeting(
+            cita.graphEventId,
+            cita.graphOrganizerUpn ?? undefined,
+            'Cita cancelada desde el CRM.',
+          );
+        } catch (error) {
+          throw new BadRequestException({
+            code: QUALIFICATION_ERROR_CODES.TEAMS_MEETING_FAILED,
+            message:
+              error instanceof Error
+                ? error.message
+                : 'No se pudo quitar la reunión del calendario. La cita no se eliminó.',
+          });
+        }
+      }
+
+      await cita.destroy({ transaction });
+    });
+  }
+
+  /**
+   * Schedule a cita on an SQL already in Asignado.
+   * Does not change comercial_asignado_id, estado, or fecha_asignacion.
+   * A past cita keeps its old Teams event and stores a new graph_event_id.
+   */
+  async createCitaForAssignedSql(
+    sqlId: string,
+    dto: CreateAssignedSqlCitaDto,
+    actorUserId: string,
+    actorRoleName?: string,
+  ): Promise<SqlCitaResponseDto> {
+    return this.sequelize.transaction(async (transaction) => {
+      const sql = await this.sqlModel.findByPk(sqlId, {
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+        include: [{ model: Mql, required: true }],
+      });
+
+      if (!sql) {
+        throw new NotFoundException({
+          code: QUALIFICATION_ERROR_CODES.NOT_FOUND,
+          message: `SQL ${sqlId} not found`,
+        });
+      }
+
+      if (sql.estado !== SqlEstado.Asignado || !sql.comercialAsignadoId) {
+        throw new BadRequestException({
+          code: QUALIFICATION_ERROR_CODES.SQL_NOT_ASSIGNED,
+          message: `SQL must be in Asignado to schedule a cita (current: ${sql.estado})`,
+        });
+      }
+
+      this.assertCanScheduleAssignedCita(
+        sql,
+        actorUserId,
+        actorRoleName,
+      );
+
+      const existing = await this.sqlCitaModel.findOne({
+        where: { sqlId: sql.sqlId },
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+
+      if (existing && isCitaVigente(existing.fecha, existing.hora)) {
+        throw new BadRequestException({
+          code: QUALIFICATION_ERROR_CODES.CITA_VIGENTE_EXISTS,
+          message: `SQL ${sqlId} already has a vigente cita`,
+        });
+      }
+
+      const comercial = await this.requireActiveEjecutivo(
+        sql.comercialAsignadoId,
+      );
+      const contactos = this.resolveCitaContactos(dto);
+      const lead = await this.demandGenerationService.findLeadById(
+        sql.mql.leadId,
+      );
+      const meeting = await this.createTeamsMeetingForCita({
+        comercial,
+        leadLabel: this.citaLeadLabel(lead, sql.sqlId),
+        dto,
+        contactos,
+      });
+
+      const graphFields = {
+        graphEventId: meeting.eventId,
+        graphOrganizerUpn: meeting.organizerUpn,
+        teamsJoinUrl: meeting.joinUrl,
+        durationMinutes: dto.duration_minutes ?? 60,
+      };
+
+      if (!existing) {
+        const created = await this.createCita(
+          sql.sqlId,
+          dto,
+          actorUserId,
+          transaction,
+        );
+        await created.update(graphFields, { transaction });
+        return this.toCitaResponse(created);
+      }
+
+      const principal = contactos[0];
+      // afterUpdate on sql_citas records valor_anterior/valor_nuevo per column
+      // (fecha, hora, teams_join_url, graph_event_id) with the request user.
+      // The previous Teams event is not patched.
+      await existing.update(
+        {
+          lugar: dto.lugar,
+          fecha: dto.fecha.slice(0, 10),
+          hora: this.normalizeHora(dto.hora),
+          contactoNombre: principal.nombre,
+          contactoEmail: principal.email || null,
+          contactoTelefono: principal.telefono || null,
+          contactos,
+          contactoCargo: dto.contacto_cargo ?? null,
+          descripcion: dto.descripcion ?? null,
+          agendadaPor: actorUserId,
+          ...graphFields,
+        },
+        { transaction },
+      );
+      return this.toCitaResponse(existing);
     });
   }
 
@@ -597,9 +772,20 @@ export class SqlsService {
     }
   }
 
+  private citaLeadLabel(
+    lead: { name?: string | null; empresa_nombre?: string | null },
+    fallbackSqlId: string,
+  ): string {
+    const name = lead.name?.trim();
+    if (name) return name;
+    const empresa = lead.empresa_nombre?.trim();
+    if (empresa) return empresa;
+    return fallbackSqlId;
+  }
+
   private async updateTeamsMeetingForCita(
     cita: SqlCita,
-    sql: Sql,
+    leadLabel: string,
   ): Promise<void> {
     if (!cita.graphEventId || !cita.graphOrganizerUpn) {
       return;
@@ -613,7 +799,7 @@ export class SqlsService {
     try {
       await this.graphService.updateMeeting(cita.graphEventId, {
         organizerUpn: cita.graphOrganizerUpn,
-        subject: `Cita SQL — ${sql.sqlId}`,
+        subject: `Cita SQL — ${leadLabel}`,
         startTime,
         endTime,
         timeZone: this.graphService.timeZone,
@@ -680,6 +866,27 @@ export class SqlsService {
       startTime: `${datePart}T${toClock(startMinutes)}`,
       endTime: `${datePart}T${toClock(endMinutes)}`,
     };
+  }
+
+  private assertCanScheduleAssignedCita(
+    sql: Sql,
+    actorUserId: string,
+    actorRoleName?: string,
+  ): void {
+    if (isQualificationRole(actorRoleName, QUALIFICATION_ROLES.SOPORTE_COMERCIAL)) {
+      return;
+    }
+    if (
+      isQualificationRole(actorRoleName, QUALIFICATION_ROLES.EJECUTIVO_COMERCIAL) &&
+      sql.comercialAsignadoId === actorUserId
+    ) {
+      return;
+    }
+    throw new ForbiddenException({
+      code: QUALIFICATION_ERROR_CODES.FORBIDDEN,
+      message:
+        'Only SoporteComercial or the assigned Ejecutivo Comercial can schedule the cita',
+    });
   }
 
   private assertSoporteOrAdmin(roleName?: string): void {
@@ -797,6 +1004,7 @@ export class SqlsService {
       graph_organizer_upn: cita.graphOrganizerUpn,
       teams_join_url: cita.teamsJoinUrl,
       duration_minutes: cita.durationMinutes ?? 60,
+      vigente: isCitaVigente(cita.fecha, cita.hora),
       created_at: cita.createdAt,
       updated_at: cita.updatedAt,
     };

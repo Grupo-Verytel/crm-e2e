@@ -849,6 +849,7 @@ export function KickoffScheduleModal({
                     minTime={horaFinMinima(horaInicio)}
                     maxTime={KICKOFF_HORA_MAX}
                     stepMinutes={KICKOFF_PASO_MIN}
+                    durationFrom={horaInicio}
                     onChange={(next) => {
                       setHoraFin(next);
                       invalidateAvailability();

@@ -37,6 +37,8 @@ export class SqlCitaResponseDto {
   graph_organizer_upn: string | null;
   teams_join_url: string | null;
   duration_minutes: number;
+  /** Start is now or later in America/Bogota. Computed by the API; clients must not recompute it. */
+  vigente: boolean;
   created_at: Date;
   updated_at: Date;
 }

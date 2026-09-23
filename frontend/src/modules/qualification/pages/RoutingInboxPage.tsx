@@ -1,3 +1,4 @@
+import { UserPlus } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Pagination } from '../../../components/Pagination';
@@ -12,7 +13,7 @@ import { useAuth } from '../../auth/hooks/useAuth';
 import { fetchSqlInbox } from '../api/sqls-api';
 import { AssignSqlModal } from '../components/AssignSqlModal';
 import { QualificationNav } from '../components/QualificationNav';
-import { cardClass, primaryButtonClass } from '../components/ui';
+import { cardClass } from '../components/ui';
 import {
   needsAgencyCitaGeneration,
   sqlLeadName,
@@ -178,10 +179,12 @@ export function RoutingInboxPage() {
                     <td className="px-4 py-3">
                       <button
                         type="button"
-                        className={primaryButtonClass}
+                        className="icon-btn grid h-9 w-9 place-items-center rounded text-accent"
+                        title="Agendar"
+                        aria-label={`Agendar ${sqlLeadName(sql.lead)}`}
                         onClick={() => setSelected(sql)}
                       >
-                        Asignar
+                        <UserPlus size={16} strokeWidth={2} />
                       </button>
                     </td>
                   ) : null}

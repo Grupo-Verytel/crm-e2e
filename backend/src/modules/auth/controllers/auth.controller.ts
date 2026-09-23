@@ -9,6 +9,7 @@ import {
 import { CurrentUser } from '../decorators/current-user.decorator';
 import { Public } from '../decorators/public.decorator';
 import { AuthTokenResponseDto, MeResponseDto } from '../dtos/auth-response.dto';
+import { ChangePasswordDto } from '../dtos/change-password.dto';
 import { LoginDto } from '../dtos/login.dto';
 import { LogoutDto } from '../dtos/logout.dto';
 import { RefreshTokenDto } from '../dtos/refresh-token.dto';
@@ -42,5 +43,14 @@ export class AuthController {
   @Get('me')
   getMe(@CurrentUser() user: AuthenticatedUser): Promise<MeResponseDto> {
     return this.authService.getMe(user.userId);
+  }
+
+  @Post('change-password')
+  @HttpCode(HttpStatus.OK)
+  changePassword(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: ChangePasswordDto,
+  ): Promise<{ message: string }> {
+    return this.authService.changePassword(user.userId, dto);
   }
 }

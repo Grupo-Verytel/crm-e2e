@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -13,7 +14,11 @@ import { CheckAbility } from '../../auth/casl/check-ability.decorator';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../../auth/interfaces/authenticated-user.interface';
 import { CrearOuvDto } from '../../discovery/dtos/crear-ouv.dto';
-import { AssignSqlDto, UpdateSqlCitaDto } from '../dtos/assign-sql.dto';
+import {
+  AssignSqlDto,
+  CreateAssignedSqlCitaDto,
+  UpdateSqlCitaDto,
+} from '../dtos/assign-sql.dto';
 import {
   AssignSqlResponseDto,
   ConvertirSqlResponseDto,
@@ -76,6 +81,22 @@ export class SqlsController {
     return this.sqlsService.convertirEnOuv(id, dto, user.userId);
   }
 
+  @Post(':id/cita')
+  @HttpCode(HttpStatus.CREATED)
+  @CheckAbility({ action: 'update', subject: 'Opportunity' })
+  createCita(
+    @Param('id') id: string,
+    @Body() dto: CreateAssignedSqlCitaDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<SqlCitaResponseDto> {
+    return this.sqlsService.createCitaForAssignedSql(
+      id,
+      dto,
+      user.userId,
+      user.roleName,
+    );
+  }
+
   @Patch(':id/cita')
   @CheckAbility({ action: 'update', subject: 'Opportunity' })
   updateCita(
@@ -83,6 +104,20 @@ export class SqlsController {
     @Body() dto: UpdateSqlCitaDto,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<SqlCitaResponseDto> {
-    return this.sqlsService.updateCita(id, dto, user.userId);
+    return this.sqlsService.updateCita(id, dto, user.userId, user.roleName);
+  }
+
+  @Delete(':id/cita')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @CheckAbility({ action: 'update', subject: 'Opportunity' })
+  cancelCita(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<void> {
+    return this.sqlsService.cancelCitaForAssignedSql(
+      id,
+      user.userId,
+      user.roleName,
+    );
   }
 }

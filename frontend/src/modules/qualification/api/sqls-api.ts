@@ -22,6 +22,8 @@ export type SqlCita = {
   graph_organizer_upn?: string | null;
   teams_join_url?: string | null;
   duration_minutes?: number;
+  /** Computed by the API in America/Bogota. Do not recompute on the client. */
+  vigente?: boolean;
   created_at: string;
   updated_at: string;
 };
@@ -128,6 +130,16 @@ export async function assignSql(
   });
 }
 
+export async function createAssignedSqlCita(
+  sqlId: string,
+  payload: NonNullable<AssignSqlPayload['cita']>,
+): Promise<SqlCita> {
+  return apiRequest(`/qualification/sqls/${sqlId}/cita`, {
+    method: 'POST',
+    body: payload,
+  });
+}
+
 export async function updateSqlCita(
   sqlId: string,
   payload: Partial<AssignSqlPayload['cita']>,
@@ -135,6 +147,12 @@ export async function updateSqlCita(
   return apiRequest(`/qualification/sqls/${sqlId}/cita`, {
     method: 'PATCH',
     body: payload,
+  });
+}
+
+export async function cancelSqlCita(sqlId: string): Promise<void> {
+  await apiRequest<void>(`/qualification/sqls/${sqlId}/cita`, {
+    method: 'DELETE',
   });
 }
 

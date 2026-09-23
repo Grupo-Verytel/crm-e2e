@@ -1,4 +1,4 @@
-import { Calendar } from 'lucide-react';
+import { Calendar, CalendarClock, CalendarX2, UserPlus } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Pagination } from '../../../components/Pagination';
@@ -10,8 +10,14 @@ import {
 } from '../../../lib/notification-events';
 import { isRoleName } from '../../../lib/roles';
 import { useAuth } from '../../auth/hooks/useAuth';
-import { fetchAssignedSqls, type SqlDetail } from '../api/sqls-api';
+import {
+  cancelSqlCita,
+  fetchAssignedSqls,
+  type SqlDetail,
+} from '../api/sqls-api';
+import { AssignSqlModal } from '../components/AssignSqlModal';
 import { QualificationNav } from '../components/QualificationNav';
+import { RescheduleSqlCitaModal } from '../components/RescheduleSqlCitaModal';
 import { cardClass } from '../components/ui';
 import { sqlLeadName } from '../lib/agency-cita';
 
@@ -31,6 +37,9 @@ export function AssignedSqlsPage() {
   const [total, setTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [scheduleSql, setScheduleSql] = useState<SqlDetail | null>(null);
+  const [rescheduleSql, setRescheduleSql] = useState<SqlDetail | null>(null);
+  const [busySqlId, setBusySqlId] = useState<string | null>(null);
 
   const load = useCallback(async (opts?: { silent?: boolean }) => {
     if (!opts?.silent) {
@@ -68,6 +77,39 @@ export function AssignedSqlsPage() {
       window.removeEventListener(IN_APP_NOTIFICATION_EVENT, onNotification);
   }, [load]);
 
+  function rowAction(sql: SqlDetail): 'agendar' | 'programada' | 'none' {
+    if (sql.estado !== 'Asignado') {
+      return 'none';
+    }
+    const isOwner =
+      isRoleName(user?.role_name, 'EjecutivoComercial') &&
+      sql.comercial_asignado_id === user?.user_id;
+    const isSoporte = isRoleName(user?.role_name, 'SoporteComercial');
+    if (!isSoporte && !isOwner) {
+      return 'none';
+    }
+    return sql.cita ? 'programada' : 'agendar';
+  }
+
+  async function handleCancel(sql: SqlDetail) {
+    const label = sqlLeadName(sql.lead);
+    if (!window.confirm(`¿Cancelar la cita de ${label}?`)) {
+      return;
+    }
+    setBusySqlId(sql.sql_id);
+    setError(null);
+    try {
+      await cancelSqlCita(sql.sql_id);
+      await load({ silent: true });
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'No se pudo cancelar la cita.',
+      );
+    } finally {
+      setBusySqlId(null);
+    }
+  }
+
   return (
     <AppLayout title="Calificación">
       <QualificationNav />
@@ -96,10 +138,14 @@ export function AssignedSqlsPage() {
                 <th className="px-4 py-3 font-bold">Estado</th>
                 <th className="px-4 py-3 font-bold">Origen</th>
                 <th className="px-4 py-3 font-bold">Asignado</th>
+                <th className="px-4 py-3 font-bold">Acción</th>
               </tr>
             </thead>
             <tbody>
-              {items.map((sql) => (
+              {items.map((sql) => {
+                const action = rowAction(sql);
+                const label = sqlLeadName(sql.lead);
+                return (
                 <tr key={sql.sql_id} className="border-b border-border">
                   <td className="px-4 py-3">
                     <Link
@@ -158,8 +204,48 @@ export function AssignedSqlsPage() {
                   <td className="px-4 py-3 text-muted">
                     {formatDateTime(sql.fecha_asignacion)}
                   </td>
+                  <td className="px-4 py-3">
+                    {action === 'agendar' ? (
+                      <button
+                        type="button"
+                        className="icon-btn grid h-9 w-9 place-items-center rounded text-accent"
+                        title="Agendar"
+                        aria-label={`Agendar ${label}`}
+                        disabled={busySqlId === sql.sql_id}
+                        onClick={() => setScheduleSql(sql)}
+                      >
+                        <UserPlus size={16} strokeWidth={2} />
+                      </button>
+                    ) : action === 'programada' ? (
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          className="icon-btn grid h-9 w-9 place-items-center rounded"
+                          title="Reagendar"
+                          aria-label={`Reagendar ${label}`}
+                          disabled={busySqlId === sql.sql_id}
+                          onClick={() => setRescheduleSql(sql)}
+                        >
+                          <CalendarClock size={16} strokeWidth={2} />
+                        </button>
+                        <button
+                          type="button"
+                          className="icon-btn grid h-9 w-9 place-items-center rounded text-danger"
+                          title="Cancelar"
+                          aria-label={`Cancelar ${label}`}
+                          disabled={busySqlId === sql.sql_id}
+                          onClick={() => void handleCancel(sql)}
+                        >
+                          <CalendarX2 size={16} strokeWidth={2} />
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-sm text-muted">—</span>
+                    )}
+                  </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         )}
@@ -173,6 +259,22 @@ export function AssignedSqlsPage() {
           onPageChange={setPage}
         />
       </div>
+      {scheduleSql ? (
+        <AssignSqlModal
+          sql={scheduleSql}
+          scheduleOnly
+          onClose={() => setScheduleSql(null)}
+          onAssigned={() => void load({ silent: true })}
+          onVigenteConflict={() => void load({ silent: true })}
+        />
+      ) : null}
+      {rescheduleSql ? (
+        <RescheduleSqlCitaModal
+          sql={rescheduleSql}
+          onClose={() => setRescheduleSql(null)}
+          onRescheduled={() => void load({ silent: true })}
+        />
+      ) : null}
     </AppLayout>
   );
 }

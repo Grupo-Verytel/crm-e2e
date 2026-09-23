@@ -6,6 +6,9 @@ import { AuditWriterService } from './audit-writer.service';
 
 const SKIPPED_AUDIT_FIELDS = new Set(['updated_at', 'updatedAt']);
 
+/** Never persist credential material in audit_log. */
+const SENSITIVE_AUDIT_FIELDS = new Set(['passwordHash', 'password_hash']);
+
 @Injectable()
 export class AuditHooksService implements OnModuleInit {
   constructor(
@@ -57,8 +60,8 @@ export class AuditHooksService implements OnModuleInit {
           registroId: this.getRegistroId(instance),
           accion: AuditAction.UPDATE,
           campoModificado: this.getFieldColumnName(instance, field),
-          valorAnterior: this.serializeValue(instance.previous(field)),
-          valorNuevo: this.serializeValue(instance.get(field)),
+          valorAnterior: this.serializeValue(instance.previous(field), field),
+          valorNuevo: this.serializeValue(instance.get(field), field),
         });
       }
     });
@@ -92,10 +95,19 @@ export class AuditHooksService implements OnModuleInit {
   }
 
   private serializeRecord(instance: Model): string {
-    return JSON.stringify(instance.toJSON());
+    const plain = instance.toJSON() as Record<string, unknown>;
+    for (const key of Object.keys(plain)) {
+      if (SENSITIVE_AUDIT_FIELDS.has(key)) {
+        plain[key] = '[redacted]';
+      }
+    }
+    return JSON.stringify(plain);
   }
 
-  private serializeValue(value: unknown): string {
+  private serializeValue(value: unknown, field?: string): string {
+    if (field && SENSITIVE_AUDIT_FIELDS.has(field)) {
+      return JSON.stringify('[redacted]');
+    }
     return JSON.stringify(value ?? null);
   }
 }
