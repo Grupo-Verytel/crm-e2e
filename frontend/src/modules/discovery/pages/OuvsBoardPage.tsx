@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Filter, LayoutGrid, List } from 'lucide-react';
+import { Filter, LayoutGrid, List, Plus } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Pagination } from '../../../components/Pagination';
 import { AppLayout } from '../../../layout/AppLayout';
@@ -233,7 +233,7 @@ function OuvsTray({ bandeja }: { bandeja: OuvBandejaKey }) {
   const toolbarIconClass = (active: boolean) =>
     [
       'grid h-9 w-9 place-items-center rounded',
-      active ? 'btn-glow text-white' : 'icon-btn',
+      active ? 'btn-glow text-white' : 'btn-glow-outline',
     ].join(' ');
 
   const emptyMessage = hasActiveFilters ? ui.emptyFiltered : ui.empty;
@@ -260,11 +260,11 @@ function OuvsTray({ bandeja }: { bandeja: OuvBandejaKey }) {
             type="button"
             className={toolbarIconClass(view === 'kanban')}
             onClick={() => setView('kanban')}
-            aria-label="Vista Tablero"
+            aria-label="Vista Kanban"
             aria-pressed={view === 'kanban'}
-            title="Tablero"
+            title="Kanban"
           >
-            <LayoutGrid size={18} strokeWidth={1.75} />
+            <LayoutGrid size={18} strokeWidth={2} />
           </button>
           <button
             type="button"
@@ -274,7 +274,7 @@ function OuvsTray({ bandeja }: { bandeja: OuvBandejaKey }) {
             aria-pressed={view === 'lista'}
             title="Lista"
           >
-            <List size={18} strokeWidth={1.75} />
+            <List size={18} strokeWidth={2} />
           </button>
           <button
             type="button"
@@ -286,15 +286,17 @@ function OuvsTray({ bandeja }: { bandeja: OuvBandejaKey }) {
             aria-controls="ouv-filters-panel"
             title="Filtros"
           >
-            <Filter size={18} strokeWidth={1.75} />
+            <Filter size={18} strokeWidth={2} />
           </button>
           {isEjecutivo && bandeja === 'EnCurso' ? (
             <button
               type="button"
-              className={primaryButtonClass}
+              className={toolbarIconClass(false)}
               onClick={() => setShowCreate(true)}
+              aria-label="Crear OUV"
+              title="Crear OUV"
             >
-              Crear OUV directa
+              <Plus size={18} strokeWidth={2} />
             </button>
           ) : null}
         </div>
