@@ -1,217 +1,232 @@
-import { Plus, X } from 'lucide-react';
+import { StickyNote, UserPlus, X } from 'lucide-react';
+import { useId, useState } from 'react';
 import type { OuvContacto, OuvInfluencia } from '../api/ouvs-api';
 import {
   INFLUENCIA_ESTADO_LABEL,
   INFLUENCIA_TIPO_LABEL,
-  influenciaAvatarRingClass,
   type InfluenciaEstado,
   type InfluenciaTipo,
 } from '../lib/ouv-vocab';
 import { contactInitials } from './InfluenciaCard';
 import { EstadoSegmentedControl } from './EstadoSegmentedControl';
-import { inputClass, labelClass } from './ui';
-
-export type InfluenciaFieldPatch = Partial<
-  Pick<OuvInfluencia, 'estado' | 'contacto_ouv_id' | 'notas' | 'motivo_estado'>
->;
+import { ModalShell } from './ModalShell';
+import { ghostButtonClass, primaryButtonClass } from './ui';
 
 type Props = {
   tipo: InfluenciaTipo;
-  inf: OuvInfluencia | undefined;
-  assignedContact: OuvContacto | undefined;
+  rows: OuvInfluencia[];
   contactos: OuvContacto[];
   editable: boolean;
-  isSaving: boolean;
-  justSaved: boolean;
-  onFieldChange: (tipo: InfluenciaTipo, patch: InfluenciaFieldPatch) => void;
-  onNotasChange: (tipo: InfluenciaTipo, notas: string) => void;
-  onNotasBlur: (tipo: InfluenciaTipo) => void;
-  onAddContact: (tipo: InfluenciaTipo) => void;
+  savingId: string | null;
+  onAddExisting: (contactoOuvId: string) => void;
+  onCreateContact: () => void;
+  onRate: (contactoOuvId: string, estado: InfluenciaEstado) => void;
+  onRemove: (contactoOuvId: string, nombre: string) => void;
+  onOpenNota: (contactoOuvId: string) => void;
 };
-
-function contactMeta(contact: OuvContacto): string {
-  return [contact.email, contact.phone].filter(Boolean).join(' · ');
-}
-
-function estadoToneClass(estado: InfluenciaEstado): string {
-  if (estado === 'Verde') return 'text-semaphore-verde';
-  if (estado === 'Amarillo') return 'text-warning';
-  if (estado === 'Rojo') return 'text-danger';
-  return 'text-muted';
-}
 
 export function InfluenciaDetallePanel({
   tipo,
-  inf,
-  assignedContact,
+  rows,
   contactos,
   editable,
-  isSaving,
-  justSaved,
-  onFieldChange,
-  onNotasChange,
-  onNotasBlur,
-  onAddContact,
+  savingId,
+  onAddExisting,
+  onCreateContact,
+  onRate,
+  onRemove,
+  onOpenNota,
 }: Props) {
   const label = INFLUENCIA_TIPO_LABEL[tipo] ?? tipo;
-  const estado =
-    (inf?.estado as InfluenciaEstado | undefined) ?? 'SinEvaluar';
-  const estadoLabel = INFLUENCIA_ESTADO_LABEL[estado];
-  const hasContact = Boolean(assignedContact);
-  const missingContactForVerde = estado === 'Verde' && !inf?.contacto_ouv_id;
-  const meta = assignedContact ? contactMeta(assignedContact) : '';
-  const ringClass = influenciaAvatarRingClass(estado, hasContact);
+  const atMax = rows.length >= 5;
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pendingRemove, setPendingRemove] = useState<{
+    contactoOuvId: string;
+    nombre: string;
+  } | null>(null);
+  const assignedIds = new Set(rows.map((row) => row.contacto_ouv_id));
+  const available = contactos.filter((c) => !assignedIds.has(c.contacto_ouv_id));
+  const addTipId = useId();
 
   return (
     <div
-      className="toast-fade-in rounded-lg border border-border p-3"
+      className="rounded-lg border border-border p-3"
       role="region"
       aria-label={`Detalle de influencia ${label}`}
     >
-      <div className="relative mb-3">
-        <div className="absolute right-0 top-0 z-10 flex items-center gap-2">
-          {isSaving ? (
-            <span className="text-xs font-bold text-accent">Guardando…</span>
-          ) : null}
-          {!isSaving && justSaved ? (
-            <span className="text-xs font-bold text-positive">Guardado</span>
-          ) : null}
-          {assignedContact && editable ? (
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <p className="text-sm font-bold text-ink">
+          {label} · {rows.length}/5 contactos
+        </p>
+        {editable ? (
+          <span className="group relative">
             <button
               type="button"
-              className="icon-btn grid h-6 w-6 place-items-center rounded text-muted hover:text-danger"
-              aria-label={`Quitar contacto de ${label}`}
-              onClick={() => onFieldChange(tipo, { contacto_ouv_id: null })}
+              className="inline-flex items-center gap-1 text-xs font-bold text-accent hover:underline disabled:cursor-not-allowed disabled:text-muted disabled:no-underline"
+              disabled={atMax}
+              aria-describedby={atMax ? addTipId : undefined}
+              onClick={() => setPickerOpen((open) => !open)}
             >
-              <X size={14} strokeWidth={2.5} />
+              <UserPlus size={14} aria-hidden />
+              Agregar contacto existente
             </button>
-          ) : null}
-        </div>
-        <div
-          className={[
-            'flex items-start justify-between gap-8',
-            assignedContact && editable ? 'pr-8' : '',
-          ].join(' ')}
-        >
-          <div className="flex min-w-0 items-start gap-3">
-            <span
-              className={[
-                'grid h-10 w-10 shrink-0 place-items-center rounded-full border-2 text-xs font-bold',
-                ringClass,
-              ].join(' ')}
-              title={`Estado: ${estadoLabel}`}
-              aria-label={`Estado: ${estadoLabel}`}
-            >
-              {assignedContact ? (
-                contactInitials(assignedContact.name)
-              ) : (
-                <Plus size={16} strokeWidth={2.25} aria-hidden />
-              )}
-            </span>
-            <div className="min-w-0">
-              <p className="text-sm font-bold leading-6 text-ink">
-                {label}
-                <span className="font-normal text-muted"> · </span>
-                <span className={estadoToneClass(estado)}>{estadoLabel}</span>
-              </p>
-              {assignedContact ? (
-                <>
-                  <p className="truncate text-sm text-ink">
-                    <span className="font-bold">{assignedContact.name}</span>
-                    {assignedContact.job_title ? (
-                      <span className="font-normal text-muted">
-                        {' '}
-                        · {assignedContact.job_title}
-                      </span>
-                    ) : null}
-                  </p>
-                  {meta ? (
-                    <p className="truncate text-xs text-muted" title={meta}>
-                      {meta}
-                    </p>
-                  ) : null}
-                </>
-              ) : (
-                <p className="text-xs italic text-muted">Sin asignar</p>
-              )}
-            </div>
-          </div>
-
-          <div
-            className={[
-              'flex shrink-0 flex-col items-end gap-1.5',
-              assignedContact && editable ? 'pt-7' : '',
-            ].join(' ')}
-          >
-            <label
-              className="text-xs font-bold text-ink"
-              id={`influencia-estado-${tipo}-label`}
-            >
-              Estado
-            </label>
-            <EstadoSegmentedControl
-              id={`influencia-estado-${tipo}`}
-              labelledBy={`influencia-estado-${tipo}-label`}
-              value={estado}
-              disabled={!editable}
-              onChange={(next) => onFieldChange(tipo, { estado: next })}
-            />
-          </div>
-        </div>
+            {atMax ? (
+              <span
+                id={addTipId}
+                role="tooltip"
+                className="pointer-events-none absolute right-0 top-full z-10 mt-1 hidden w-max max-w-xs rounded border border-border bg-surface px-2 py-1 text-xs text-ink shadow-card group-hover:block group-focus-within:block [@media(hover:none)]:hidden"
+              >
+                Máximo 5 contactos por influencia
+              </span>
+            ) : null}
+          </span>
+        ) : null}
       </div>
 
-      {!assignedContact ? (
-        <div className="mb-3">
-          <label className={labelClass} htmlFor={`influencia-contacto-${tipo}`}>
-            Contacto
-          </label>
+      {pickerOpen && editable && !atMax ? (
+        <div className="mb-2 flex flex-wrap items-center gap-2">
           <select
-            id={`influencia-contacto-${tipo}`}
-            className={`${inputClass} text-muted`}
-            disabled={!editable}
-            value={inf?.contacto_ouv_id ?? ''}
-            onChange={(e) =>
-              onFieldChange(tipo, {
-                contacto_ouv_id: e.target.value || null,
-              })
-            }
+            className="h-8 rounded border border-border bg-bg px-2 text-xs text-ink"
+            defaultValue=""
+            aria-label={`Elegir contacto para ${label}`}
+            onChange={(event) => {
+              const value = event.target.value;
+              if (!value) return;
+              onAddExisting(value);
+              setPickerOpen(false);
+            }}
           >
-            <option value="">Sin asignar</option>
-            {contactos.map((c) => (
+            <option value="">Elegir contacto</option>
+            {available.map((c) => (
               <option key={c.contacto_ouv_id} value={c.contacto_ouv_id}>
                 {c.name}
               </option>
             ))}
           </select>
-          {editable ? (
-            <button
-              type="button"
-              className="mt-1 text-xs font-bold text-accent hover:underline"
-              onClick={() => onAddContact(tipo)}
-            >
-              + Agregar contacto
-            </button>
-          ) : null}
+          <button
+            type="button"
+            className="text-xs font-bold text-accent hover:underline"
+            onClick={onCreateContact}
+          >
+            Agregar un nuevo contacto
+          </button>
         </div>
       ) : null}
 
-      {missingContactForVerde ? (
-        <p className="mb-3 text-xs text-warning" role="status">
-          Asigna un contacto para que esta influencia cuente al avanzar.
-        </p>
+      {rows.length === 0 ? (
+        <div className="py-4 text-center">
+          <p className="text-sm text-muted">Aún no hay contactos en esta influencia</p>
+          {editable && !atMax ? (
+            <button
+              type="button"
+              className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-accent hover:underline"
+              onClick={onCreateContact}
+            >
+              <UserPlus size={14} aria-hidden />
+              Agregar un nuevo contacto
+            </button>
+          ) : null}
+        </div>
+      ) : (
+        <ul>
+          {rows.map((row) => {
+            const contact = contactos.find(
+              (c) => c.contacto_ouv_id === row.contacto_ouv_id,
+            );
+            const nombre = contact?.name ?? 'Contacto';
+            const estado = (row.estado as InfluenciaEstado) ?? 'SinEvaluar';
+            const noteId = `nota-tip-${row.influencia_id}`;
+            return (
+              <li
+                key={row.influencia_id}
+                className="flex items-center gap-2 border-t border-border py-2"
+              >
+                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-bg text-xs font-bold text-ink">
+                  {contactInitials(nombre)}
+                </span>
+                <p className="min-w-0 flex-1 truncate text-sm">
+                  <span className="font-medium text-ink">{nombre}</span>
+                  {contact?.phone ? (
+                    <span className="text-muted"> · {contact.phone}</span>
+                  ) : null}
+                </p>
+                <EstadoSegmentedControl
+                  compact
+                  value={estado}
+                  disabled={!editable || savingId === row.influencia_id}
+                  onChange={(next) => onRate(row.contacto_ouv_id, next)}
+                />
+                <span className="group relative">
+                  <button
+                    type="button"
+                    className={`grid h-8 w-8 place-items-center rounded outline-none focus-visible:ring-2 focus-visible:ring-accent ${row.notas ? 'text-accent' : 'text-muted'}`}
+                    aria-label={row.notas ? `Nota de ${nombre}` : `Agregar nota de ${nombre}`}
+                    aria-describedby={row.notas ? noteId : undefined}
+                    onClick={() => onOpenNota(row.contacto_ouv_id)}
+                  >
+                    <StickyNote size={16} aria-hidden />
+                  </button>
+                  {row.notas ? (
+                    <span
+                      id={noteId}
+                      role="tooltip"
+                      className="pointer-events-none absolute bottom-full right-0 z-10 mb-1 hidden max-w-xs rounded border border-border bg-surface p-2 text-left text-xs text-ink shadow-card line-clamp-3 group-hover:block group-focus-within:block [@media(hover:none)]:hidden"
+                    >
+                      {row.notas}
+                    </span>
+                  ) : null}
+                </span>
+                {editable ? (
+                  <button
+                    type="button"
+                    className="grid h-8 w-8 place-items-center rounded text-muted hover:text-danger"
+                    aria-label={`Quitar a ${nombre} de ${label}`}
+                    onClick={() =>
+                      setPendingRemove({
+                        contactoOuvId: row.contacto_ouv_id,
+                        nombre,
+                      })
+                    }
+                  >
+                    <X size={14} aria-hidden />
+                  </button>
+                ) : null}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      <p className="sr-only">{INFLUENCIA_ESTADO_LABEL.SinEvaluar}</p>
+      {pendingRemove ? (
+        <ModalShell
+          title="Quitar contacto"
+          onClose={() => setPendingRemove(null)}
+          size="compact"
+        >
+          <p className="text-sm text-ink">
+            ¿Quitar a {pendingRemove.nombre} de la influencia {label}?
+          </p>
+          <div className="mt-4 flex justify-end gap-2">
+            <button
+              type="button"
+              className={ghostButtonClass}
+              onClick={() => setPendingRemove(null)}
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              className={primaryButtonClass}
+              onClick={() => {
+                onRemove(pendingRemove.contactoOuvId, pendingRemove.nombre);
+                setPendingRemove(null);
+              }}
+            >
+              Quitar
+            </button>
+          </div>
+        </ModalShell>
       ) : null}
-
-      <label className={labelClass} htmlFor={`influencia-notas-${tipo}`}>
-        Notas
-      </label>
-      <textarea
-        id={`influencia-notas-${tipo}`}
-        className={`${inputClass} h-16 py-2`}
-        disabled={!editable}
-        value={inf?.notas ?? ''}
-        onChange={(e) => onNotasChange(tipo, e.target.value)}
-        onBlur={() => onNotasBlur(tipo)}
-      />
     </div>
   );
 }

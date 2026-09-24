@@ -3,7 +3,7 @@ import { InjectModel } from '@nestjs/sequelize';
 import type { Transaction } from 'sequelize';
 import { EntityType } from '../../workflow-engine/enums/entity-type.enum';
 import { WorkflowEngineService } from '../../workflow-engine/workflow-engine.service';
-import { verdeWithAssignedContactWhere } from '../lib/ouv-influencia-verde';
+import { evaluateInfluenceFilter } from '../lib/evaluate-influence-filter';
 import { zonaRank } from '../lib/ouv-zona-order';
 import { OuvZona } from '../models/enums/ouv.enums';
 import { OuvInfluencia } from '../models/ouv-influencia.model';
@@ -108,11 +108,11 @@ export class CriteriosZonaEvaluator {
     }
 
     if (rank >= zonaRank(OuvZona.EnFunnel)) {
-      const verdes = await this.influenciaModel.count({
-        where: verdeWithAssignedContactWhere(ouv.ouvId),
+      const rows = await this.influenciaModel.findAll({
+        where: { ouvId: ouv.ouvId },
         transaction,
       });
-      if (verdes < 2) {
+      if (!evaluateInfluenceFilter(rows).passed) {
         faltantes.push('influencias_verde');
       }
     }

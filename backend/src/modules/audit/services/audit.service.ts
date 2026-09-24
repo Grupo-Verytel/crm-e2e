@@ -58,6 +58,18 @@ export class AuditService {
     return rows.map((row) => this.toResponseDto(row));
   }
 
+  async recordChange(entry: {
+    tabla: string;
+    registroId: string;
+    accion: AuditAction;
+    campoModificado?: string | null;
+    valorAnterior?: string | null;
+    valorNuevo?: string | null;
+    contexto?: Record<string, unknown> | null;
+  }): Promise<void> {
+    await this.auditWriterService.write(entry);
+  }
+
   async recordSecurityEvent(dto: RecordSecurityEventDto): Promise<void> {
     await this.auditWriterService.write({
       tabla: dto.tabla,

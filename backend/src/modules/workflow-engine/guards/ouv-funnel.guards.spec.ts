@@ -89,7 +89,7 @@ describe('guard2InfluenciasEnVerde', () => {
     );
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.detalle).toMatch(/contacto asignado/);
+      expect(result.detalle).toMatch(/tipos en Verde/);
     }
   });
 });

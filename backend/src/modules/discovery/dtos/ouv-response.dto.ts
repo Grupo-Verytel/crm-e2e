@@ -65,6 +65,17 @@ export class OuvContactoResponseDto {
   updated_at!: Date;
 }
 
+export class OuvInfluenciaFiltroResponseDto {
+  passed!: boolean;
+  greenTypes!: string[];
+  required!: 2;
+}
+
+export class OuvInfluenciasListResponseDto {
+  influencias!: OuvInfluenciaResponseDto[];
+  filtro!: OuvInfluenciaFiltroResponseDto;
+}
+
 export class OuvInfluenciaResponseDto {
   influencia_id!: string;
   ouv_id!: string;

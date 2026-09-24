@@ -23,7 +23,7 @@ describe('ActualizarInfluenciaDto', () => {
   it('accepts a UUID v4 contacto_ouv_id', async () => {
     await expect(
       errorsFor({
-        estado: 'Amarillo',
+        estado: 'Rojo',
         contacto_ouv_id: CONTACTO_OUV_ID_V4,
       }),
     ).resolves.toEqual([]);

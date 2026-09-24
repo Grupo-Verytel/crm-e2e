@@ -53,7 +53,7 @@ export function guardsForDestino(
   if (destino === 'EN_FUNNEL' || destino === 'MAYOR_PROBABILIDAD') {
     guards.push({
       code: 'guard2InfluenciasEnVerde',
-      label: 'Al menos 2 influencias en Verde con contacto asignado',
+      label: 'Al menos 2 tipos en Verde entre Económica, Técnica y Fábrica',
     });
   }
   return guards;
@@ -92,57 +92,44 @@ export const INFLUENCIA_TIPO_LABEL: Record<InfluenciaTipo, string> = {
   Coach: 'Coach',
 };
 
-export const INFLUENCIA_ESTADOS = [
-  'SinEvaluar',
-  'Verde',
-  'Amarillo',
-  'Rojo',
-] as const;
+export const INFLUENCIA_ESTADOS = ['SinEvaluar', 'Verde', 'Rojo'] as const;
 
 export type InfluenciaEstado = (typeof INFLUENCIA_ESTADOS)[number];
 
-/** Verde only counts for EN_FUNNEL / MAYOR_PROBABILIDAD with a contact. */
-export function isVerdeWithAssignedContact(row: {
-  estado: string;
-  contacto_ouv_id: string | null | undefined;
-}): boolean {
-  return row.estado === 'Verde' && Boolean(row.contacto_ouv_id);
-}
-
-export function countVerdeWithAssignedContact(
-  rows: { estado: string; contacto_ouv_id: string | null | undefined }[],
-): number {
-  return rows.filter(isVerdeWithAssignedContact).length;
-}
+export const INFLUENCIA_FILTRO_TIPOS = [
+  'Economica',
+  'Tecnica',
+  'Fabrica',
+] as const;
 
 export const INFLUENCIA_ESTADO_LABEL: Record<InfluenciaEstado, string> = {
-  SinEvaluar: 'Sin Evaluar',
+  SinEvaluar: 'Sin evaluar',
   Verde: 'Verde',
-  Amarillo: 'Amarillo',
   Rojo: 'Rojo',
 };
 
-/** Card / select tones for influencia estado (semaphore). */
-export const INFLUENCIA_ESTADO_TONE: Record<InfluenciaEstado, string> = {
-  SinEvaluar: 'border-border bg-bg text-muted',
-  Verde: 'border-semaphore-verde/50 bg-semaphore-verde/10 text-ink',
-  Amarillo: 'border-warning/50 bg-warning/15 text-ink',
-  Rojo: 'border-danger/50 bg-danger/10 text-danger',
+/** StatusBadge-style tones for influencia estado. */
+export const INFLUENCIA_ESTADO_TONE_CLASS: Record<string, string> = {
+  neutral: 'border-border text-muted',
+  positive: 'border-semaphore-verde text-semaphore-verde',
+  danger: 'border-danger text-danger',
 };
 
+export const INFLUENCIA_ESTADO_TONE: Record<InfluenciaEstado, string> = {
+  SinEvaluar: 'neutral',
+  Verde: 'positive',
+  Rojo: 'danger',
+};
 
 export const INFLUENCIA_ESTADO_DOT: Record<InfluenciaEstado, string> = {
-  SinEvaluar: 'bg-muted',
+  SinEvaluar: 'border border-dashed border-muted bg-transparent',
   Verde: 'bg-semaphore-verde',
-  Amarillo: 'bg-warning',
   Rojo: 'bg-danger',
 };
 
-/** Full-card background when a contact is assigned. */
 export const INFLUENCIA_ESTADO_CARD: Record<InfluenciaEstado, string> = {
   SinEvaluar: 'border-border bg-bg/90',
   Verde: 'border-semaphore-verde/70 bg-semaphore-verde/20',
-  Amarillo: 'border-warning/70 bg-warning/25',
   Rojo: 'border-danger/70 bg-danger/15',
 };
 
@@ -156,9 +143,6 @@ export function influenciaAvatarRingClass(
   }
   if (estado === 'Verde') {
     return 'border-solid border-semaphore-verde text-semaphore-verde';
-  }
-  if (estado === 'Amarillo') {
-    return 'border-solid border-warning text-warning';
   }
   if (estado === 'Rojo') {
     return 'border-solid border-danger text-danger';

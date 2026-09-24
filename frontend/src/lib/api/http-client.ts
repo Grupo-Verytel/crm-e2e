@@ -124,12 +124,15 @@ export async function apiRequest<T>(
 
     try {
       const body = (await response.json()) as ApiErrorBody & {
+        detail?: string;
         detalle?: string;
         codigo_error?: string;
         guard?: string;
       };
       code = body.codigo_error ?? body.code;
-      if (typeof body.detalle === 'string' && body.detalle.trim()) {
+      if (typeof body.detail === 'string' && body.detail.trim()) {
+        message = body.detail;
+      } else if (typeof body.detalle === 'string' && body.detalle.trim()) {
         message = body.guard
           ? `${body.guard}: ${body.detalle}`
           : body.detalle;

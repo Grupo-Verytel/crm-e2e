@@ -1,19 +1,24 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
   Param,
   ParseEnumPipe,
+  ParseUUIDPipe,
   Patch,
   Post,
   Query,
+  UseFilters,
 } from '@nestjs/common';
 import { CheckAbility } from '../../auth/casl/check-ability.decorator';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../../auth/interfaces/authenticated-user.interface';
-import { ActualizarInfluenciaDto } from '../dtos/actualizar-influencia.dto';
+import { AgregarInfluenciaContactoDto } from '../dtos/agregar-influencia-contacto.dto';
+import { CalificarInfluenciaContactoDto } from '../dtos/calificar-influencia-contacto.dto';
+import { EditarNotaInfluenciaDto } from '../dtos/editar-nota-influencia.dto';
 import { ActualizarOuvDto } from '../dtos/actualizar-ouv.dto';
 import { ActualizarPresupuestoDto } from '../dtos/actualizar-presupuesto.dto';
 import {
@@ -28,6 +33,7 @@ import { MarcarChecklistItemDto } from '../dtos/marcar-checklist-item.dto';
 import {
   OuvChecklistItemResponseDto,
   OuvInfluenciaResponseDto,
+  OuvInfluenciasListResponseDto,
   OuvResponseDto,
   PaginatedOuvsResponseDto,
 } from '../dtos/ouv-response.dto';
@@ -36,7 +42,9 @@ import { canReadAllOuvs } from '../lib/ouv-access';
 import { OuvChecklistService } from '../services/ouv-checklist.service';
 import { OuvInfluenciasService } from '../services/ouv-influencias.service';
 import { OuvsService } from '../services/ouvs.service';
+import { InfluenciaProblemFilter } from '../filters/influencia-problem.filter';
 
+@UseFilters(InfluenciaProblemFilter)
 @Controller('discovery/ouvs')
 export class OuvsController {
   constructor(
@@ -195,46 +203,108 @@ export class OuvsController {
   @CheckAbility({ action: 'read', subject: 'Opportunity' })
   async listInfluencias(
     @Param('id') id: string,
-  ): Promise<OuvInfluenciaResponseDto[]> {
-    const rows = await this.influenciasService.listByOuv(id);
-    return rows.map((r) => ({
-      influencia_id: r.influenciaId,
-      ouv_id: r.ouvId,
-      tipo: r.tipo,
-      estado: r.estado,
-      contacto_ouv_id: r.contactoOuvId,
-      notas: r.notas,
-      motivo_estado: r.motivoEstado,
-      fecha_ultimo_cambio: r.fechaUltimoCambio,
-      created_at: r.createdAt,
-    }));
+  ): Promise<OuvInfluenciasListResponseDto> {
+    const { rows, filtro } = await this.influenciasService.listByOuv(id);
+    return {
+      influencias: rows.map((row) => this.toInfluenciaResponse(row)),
+      filtro,
+    };
   }
 
-  @Patch(':id/influencias/:tipo')
+  @Post(':id/influencias/:tipo/contactos')
+  @HttpCode(HttpStatus.CREATED)
   @CheckAbility({ action: 'update', subject: 'Opportunity' })
-  async actualizarInfluencia(
+  async agregarInfluenciaContacto(
     @Param('id') id: string,
     @Param('tipo', new ParseEnumPipe(InfluenciaTipo)) tipo: InfluenciaTipo,
-    @Body() dto: ActualizarInfluenciaDto,
+    @Body() dto: AgregarInfluenciaContactoDto,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<OuvInfluenciaResponseDto> {
-    const r = await this.influenciasService.actualizarEstado(
+    const row = await this.influenciasService.agregarContacto(
       id,
       tipo,
-      dto,
+      dto.contacto_ouv_id,
       user.userId,
-      user.roleName,
     );
+    return this.toInfluenciaResponse(row);
+  }
+
+  @Delete(':id/influencias/:tipo/contactos/:contactoOuvId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @CheckAbility({ action: 'update', subject: 'Opportunity' })
+  async quitarInfluenciaContacto(
+    @Param('id') id: string,
+    @Param('tipo', new ParseEnumPipe(InfluenciaTipo)) tipo: InfluenciaTipo,
+    @Param('contactoOuvId', ParseUUIDPipe) contactoOuvId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<void> {
+    await this.influenciasService.quitarContacto(
+      id,
+      tipo,
+      contactoOuvId,
+      user.userId,
+    );
+  }
+
+  @Patch(':id/influencias/:tipo/contactos/:contactoOuvId/estado')
+  @CheckAbility({ action: 'update', subject: 'Opportunity' })
+  async calificarInfluenciaContacto(
+    @Param('id') id: string,
+    @Param('tipo', new ParseEnumPipe(InfluenciaTipo)) tipo: InfluenciaTipo,
+    @Param('contactoOuvId', ParseUUIDPipe) contactoOuvId: string,
+    @Body() dto: CalificarInfluenciaContactoDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<OuvInfluenciaResponseDto> {
+    const row = await this.influenciasService.calificar(
+      id,
+      tipo,
+      contactoOuvId,
+      dto.estado,
+      user.userId,
+    );
+    return this.toInfluenciaResponse(row);
+  }
+
+  @Patch(':id/influencias/:tipo/contactos/:contactoOuvId/notas')
+  @CheckAbility({ action: 'update', subject: 'Opportunity' })
+  async editarNotaInfluenciaContacto(
+    @Param('id') id: string,
+    @Param('tipo', new ParseEnumPipe(InfluenciaTipo)) tipo: InfluenciaTipo,
+    @Param('contactoOuvId', ParseUUIDPipe) contactoOuvId: string,
+    @Body() dto: EditarNotaInfluenciaDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<OuvInfluenciaResponseDto> {
+    const row = await this.influenciasService.editarNota(
+      id,
+      tipo,
+      contactoOuvId,
+      dto.notas,
+      user.userId,
+    );
+    return this.toInfluenciaResponse(row);
+  }
+
+  private toInfluenciaResponse(row: {
+    influenciaId: string;
+    ouvId: string;
+    tipo: string;
+    estado: string;
+    contactoOuvId: string;
+    notas: string | null;
+    motivoEstado: string | null;
+    fechaUltimoCambio: Date | null;
+    createdAt: Date;
+  }): OuvInfluenciaResponseDto {
     return {
-      influencia_id: r.influenciaId,
-      ouv_id: r.ouvId,
-      tipo: r.tipo,
-      estado: r.estado,
-      contacto_ouv_id: r.contactoOuvId,
-      notas: r.notas,
-      motivo_estado: r.motivoEstado,
-      fecha_ultimo_cambio: r.fechaUltimoCambio,
-      created_at: r.createdAt,
+      influencia_id: row.influenciaId,
+      ouv_id: row.ouvId,
+      tipo: row.tipo,
+      estado: row.estado,
+      contacto_ouv_id: row.contactoOuvId,
+      notas: row.notas,
+      motivo_estado: row.motivoEstado,
+      fecha_ultimo_cambio: row.fechaUltimoCambio,
+      created_at: row.createdAt,
     };
   }
 

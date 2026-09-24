@@ -11,28 +11,22 @@ type Props = {
   value: InfluenciaEstado;
   disabled?: boolean;
   labelledBy?: string;
+  compact?: boolean;
   onChange: (estado: InfluenciaEstado) => void;
 };
 
 const SELECTED_CLASS: Record<InfluenciaEstado, string> = {
   SinEvaluar: 'bg-muted/16 text-ink',
   Verde: 'bg-estado-verde-fill text-estado-verde-fg',
-  Amarillo: 'bg-estado-amarillo-fill text-estado-amarillo-fg',
   Rojo: 'bg-estado-rojo-fill text-estado-rojo-fg',
 };
-
-function estadoDotClass(estado: InfluenciaEstado): string {
-  if (estado === 'SinEvaluar') {
-    return 'border border-dashed border-muted bg-transparent';
-  }
-  return INFLUENCIA_ESTADO_DOT[estado];
-}
 
 export function EstadoSegmentedControl({
   id,
   value,
   disabled = false,
   labelledBy,
+  compact = false,
   onChange,
 }: Props) {
   const buttonRefs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -80,7 +74,7 @@ export function EstadoSegmentedControl({
       id={id}
       role="radiogroup"
       aria-labelledby={labelledBy}
-      className="inline-flex rounded border border-border bg-bg p-1"
+      className={`inline-flex rounded border border-border bg-bg ${compact ? 'p-0.5' : 'p-1'}`}
     >
       {INFLUENCIA_ESTADOS.map((estado, index) => {
         const selected = value === estado;
@@ -99,7 +93,9 @@ export function EstadoSegmentedControl({
             onClick={() => onChange(estado)}
             onKeyDown={(event) => handleKeyDown(event, index)}
             className={[
-              'inline-flex items-center gap-2 rounded-sm px-3 py-1.5 text-sm outline-none',
+              compact
+                ? 'inline-flex items-center gap-1 rounded-sm px-1.5 py-1 text-xs outline-none'
+                : 'inline-flex items-center gap-2 rounded-sm px-3 py-1.5 text-sm outline-none',
               'transition-colors duration-150',
               'focus-visible:ring-2 focus-visible:ring-accent',
               'disabled:cursor-not-allowed disabled:opacity-40',
@@ -107,7 +103,7 @@ export function EstadoSegmentedControl({
             ].join(' ')}
           >
             <span
-              className={`h-2 w-2 shrink-0 rounded-full ${estadoDotClass(estado)}`}
+              className={`h-2 w-2 shrink-0 rounded-full ${INFLUENCIA_ESTADO_DOT[estado]}`}
               aria-hidden
             />
             {INFLUENCIA_ESTADO_LABEL[estado]}

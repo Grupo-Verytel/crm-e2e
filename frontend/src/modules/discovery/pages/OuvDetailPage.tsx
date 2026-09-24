@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { AppLayout } from '../../../layout/AppLayout';
 import {
@@ -18,18 +18,24 @@ import {
   deleteOuvContacto,
   fetchOuv,
   fetchOuvContactos,
+  agregarInfluenciaContacto,
+  calificarInfluenciaContacto,
+  editarNotaInfluenciaContacto,
+  EMPTY_INFLUENCIA_FILTRO,
   fetchOuvInfluencias,
+  quitarInfluenciaContacto,
   updateOuv,
   updateOuvContacto,
-  updateOuvInfluencia,
   updateOuvPresupuesto,
   type ContactoPayload,
   type Ouv,
   type OuvContacto,
   type OuvInfluencia,
+  type OuvInfluenciaFiltro,
 } from '../api/ouvs-api';
 import { AvanceZonaModal } from '../components/AvanceZonaModal';
 import { InfluenciasSection } from '../components/InfluenciasSection';
+import { InfluenciaNotaModal } from '../components/InfluenciaNotaModal';
 import {
   CierreOuvModal,
   type OuvClosedEvent,
@@ -60,6 +66,7 @@ import { backLinkForResultado } from '../lib/ouv-bandejas';
 import {
   INFLUENCIA_TIPO_LABEL,
   isOuvNotificationEvent,
+  type InfluenciaEstado,
   type InfluenciaTipo,
 } from '../lib/ouv-vocab';
 import {
@@ -68,23 +75,6 @@ import {
   type OuvDetailExtensions,
 } from '../lib/ouv-detail-extensions';
 
-/**
- * After a successful save for `justSavedTipo`, prefer that row from the server
- * but keep other local rows if they still have an in-flight save sequence
- * (avoid wiping a sibling card the user is mid-editing).
- */
-function mergeInfluenciasPreferringNewerLocal(
-  local: OuvInfluencia[],
-  server: OuvInfluencia[],
-  justSavedTipo: InfluenciaTipo,
-): OuvInfluencia[] {
-  const localByTipo = new Map(local.map((row) => [row.tipo, row]));
-  return server.map((serverRow) => {
-    if (serverRow.tipo === justSavedTipo) return serverRow;
-    return localByTipo.get(serverRow.tipo) ?? serverRow;
-  });
-}
-
 export function OuvDetailPage() {
   const { id = '' } = useParams();
   const { user } = useAuth();
@@ -92,26 +82,17 @@ export function OuvDetailPage() {
   const [ouv, setOuv] = useState<Ouv | null>(null);
   const [contactos, setContactos] = useState<OuvContacto[]>([]);
   const [influencias, setInfluencias] = useState<OuvInfluencia[]>([]);
+  const [filtro, setFiltro] = useState<OuvInfluenciaFiltro>(EMPTY_INFLUENCIA_FILTRO);
+  const [savingInfluenciaId, setSavingInfluenciaId] = useState<string | null>(null);
+  const [notaTarget, setNotaTarget] = useState<{
+    tipo: InfluenciaTipo;
+    contactoOuvId: string;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [savingPresupuesto, setSavingPresupuesto] = useState(false);
-  const [influenciaFlash, setInfluenciaFlash] = useState<InfluenciaTipo | null>(
-    null,
-  );
-  const [savingTipos, setSavingTipos] = useState<
-    Partial<Record<InfluenciaTipo, boolean>>
-  >({});
-  const influenciaFlashTimer = useRef<ReturnType<typeof setTimeout> | null>(
-    null,
-  );
-  const influenciaSaveSeq = useRef<Partial<Record<InfluenciaTipo, number>>>({});
-  const notasDebounceTimers = useRef<
-    Partial<Record<InfluenciaTipo, ReturnType<typeof setTimeout>>>
-  >({});
-  const influenciasRef = useRef<OuvInfluencia[]>([]);
-  influenciasRef.current = influencias;
   const [contactoModal, setContactoModal] = useState<OuvContacto | null | 'new'>(
     null,
   );
@@ -154,7 +135,8 @@ export function OuvDetailPage() {
           fetchOuvInfluencias(id),
         ]);
         setContactos(c);
-        setInfluencias(i);
+        setInfluencias(i.influencias);
+        setFiltro(i.filtro);
       } catch {
         setError('No se pudo cargar la OUV.');
         setOuv(null);
@@ -186,181 +168,100 @@ export function OuvDetailPage() {
   }, [id, load]);
 
   useEffect(() => {
-    return () => {
-      if (influenciaFlashTimer.current) {
-        clearTimeout(influenciaFlashTimer.current);
-      }
-      for (const timer of Object.values(notasDebounceTimers.current)) {
-        if (timer) clearTimeout(timer);
-      }
-    };
-  }, []);
-
-  useEffect(() => {
     if (!closeToast) return;
     const timer = window.setTimeout(() => setCloseToast(null), 4500);
     return () => window.clearTimeout(timer);
   }, [closeToast]);
 
-  function flashInfluencia(tipo: InfluenciaTipo) {
-    setInfluenciaFlash(tipo);
-    if (influenciaFlashTimer.current) {
-      clearTimeout(influenciaFlashTimer.current);
-    }
-    influenciaFlashTimer.current = setTimeout(() => {
-      setInfluenciaFlash((current) => (current === tipo ? null : current));
-    }, 1400);
+  async function refreshInfluencias() {
+    if (!id) return;
+    const list = await fetchOuvInfluencias(id);
+    setInfluencias(list.influencias);
+    setFiltro(list.filtro);
+    const detail = await fetchOuv(id);
+    setOuv(detail);
   }
 
-  function patchInfluenciaLocal(
-    tipo: InfluenciaTipo,
-    patch: Partial<
-      Pick<
-        OuvInfluencia,
-        'estado' | 'contacto_ouv_id' | 'notas' | 'motivo_estado'
-      >
-    >,
-  ): void {
-    setInfluencias((prev) => {
-      const next = prev.map((row) =>
-        row.tipo === tipo ? { ...row, ...patch } : row,
+  async function handleAddInfluencia(tipo: InfluenciaTipo, contactoOuvId: string) {
+    if (!id) return;
+    setActionError(null);
+    try {
+      await agregarInfluenciaContacto(id, tipo, contactoOuvId);
+      await refreshInfluencias();
+    } catch (err) {
+      setActionError(
+        err instanceof ApiError ? err.message : 'No se pudo agregar el contacto.',
       );
-      influenciasRef.current = next;
-      return next;
-    });
+    }
   }
 
-  async function persistInfluencia(
+  async function handleRateInfluencia(
     tipo: InfluenciaTipo,
-    snapshot: Pick<
-      OuvInfluencia,
-      'estado' | 'contacto_ouv_id' | 'notas' | 'motivo_estado'
-    >,
+    contactoOuvId: string,
+    estado: InfluenciaEstado,
   ) {
     if (!id) return;
-    const seq = (influenciaSaveSeq.current[tipo] ?? 0) + 1;
-    influenciaSaveSeq.current[tipo] = seq;
+    const previous = influencias;
+    const row = influencias.find(
+      (item) => item.tipo === tipo && item.contacto_ouv_id === contactoOuvId,
+    );
+    if (!row) return;
+    setInfluencias((current) =>
+      current.map((item) =>
+        item.influencia_id === row.influencia_id ? { ...item, estado } : item,
+      ),
+    );
+    setSavingInfluenciaId(row.influencia_id);
     setActionError(null);
-    setSavingTipos((prev) => ({ ...prev, [tipo]: true }));
     try {
-      await updateOuvInfluencia(id, tipo, {
-        estado: snapshot.estado,
-        contacto_ouv_id: snapshot.contacto_ouv_id,
-        motivo_estado: snapshot.motivo_estado,
-        notas: snapshot.notas,
-      });
-      if (influenciaSaveSeq.current[tipo] !== seq) return;
-
-      // Refresh OUV (gap) without clobbering in-flight edits on other fields.
-      const [detail, serverInfluencias] = await Promise.all([
-        fetchOuv(id),
-        fetchOuvInfluencias(id),
-      ]);
-      if (influenciaSaveSeq.current[tipo] !== seq) return;
-
-      setOuv(detail);
-      setInfluencias((local) =>
-        mergeInfluenciasPreferringNewerLocal(local, serverInfluencias, tipo),
-      );
-      flashInfluencia(tipo);
+      await calificarInfluenciaContacto(id, tipo, contactoOuvId, estado);
+      await refreshInfluencias();
     } catch (err) {
-      if (influenciaSaveSeq.current[tipo] !== seq) return;
+      setInfluencias(previous);
       setActionError(
-        err instanceof ApiError
-          ? err.message
-          : 'No se pudo actualizar la influencia.',
+        err instanceof ApiError ? err.message : 'No se pudo guardar la calificación.',
       );
-      try {
-        const serverInfluencias = await fetchOuvInfluencias(id);
-        if (influenciaSaveSeq.current[tipo] !== seq) return;
-        setInfluencias(serverInfluencias);
-      } catch {
-        /* keep optimistic local state */
-      }
     } finally {
-      if (influenciaSaveSeq.current[tipo] === seq) {
-        setSavingTipos((prev) => ({ ...prev, [tipo]: false }));
-      }
+      setSavingInfluenciaId(null);
     }
   }
 
-  function handleInfluenciaFieldChange(
+  async function handleRemoveInfluencia(
     tipo: InfluenciaTipo,
-    patch: Partial<
-      Pick<
-        OuvInfluencia,
-        'estado' | 'contacto_ouv_id' | 'notas' | 'motivo_estado'
-      >
-    >,
+    contactoOuvId: string,
   ) {
-    const current = influenciasRef.current.find((row) => row.tipo === tipo);
-    const snapshot = {
-      estado: patch.estado ?? current?.estado ?? 'SinEvaluar',
-      contacto_ouv_id:
-        patch.contacto_ouv_id !== undefined
-          ? patch.contacto_ouv_id
-          : (current?.contacto_ouv_id ?? null),
-      notas: patch.notas !== undefined ? patch.notas : (current?.notas ?? null),
-      motivo_estado:
-        patch.motivo_estado !== undefined
-          ? patch.motivo_estado
-          : (current?.motivo_estado ?? null),
-    };
-
-    if (!current) {
-      const placeholder: OuvInfluencia = {
-        influencia_id: `temp-${tipo}`,
-        ouv_id: id,
-        tipo,
-        ...snapshot,
-        fecha_ultimo_cambio: null,
-        created_at: new Date().toISOString(),
-      };
-      setInfluencias((prev) => {
-        const next = [...prev, placeholder];
-        influenciasRef.current = next;
-        return next;
-      });
-    } else {
-      patchInfluenciaLocal(tipo, snapshot);
+    if (!id) return;
+    setActionError(null);
+    try {
+      await quitarInfluenciaContacto(id, tipo, contactoOuvId);
+      await refreshInfluencias();
+    } catch (err) {
+      setActionError(
+        err instanceof ApiError ? err.message : 'No se pudo quitar el contacto.',
+      );
     }
-    void persistInfluencia(tipo, snapshot);
   }
 
-  function handleInfluenciaNotasChange(tipo: InfluenciaTipo, notas: string) {
-    const current = influenciasRef.current.find((row) => row.tipo === tipo);
-    if (!current) {
-      handleInfluenciaFieldChange(tipo, { notas: notas || null });
-      return;
+  async function handleSaveNota(notas: string) {
+    if (!id || !notaTarget) return;
+    setSavingInfluenciaId(notaTarget.contactoOuvId);
+    setActionError(null);
+    try {
+      await editarNotaInfluenciaContacto(
+        id,
+        notaTarget.tipo,
+        notaTarget.contactoOuvId,
+        notas || null,
+      );
+      setNotaTarget(null);
+      await refreshInfluencias();
+    } catch (err) {
+      setActionError(
+        err instanceof ApiError ? err.message : 'No se pudo guardar la nota.',
+      );
+    } finally {
+      setSavingInfluenciaId(null);
     }
-    patchInfluenciaLocal(tipo, { notas: notas || null });
-    const existing = notasDebounceTimers.current[tipo];
-    if (existing) clearTimeout(existing);
-    notasDebounceTimers.current[tipo] = setTimeout(() => {
-      const latest = influenciasRef.current.find((row) => row.tipo === tipo);
-      if (!latest) return;
-      void persistInfluencia(tipo, {
-        estado: latest.estado,
-        contacto_ouv_id: latest.contacto_ouv_id,
-        notas: latest.notas,
-        motivo_estado: latest.motivo_estado,
-      });
-    }, 500);
-  }
-
-  function handleInfluenciaNotasBlur(tipo: InfluenciaTipo) {
-    const pending = notasDebounceTimers.current[tipo];
-    if (!pending) return;
-    clearTimeout(pending);
-    notasDebounceTimers.current[tipo] = undefined;
-    const latest = influenciasRef.current.find((row) => row.tipo === tipo);
-    if (!latest) return;
-    void persistInfluencia(tipo, {
-      estado: latest.estado,
-      contacto_ouv_id: latest.contacto_ouv_id,
-      notas: latest.notas,
-      motivo_estado: latest.motivo_estado,
-    });
   }
 
   async function handleSaveContacto(
@@ -378,9 +279,7 @@ export function OuvDetailPage() {
     await load({ silent: true });
     const assignTipo = meta?.influenciaTipo ?? contactoModalContext;
     if (createdId && assignTipo) {
-      handleInfluenciaFieldChange(assignTipo, {
-        contacto_ouv_id: createdId,
-      });
+      await handleAddInfluencia(assignTipo, createdId);
     }
     setContactoModal(null);
     setContactoModalContext(null);
@@ -632,14 +531,23 @@ export function OuvDetailPage() {
       {/* Influencias — primary workspace */}
       <InfluenciasSection
         influencias={influencias}
+        filtro={filtro}
         contactos={contactos}
         editable={editable}
-        savingTipos={savingTipos}
-        justSavedTipo={influenciaFlash}
-        onFieldChange={handleInfluenciaFieldChange}
-        onNotasChange={handleInfluenciaNotasChange}
-        onNotasBlur={handleInfluenciaNotasBlur}
-        onAddContact={(tipo) => openContactoModal('new', tipo)}
+        savingId={savingInfluenciaId}
+        onAddExisting={(tipo, contactoOuvId) =>
+          void handleAddInfluencia(tipo, contactoOuvId)
+        }
+        onCreateContact={(tipo) => openContactoModal('new', tipo)}
+        onRate={(tipo, contactoOuvId, estado) =>
+          void handleRateInfluencia(tipo, contactoOuvId, estado)
+        }
+        onRemove={(tipo, contactoOuvId) =>
+          void handleRemoveInfluencia(tipo, contactoOuvId)
+        }
+        onOpenNota={(tipo, contactoOuvId) =>
+          setNotaTarget({ tipo, contactoOuvId })
+        }
       />
 
       {/* Presupuesto */}
@@ -788,6 +696,26 @@ export function OuvDetailPage() {
         </>
       )}
 
+      {notaTarget ? (
+        <InfluenciaNotaModal
+          nombre={
+            contactos.find((c) => c.contacto_ouv_id === notaTarget.contactoOuvId)
+              ?.name ?? 'Contacto'
+          }
+          tipoLabel={INFLUENCIA_TIPO_LABEL[notaTarget.tipo]}
+          consecutivo={ouv.consecutivo}
+          initialNotas={
+            influencias.find(
+              (row) =>
+                row.tipo === notaTarget.tipo &&
+                row.contacto_ouv_id === notaTarget.contactoOuvId,
+            )?.notas ?? ''
+          }
+          saving={savingInfluenciaId === notaTarget.contactoOuvId}
+          onClose={() => setNotaTarget(null)}
+          onSave={(notas) => void handleSaveNota(notas)}
+        />
+      ) : null}
       {contactoModal ? (
         <ContactoFormModal
           initial={contactoModal === 'new' ? null : contactoModal}
@@ -810,7 +738,7 @@ export function OuvDetailPage() {
       {showAvance ? (
         <AvanceZonaModal
           ouv={ouv}
-          influencias={influencias}
+          filtro={filtro}
           onClose={() => setShowAvance(false)}
           onAdvanced={() => void load({ silent: true })}
         />

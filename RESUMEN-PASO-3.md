@@ -1,83 +1,42 @@
-# RESUMEN-PASO-3 — Guards + reglas del motor + renombrado `ouv.creada`
+# RESUMEN-PASO-3 — Influencias multi-contacto (frontend)
 
-**Fecha:** 2026-08-07  
-**Estado:** completado — esperando aprobación humana antes del PASO 4  
-**Build:** `npm run build` **OK**  
-**Tests:** `ouv-funnel.guards` + `guard-entidad-en-estado` → **14/14 OK**
+**Fecha:** 2026-09-24  
+**Estado:** implementado sobre el panel actual de la ficha OUV. Sin merge y sin push.  
+`npx tsc -b` del frontend OK. No hay herramientas de navegador en esta sesión: no se hizo clic real en la UI.
 
----
+## Componentes
 
-## Renombrado `ouv.creada` → `ouv.creada_desde_sql`
+- `InfluenciasSection.tsx` — encabezado con badge del filtro (dato de `filtro.passed` y `filtro.greenTypes`, sin recalcular D3).
+- `InfluenciaCard.tsx` — vacío, avatares apilados (máx. 3 y `+N`), “N contacto(s)”, puntos de calificación, borde verde solo si el tipo está en `greenTypes`.
+- `InfluenciaDetallePanel.tsx` — filas compactas, estado de 3 opciones, nota con tooltip, quitar con confirmación.
+- `InfluenciaNotaModal.tsx` — reutiliza `ModalShell`. Escape cierra; si hay cambios, pide confirmación.
+- `EstadoSegmentedControl.tsx` — sin Amarillo; modo `compact`.
+- `ouv-vocab.ts` — tonos `TONE` / `TONE_CLASS` / `LABELS` sin Amarillo.
+- `OuvDetailPage.tsx` y `ouvs-api.ts` — alta, baja, calificación y nota por contacto. Optimista en la calificación, con rollback si la API falla.
+- `AvanceZonaModal.tsx` — muestra el conteo que vino del backend. Si el avance falla, el mensaje es el `detail` RFC 7807 (`http-client.ts` lee `detail`).
 
-| Archivo | Cambio |
+## Estados
+
+| Estado | Qué se ve |
 |---|---|
-| `workflow.rules.ts` | `eventType: 'ouv.creada_desde_sql'` |
-| `sqls.service.ts` (`convertirEnOuv`) | `transition(..., 'ouv.creada_desde_sql', ...)` |
-| `backend/src/**` | **0** referencias restantes a `'ouv.creada'` |
+| Tipo vacío | Círculo punteado con “+” y “Sin asignar”. Panel: “Aún no hay contactos en esta influencia”. |
+| 1 contacto | Un avatar, “1 contacto”, un punto. |
+| 3 contactos | Tres avatares, “3 contactos”, tres puntos. |
+| 5 contactos | Tres avatares y “+2”, “5 contactos”. “Agregar contacto” deshabilitado, tooltip “Máximo 5 contactos por influencia”. |
+| Nota vacía | Ícono tenue. |
+| Nota con texto | Ícono de acento y tooltip de hasta 3 líneas. Clic o Enter abre el modal. En táctil (`hover: none`) no hay tooltip. |
+| Modal con cambios | Escape o Cancelar pide confirmación antes de cerrar. |
+| Filtro no cumplido | Badge neutro “Filtro: X de 2 tipos en verde”. |
+| Filtro cumplido | El mismo badge en verde. |
 
-Histórico en `notifications` con `event_type = 'ouv.creada'` se deja (spec).
+## Checklist E2E manual
 
----
-
-## Guards nuevos
-
-| Guard | Archivo | Comportamiento |
-|---|---|---|
-| `guardPresupuestoConfirmado` | `guards/guard-presupuesto-confirmado.ts` | Obligatorio solo si `zona_nueva === ENCIMA_FUNNEL`; lee `payload.presupuesto_confirmado` |
-| `guard2InfluenciasEnVerde` | `guards/guard-2-influencias-en-verde.ts` | Obligatorio si destino `EN_FUNNEL` / `MAYOR_PROBABILIDAD`; lee `payload.influencias_verde_count` (calculado en service bajo lock) |
-| `guardUsuarioEsComercialDelOUV` | `guards/guard-usuario-es-comercial-del-ouv.ts` | `actorUserId === payload.comercial_id` |
-
-`OuvsService.avanzarZona` ahora envía `presupuesto_confirmado` + `influencias_verde_count` en el payload.  
-`ganar` pasa `entity.estado = zonaActual` (`MAYOR_PROBABILIDAD`) para el guard de estado.
-
----
-
-## Reglas nuevas en `workflow.rules.ts`
-
-| eventType | Guards | Destinatarios |
-|---|---|---|
-| `ouv.creada_desde_sql` | SQL `Asignado` + comercial del SQL | SoporteComercial |
-| `ouv.creada_directa` | `guardUsuarioTieneRol('EjecutivoComercial')` | SoporteComercial |
-| `ouv.avance_zona` | comercial OUV + Ejecutivo + presupuesto + 2 verdes | SoporteComercial |
-| `ouv.retroceso_zona` | comercial OUV + Ejecutivo | SoporteComercial |
-| `ouv.contacto_creado` | comercial OUV | _(vacío — audit only)_ |
-| `ouv.contacto_eliminado` | comercial OUV | _(vacío — audit only)_ |
-| `ouv.influencia_cambio` | comercial OUV | _(vacío; evaluator en service)_ |
-| `ouv.checklist_item_marcado` | comercial OUV | _(vacío; evaluator en service)_ |
-| `ouv.presupuesto_actualizado` | comercial OUV | _(vacío; evaluator en service)_ |
-| `ouv.criterios_perdidos` | — | usuario `comercial_id` (dedup en persister) |
-| `ouv.criterios_recuperados` | — | _(vacío — silencioso)_ |
-| `ouv.ganada` | comercial OUV + zona `MAYOR_PROBABILIDAD` | SoporteComercial |
-| `ouv.perdida` | comercial OUV | SoporteComercial |
-| `ouv.descartada` | comercial OUV | SoporteComercial |
-| `ouv.lista_para_implementacion` | — | SoporteComercial |
-
-**No agregados (Wave 2):** `ouv.reabierta`, `ouv.ganada_con_override`.  
-**Roles usados:** solo `EjecutivoComercial`, `SoporteComercial`, `DirectorMercadeo`, `GestorMercadeo` (existentes). **Sin** `DirectorComercial`.
-
----
-
-## CriteriosZonaEvaluator como “side effect”
-
-`WorkflowRule` Fase A no tiene hook `sideEffect`. El evaluator sigue invocándose desde los services de discovery (PASO 2) tras `influencia_cambio` / `checklist_item_marcado` / `presupuesto_actualizado`. Las reglas quedan registradas para audit/notify.
-
----
-
-## Confirmación tests
-
-- Renombrado no rompe `guard-entidad-en-estado` (5 tests).
-- Nuevos guards: 9 tests en `ouv-funnel.guards.spec.ts`.
-- Total corrido: **14/14 passed**.
-
----
-
-## Sugerencias post-implementación
-
-1. Si se quiere query real en `guard2InfluenciasEnVerde` (DI de modelo), extender `WorkflowGuardContext` en Fase B — hoy el count viene del service (alineado al contrato 800).
-2. Actualizar skill/regla `800` / ejemplos que aún digan `ouv.creada`.
-
----
-
-## DETENERSE
-
-PASO 3 listo. **No avanzo al PASO 4** hasta tu aprobación explícita.
+1. Abrir una OUV en curso sin influencias: cinco tarjetas “Sin asignar” y badge “Filtro: 0 de 2”.
+2. Agregar un contacto existente a Económica y calificarlo Verde con un clic. El punto queda verde y el borde de la tarjeta también. El badge sigue en 1 de 2.
+3. Agregar otro contacto al mismo tipo en Verde: el badge no pasa a 2.
+4. Poner Técnica en Verde: el badge pasa a “2 de 2” en verde.
+5. Llegar a 5 contactos en un tipo: el botón queda deshabilitado.
+6. Nota vacía y nota con texto: tooltip, modal, contador n/1000, confirmación si hay cambios sin guardar.
+7. Quitar un contacto: confirmación con el nombre y el tipo.
+8. Avanzar hacia En funnel sin cumplir el filtro: se ve el `detail` del backend, no un texto inventado en el cliente.
+9. Usuario o Coach en Verde no ponen borde de filtro ni suben el badge.

@@ -4,6 +4,7 @@ import {
   CreatedAt,
   DataType,
   Default,
+  DeletedAt,
   ForeignKey,
   Model,
   PrimaryKey,
@@ -17,6 +18,7 @@ import { Ouv } from './ouv.model';
   tableName: 'ouv_influencias',
   timestamps: true,
   updatedAt: false,
+  paranoid: true,
   underscored: true,
 })
 export class OuvInfluencia extends Model {
@@ -49,9 +51,9 @@ export class OuvInfluencia extends Model {
   @Column({
     type: DataType.CHAR(36),
     field: 'contacto_ouv_id',
-    allowNull: true,
+    allowNull: false,
   })
-  declare contactoOuvId: string | null;
+  declare contactoOuvId: string;
 
   @BelongsTo(() => OuvContacto, {
     foreignKey: 'contactoOuvId',
@@ -75,4 +77,8 @@ export class OuvInfluencia extends Model {
   @CreatedAt
   @Column({ type: DataType.DATE, field: 'created_at' })
   declare createdAt: Date;
+
+  @DeletedAt
+  @Column({ type: DataType.DATE, field: 'deleted_at' })
+  declare deletedAt: Date | null;
 }

@@ -6,6 +6,8 @@ import {
 import { InjectModel } from '@nestjs/sequelize';
 import { randomUUID } from 'crypto';
 import type { Transaction } from 'sequelize';
+import { AuditAction } from '../../audit/models/audit-action.enum';
+import { AuditService } from '../../audit/services/audit.service';
 import { AccountsService } from '../../accounts/services/accounts.service';
 import { DemandGenerationService } from '../../demand-generation/services/demand-generation.service';
 import { EntityType } from '../../workflow-engine/enums/entity-type.enum';
@@ -32,6 +34,7 @@ export class OuvContactosService {
     private readonly demandGeneration: DemandGenerationService,
     private readonly accountsService: AccountsService,
     private readonly workflowEngine: WorkflowEngineService,
+    private readonly auditService: AuditService,
   ) {}
 
   /**
@@ -216,13 +219,21 @@ export class OuvContactosService {
         transaction,
       );
 
-      await this.influenciaModel.update(
-        { contactoOuvId: null },
-        {
-          where: { contactoOuvId: contacto.contactoOuvId },
-          transaction,
-        },
-      );
+      const influencias = await this.influenciaModel.findAll({
+        where: { contactoOuvId: contacto.contactoOuvId },
+        transaction,
+      });
+      for (const influencia of influencias) {
+        await this.auditService.recordChange({
+          tabla: 'ouv_influencias',
+          registroId: influencia.influenciaId,
+          accion: AuditAction.DELETE,
+          campoModificado: 'contacto_ouv_id',
+          valorAnterior: influencia.contactoOuvId,
+          valorNuevo: null,
+        });
+        await influencia.destroy({ transaction });
+      }
 
       await contacto.destroy({ transaction });
 

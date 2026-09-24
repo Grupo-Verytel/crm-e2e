@@ -7,32 +7,25 @@ import {
   type OuvChecklistItem,
 } from '../api/ouvs-api';
 import {
-  countVerdeWithAssignedContact,
   guardsForDestino,
-  INFLUENCIA_TIPO_LABEL,
   nextOuvZona,
   OUV_ZONA_LABEL,
-  type InfluenciaTipo,
 } from '../lib/ouv-vocab';
+import type { OuvInfluenciaFiltro } from '../api/ouvs-api';
+import { EMPTY_INFLUENCIA_FILTRO } from '../api/ouvs-api';
 import { ModalShell } from './ModalShell';
 import { ghostButtonClass, primaryButtonClass } from './ui';
 
-type InfluenciaAdvanceRow = {
-  tipo: InfluenciaTipo | string;
-  estado: string;
-  contacto_ouv_id: string | null;
-};
-
 type Props = {
   ouv: Ouv;
-  influencias: InfluenciaAdvanceRow[];
+  filtro?: OuvInfluenciaFiltro;
   onClose: () => void;
   onAdvanced: () => void;
 };
 
 export function AvanceZonaModal({
   ouv,
-  influencias,
+  filtro = EMPTY_INFLUENCIA_FILTRO,
   onClose,
   onAdvanced,
 }: Props) {
@@ -71,19 +64,10 @@ export function AvanceZonaModal({
   const guards = guardsForDestino(destino);
   const requiresVerde =
     destino === 'EN_FUNNEL' || destino === 'MAYOR_PROBABILIDAD';
-  const verdeCount = countVerdeWithAssignedContact(influencias);
-  const verdesSinContacto = influencias.filter(
-    (row) => row.estado === 'Verde' && !row.contacto_ouv_id,
-  );
-  const bloqueadoPorInfluencias = requiresVerde && verdeCount < 2;
+  const verdeCount = filtro.greenTypes.length;
+  const bloqueadoPorInfluencias = requiresVerde && !filtro.passed;
 
   async function confirm() {
-    if (bloqueadoPorInfluencias) {
-      setError(
-        'Asigna un contacto a al menos 2 influencias en Verde antes de avanzar.',
-      );
-      return;
-    }
     setSaving(true);
     setError(null);
     try {
@@ -122,16 +106,7 @@ export function AvanceZonaModal({
           className={`mb-4 text-sm ${bloqueadoPorInfluencias ? 'text-danger' : 'text-ink'}`}
           role={bloqueadoPorInfluencias ? 'alert' : undefined}
         >
-          {verdeCount}/2 influencias en Verde con contacto.
-          {verdesSinContacto.length > 0
-            ? ` No cuentan: ${verdesSinContacto
-                .map(
-                  (row) =>
-                    INFLUENCIA_TIPO_LABEL[row.tipo as InfluenciaTipo] ??
-                    row.tipo,
-                )
-                .join(', ')} (Verde sin contacto).`
-            : ''}
+          Filtro: {verdeCount} de {filtro.required} tipos en verde.
         </p>
       ) : null}
 

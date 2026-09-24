@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ForbiddenException,
+  HttpStatus,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -20,6 +21,8 @@ import type {
   PerderOuvDto,
 } from '../dtos/cierre-ouv.dto';
 import type { CrearOuvDirectaDto } from '../dtos/crear-ouv-directa.dto';
+import { InfluenciaProblemException } from '../exceptions/influencia-problem.exception';
+import { influenceFilterBlockDetail } from '../lib/evaluate-influence-filter';
 import type { CrearOuvDto } from '../dtos/crear-ouv.dto';
 import type { ListarOuvsQueryDto } from '../dtos/listar-ouvs-query.dto';
 import type { OuvResponseDto } from '../dtos/ouv-response.dto';
@@ -166,7 +169,6 @@ export class OuvsService {
       transaction,
       personIds,
     );
-    await this.influenciasService.seedInfluenciasParaOuv(ouvId, transaction);
     await this.checklistService.seedChecklistParaZona(
       ouvId,
       OuvZona.Universo,
@@ -218,10 +220,6 @@ export class OuvsService {
         { transaction },
       );
 
-      await this.influenciasService.seedInfluenciasParaOuv(
-        ouv.ouvId,
-        transaction,
-      );
       await this.checklistService.seedChecklistParaZona(
         ouv.ouvId,
         OuvZona.Universo,
@@ -274,7 +272,7 @@ export class OuvsService {
       await this.assertGuardsForDestino(ouv, destino, transaction);
 
       const estadoAnterior = ouv.zonaActual;
-      const verdes = await this.influenciasService.countVerde(
+      const verdes = await this.influenciasService.countGreenTypes(
         ouv.ouvId,
         transaction,
       );
@@ -1045,13 +1043,14 @@ export class OuvsService {
     }
 
     if (destino === OuvZona.EnFunnel || destino === OuvZona.MayorProbabilidad) {
-      const verdes = await this.influenciasService.countVerde(
+      const filtro = await this.influenciasService.filtroForOuv(
         ouv.ouvId,
         transaction,
       );
-      if (verdes < 2) {
-        throw new BadRequestException(
-          'At least 2 influencias in Verde with an assigned contact are required to advance',
+      if (!filtro.passed) {
+        throw new InfluenciaProblemException(
+          HttpStatus.UNPROCESSABLE_ENTITY,
+          influenceFilterBlockDetail(filtro),
         );
       }
     }

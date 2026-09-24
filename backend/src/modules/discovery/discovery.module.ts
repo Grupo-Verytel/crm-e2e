@@ -1,6 +1,7 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { SequelizeModule } from '@nestjs/sequelize';
 import { AccountsModule } from '../accounts/accounts.module';
+import { AuditModule } from '../audit/audit.module';
 import { AuthModule } from '../auth/auth.module';
 import { User } from '../auth/models/user.model';
 import { DemandGenerationModule } from '../demand-generation/demand-generation.module';
@@ -45,6 +46,7 @@ import { OuvsService } from './services/ouvs.service';
       User,
     ]),
     AccountsModule,
+    AuditModule,
     AuthModule,
     forwardRef(() => DemandGenerationModule),
     WorkflowEngineModule,

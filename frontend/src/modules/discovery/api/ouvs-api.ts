@@ -86,11 +86,28 @@ export type OuvInfluencia = {
   ouv_id: string;
   tipo: InfluenciaTipo;
   estado: string;
-  contacto_ouv_id: string | null;
+  contacto_ouv_id: string;
   notas: string | null;
   motivo_estado: string | null;
   fecha_ultimo_cambio: string | null;
   created_at: string;
+};
+
+export type OuvInfluenciaFiltro = {
+  passed: boolean;
+  greenTypes: string[];
+  required: number;
+};
+
+export type OuvInfluenciasList = {
+  influencias: OuvInfluencia[];
+  filtro: OuvInfluenciaFiltro;
+};
+
+export const EMPTY_INFLUENCIA_FILTRO: OuvInfluenciaFiltro = {
+  passed: false,
+  greenTypes: [],
+  required: 2,
 };
 
 export type OuvChecklistItem = {
@@ -213,24 +230,54 @@ export async function deleteOuvContacto(
 
 export async function fetchOuvInfluencias(
   ouvId: string,
-): Promise<OuvInfluencia[]> {
+): Promise<OuvInfluenciasList> {
   return apiRequest(`/discovery/ouvs/${ouvId}/influencias`);
 }
 
-export async function updateOuvInfluencia(
+export async function agregarInfluenciaContacto(
   ouvId: string,
   tipo: InfluenciaTipo,
-  payload: {
-    estado: string;
-    contacto_ouv_id?: string | null;
-    motivo_estado?: string | null;
-    notas?: string | null;
-  },
+  contactoOuvId: string,
 ): Promise<OuvInfluencia> {
-  return apiRequest(`/discovery/ouvs/${ouvId}/influencias/${tipo}`, {
-    method: 'PATCH',
-    body: payload,
+  return apiRequest(`/discovery/ouvs/${ouvId}/influencias/${tipo}/contactos`, {
+    method: 'POST',
+    body: { contacto_ouv_id: contactoOuvId },
   });
+}
+
+export async function quitarInfluenciaContacto(
+  ouvId: string,
+  tipo: InfluenciaTipo,
+  contactoOuvId: string,
+): Promise<void> {
+  return apiRequest(
+    `/discovery/ouvs/${ouvId}/influencias/${tipo}/contactos/${contactoOuvId}`,
+    { method: 'DELETE' },
+  );
+}
+
+export async function calificarInfluenciaContacto(
+  ouvId: string,
+  tipo: InfluenciaTipo,
+  contactoOuvId: string,
+  estado: string,
+): Promise<OuvInfluencia> {
+  return apiRequest(
+    `/discovery/ouvs/${ouvId}/influencias/${tipo}/contactos/${contactoOuvId}/estado`,
+    { method: 'PATCH', body: { estado } },
+  );
+}
+
+export async function editarNotaInfluenciaContacto(
+  ouvId: string,
+  tipo: InfluenciaTipo,
+  contactoOuvId: string,
+  notas: string | null,
+): Promise<OuvInfluencia> {
+  return apiRequest(
+    `/discovery/ouvs/${ouvId}/influencias/${tipo}/contactos/${contactoOuvId}/notas`,
+    { method: 'PATCH', body: { notas } },
+  );
 }
 
 export async function fetchOuvChecklist(

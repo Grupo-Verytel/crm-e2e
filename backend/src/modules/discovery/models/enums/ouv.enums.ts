@@ -62,7 +62,6 @@ export enum InfluenciaTipo {
 export enum InfluenciaEstado {
   Verde = 'Verde',
   Rojo = 'Rojo',
-  Amarillo = 'Amarillo',
   SinEvaluar = 'SinEvaluar',
 }
 
