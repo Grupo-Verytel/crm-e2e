@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Search } from 'lucide-react';
 import {
   searchColombiaMunicipios,
@@ -14,6 +15,37 @@ type Props = {
   onClear?: () => void;
 };
 
+type ListAnchor = {
+  top?: number;
+  bottom?: number;
+  left: number;
+  width: number;
+  maxHeight: number;
+};
+
+function measureList(root: HTMLElement, resultCount: number): ListAnchor {
+  const rect = root.getBoundingClientRect();
+  const gap = 4;
+  const preferred = Math.min(224, Math.max(44, resultCount * 52));
+  const spaceBelow = window.innerHeight - rect.bottom - gap;
+  const spaceAbove = rect.top - gap;
+  const openUp = spaceBelow < preferred && spaceAbove > spaceBelow;
+  const maxHeight = Math.max(80, Math.min(224, openUp ? spaceAbove : spaceBelow));
+  return openUp
+    ? {
+        bottom: window.innerHeight - rect.top + gap,
+        left: rect.left,
+        width: rect.width,
+        maxHeight,
+      }
+    : {
+        top: rect.bottom + gap,
+        left: rect.left,
+        width: rect.width,
+        maxHeight,
+      };
+}
+
 /** Searchable Colombia municipality picker; selecting fills department. */
 export function ColombiaCitySearchField({
   id,
@@ -24,7 +56,9 @@ export function ColombiaCitySearchField({
 }: Props) {
   const [query, setQuery] = useState(value);
   const [open, setOpen] = useState(false);
+  const [anchor, setAnchor] = useState<ListAnchor | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
 
   useEffect(() => {
     setQuery(value);
@@ -32,10 +66,15 @@ export function ColombiaCitySearchField({
 
   useEffect(() => {
     function onPointerDown(event: MouseEvent) {
-      if (!rootRef.current?.contains(event.target as Node)) {
-        setOpen(false);
-        setQuery(value);
+      const target = event.target as Node;
+      if (
+        rootRef.current?.contains(target) ||
+        listRef.current?.contains(target)
+      ) {
+        return;
       }
+      setOpen(false);
+      setQuery(value);
     }
     document.addEventListener('mousedown', onPointerDown);
     return () => document.removeEventListener('mousedown', onPointerDown);
@@ -45,6 +84,21 @@ export function ColombiaCitySearchField({
     () => searchColombiaMunicipios(query, 12),
     [query],
   );
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    const update = () => {
+      if (!rootRef.current) return;
+      setAnchor(measureList(rootRef.current, Math.max(results.length, 1)));
+    };
+    update();
+    window.addEventListener('resize', update);
+    window.addEventListener('scroll', update, true);
+    return () => {
+      window.removeEventListener('resize', update);
+      window.removeEventListener('scroll', update, true);
+    };
+  }, [open, results.length]);
 
   return (
     <div className="relative" ref={rootRef}>
@@ -68,9 +122,18 @@ export function ColombiaCitySearchField({
         }}
         onFocus={() => setOpen(true)}
       />
-      {open ? (
+      {open && anchor
+        ? createPortal(
         <ul
-          className="absolute z-40 mt-1 max-h-56 w-full overflow-y-auto rounded border border-border bg-surface shadow-card"
+          ref={listRef}
+          className="fixed z-80 overflow-y-auto rounded border border-border bg-surface shadow-card"
+          style={{
+            top: anchor.top,
+            bottom: anchor.bottom,
+            left: anchor.left,
+            width: anchor.width,
+            maxHeight: anchor.maxHeight,
+          }}
           role="listbox"
         >
           {results.length === 0 ? (
@@ -108,8 +171,10 @@ export function ColombiaCitySearchField({
               );
             })
           )}
-        </ul>
-      ) : null}
+        </ul>,
+          document.body,
+        )
+        : null}
     </div>
   );
 }

@@ -186,6 +186,13 @@ export class OuvsService {
     return this.sequelize.transaction(async (transaction) => {
       const consecutivo = await this.nextOuvConsecutivo(transaction);
 
+      if (dto.segment_id) {
+        await this.demandGeneration.assertSegmentSubsegment(
+          dto.segment_id,
+          dto.subsegment_id,
+        );
+      }
+
       const accountId: string | null = dto.account_id?.trim() || null;
       let empresaNombre = dto.empresa_nombre.trim();
       if (accountId) {
