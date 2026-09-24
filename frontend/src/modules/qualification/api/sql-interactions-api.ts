@@ -17,3 +17,18 @@ export function registerSqlInteraction(
     body: payload,
   });
 }
+
+export function createSqlInteractionReminder(
+  sqlId: string,
+  interactionId: string,
+  payload: {
+    event_at: string;
+    remind_days_before: number;
+    note?: string;
+  },
+): Promise<unknown> {
+  return apiRequest(
+    `/qualification/sqls/${sqlId}/interactions/${interactionId}/reminders`,
+    { method: 'POST', body: payload },
+  );
+}

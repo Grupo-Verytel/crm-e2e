@@ -39,6 +39,8 @@ import {
   PaginatedMqlsResponseDto,
 } from '../dtos/mql-response.dto';
 import { RecycleLeadDto } from '../dtos/recycle-lead.dto';
+import { CreateReminderDto } from '../dtos/create-reminder.dto';
+import { ReminderResponseDto } from '../dtos/reminder-response.dto';
 import { RegisterAppointmentDto } from '../dtos/register-appointment.dto';
 import { SegmentResponseDto } from '../dtos/segment-response.dto';
 import { RejectMqlDto } from '../dtos/reject-mql.dto';
@@ -56,6 +58,7 @@ import { LeadImportJobService } from './lead-import-job.service';
 import { LeadStateMachineService } from './lead-state-machine.service';
 import { LeadsService } from './leads.service';
 import { MqlsService } from './mqls.service';
+import { RemindersService } from './reminders.service';
 
 /**
  * Public facade for the demand-generation module. Controllers and other
@@ -75,6 +78,7 @@ export class DemandGenerationService {
     private readonly dashboardService: DashboardService,
     private readonly importJobService: LeadImportJobService,
     private readonly usersService: UsersService,
+    private readonly remindersService: RemindersService,
   ) {}
 
   // ----- Leads -----
@@ -217,8 +221,25 @@ export class DemandGenerationService {
     );
   }
 
-  async listInteractions(leadId: string): Promise<InteractionResponseDto[]> {
-    return this.interactionsService.listByLead(leadId);
+  async listInteractions(
+    leadId: string,
+    viewerUserId?: string,
+  ): Promise<InteractionResponseDto[]> {
+    return this.interactionsService.listByLead(leadId, viewerUserId);
+  }
+
+  async createInteractionReminder(
+    leadId: string,
+    interactionId: string,
+    userId: string,
+    dto: CreateReminderDto,
+  ): Promise<ReminderResponseDto> {
+    return this.remindersService.createForInteraction(
+      interactionId,
+      userId,
+      dto,
+      { leadId },
+    );
   }
 
   async countInteractionsByLeadIds(

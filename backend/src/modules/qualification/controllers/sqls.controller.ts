@@ -13,6 +13,8 @@ import {
 import { CheckAbility } from '../../auth/casl/check-ability.decorator';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../../auth/interfaces/authenticated-user.interface';
+import { CreateReminderDto } from '../../demand-generation/dtos/create-reminder.dto';
+import { ReminderResponseDto } from '../../demand-generation/dtos/reminder-response.dto';
 import { CreateInteractionDto } from '../../demand-generation/dtos/create-interaction.dto';
 import { InteractionResponseDto } from '../../demand-generation/dtos/interaction-response.dto';
 import { CrearOuvDto } from '../../discovery/dtos/crear-ouv.dto';
@@ -72,6 +74,24 @@ export class SqlsController {
   ): Promise<InteractionResponseDto> {
     return this.sqlsService.registerInteraction(
       id,
+      dto,
+      user.userId,
+      user.roleName,
+    );
+  }
+
+  @Post(':id/interactions/:interactionId/reminders')
+  @HttpCode(HttpStatus.CREATED)
+  @CheckAbility({ action: 'read', subject: 'Opportunity' })
+  createInteractionReminder(
+    @Param('id') id: string,
+    @Param('interactionId') interactionId: string,
+    @Body() dto: CreateReminderDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<ReminderResponseDto> {
+    return this.sqlsService.createInteractionReminder(
+      id,
+      interactionId,
       dto,
       user.userId,
       user.roleName,

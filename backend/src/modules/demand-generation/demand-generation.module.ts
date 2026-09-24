@@ -13,6 +13,7 @@ import { MqlsController } from './controllers/mqls.controller';
 import { SegmentsController } from './controllers/segments.controller';
 import { Campaign } from './models/campaign.model';
 import { Interaction } from './models/interaction.model';
+import { Reminder } from './models/reminder.model';
 import { Lead } from './models/lead.model';
 import { LeadContact } from './models/lead-contact.model';
 import { LeadChecklist } from './models/lead-checklist.model';
@@ -30,6 +31,7 @@ import { LeadImportJobService } from './services/lead-import-job.service';
 import { LeadStateMachineService } from './services/lead-state-machine.service';
 import { LeadsService } from './services/leads.service';
 import { MqlsService } from './services/mqls.service';
+import { RemindersService } from './services/reminders.service';
 
 @Module({
   imports: [
@@ -38,6 +40,7 @@ import { MqlsService } from './services/mqls.service';
       LeadContact,
       Campaign,
       Interaction,
+      Reminder,
       LeadChecklist,
       Mql,
       Sql,
@@ -61,6 +64,7 @@ import { MqlsService } from './services/mqls.service';
     LeadsService,
     CampaignsService,
     InteractionsService,
+    RemindersService,
     LeadChecklistService,
     LeadStateMachineService,
     MqlsService,

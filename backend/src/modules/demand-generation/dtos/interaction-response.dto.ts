@@ -1,3 +1,5 @@
+import { ReminderResponseDto } from './reminder-response.dto';
+
 export type InteractionEtapa = 'Previa' | 'SQL';
 
 export class InteractionResponseDto {
@@ -17,4 +19,5 @@ export class InteractionResponseDto {
   fecha: Date;
   created_at: Date;
   updated_at: Date;
+  reminders: ReminderResponseDto[];
 }

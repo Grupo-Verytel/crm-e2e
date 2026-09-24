@@ -8,6 +8,8 @@ import { InjectConnection, InjectModel } from '@nestjs/sequelize';
 import { Op, Sequelize, type WhereOptions } from 'sequelize';
 import { UsersService } from '../../auth/services/users.service';
 import type { UserResponseDto } from '../../auth/dtos/user-response.dto';
+import { CreateReminderDto } from '../../demand-generation/dtos/create-reminder.dto';
+import { ReminderResponseDto } from '../../demand-generation/dtos/reminder-response.dto';
 import { CreateInteractionDto } from '../../demand-generation/dtos/create-interaction.dto';
 import { InteractionResponseDto } from '../../demand-generation/dtos/interaction-response.dto';
 import { DemandGenerationService } from '../../demand-generation/services/demand-generation.service';
@@ -106,19 +108,22 @@ export class SqlsService {
     const offset = (page - 1) * limit;
 
     const where: WhereOptions<Sql> = {
-      estado: { [Op.ne]: SqlEstado.PendienteAsignacion },
+      estado: query.estado ?? { [Op.ne]: SqlEstado.PendienteAsignacion },
       ...(this.canViewAllAssignedSqls(viewerRoleName)
         ? {}
         : { comercialAsignadoId: comercialUserId }),
     };
 
-    const { rows, count } = await this.sqlModel.findAndCountAll({
-      where,
-      include: [{ model: Mql, required: true }],
-      order: [['fechaAsignacion', 'DESC']],
-      limit,
-      offset,
-    });
+    const [rows, count] = await Promise.all([
+      this.sqlModel.findAll({
+        where,
+        include: [{ model: Mql, required: true }],
+        order: [['fechaAsignacion', 'DESC']],
+        limit,
+        offset,
+      }),
+      this.sqlModel.count({ where }),
+    ]);
 
     const items = await this.toListItems(rows);
 
@@ -143,7 +148,27 @@ export class SqlsService {
   ): Promise<InteractionResponseDto[]> {
     const sql = await this.findSqlOrFail(sqlId);
     this.assertCanViewSql(sql, viewerUserId, viewerRoleName);
-    return this.demandGenerationService.listInteractions(sql.mql.leadId);
+    return this.demandGenerationService.listInteractions(
+      sql.mql.leadId,
+      viewerUserId,
+    );
+  }
+
+  async createInteractionReminder(
+    sqlId: string,
+    interactionId: string,
+    dto: CreateReminderDto,
+    actorUserId: string,
+    actorRoleName?: string,
+  ): Promise<ReminderResponseDto> {
+    const sql = await this.findSqlOrFail(sqlId);
+    this.assertCanViewSql(sql, actorUserId, actorRoleName);
+    return this.demandGenerationService.createInteractionReminder(
+      sql.mql.leadId,
+      interactionId,
+      actorUserId,
+      dto,
+    );
   }
 
   /**

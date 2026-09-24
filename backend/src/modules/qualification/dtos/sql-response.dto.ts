@@ -1,5 +1,14 @@
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, Max, Min } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import { SqlEstado } from '../../demand-generation/models/enums/sql.enums';
+
+const ASSIGNED_SQL_ESTADOS = [
+  SqlEstado.Asignado,
+  SqlEstado.EnGestion,
+  SqlEstado.ConvertidoOUV,
+  SqlEstado.Backlog,
+  SqlEstado.Descartado,
+] as const;
 
 export class SqlsQueryDto {
   @IsOptional()
@@ -14,6 +23,17 @@ export class SqlsQueryDto {
   @Min(1)
   @Max(100)
   limit?: number = 20;
+
+  /** Design ejecutivo trays filter Asignado vs ConvertidoOUV. */
+  @IsOptional()
+  @IsIn(ASSIGNED_SQL_ESTADOS)
+  estado?: (typeof ASSIGNED_SQL_ESTADOS)[number];
+
+  /** Accepted so the design search box does not fail validation. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  q?: string;
 }
 
 export class SqlCitaResponseDto {

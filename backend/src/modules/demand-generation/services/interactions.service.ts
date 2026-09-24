@@ -10,8 +10,10 @@ import {
 import { CreateInteractionDto } from '../dtos/create-interaction.dto';
 import { InteractionResponseDto } from '../dtos/interaction-response.dto';
 import { isCanalAllowedForTipo } from '../models/enums/interaction.enums';
+import { ReminderStatus } from '../models/enums/reminder-status.enum';
 import { Interaction } from '../models/interaction.model';
 import { Lead } from '../models/lead.model';
+import { Reminder } from '../models/reminder.model';
 
 const RESPONSABLE_INCLUDE = {
   model: User,
@@ -107,12 +109,30 @@ export class InteractionsService {
     });
   }
 
-  async listByLead(leadId: string): Promise<InteractionResponseDto[]> {
+  async listByLead(
+    leadId: string,
+    viewerUserId?: string,
+  ): Promise<InteractionResponseDto[]> {
     await this.findLeadOrFail(leadId);
 
     const interactions = await this.interactionModel.findAll({
       where: { leadId },
-      include: [RESPONSABLE_INCLUDE],
+      include: [
+        RESPONSABLE_INCLUDE,
+        ...(viewerUserId
+          ? [
+              {
+                model: Reminder,
+                required: false,
+                separate: true,
+                where: {
+                  userId: viewerUserId,
+                  status: { [Op.ne]: ReminderStatus.Cancelado },
+                },
+              },
+            ]
+          : []),
+      ],
       order: [['fecha', 'DESC']],
     });
 
@@ -215,6 +235,22 @@ export class InteractionsService {
       fecha: interaction.fecha,
       created_at: interaction.createdAt,
       updated_at: interaction.updatedAt,
+      reminders: (interaction.reminders ?? [])
+        .slice()
+        .sort((left, right) => {
+          const leftAt = new Date(left.remindAt).getTime();
+          const rightAt = new Date(right.remindAt).getTime();
+          return leftAt - rightAt;
+        })
+        .map((reminder) => ({
+          reminder_id: reminder.reminderId,
+          interaction_id: reminder.interactionId,
+          event_at: reminder.eventAt,
+          remind_days_before: reminder.remindDaysBefore,
+          remind_at: reminder.remindAt,
+          note: reminder.note,
+          status: reminder.status,
+        })),
     };
   }
 }

@@ -180,6 +180,13 @@ export function RoutingInboxPage() {
                     >
                       {sql.interactions_count ?? 0}
                     </Link>
+                    <span className="mt-0.5 block text-xs font-normal text-muted">
+                      {formatDateTime(
+                        typeof sql.lead.fecha_ultima_interaccion === 'string'
+                          ? sql.lead.fecha_ultima_interaccion
+                          : null,
+                      )}
+                    </span>
                   </td>
                   <td className="px-4 py-3 text-muted">
                     {formatDateTime(sql.fecha_creacion)}

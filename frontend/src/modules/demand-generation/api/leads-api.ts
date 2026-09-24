@@ -79,6 +79,21 @@ export async function registerInteraction(
   });
 }
 
+export function createLeadInteractionReminder(
+  leadId: string,
+  interactionId: string,
+  payload: {
+    event_at: string;
+    remind_days_before: number;
+    note?: string;
+  },
+): Promise<unknown> {
+  return apiRequest(
+    `/leads/${leadId}/interactions/${interactionId}/reminders`,
+    { method: 'POST', body: payload },
+  );
+}
+
 export async function fetchChecklist(
   leadId: string,
 ): Promise<Checklist | null> {

@@ -393,6 +393,15 @@ export type Interaction = {
   fecha: string;
   created_at: string;
   updated_at: string;
+  reminders?: Array<{
+    reminder_id: string;
+    interaction_id: string | null;
+    event_at: string;
+    remind_days_before: number;
+    remind_at: string;
+    note: string | null;
+    status: string;
+  }>;
 };
 
 export type CreateInteractionPayload = {

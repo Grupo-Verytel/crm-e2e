@@ -12,6 +12,7 @@ import {
   transitionLeadToMofu,
   transitionLeadToMql,
   updateLead,
+  createLeadInteractionReminder,
 } from '../api/leads-api';
 import { ChecklistPanel } from '../components/ChecklistPanel';
 import { DemandNav } from '../components/DemandNav';
@@ -259,6 +260,12 @@ export function LeadDetailPage() {
           leadName={headerTitle}
           onRegistered={loadLead}
           readOnly={isTraductor}
+          createReminder={
+            isTraductor
+              ? undefined
+              : (interactionId, payload) =>
+                  createLeadInteractionReminder(lead.lead_id, interactionId, payload)
+          }
         />
       ) : (
         <>

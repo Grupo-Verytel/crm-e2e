@@ -10,6 +10,7 @@ import {
   type InteractionTipo,
 } from '../types';
 import { cardClass, ghostButtonClass } from './ui';
+import { InteractionReminderModal } from './InteractionReminderModal';
 import { QuickInteractionModal } from './leads/QuickInteractionModal';
 
 type LoadState = 'loading' | 'error' | 'ready';
@@ -31,6 +32,7 @@ export function InteractionTimeline({
   readOnly = false,
   loadInteractions,
   register,
+  createReminder,
 }: {
   leadId: string;
   leadName?: string;
@@ -38,9 +40,14 @@ export function InteractionTimeline({
   readOnly?: boolean;
   loadInteractions?: () => Promise<Interaction[]>;
   register?: (payload: CreateInteractionPayload) => Promise<unknown>;
+  createReminder?: (
+    interactionId: string,
+    payload: { event_at: string; remind_days_before: number; note?: string },
+  ) => Promise<unknown>;
 }) {
   const [items, setItems] = useState<Interaction[]>([]);
   const [showModal, setShowModal] = useState(false);
+  const [reminderFor, setReminderFor] = useState<string | null>(null);
   const [loadState, setLoadState] = useState<LoadState>('loading');
   const title = leadName?.trim() || 'este lead';
 
@@ -129,6 +136,24 @@ export function InteractionTimeline({
                 {' · '}
                 {authorLine(interaction)}
               </p>
+              {(interaction.reminders ?? []).map((reminder) => (
+                <p key={reminder.reminder_id} className="text-xs text-muted">
+                  Recordatorio: {formatDateTime(reminder.event_at)} · avisar{' '}
+                  {reminder.remind_days_before}{' '}
+                  {reminder.remind_days_before === 1 ? 'día' : 'días'} antes
+                  {reminder.status === 'Enviado' ? ' · Avisado' : ''}
+                  {reminder.note ? ` · ${reminder.note}` : ''}
+                </p>
+              ))}
+              {createReminder ? (
+                <button
+                  type="button"
+                  className="mt-1 text-xs font-bold text-accent hover:underline"
+                  onClick={() => setReminderFor(interaction.interaction_id)}
+                >
+                  Recordatorio
+                </button>
+              ) : null}
             </li>
           ))}
         </ol>
@@ -147,6 +172,17 @@ export function InteractionTimeline({
             onRegistered();
           }}
           onClose={() => setShowModal(false)}
+        />
+      ) : null}
+
+      {reminderFor && createReminder ? (
+        <InteractionReminderModal
+          onClose={() => setReminderFor(null)}
+          onSave={async (payload) => {
+            await createReminder(reminderFor, payload);
+            await load();
+            onRegistered();
+          }}
         />
       ) : null}
     </section>

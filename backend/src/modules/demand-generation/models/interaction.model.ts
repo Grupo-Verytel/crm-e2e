@@ -6,6 +6,7 @@ import {
   Default,
   DeletedAt,
   ForeignKey,
+  HasMany,
   Model,
   PrimaryKey,
   Table,
@@ -19,6 +20,7 @@ import {
   InteractionTipo,
 } from './enums/interaction.enums';
 import { Lead } from './lead.model';
+import { Reminder } from './reminder.model';
 import { Sql } from './sql.model';
 
 @Table({
@@ -47,6 +49,9 @@ export class Interaction extends Model {
 
   @BelongsTo(() => Sql)
   declare sql: Sql;
+
+  @HasMany(() => Reminder)
+  declare reminders: Reminder[];
 
   @Column({
     type: DataType.ENUM(...Object.values(InteractionTipo)),

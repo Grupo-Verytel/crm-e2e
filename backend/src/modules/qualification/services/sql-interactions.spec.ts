@@ -111,7 +111,7 @@ describe('SqlsService SQL interactions', () => {
 
     await service.listInteractions(SQL_ID, EJECUTIVO_ID, 'EjecutivoComercial');
 
-    expect(listInteractions).toHaveBeenCalledWith(LEAD_ID);
+    expect(listInteractions).toHaveBeenCalledWith(LEAD_ID, EJECUTIVO_ID);
   });
 
   it('returns 403 when an Ejecutivo lists a SQL assigned to someone else', async () => {

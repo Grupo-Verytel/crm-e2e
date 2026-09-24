@@ -110,7 +110,9 @@ describe('LeadsService channel flows', () => {
         ),
       },
       sequelize: {
-        transaction: jest.fn(async (callback) => callback({})),
+        transaction: jest.fn(async (work: (tx: object) => Promise<unknown>) =>
+          work({}),
+        ) as never,
       },
       notifications: { notify },
     });

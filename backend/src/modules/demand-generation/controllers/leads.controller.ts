@@ -27,6 +27,8 @@ import {
 } from '../dtos/bulk-import-job.dto';
 import { ChecklistResponseDto } from '../dtos/checklist-response.dto';
 import { CommercialOptionDto } from '../dtos/commercial-option.dto';
+import { CreateReminderDto } from '../dtos/create-reminder.dto';
+import { ReminderResponseDto } from '../dtos/reminder-response.dto';
 import { CreateInteractionDto } from '../dtos/create-interaction.dto';
 import { CreateLeadDto } from '../dtos/create-lead.dto';
 import { DiscardLeadDto } from '../dtos/discard-lead.dto';
@@ -210,8 +212,27 @@ export class LeadsController {
 
   @Get(':id/interactions')
   @CheckAbility({ action: 'read', subject: 'Lead' })
-  listInteractions(@Param('id') id: string): Promise<InteractionResponseDto[]> {
-    return this.demandGenerationService.listInteractions(id);
+  listInteractions(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<InteractionResponseDto[]> {
+    return this.demandGenerationService.listInteractions(id, user.userId);
+  }
+
+  @Post(':id/interactions/:interactionId/reminders')
+  @CheckAbility({ action: 'read', subject: 'Lead' })
+  createInteractionReminder(
+    @Param('id') id: string,
+    @Param('interactionId') interactionId: string,
+    @Body() dto: CreateReminderDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<ReminderResponseDto> {
+    return this.demandGenerationService.createInteractionReminder(
+      id,
+      interactionId,
+      user.userId,
+      dto,
+    );
   }
 
   @Put(':id/checklist')

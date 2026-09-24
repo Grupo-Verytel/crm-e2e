@@ -8,6 +8,7 @@ import { InteractionTimeline } from '../../demand-generation/components/Interact
 import type { CreateInteractionPayload } from '../../demand-generation/types';
 import { useAuth } from '../../auth/hooks/useAuth';
 import {
+  createSqlInteractionReminder,
   fetchSqlInteractions,
   registerSqlInteraction,
 } from '../api/sql-interactions-api';
@@ -156,6 +157,12 @@ export function SqlDetailPage() {
               readOnly={!canRegister}
               loadInteractions={loadInteractions}
               register={register}
+              createReminder={
+                id
+                  ? (interactionId, payload) =>
+                      createSqlInteractionReminder(id, interactionId, payload)
+                  : undefined
+              }
             />
           ) : (
             <div className="grid gap-4 lg:grid-cols-2">
