@@ -34,7 +34,7 @@ export function Sidebar({
   return (
     <aside
       className={[
-        'flex h-screen flex-none flex-col border-r border-border bg-surface transition-[width] duration-200',
+        'flex h-full min-h-0 flex-none flex-col border-r border-border bg-surface transition-[width] duration-200',
         isCollapsed ? 'w-16' : 'w-64',
       ].join(' ')}
     >
