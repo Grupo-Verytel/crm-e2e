@@ -237,15 +237,18 @@ function OuvsTray({ bandeja }: { bandeja: OuvBandejaKey }) {
     ].join(' ');
 
   const emptyMessage = hasActiveFilters ? ui.emptyFiltered : ui.empty;
+  const listHint = !canListAll
+    ? ''
+    : isSoporte
+      ? ui.soporteHint
+      : 'Ves todas las OUVs de esta bandeja. El avance y el cierre corresponden al Ejecutivo Comercial dueño.';
 
   return (
     <AppLayout title="Oportunidades (OUV)">
       <DiscoveryNav showAdminTabs={false} />
-      {canListAll ? (
+      {listHint ? (
         <p className="mb-3 rounded border border-border bg-bg px-3 py-2 text-sm text-ink">
-          {isSoporte
-            ? ui.soporteHint
-            : 'Ves todas las OUVs de esta bandeja. El avance y el cierre corresponden al Ejecutivo Comercial dueño.'}
+          {listHint}
         </p>
       ) : null}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">

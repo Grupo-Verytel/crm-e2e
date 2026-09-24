@@ -60,8 +60,7 @@ export const OUV_BANDEJA_UI: Record<
     emptyFiltered: 'No hay OUVs en curso que coincidan con estos filtros.',
     error: 'No se pudo cargar la bandeja de OUVs.',
     errorKanban: 'No se pudo cargar el kanban de OUVs.',
-    soporteHint:
-      'Bandeja Soporte: ves todas las OUVs en curso (solo lectura de avance/cierre). Administra motivos y plantillas de checklist desde el menú.',
+    soporteHint: '',
   },
   Ganada: {
     title: 'Oportunidades ganadas',
