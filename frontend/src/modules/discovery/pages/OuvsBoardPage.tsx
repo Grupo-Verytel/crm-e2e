@@ -446,8 +446,11 @@ function OuvsTray({ bandeja }: { bandeja: OuvBandejaKey }) {
                     {isClosedTray ? (
                       <>
                         <th className="px-4 py-3 font-bold">
-                          {bandeja === 'Ganada' ? 'Monto' : 'Motivo'}
+                          {bandeja === 'Ganada' ? 'Tipo de proceso' : 'Motivo'}
                         </th>
+                        {bandeja === 'Ganada' ? (
+                          <th className="px-4 py-3 font-bold">Monto</th>
+                        ) : null}
                         {bandeja === 'Perdida' ? (
                           <th className="px-4 py-3 font-bold">Monto perdido</th>
                         ) : null}
@@ -487,10 +490,13 @@ function OuvsTray({ bandeja }: { bandeja: OuvBandejaKey }) {
                       {isClosedTray ? (
                         <>
                           <td className="px-4 py-3 text-ink">
-                            {bandeja === 'Ganada'
-                              ? formatWonAmount(ouv)
-                              : ouv.motivo_snapshot || '—'}
+                            {ouv.motivo_snapshot || '—'}
                           </td>
+                          {bandeja === 'Ganada' ? (
+                            <td className="px-4 py-3 text-ink">
+                              {formatWonAmount(ouv)}
+                            </td>
+                          ) : null}
                           {bandeja === 'Perdida' ? (
                             <td className="px-4 py-3 text-ink">
                               {formatLostAmount(ouv)}
@@ -551,11 +557,19 @@ function OuvsTray({ bandeja }: { bandeja: OuvBandejaKey }) {
                         <p className="text-xs text-muted">
                           {ouv.empresa_nombre}
                         </p>
+                        {bandeja === 'Ganada' && ouv.motivo_snapshot ? (
+                          <p className="mt-1 text-xs text-muted">
+                            {ouv.motivo_snapshot}
+                          </p>
+                        ) : null}
                         {bandeja === 'Ganada' && ouv.monto_final ? (
                           <p className="mt-1 text-xs text-muted">
                             {formatWonAmount(ouv)}
                           </p>
-                        ) : isClosedTray && ouv.motivo_snapshot ? (
+                        ) : null}
+                        {bandeja !== 'Ganada' &&
+                        isClosedTray &&
+                        ouv.motivo_snapshot ? (
                           <p className="mt-1 text-xs text-muted">
                             {ouv.motivo_snapshot}
                           </p>

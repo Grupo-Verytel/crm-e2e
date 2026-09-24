@@ -208,7 +208,7 @@ export function CierreOuvModal({ ouv, onClose, onClosed }: Props) {
               Requiere zona Mayor Probabilidad (actual: {ouv.zona_actual}).
             </p>
             <div>
-              <label className={labelClass}>Motivo (opcional)</label>
+              <label className={labelClass}>Tipo de proceso</label>
               <select
                 className={inputClass}
                 value={motivoId}
@@ -224,7 +224,7 @@ export function CierreOuvModal({ ouv, onClose, onClosed }: Props) {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className={labelClass}>Monto final</label>
+                <label className={labelClass}>Monto Final (Millones)</label>
                 <input
                   className={inputClass}
                   value={montoFinal}

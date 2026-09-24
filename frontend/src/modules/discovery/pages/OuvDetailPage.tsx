@@ -655,7 +655,9 @@ export function OuvDetailPage() {
               <dd className="text-ink">{formatDateTime(ouv.fecha_cierre)}</dd>
             </div>
             <div>
-              <dt className="text-muted">Motivo</dt>
+              <dt className="text-muted">
+                {ouv.resultado === 'Ganada' ? 'Tipo de proceso' : 'Motivo'}
+              </dt>
               <dd className="text-ink">{ouv.motivo_snapshot ?? '—'}</dd>
             </div>
             <div>
