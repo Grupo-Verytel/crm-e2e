@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 
 const WEEKDAYS = ['Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sá', 'Do'];
@@ -62,6 +63,30 @@ function monthMatrix(year: number, month: number): (Date | null)[][] {
   return rows;
 }
 
+type CalendarAnchor = {
+  top?: number;
+  bottom?: number;
+  left: number;
+};
+
+function measureCalendar(
+  root: HTMLElement,
+  align: 'start' | 'end',
+): CalendarAnchor {
+  const rect = root.getBoundingClientRect();
+  const gap = 4;
+  const width = 280;
+  const preferred = 320;
+  const spaceBelow = window.innerHeight - rect.bottom - gap;
+  const spaceAbove = rect.top - gap;
+  const openUp = spaceBelow < preferred && spaceAbove > spaceBelow;
+  let left = align === 'end' ? rect.right - width : rect.left;
+  left = Math.max(8, Math.min(left, window.innerWidth - width - 8));
+  return openUp
+    ? { bottom: window.innerHeight - rect.top + gap, left }
+    : { top: rect.bottom + gap, left };
+}
+
 /** Themed date picker — replaces native type=date (no dark calendar UI). */
 export function DatePickerField({
   id,
@@ -75,7 +100,9 @@ export function DatePickerField({
   const selected = parseYmd(value);
   const [open, setOpen] = useState(false);
   const [view, setView] = useState(() => selected ?? new Date());
+  const [anchor, setAnchor] = useState<CalendarAnchor | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (selected) setView(selected);
@@ -84,7 +111,14 @@ export function DatePickerField({
   useEffect(() => {
     if (!open) return;
     function onPointerDown(event: MouseEvent) {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+      const target = event.target as Node;
+      if (
+        rootRef.current?.contains(target) ||
+        panelRef.current?.contains(target)
+      ) {
+        return;
+      }
+      setOpen(false);
     }
     function onKey(event: KeyboardEvent) {
       if (event.key === 'Escape') setOpen(false);
@@ -96,6 +130,21 @@ export function DatePickerField({
       document.removeEventListener('keydown', onKey);
     };
   }, [open]);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    const update = () => {
+      if (!rootRef.current) return;
+      setAnchor(measureCalendar(rootRef.current, align));
+    };
+    update();
+    window.addEventListener('resize', update);
+    window.addEventListener('scroll', update, true);
+    return () => {
+      window.removeEventListener('resize', update);
+      window.removeEventListener('scroll', update, true);
+    };
+  }, [open, align]);
 
   const rows = useMemo(
     () => monthMatrix(view.getFullYear(), view.getMonth()),
@@ -121,11 +170,12 @@ export function DatePickerField({
         </span>
       </button>
 
-      {open ? (
+      {open && anchor
+        ? createPortal(
         <div
-          className={`absolute z-50 mt-1 w-[17.5rem] rounded border border-border bg-surface p-3 shadow-card ${
-            align === 'end' ? 'right-0' : 'left-0'
-          }`}
+          ref={panelRef}
+          className="fixed z-80 w-[17.5rem] rounded border border-border bg-surface p-3 shadow-card"
+          style={{ top: anchor.top, bottom: anchor.bottom, left: anchor.left }}
           role="dialog"
           aria-label="Calendario"
         >
@@ -218,8 +268,10 @@ export function DatePickerField({
               Hoy
             </button>
           </div>
-        </div>
-      ) : null}
+        </div>,
+          document.body,
+        )
+        : null}
     </div>
   );
 }
