@@ -19,6 +19,7 @@ import {
   InteractionTipo,
 } from './enums/interaction.enums';
 import { Lead } from './lead.model';
+import { Sql } from './sql.model';
 
 @Table({
   tableName: 'interactions',
@@ -38,6 +39,14 @@ export class Interaction extends Model {
 
   @BelongsTo(() => Lead)
   declare lead: Lead;
+
+  /** Set when the interaction is registered from an SQL. NULL = etapa Previa. */
+  @ForeignKey(() => Sql)
+  @Column({ type: DataType.CHAR(36), field: 'sql_id', allowNull: true })
+  declare sqlId: string | null;
+
+  @BelongsTo(() => Sql)
+  declare sql: Sql;
 
   @Column({
     type: DataType.ENUM(...Object.values(InteractionTipo)),

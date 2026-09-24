@@ -60,7 +60,10 @@ export class SqlDetailDto {
   ouv_id: string | null;
   ouv: SqlOuvSummaryDto | null;
   lead: Record<string, unknown>;
+  /** Kept for response shape. Not loaded: use GET /qualification/sqls/:id/interactions. */
   interactions: unknown[];
+  /** Present on inbox and assigned lists. One aggregate query per page. */
+  interactions_count?: number;
   cita: SqlCitaResponseDto | null;
 }
 

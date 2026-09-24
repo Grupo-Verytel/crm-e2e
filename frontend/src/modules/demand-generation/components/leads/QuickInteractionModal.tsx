@@ -1,10 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
+import { ApiError } from '../../../auth/types';
 import { registerInteraction } from '../../api/leads-api';
+import {
+  INTERACTION_MAX_BACKDATE_HOURS,
+  interactionFechaBounds,
+  toDatetimeLocalValue,
+} from '../../lib/interaction-fecha';
 import {
   INTERACTION_CANAL_LABEL,
   INTERACTION_TIPO_LABEL,
   INTERACTION_TIPOS,
   canalesForTipo,
+  type CreateInteractionPayload,
   type InteractionCanal,
   type InteractionTipo,
 } from '../../types';
@@ -21,6 +28,8 @@ type Props = {
   submitLabel?: string;
   /** When true, empty description blocks submit. */
   descriptionRequired?: boolean;
+  /** When set, the modal does not post to the lead endpoint. */
+  register?: (payload: CreateInteractionPayload) => Promise<unknown>;
 };
 
 /**
@@ -35,13 +44,17 @@ export function QuickInteractionModal({
   subtitle,
   submitLabel = 'Registrar y mover a nutrición',
   descriptionRequired = false,
+  register,
 }: Props) {
   const [tipo, setTipo] = useState<InteractionTipo>('Llamada');
   const canales = useMemo(() => canalesForTipo(tipo), [tipo]);
   const [canal, setCanal] = useState<InteractionCanal>(canales[0] ?? 'Telefono');
   const [descripcion, setDescripcion] = useState('');
+  const [fecha, setFecha] = useState(() => toDatetimeLocalValue(new Date()));
+  const fechaBounds = useMemo(() => interactionFechaBounds(), []);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fechaError, setFechaError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!canales.includes(canal)) {
@@ -54,17 +67,43 @@ export function QuickInteractionModal({
       setError('La descripción es obligatoria.');
       return;
     }
+    if (fecha < fechaBounds.min || fecha > fechaBounds.max) {
+      setFechaError(
+        `La fecha no puede ser anterior a ${INTERACTION_MAX_BACKDATE_HOURS} horas ni posterior a ahora.`,
+      );
+      return;
+    }
     setIsSaving(true);
     setError(null);
+    setFechaError(null);
     try {
-      await registerInteraction(leadId, {
-        tipo,
-        canal,
-        descripcion: descripcion.trim() || undefined,
-      });
+      if (register) {
+        await register({
+          tipo,
+          canal,
+          descripcion: descripcion.trim() || undefined,
+          fecha: new Date(fecha).toISOString(),
+        });
+      } else {
+        await registerInteraction(leadId, {
+          tipo,
+          canal,
+          descripcion: descripcion.trim() || undefined,
+          fecha: new Date(fecha).toISOString(),
+        });
+      }
       await onRegistered();
       onClose();
     } catch (submitError) {
+      if (
+        submitError instanceof ApiError &&
+        submitError.code === 'INTERACTION_DATE_TOO_OLD'
+      ) {
+        setFechaError(
+          `La fecha no puede ser anterior a ${INTERACTION_MAX_BACKDATE_HOURS} horas.`,
+        );
+        return;
+      }
       setError(
         submitError instanceof Error
           ? submitError.message
@@ -120,6 +159,32 @@ export function QuickInteractionModal({
               ))}
             </select>
           </div>
+        </div>
+
+        <div>
+          <label htmlFor="qi-fecha" className={labelClass}>
+            Fecha y hora
+          </label>
+          <input
+            id="qi-fecha"
+            type="datetime-local"
+            value={fecha}
+            min={fechaBounds.min}
+            max={fechaBounds.max}
+            onChange={(event) => {
+              setFecha(event.target.value);
+              setFechaError(null);
+            }}
+            className={inputClass}
+            required
+            aria-invalid={fechaError ? true : undefined}
+            aria-describedby={fechaError ? 'qi-fecha-error' : undefined}
+          />
+          {fechaError ? (
+            <p id="qi-fecha-error" className="mt-1 text-sm text-danger">
+              {fechaError}
+            </p>
+          ) : null}
         </div>
 
         <div>

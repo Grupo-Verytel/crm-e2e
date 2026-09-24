@@ -379,6 +379,8 @@ export type CommercialOption = {
 export type Interaction = {
   interaction_id: string;
   lead_id: string;
+  sql_id?: string | null;
+  etapa?: 'Previa' | 'SQL';
   tipo: string;
   subtipo: string | null;
   canal: string;
@@ -386,6 +388,8 @@ export type Interaction = {
   resultado: string | null;
   campana_id: string | null;
   responsable_id: string;
+  responsable_nombre?: string | null;
+  responsable_rol?: string | null;
   fecha: string;
   created_at: string;
   updated_at: string;

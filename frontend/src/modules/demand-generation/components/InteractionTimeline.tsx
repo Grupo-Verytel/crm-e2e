@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { formatDateTime } from '../../../lib/format';
 import { fetchInteractions } from '../api/leads-api';
 import {
   INTERACTION_CANAL_LABEL,
   INTERACTION_TIPO_LABEL,
+  type CreateInteractionPayload,
   type Interaction,
   type InteractionCanal,
   type InteractionTipo,
@@ -11,36 +12,56 @@ import {
 import { cardClass, ghostButtonClass } from './ui';
 import { QuickInteractionModal } from './leads/QuickInteractionModal';
 
+type LoadState = 'loading' | 'error' | 'ready';
+
+function authorLine(interaction: Interaction): string {
+  if (!interaction.responsable_nombre) {
+    return 'Sin registro de autor';
+  }
+  const role = interaction.responsable_rol?.trim();
+  return role
+    ? `Registrada por ${interaction.responsable_nombre} · ${role}`
+    : `Registrada por ${interaction.responsable_nombre}`;
+}
+
 export function InteractionTimeline({
   leadId,
   leadName,
   onRegistered,
   readOnly = false,
+  loadInteractions,
+  register,
 }: {
   leadId: string;
   leadName?: string;
   onRegistered: () => void;
   readOnly?: boolean;
+  loadInteractions?: () => Promise<Interaction[]>;
+  register?: (payload: CreateInteractionPayload) => Promise<unknown>;
 }) {
   const [items, setItems] = useState<Interaction[]>([]);
   const [showModal, setShowModal] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [loadState, setLoadState] = useState<LoadState>('loading');
   const title = leadName?.trim() || 'este lead';
 
-  async function load() {
+  const load = useCallback(async () => {
+    setLoadState('loading');
     try {
-      setItems(await fetchInteractions(leadId));
-      setError(null);
+      const next = loadInteractions
+        ? await loadInteractions()
+        : await fetchInteractions(leadId);
+      setItems(next);
+      setLoadState('ready');
     } catch {
-      setError('No se pudieron cargar las interacciones.');
+      setItems([]);
+      setLoadState('error');
     }
-  }
+  }, [leadId, loadInteractions]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetch on lead change
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetch on source change
     void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [leadId]);
+  }, [load]);
 
   return (
     <section className={`${cardClass} p-5`}>
@@ -63,13 +84,30 @@ export function InteractionTimeline({
         ) : null}
       </div>
 
-      {error ? <p className="mb-2 text-sm text-danger">{error}</p> : null}
+      {loadState === 'loading' ? (
+        <p className="text-sm text-muted">Cargando interacciones…</p>
+      ) : null}
 
-      {items.length === 0 ? (
+      {loadState === 'error' ? (
+        <div className="rounded border border-border bg-bg px-3 py-6 text-center">
+          <p className="text-sm text-danger">No se pudieron cargar las interacciones.</p>
+          <button
+            type="button"
+            className={`${ghostButtonClass} mt-3`}
+            onClick={() => void load()}
+          >
+            Reintentar
+          </button>
+        </div>
+      ) : null}
+
+      {loadState === 'ready' && items.length === 0 ? (
         <p className="rounded border border-dashed border-border bg-bg px-3 py-6 text-center text-sm text-muted">
           Aún no hay interacciones registradas.
         </p>
-      ) : (
+      ) : null}
+
+      {loadState === 'ready' && items.length > 0 ? (
         <ol className="space-y-3 border-l border-border pl-4">
           {items.map((interaction) => (
             <li key={interaction.interaction_id} className="relative">
@@ -87,11 +125,14 @@ export function InteractionTimeline({
               ) : null}
               <p className="text-xs text-muted">
                 {formatDateTime(interaction.fecha)}
+                {interaction.etapa ? ` · ${interaction.etapa}` : ''}
+                {' · '}
+                {authorLine(interaction)}
               </p>
             </li>
           ))}
         </ol>
-      )}
+      ) : null}
 
       {showModal ? (
         <QuickInteractionModal
@@ -100,6 +141,7 @@ export function InteractionTimeline({
           subtitle={`Registra una interacción para ${title}.`}
           submitLabel="Guardar interacción"
           descriptionRequired
+          register={register}
           onRegistered={async () => {
             await load();
             onRegistered();

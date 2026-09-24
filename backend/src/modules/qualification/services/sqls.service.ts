@@ -8,6 +8,8 @@ import { InjectConnection, InjectModel } from '@nestjs/sequelize';
 import { Op, Sequelize, type WhereOptions } from 'sequelize';
 import { UsersService } from '../../auth/services/users.service';
 import type { UserResponseDto } from '../../auth/dtos/user-response.dto';
+import { CreateInteractionDto } from '../../demand-generation/dtos/create-interaction.dto';
+import { InteractionResponseDto } from '../../demand-generation/dtos/interaction-response.dto';
 import { DemandGenerationService } from '../../demand-generation/services/demand-generation.service';
 import { Lead } from '../../demand-generation/models/lead.model';
 import { Mql } from '../../demand-generation/models/mql.model';
@@ -88,9 +90,7 @@ export class SqlsService {
       this.sqlModel.count({ where }),
     ]);
 
-    const items = await Promise.all(
-      rows.map((sql) => this.toDetailResponse(sql)),
-    );
+    const items = await this.toListItems(rows);
 
     return { items, total: count, page, limit };
   }
@@ -120,9 +120,7 @@ export class SqlsService {
       offset,
     });
 
-    const items = await Promise.all(
-      rows.map((sql) => this.toDetailResponse(sql)),
-    );
+    const items = await this.toListItems(rows);
 
     return { items, total: count, page, limit };
   }
@@ -135,6 +133,37 @@ export class SqlsService {
     const sql = await this.findSqlOrFail(sqlId);
     this.assertCanViewSql(sql, viewerUserId, viewerRoleName);
     return this.toDetailResponse(sql);
+  }
+
+  /** List every interaction of the lead derived from this SQL. */
+  async listInteractions(
+    sqlId: string,
+    viewerUserId: string,
+    viewerRoleName?: string,
+  ): Promise<InteractionResponseDto[]> {
+    const sql = await this.findSqlOrFail(sqlId);
+    this.assertCanViewSql(sql, viewerUserId, viewerRoleName);
+    return this.demandGenerationService.listInteractions(sql.mql.leadId);
+  }
+
+  /**
+   * Register an interaction on an active SQL. Persists sql_id and the
+   * derived lead_id. Does not change lead or MQL state.
+   */
+  async registerInteraction(
+    sqlId: string,
+    dto: CreateInteractionDto,
+    actorUserId: string,
+    actorRoleName?: string,
+  ): Promise<InteractionResponseDto> {
+    const sql = await this.findSqlOrFail(sqlId);
+    this.assertCanRegisterInteraction(sql, actorUserId, actorRoleName);
+    return this.demandGenerationService.registerSqlInteraction(
+      sql.mql.leadId,
+      sql.sqlId,
+      dto,
+      actorUserId,
+    );
   }
 
   /**
@@ -249,7 +278,6 @@ export class SqlsService {
       const detail = await this.toDetailResponse(
         sql,
         lead as unknown as Record<string, unknown>,
-        interactions,
         cita,
       );
       return { sql: detail, cita: citaDto };
@@ -932,6 +960,57 @@ export class SqlsService {
     );
   }
 
+  private async toListItems(rows: Sql[]): Promise<SqlDetailDto[]> {
+    const counts = await this.demandGenerationService.countInteractionsByLeadIds(
+      rows.map((sql) => sql.mql.leadId),
+    );
+    const items = await Promise.all(
+      rows.map((sql) => this.toDetailResponse(sql)),
+    );
+    return items.map((item, index) => ({
+      ...item,
+      interactions_count: counts[rows[index].mql.leadId] ?? 0,
+    }));
+  }
+
+  private assertCanRegisterInteraction(
+    sql: Sql,
+    actorUserId: string,
+    actorRoleName?: string,
+  ): void {
+    if (
+      sql.estado !== SqlEstado.PendienteAsignacion &&
+      sql.estado !== SqlEstado.Asignado
+    ) {
+      throw new BadRequestException({
+        code: QUALIFICATION_ERROR_CODES.SQL_INTERACTION_READ_ONLY,
+        message: `Cannot register an interaction while SQL is ${sql.estado}`,
+      });
+    }
+
+    if (
+      isQualificationRole(
+        actorRoleName,
+        QUALIFICATION_ROLES.SOPORTE_COMERCIAL,
+        'Admin',
+      )
+    ) {
+      return;
+    }
+
+    if (
+      isQualificationRole(actorRoleName, QUALIFICATION_ROLES.EJECUTIVO_COMERCIAL) &&
+      sql.comercialAsignadoId === actorUserId
+    ) {
+      return;
+    }
+
+    throw new ForbiddenException({
+      code: QUALIFICATION_ERROR_CODES.FORBIDDEN,
+      message: 'Not allowed to register an interaction on this SQL',
+    });
+  }
+
   private assertCanViewSql(
     sql: Sql,
     viewerUserId: string,
@@ -1013,7 +1092,6 @@ export class SqlsService {
   private async toDetailResponse(
     sql: Sql,
     leadDto?: Record<string, unknown>,
-    interactionsDto?: unknown[],
     citaModel?: SqlCita | null,
   ): Promise<SqlDetailDto> {
     const mql = sql.mql;
@@ -1029,10 +1107,6 @@ export class SqlsService {
       ((await this.demandGenerationService.findLeadById(
         mql.leadId,
       )) as unknown as Record<string, unknown>);
-    const interactions =
-      interactionsDto ??
-      (await this.demandGenerationService.listInteractions(mql.leadId));
-
     let cita = citaModel ?? null;
     if (cita === null) {
       cita = await this.sqlCitaModel.findOne({ where: { sqlId: sql.sqlId } });
@@ -1058,7 +1132,7 @@ export class SqlsService {
       ouv_id: sql.ouvId ?? null,
       ouv: ouvSummary,
       lead: lead as unknown as Record<string, unknown>,
-      interactions,
+      interactions: [],
       cita: cita ? this.toCitaResponse(cita) : null,
     };
   }

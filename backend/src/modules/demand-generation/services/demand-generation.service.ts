@@ -199,8 +199,32 @@ export class DemandGenerationService {
     return this.interactionsService.create(leadId, dto, responsableId);
   }
 
+  /**
+   * SQL detail only. Does not evaluate lead or MQL transitions.
+   * `leadId` must be the lead derived from the SQL chain.
+   */
+  async registerSqlInteraction(
+    leadId: string,
+    sqlId: string,
+    dto: CreateInteractionDto,
+    responsableId: string,
+  ): Promise<InteractionResponseDto> {
+    return this.interactionsService.createForSql(
+      leadId,
+      sqlId,
+      dto,
+      responsableId,
+    );
+  }
+
   async listInteractions(leadId: string): Promise<InteractionResponseDto[]> {
     return this.interactionsService.listByLead(leadId);
+  }
+
+  async countInteractionsByLeadIds(
+    leadIds: string[],
+  ): Promise<Record<string, number>> {
+    return this.interactionsService.countByLeadIds(leadIds);
   }
 
   // ----- Checklist -----

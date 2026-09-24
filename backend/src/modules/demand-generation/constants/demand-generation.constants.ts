@@ -17,7 +17,11 @@ export const DEMAND_GENERATION_ERROR_CODES = {
   MQL_NOT_ACTIVE: 'MQL_NOT_ACTIVE',
   APPOINTMENT_NOT_ALLOWED: 'APPOINTMENT_NOT_ALLOWED',
   IMPORT_JOB_NOT_FOUND: 'IMPORT_JOB_NOT_FOUND',
+  INTERACTION_DATE_TOO_OLD: 'INTERACTION_DATE_TOO_OLD',
 } as const;
+
+/** Rolling window: an interaction date cannot be older than this many hours. */
+export const INTERACTION_MAX_BACKDATE_HOURS = 96;
 
 export const LEAD_IMPORT_DUPLICATE_REASON =
   'Ya existe un lead con esta empresa y este email';

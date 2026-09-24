@@ -13,6 +13,8 @@ import {
 import { CheckAbility } from '../../auth/casl/check-ability.decorator';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../../auth/interfaces/authenticated-user.interface';
+import { CreateInteractionDto } from '../../demand-generation/dtos/create-interaction.dto';
+import { InteractionResponseDto } from '../../demand-generation/dtos/interaction-response.dto';
 import { CrearOuvDto } from '../../discovery/dtos/crear-ouv.dto';
 import {
   AssignSqlDto,
@@ -49,6 +51,31 @@ export class SqlsController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<PaginatedSqlsResponseDto> {
     return this.sqlsService.listAssigned(user.userId, query, user.roleName);
+  }
+
+  @Get(':id/interactions')
+  @CheckAbility({ action: 'read', subject: 'Opportunity' })
+  listInteractions(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<InteractionResponseDto[]> {
+    return this.sqlsService.listInteractions(id, user.userId, user.roleName);
+  }
+
+  @Post(':id/interactions')
+  @HttpCode(HttpStatus.CREATED)
+  @CheckAbility({ action: 'update', subject: 'Opportunity' })
+  registerInteraction(
+    @Param('id') id: string,
+    @Body() dto: CreateInteractionDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<InteractionResponseDto> {
+    return this.sqlsService.registerInteraction(
+      id,
+      dto,
+      user.userId,
+      user.roleName,
+    );
   }
 
   @Get(':id')

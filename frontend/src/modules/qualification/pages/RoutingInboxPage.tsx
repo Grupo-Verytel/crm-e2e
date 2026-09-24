@@ -107,6 +107,7 @@ export function RoutingInboxPage() {
                 <th className="px-4 py-3 font-bold">Lead</th>
                 <th className="px-4 py-3 font-bold">Empresa</th>
                 <th className="px-4 py-3 font-bold">Cita</th>
+                <th className="px-4 py-3 font-bold">Interacciones</th>
                 <th className="px-4 py-3 font-bold">Creado</th>
                 {canAssign ? (
                   <th className="px-4 py-3 font-bold">Acción</th>
@@ -123,7 +124,7 @@ export function RoutingInboxPage() {
                 <tr key={sql.sql_id} className="border-b border-border">
                   <td className="px-4 py-3">
                     <Link
-                      to={`/qualification/sqls/${sql.sql_id}`}
+                      to={`/qualification/sqls/${sql.sql_id}?from=routing`}
                       className="font-bold text-accent hover:underline"
                     >
                       {sqlLeadName(sql.lead)}
@@ -171,6 +172,14 @@ export function RoutingInboxPage() {
                     ) : (
                       <span className="text-sm text-muted">—</span>
                     )}
+                  </td>
+                  <td className="px-4 py-3">
+                    <Link
+                      to={`/qualification/sqls/${sql.sql_id}?tab=interacciones&from=routing`}
+                      className="font-bold text-accent hover:underline"
+                    >
+                      {sql.interactions_count ?? 0}
+                    </Link>
                   </td>
                   <td className="px-4 py-3 text-muted">
                     {formatDateTime(sql.fecha_creacion)}

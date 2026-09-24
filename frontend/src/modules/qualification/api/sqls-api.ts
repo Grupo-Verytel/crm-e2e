@@ -68,6 +68,7 @@ export type SqlDetail = {
     [key: string]: unknown;
   };
   interactions: unknown[];
+  interactions_count?: number;
   cita: SqlCita | null;
 };
 

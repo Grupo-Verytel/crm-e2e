@@ -137,6 +137,7 @@ export function AssignedSqlsPage() {
                 <th className="px-4 py-3 font-bold">Cita</th>
                 <th className="px-4 py-3 font-bold">Estado</th>
                 <th className="px-4 py-3 font-bold">Origen</th>
+                <th className="px-4 py-3 font-bold">Interacciones</th>
                 <th className="px-4 py-3 font-bold">Asignado</th>
                 <th className="px-4 py-3 font-bold">Acción</th>
               </tr>
@@ -149,7 +150,7 @@ export function AssignedSqlsPage() {
                 <tr key={sql.sql_id} className="border-b border-border">
                   <td className="px-4 py-3">
                     <Link
-                      to={`/qualification/sqls/${sql.sql_id}`}
+                      to={`/qualification/sqls/${sql.sql_id}?from=assigned`}
                       className="font-bold text-accent hover:underline"
                     >
                       {sqlLeadName(sql.lead)}
@@ -200,6 +201,14 @@ export function AssignedSqlsPage() {
                     ) : (
                       <span className="text-xs text-muted">Enrutamiento</span>
                     )}
+                  </td>
+                  <td className="px-4 py-3">
+                    <Link
+                      to={`/qualification/sqls/${sql.sql_id}?tab=interacciones&from=assigned`}
+                      className="font-bold text-accent hover:underline"
+                    >
+                      {sql.interactions_count ?? 0}
+                    </Link>
                   </td>
                   <td className="px-4 py-3 text-muted">
                     {formatDateTime(sql.fecha_asignacion)}
