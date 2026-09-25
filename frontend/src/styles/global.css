@@ -207,7 +207,7 @@ body {
   }
   100% {
     opacity: 0;
-    transform: translate3d(var(--won-drift, 24px), 108vh, 0) rotate(720deg);
+    transform: translate3d(var(--won-drift, 24px), 112vh, 0) rotate(1080deg);
   }
 }
 

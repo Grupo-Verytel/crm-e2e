@@ -11,8 +11,11 @@ type Props = {
   onDone: () => void;
 };
 
+const PIECE_COUNT = 210;
+const CELEBRATION_MS = 5600;
+
 /**
- * Brief, non-blocking confetti for a Ganada close.
+ * Confetti burst for a Ganada close.
  * Honors prefers-reduced-motion and never captures pointer events.
  */
 export function WonCelebration({ onDone }: Props) {
@@ -21,15 +24,19 @@ export function WonCelebration({ onDone }: Props) {
 
   const pieces = useMemo(
     () =>
-      Array.from({ length: 42 }, (_, i) => ({
-        left: `${(i * 23) % 100}%`,
-        delay: `${(i % 14) * 50}ms`,
-        duration: `${1600 + (i % 6) * 120}ms`,
-        color: PIECE_COLORS[i % PIECE_COLORS.length],
-        drift: `${(i % 2 === 0 ? -1 : 1) * (12 + (i % 7) * 10)}px`,
-        width: 6 + (i % 3) * 2,
-        height: 10 + (i % 4) * 2,
-      })),
+      Array.from({ length: PIECE_COUNT }, (_, i) => {
+        const wave = i < 105 ? 0 : 1;
+        return {
+          left: `${(i * 17) % 100}%`,
+          delay: `${wave * 700 + (i % 18) * 40}ms`,
+          duration: `${2400 + (i % 8) * 180}ms`,
+          color: PIECE_COLORS[i % PIECE_COLORS.length],
+          drift: `${(i % 2 === 0 ? -1 : 1) * (20 + (i % 9) * 14)}px`,
+          width: 7 + (i % 4) * 3,
+          height: i % 5 === 0 ? 8 + (i % 3) * 3 : 12 + (i % 4) * 3,
+          radius: i % 5 === 0 ? '999px' : '1px',
+        };
+      }),
     [],
   );
 
@@ -38,7 +45,7 @@ export function WonCelebration({ onDone }: Props) {
       onDoneRef.current();
       return;
     }
-    const timer = window.setTimeout(() => onDoneRef.current(), 2200);
+    const timer = window.setTimeout(() => onDoneRef.current(), CELEBRATION_MS);
     return () => window.clearTimeout(timer);
   }, []);
 
@@ -56,6 +63,7 @@ export function WonCelebration({ onDone }: Props) {
             width: piece.width,
             height: piece.height,
             backgroundColor: piece.color,
+            borderRadius: piece.radius,
             animationDelay: piece.delay,
             animationDuration: piece.duration,
             ['--won-drift' as string]: piece.drift,
