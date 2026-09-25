@@ -17,6 +17,7 @@ import {
 } from '../api/sqls-api';
 import { isOpenSqlCitaEstado } from '../types/sql-appointment-event.types';
 import { AssignSqlModal } from '../components/AssignSqlModal';
+import { ConfirmCitaActionModal } from '../components/ConfirmCitaActionModal';
 import { QualificationNav } from '../components/QualificationNav';
 import { RescheduleSqlCitaModal } from '../components/RescheduleSqlCitaModal';
 import { cardClass } from '../components/ui';
@@ -40,6 +41,7 @@ export function AssignedSqlsPage() {
   const [error, setError] = useState<string | null>(null);
   const [scheduleSql, setScheduleSql] = useState<SqlDetail | null>(null);
   const [rescheduleSql, setRescheduleSql] = useState<SqlDetail | null>(null);
+  const [cancelSql, setCancelSql] = useState<SqlDetail | null>(null);
   const [busySqlId, setBusySqlId] = useState<string | null>(null);
 
   const load = useCallback(async (opts?: { silent?: boolean }) => {
@@ -94,15 +96,15 @@ export function AssignedSqlsPage() {
       : 'agendar';
   }
 
-  async function handleCancel(sql: SqlDetail) {
-    const label = sqlLeadName(sql.lead);
-    if (!window.confirm(`¿Cancelar la cita de ${label}?`)) {
+  async function handleCancel() {
+    if (!cancelSql) {
       return;
     }
-    setBusySqlId(sql.sql_id);
+    setBusySqlId(cancelSql.sql_id);
     setError(null);
     try {
-      await cancelSqlCita(sql.sql_id);
+      await cancelSqlCita(cancelSql.sql_id);
+      setCancelSql(null);
       await load({ silent: true });
     } catch (err) {
       setError(
@@ -253,7 +255,7 @@ export function AssignedSqlsPage() {
                           title="Cancelar"
                           aria-label={`Cancelar ${label}`}
                           disabled={busySqlId === sql.sql_id}
-                          onClick={() => void handleCancel(sql)}
+                          onClick={() => setCancelSql(sql)}
                         >
                           <CalendarX2 size={16} strokeWidth={2} />
                         </button>
@@ -292,6 +294,20 @@ export function AssignedSqlsPage() {
           sql={rescheduleSql}
           onClose={() => setRescheduleSql(null)}
           onRescheduled={() => void load({ silent: true })}
+        />
+      ) : null}
+      {cancelSql ? (
+        <ConfirmCitaActionModal
+          title="Cancelar cita"
+          message={`¿Cancelar la cita de ${sqlLeadName(cancelSql.lead)}? Se quitará del calendario.`}
+          confirmLabel="Sí, cancelar"
+          busy={busySqlId === cancelSql.sql_id}
+          error={error}
+          onClose={() => {
+            if (busySqlId === cancelSql.sql_id) return;
+            setCancelSql(null);
+          }}
+          onConfirm={() => void handleCancel()}
         />
       ) : null}
     </AppLayout>

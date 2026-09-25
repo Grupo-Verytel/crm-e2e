@@ -14,6 +14,7 @@ import {
 } from '../api/sql-interactions-api';
 import { closeSqlCita, fetchSql, type SqlDetail } from '../api/sqls-api';
 import { AssignSqlModal } from '../components/AssignSqlModal';
+import { ConfirmCitaActionModal } from '../components/ConfirmCitaActionModal';
 import { ConvertirSqlEnOuvModal } from '../components/ConvertirSqlEnOuvModal';
 import { QualificationNav } from '../components/QualificationNav';
 import { SqlCitaTraceCard } from '../components/SqlCitaTraceCard';
@@ -74,6 +75,9 @@ export function SqlDetailPage() {
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [listVersion, setListVersion] = useState(0);
   const [traceVersion, setTraceVersion] = useState(0);
+  const [pendingOutcome, setPendingOutcome] = useState<
+    'Realizada' | 'NoAsistio' | null
+  >(null);
   const [closingOutcome, setClosingOutcome] = useState<
     'Realizada' | 'NoAsistio' | null
   >(null);
@@ -126,19 +130,13 @@ export function SqlDetailPage() {
     canManageCita &&
     (sql.cita == null || !isOpenSqlCitaEstado(sql.cita.estado));
 
-  async function handleCloseCita(resultado: 'Realizada' | 'NoAsistio') {
-    if (!sql) return;
-    const confirmLabel =
-      resultado === 'Realizada'
-        ? '¿Marcar la reunión como ejecutada?'
-        : '¿Marcar que no asistieron a la reunión?';
-    if (!window.confirm(confirmLabel)) {
-      return;
-    }
-    setClosingOutcome(resultado);
+  async function handleCloseCita() {
+    if (!sql || !pendingOutcome) return;
+    setClosingOutcome(pendingOutcome);
     setError(null);
     try {
-      await closeSqlCita(sql.sql_id, resultado);
+      await closeSqlCita(sql.sql_id, pendingOutcome);
+      setPendingOutcome(null);
       await loadSql();
       setTraceVersion((value) => value + 1);
     } catch (err) {
@@ -375,7 +373,7 @@ export function SqlDetailPage() {
                       type="button"
                       className={primaryButtonClass}
                       disabled={closingOutcome !== null}
-                      onClick={() => void handleCloseCita('Realizada')}
+                      onClick={() => setPendingOutcome('Realizada')}
                     >
                       {closingOutcome === 'Realizada'
                         ? 'Guardando…'
@@ -385,7 +383,7 @@ export function SqlDetailPage() {
                       type="button"
                       className={ghostButtonClass}
                       disabled={closingOutcome !== null}
-                      onClick={() => void handleCloseCita('NoAsistio')}
+                      onClick={() => setPendingOutcome('NoAsistio')}
                     >
                       {closingOutcome === 'NoAsistio'
                         ? 'Guardando…'
@@ -434,6 +432,28 @@ export function SqlDetailPage() {
             setTraceVersion((value) => value + 1);
           }}
           onVigenteConflict={() => void loadSql()}
+        />
+      ) : null}
+      {pendingOutcome && sql ? (
+        <ConfirmCitaActionModal
+          title={
+            pendingOutcome === 'Realizada'
+              ? 'Reunión ejecutada'
+              : 'No asistieron'
+          }
+          message={
+            pendingOutcome === 'Realizada'
+              ? `¿Marcar la reunión de ${sqlLeadName(sql.lead)} como ejecutada? Este es el cierre de la cita.`
+              : `¿Marcar que no asistieron a la reunión de ${sqlLeadName(sql.lead)}? Este es el cierre de la cita.`
+          }
+          confirmLabel="Confirmar"
+          busy={closingOutcome !== null}
+          error={error}
+          onClose={() => {
+            if (closingOutcome) return;
+            setPendingOutcome(null);
+          }}
+          onConfirm={() => void handleCloseCita()}
         />
       ) : null}
     </AppLayout>
