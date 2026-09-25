@@ -807,6 +807,16 @@ export class OuvsService {
     if (query.tiene_gap !== undefined) {
       where.tieneGap = query.tiene_gap;
     }
+    if (query.pmo_enviado !== undefined) {
+      // Subquery en vez de include: `won_sales` es de offer-closing y el
+      // listado no necesita sus columnas, solo saber si ya pasó al PMO.
+      const enviadas = Sequelize.literal(
+        `(SELECT ws.ouv_id FROM won_sales ws WHERE ws.envio_pmo_estado = 'Enviado' AND ws.deleted_at IS NULL)`,
+      );
+      where.ouvId = query.pmo_enviado
+        ? { [Op.in]: enviadas }
+        : { [Op.notIn]: enviadas };
+    }
     if (query.q?.trim()) {
       const like = `%${query.q.trim()}%`;
       where[Op.or] = [

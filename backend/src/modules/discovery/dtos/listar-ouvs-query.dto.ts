@@ -71,6 +71,16 @@ export class ListarOuvsQueryDto {
   @IsBoolean()
   all?: boolean;
 
+  /**
+   * Split between Oferta & Cierre (/offers) and Implementación (/services):
+   * true → only OUVs whose won-sale was already sent to the PMO
+   * (`won_sales.envio_pmo_estado = 'Enviado'`); false → the rest.
+   */
+  @IsOptional()
+  @Transform(queryBoolean)
+  @IsBoolean()
+  pmo_enviado?: boolean;
+
   /** Owner filter. Applied only when `all` is true (follow-up roles). */
   @IsOptional()
   @IsUUID('4')

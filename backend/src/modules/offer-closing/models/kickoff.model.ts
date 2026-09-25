@@ -13,7 +13,11 @@ import {
 import { KickoffApproval } from './kickoff-approval.model';
 import { KickoffInvitee } from './kickoff-invitee.model';
 
-export type KickoffStatus = 'Programado' | 'Realizado' | 'Cancelado';
+export type KickoffStatus =
+  | 'Programado'
+  | 'Reagendado'
+  | 'Realizado'
+  | 'Cancelado';
 
 export type KickoffLocationType = 'Teams' | 'Presencial';
 
@@ -77,7 +81,7 @@ export class Kickoff extends Model {
 
   @Default('Programado')
   @Column({
-    type: DataType.ENUM('Programado', 'Realizado', 'Cancelado'),
+    type: DataType.ENUM('Programado', 'Reagendado', 'Realizado', 'Cancelado'),
     allowNull: false,
   })
   declare status: KickoffStatus;

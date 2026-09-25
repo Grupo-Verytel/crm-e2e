@@ -8,7 +8,6 @@ import { fetchOuv, type Ouv } from '../../discovery/api/ouvs-api';
 import { OuvReadonlyHeaderCard } from '../../discovery/components/OuvReadonlyHeaderCard';
 import { loadOuvExtensions } from '../../discovery/lib/ouv-detail-extensions';
 import type { OuvDetailExtensions } from '../../discovery/lib/ouv-detail-extensions';
-import { AlertaBanner } from '../../shared/project/AlertaBadge';
 import { createVentaFromOuvApi } from '../../shared/project/mock-data';
 import {
   getVentaGanada,
@@ -333,21 +332,9 @@ export function VentaGanadaDetailPage() {
         },
       },
     };
-    const hasBlock = Object.values(next.validaciones).some(
-      (v) => v.estado !== 'Aprobado',
-    );
-    next.alertas = hasBlock
-      ? [
-          {
-            id: 'val-block',
-            tipo: 'Validación pendiente',
-            estado: 'Activa',
-            descripcion:
-              'Hay validaciones pendientes o rechazadas — envío a PMO bloqueado.',
-            fecha: new Date().toISOString(),
-          },
-        ]
-      : [];
+    // El bloqueo por viabilidad pendiente lo comunican las pestañas
+    // deshabilitadas (Design_JD); se limpia la alerta que antes lo duplicaba.
+    next.alertas = next.alertas.filter((a) => a.id !== 'val-block');
     next.estadoRevision = Object.values(next.validaciones).every(
       (v) => v.estado === 'Aprobado',
     )
@@ -445,10 +432,6 @@ export function VentaGanadaDetailPage() {
         ) : null}
       </nav>
 
-      {record.alertas.map((a) => (
-        <AlertaBanner key={a.id} alerta={a} />
-      ))}
-
       {tabActivo === 'validaciones' ? (
         <div className="space-y-4">
           <div className="grid gap-4 lg:grid-cols-2">
@@ -529,6 +512,11 @@ export function VentaGanadaDetailPage() {
           empresaNombre={headerOuv.empresa_nombre || record.empresaNombre}
           kickoff={record.kickoff}
           onChange={(kickoff) => void saveKickoffRecord(kickoff)}
+          invitationContext={{
+            consecutivo: record.consecutivo,
+            proyecto: record.datosBase.nombreProyecto || record.titulo,
+            cliente: headerOuv.empresa_nombre || record.empresaNombre,
+          }}
         />
       ) : null}
 
@@ -549,14 +537,26 @@ export function VentaGanadaDetailPage() {
         record={record}
         open={showResumen}
         onClose={() => setShowResumen(false)}
-        onSent={(updated) => {
-          // Por `save` y no `setRecord`: el consecutivo del PMO tiene que
-          // quedar en el backend, o el resto de usuarios no lo vería.
-          save(updated);
-          setToast(
-            `Proyecto abierto en Control de Proyectos: ${updated.envioPmo.consecutivoControlProyectos}`,
-          );
-          navigate('/services');
+        onSent={async (updated) => {
+          // El envío se guarda de inmediato, sin el rebote de `save`: /services
+          // filtra por `envio_pmo_estado = 'Enviado'`, así que navegar antes de
+          // que el backend lo tenga dejaría la OUV fuera de la lista.
+          if (guardadoTimer.current !== null) {
+            window.clearTimeout(guardadoTimer.current);
+            guardadoTimer.current = null;
+          }
+          pendienteRef.current = null;
+          setRecord(updated);
+          try {
+            setRecord(applyWonSale(updated, await saveWonSale(updated)));
+            navigate('/services');
+          } catch (error) {
+            // El proyecto ya existe en el PMO; al reintentar, el 409 se
+            // recupera y se vuelve a guardar el envío.
+            setToast(
+              `Proyecto ${updated.envioPmo.consecutivoControlProyectos} creado en el PMO, pero no se guardó el envío: ${mensajeDeGuardado(error)}`,
+            );
+          }
         }}
       />
 

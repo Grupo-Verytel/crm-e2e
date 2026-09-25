@@ -99,6 +99,24 @@ describe('PmoApiClient', () => {
     );
   });
 
+  it.each([
+    [{ value: 72, source: 'pro_project', available: true }, 72],
+    [{ value: null, source: 'pro_project', available: false }, null],
+    [45, 45],
+    [null, null],
+  ])('flattens the PMO nps %j to %j', async (nps, expected) => {
+    mockFetch({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ ouvId: OUV_ID, proyectoId: 89, nps }),
+    });
+
+    await expect(buildClient().getExecution(OUV_ID)).resolves.toMatchObject({
+      projectId: 89,
+      nps: expected,
+    });
+  });
+
   it('puts the ouvId on the query string of the read endpoints', async () => {
     const fetchMock = mockFetch({
       ok: true,

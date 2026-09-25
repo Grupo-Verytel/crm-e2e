@@ -69,10 +69,19 @@ export type IndicadoresProyecto = {
   ejecucion: IndicadorBloque;
 };
 
+/** Medición CSAT de una semana ISO (`2026-W38`); una por semana. */
+export type CsatSemanaEntry = {
+  semanaIso: string;
+  valor: number;
+  comentario: string;
+  registradoEn: string;
+};
+
 export type CsatRecord = {
   valor: number | null;
   escala: number;
   fecha: string | null;
+  semanas?: CsatSemanaEntry[];
 };
 
 export type ValidacionRecord = {
@@ -85,7 +94,11 @@ export type ValidacionRecord = {
   sharepointNombre: string | null;
 };
 
-export type KickoffEstado = 'Programado' | 'Realizado' | 'Cancelado';
+export type KickoffEstado =
+  | 'Programado'
+  | 'Reagendado'
+  | 'Realizado'
+  | 'Cancelado';
 
 export type KickoffInviteeTipo = 'Interno' | 'ContactoOuv' | 'Externo';
 

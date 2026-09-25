@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Copy } from 'lucide-react';
 import type { KickoffRecord } from '../../shared/project/types';
 import { fetchMeetingAttendance, type GraphAttendance } from '../api/graph-api';
 import { formatKickoffRange } from '../lib/kickoff-scheduling';
@@ -32,6 +33,17 @@ function formatMomento(iso: string | null): string {
   if (!iso) return '—';
   const fecha = new Date(iso);
   return Number.isNaN(fecha.getTime()) ? iso : fecha.toLocaleString();
+}
+
+function isTeamsJoinUrl(url: string): boolean {
+  return /teams\.microsoft\.com|teams\.live\.com/i.test(url);
+}
+
+function meetingJoinUrl(kickoff: KickoffRecord): string {
+  const fromAgenda = kickoff.agenda?.joinUrl?.trim() ?? '';
+  if (fromAgenda) return fromAgenda;
+  const fromEnlace = kickoff.enlace.trim();
+  return isTeamsJoinUrl(fromEnlace) ? fromEnlace : '';
 }
 
 function errorMessage(error: unknown, fallback: string): string {
@@ -110,6 +122,9 @@ export function KickoffProgramacionPanel({ kickoff, onChange }: Props) {
   const [attendance, setAttendance] = useState<GraphAttendance | null>(null);
   const [checking, setChecking] = useState(false);
   const [attendanceError, setAttendanceError] = useState<string | null>(null);
+  const [copiedLink, setCopiedLink] = useState(false);
+  const enlace = meetingJoinUrl(kickoff);
+  const puedeCopiar = Boolean(enlace);
 
   const phase4Unlocked =
     kickoff.estado === 'Realizado' && kickoff.validadoTeams;
@@ -241,12 +256,38 @@ export function KickoffProgramacionPanel({ kickoff, onChange }: Props) {
             <label className={labelClass} htmlFor="prog-link">
               Enlace
             </label>
-            <input
-              id="prog-link"
-              className={readOnlyClass}
-              value={kickoff.enlace || '—'}
-              readOnly
-            />
+            <div className="flex items-center gap-2">
+              <input
+                id="prog-link"
+                className={readOnlyClass}
+                value={enlace || '—'}
+                readOnly
+              />
+              <button
+                type="button"
+                className="icon-btn shrink-0 p-2"
+                disabled={!puedeCopiar}
+                title={
+                  !puedeCopiar
+                    ? 'No hay enlace para copiar'
+                    : copiedLink
+                      ? 'Copiado'
+                      : 'Copiar enlace'
+                }
+                aria-label="Copiar enlace al portapapeles"
+                onClick={() => {
+                  void navigator.clipboard.writeText(enlace).then(
+                    () => {
+                      setCopiedLink(true);
+                      window.setTimeout(() => setCopiedLink(false), 2000);
+                    },
+                    () => setCopiedLink(false),
+                  );
+                }}
+              >
+                <Copy size={16} strokeWidth={2} aria-hidden />
+              </button>
+            </div>
           </div>
         </div>
 
@@ -267,7 +308,7 @@ export function KickoffProgramacionPanel({ kickoff, onChange }: Props) {
         ) : null}
       </section>
 
-      {kickoff.estado === 'Programado' ? (
+      {kickoff.estado === 'Programado' || kickoff.estado === 'Reagendado' ? (
         <section className={`${cardClass} space-y-3 p-4`}>
           <h3 className="text-sm font-bold text-ink">Cierre de la reunión</h3>
           <p className="text-sm text-muted">
@@ -395,7 +436,9 @@ export function KickoffProgramacionPanel({ kickoff, onChange }: Props) {
             Revocar validación Teams (mock)
           </button>
         </section>
-      ) : kickoff.estado === 'Programado' || kickoff.estado === 'Cancelado' ? (
+      ) : kickoff.estado === 'Programado' ||
+        kickoff.estado === 'Reagendado' ||
+        kickoff.estado === 'Cancelado' ? (
         <p className="rounded border border-border bg-surface px-3 py-2 text-xs text-muted">
           Las aprobaciones (Aval comercial, Transferencia técnica, PMO) y
           Confirmar Kickoff se habilitan en la etapa 4, después de marcar la

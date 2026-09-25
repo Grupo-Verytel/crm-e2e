@@ -19,7 +19,12 @@ import type {
 } from '../models';
 
 const LOCATION_TYPES: KickoffLocationType[] = ['Teams', 'Presencial'];
-const STATUSES: KickoffStatus[] = ['Programado', 'Realizado', 'Cancelado'];
+const STATUSES: KickoffStatus[] = [
+  'Programado',
+  'Reagendado',
+  'Realizado',
+  'Cancelado',
+];
 const INVITEE_TYPES: KickoffInviteeType[] = [
   'Interno',
   'ContactoOuv',

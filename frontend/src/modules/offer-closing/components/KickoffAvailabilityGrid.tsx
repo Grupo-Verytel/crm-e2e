@@ -78,13 +78,22 @@ export function KickoffAvailabilityGrid({
   }, [proposedStartMs, proposedEndMs]);
 
   function blocksAt(dayIndex: number, hour: number): BusyBlock[] {
-    return blocks.filter(
-      (b) =>
-        b.tone !== 'proposed' &&
-        b.dayIndex === dayIndex &&
-        b.startHour < hour + 1 &&
-        b.endHour > hour,
-    );
+    const seen = new Set<string>();
+    return blocks.filter((b) => {
+      if (
+        b.tone === 'proposed' ||
+        b.dayIndex !== dayIndex ||
+        b.startHour >= hour + 1 ||
+        b.endHour <= hour
+      ) {
+        return false;
+      }
+      // Graph puede devolver varios eventos (o el mismo dos veces) en la misma
+      // hora; en la celda basta con una etiqueta por persona o sala.
+      if (seen.has(b.resourceId)) return false;
+      seen.add(b.resourceId);
+      return true;
+    });
   }
 
   function handleCellClick(dayIndex: number, hour: number) {
@@ -122,7 +131,7 @@ export function KickoffAvailabilityGrid({
       : null;
 
   return (
-    <div className={`${cardClass} overflow-x-auto p-3`}>
+    <div className={cardClass}>
       <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
         <div>
           <p className="text-xs font-bold text-muted">
@@ -155,9 +164,11 @@ export function KickoffAvailabilityGrid({
         </p>
       ) : null}
 
-      <div className={`min-w-[720px] ${loading ? 'opacity-60' : ''}`}>
-        <div className="grid grid-cols-[3rem_repeat(5,1fr)] gap-px bg-border text-xs">
-          <div className="bg-surface p-2" />
+      <div
+        className={`-ml-6 -mr-4 overflow-x-auto ${loading ? 'opacity-60' : ''}`}
+      >
+        <div className="grid min-w-[520px] grid-cols-[1.75rem_repeat(5,1fr)] gap-px bg-border text-xs">
+          <div className="bg-surface" />
           {dayLabels.map((label, dayIndex) => (
             <div
               key={label}
@@ -171,7 +182,7 @@ export function KickoffAvailabilityGrid({
           ))}
           {hours.map((hour) => (
             <div key={hour} className="contents">
-              <div className="bg-surface px-1 py-3 text-right text-muted">
+              <div className="bg-surface py-3 pr-0.5 text-right text-[10px] leading-none text-muted">
                 {hour}:00
               </div>
               {dayLabels.map((_, dayIndex) => {

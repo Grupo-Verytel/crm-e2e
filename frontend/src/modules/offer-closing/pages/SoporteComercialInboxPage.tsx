@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AppLayout } from '../../../layout/AppLayout';
+import { useModuleSearch } from '../../../layout/useModuleSearch';
 import { formatDateTime } from '../../../lib/format';
 import { useAuth } from '../../auth/hooks/useAuth';
 import { fetchOuvs } from '../../discovery/api/ouvs-api';
@@ -19,16 +20,16 @@ import {
 } from '../components/ui';
 
 type DraftFilters = {
-  q: string;
   tipoVenta: string;
   estadoRevision: string;
 };
 
-const EMPTY: DraftFilters = { q: '', tipoVenta: '', estadoRevision: '' };
+const EMPTY: DraftFilters = { tipoVenta: '', estadoRevision: '' };
 
 /** HU-F01 — Bandeja soporte comercial (ventas ganadas → validación → PMO). */
 export function SoporteComercialInboxPage() {
   const { user } = useAuth();
+  const { query } = useModuleSearch();
   const navigate = useNavigate();
   const [draft, setDraft] = useState<DraftFilters>(EMPTY);
   const [applied, setApplied] = useState<DraftFilters>(EMPTY);
@@ -48,6 +49,10 @@ export function SoporteComercialInboxPage() {
         user?.role_name === 'SoporteComercial' || user?.role_name === 'Admin';
       const res = await fetchOuvs({
         resultado: 'Ganada',
+        // Las ya enviadas al PMO viven en /services, no aquí.
+        pmo_enviado: false,
+        // Búsqueda del header: el backend filtra por consecutivo, título y empresa.
+        q: query || undefined,
         all: canAll,
         limit: 50,
       });
@@ -72,15 +77,6 @@ export function SoporteComercialInboxPage() {
       });
 
       let list = conExpediente.filter((v) => v.envioPmo.estado !== 'Enviado');
-      if (applied.q.trim()) {
-        const q = applied.q.toLowerCase();
-        list = list.filter(
-          (v) =>
-            v.consecutivo.toLowerCase().includes(q) ||
-            v.titulo.toLowerCase().includes(q) ||
-            v.empresaNombre.toLowerCase().includes(q),
-        );
-      }
       if (applied.tipoVenta) {
         list = list.filter((v) => v.datosBase.tipoVenta === applied.tipoVenta);
       }
@@ -94,7 +90,7 @@ export function SoporteComercialInboxPage() {
     } finally {
       setLoading(false);
     }
-  }, [applied, user]);
+  }, [applied, query, user]);
 
   useEffect(() => {
     void load();
@@ -111,16 +107,7 @@ export function SoporteComercialInboxPage() {
         </div>
       </div>
 
-      <div className={`${cardClass} mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4`}>
-        <div>
-          <label className={labelClass}>Buscar</label>
-          <input
-            className={inputClass}
-            value={draft.q}
-            onChange={(e) => setDraft({ ...draft, q: e.target.value })}
-            placeholder="OUV, título, cliente…"
-          />
-        </div>
+      <div className={`${cardClass} mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3`}>
         <div>
           <label className={labelClass}>Tipo de venta</label>
           <select
@@ -196,8 +183,9 @@ export function SoporteComercialInboxPage() {
             ) : items.length === 0 ? (
               <tr>
                 <td colSpan={7} className="px-4 py-8 text-center text-muted">
-                  No hay ventas ganadas pendientes. Marca una OUV como Ganada en
-                  Oportunidades para que aparezca aquí.
+                  {query
+                    ? 'No hay ventas ganadas que coincidan con la búsqueda.'
+                    : 'No hay ventas ganadas pendientes. Marca una OUV como Ganada en Oportunidades para que aparezca aquí.'}
                 </td>
               </tr>
             ) : (

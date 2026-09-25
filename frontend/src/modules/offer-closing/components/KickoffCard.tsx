@@ -4,6 +4,7 @@ import type { KickoffRecord } from '../../shared/project/types';
 import { createEmptyKickoff } from '../../shared/project/mock-data';
 import { formatKickoffRange } from '../lib/kickoff-scheduling';
 import { KickoffProgramacionPanel } from './KickoffProgramacionPanel';
+import type { KickoffInvitationContext } from '../api/graph-api';
 import { KickoffScheduleModal } from './KickoffScheduleModal';
 import {
   badgeClass,
@@ -18,10 +19,12 @@ type Props = {
   empresaNombre?: string | null;
   kickoff: KickoffRecord;
   onChange: (kickoff: KickoffRecord) => void;
+  invitationContext?: KickoffInvitationContext;
 };
 
 const ESTADO_TONE: Record<KickoffRecord['estado'], string> = {
   Programado: 'bg-turquoise/25 text-turquoise',
+  Reagendado: 'bg-accent/15 text-accent',
   Realizado: 'bg-positive/15 text-positive',
   Cancelado: 'bg-border text-muted',
 };
@@ -37,6 +40,7 @@ export function KickoffCard({
   empresaNombre = null,
   kickoff,
   onChange,
+  invitationContext,
 }: Props) {
   const [modalOpen, setModalOpen] = useState(false);
   const hasAgenda = Boolean(
@@ -149,6 +153,7 @@ export function KickoffCard({
         empresaNombre={empresaNombre}
         kickoff={kickoff}
         onChange={onChange}
+        invitationContext={invitationContext}
       />
     </>
   );

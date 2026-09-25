@@ -17,6 +17,24 @@ import {
 const TIMEOUT_MS = 8000;
 
 /**
+ * El PMO envía el NPS como `{ value, source, available }`, no como número.
+ * Se aplana aquí para cumplir el contrato (`number | null`); sin esto la
+ * pantalla mostraba «[object Object]».
+ */
+type PmoNps =
+  | number
+  | null
+  | { value?: number | null; available?: boolean | null };
+
+function normalizarNps(nps: PmoNps | undefined): number | null {
+  if (typeof nps === 'number') return nps;
+  if (nps && nps.available !== false && typeof nps.value === 'number') {
+    return nps.value;
+  }
+  return null;
+}
+
+/**
  * Client for the PMO (Control Project) integration endpoints. Reads are keyed by
  * OUV_ID; the write carries it in the body. All three use the shared API key.
  */
@@ -34,19 +52,20 @@ export class PmoApiClient {
    */
   async getExecution(ouvId: string): Promise<ProjectExecutionDto> {
     const crudo = await this.get<
-      Omit<ProjectExecutionDto, 'projectId'> & {
+      Omit<ProjectExecutionDto, 'projectId' | 'nps'> & {
         proyectoId?: number;
         projectId?: number;
+        nps?: PmoNps;
       }
     >('/api/projects/execution', ouvId);
 
-    const { proyectoId, ...resto } = crudo;
+    const { proyectoId, nps, ...resto } = crudo;
     const projectId = resto.projectId ?? proyectoId;
     if (typeof projectId !== 'number') {
       throw this.badResponse('/api/projects/execution', 200);
     }
 
-    return { ...resto, projectId };
+    return { ...resto, projectId, nps: normalizarNps(nps) };
   }
 
   getStateHistory(ouvId: string): Promise<ProjectStateHistoryDto> {

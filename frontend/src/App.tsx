@@ -1,6 +1,7 @@
 import { Suspense } from 'react';
 import { BrowserRouter } from 'react-router-dom';
 import { LoadingScreen } from './components/LoadingScreen';
+import { ModuleSearchProvider } from './layout/ModuleSearchProvider';
 import { AuthProvider } from './modules/auth/context/AuthProvider';
 import { NotificationsProvider } from './modules/auth/context/NotificationsProvider';
 import { NotificationToast } from './modules/auth/components/NotificationToast';
@@ -15,9 +16,11 @@ export default function App() {
         <PointerGlow />
         <AuthProvider>
           <NotificationsProvider>
-            <Suspense fallback={<LoadingScreen />}>
-              <AppRoutes />
-            </Suspense>
+            <ModuleSearchProvider>
+              <Suspense fallback={<LoadingScreen />}>
+                <AppRoutes />
+              </Suspense>
+            </ModuleSearchProvider>
             <NotificationToast />
           </NotificationsProvider>
         </AuthProvider>

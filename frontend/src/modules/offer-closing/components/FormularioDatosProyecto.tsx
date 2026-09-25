@@ -295,10 +295,6 @@ export function FormularioDatosProyecto({
         )}
       </section>
 
-      <section className={`${cardClass} opacity-60`}>
-        <h3 className="text-sm font-bold text-muted">Indicadores financieros</h3>
-        <p className="mt-1 text-xs text-muted">Pendiente de definición con Preventa / Finanzas / PMO</p>
-      </section>
     </div>
   );
 }

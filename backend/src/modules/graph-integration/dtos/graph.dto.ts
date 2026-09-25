@@ -123,6 +123,28 @@ export class GraphAttendeeDto {
   type?: 'required' | 'optional' | 'resource';
 }
 
+/**
+ * Contexto de negocio del kickoff. Cuando llega, el cuerpo de la invitación se
+ * arma en HTML con la plantilla de marca (`kickoff-invitation.template.ts`);
+ * `body` pasa a ser la sección de observaciones.
+ */
+export class GraphKickoffContextDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  consecutivo?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  proyecto?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  cliente?: string;
+}
+
 export class CreateGraphMeetingDto {
   /** UPN del organizador; por defecto `GRAPH_ORGANIZER_UPN`. */
   @IsOptional()
@@ -174,6 +196,12 @@ export class CreateGraphMeetingDto {
   /** `false` para una reunión solo presencial (sin enlace de Teams). */
   @IsOptional()
   isOnlineMeeting?: boolean;
+
+  /** Presente solo en kickoffs: activa la plantilla HTML de la invitación. */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => GraphKickoffContextDto)
+  kickoff?: GraphKickoffContextDto;
 }
 
 export class GraphMeetingResponseDto {
