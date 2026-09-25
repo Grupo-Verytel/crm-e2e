@@ -23,6 +23,8 @@ import {
   CreateAssignedSqlCitaDto,
   UpdateSqlCitaDto,
 } from '../dtos/assign-sql.dto';
+import { CloseSqlCitaDto } from '../dtos/close-sql-cita.dto';
+import { SqlAppointmentEventResponseDto } from '../dtos/sql-appointment-event-response.dto';
 import {
   AssignSqlResponseDto,
   ConvertirSqlResponseDto,
@@ -152,6 +154,29 @@ export class SqlsController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<SqlCitaResponseDto> {
     return this.sqlsService.updateCita(id, dto, user.userId, user.roleName);
+  }
+
+  @Get(':id/cita/events')
+  @CheckAbility({ action: 'read', subject: 'Opportunity' })
+  listAppointmentEvents(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<SqlAppointmentEventResponseDto[]> {
+    return this.sqlsService.listAppointmentEvents(
+      id,
+      user.userId,
+      user.roleName,
+    );
+  }
+
+  @Post(':id/cita/outcome')
+  @CheckAbility({ action: 'update', subject: 'Opportunity' })
+  closeCita(
+    @Param('id') id: string,
+    @Body() dto: CloseSqlCitaDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<SqlCitaResponseDto> {
+    return this.sqlsService.closeCita(id, dto, user.userId, user.roleName);
   }
 
   @Delete(':id/cita')

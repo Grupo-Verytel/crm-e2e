@@ -5,7 +5,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/sequelize';
-import { Op, Sequelize, type WhereOptions } from 'sequelize';
+import { Op, Sequelize, type Transaction, type WhereOptions } from 'sequelize';
+import { User } from '../../auth/models/user.model';
 import { UsersService } from '../../auth/services/users.service';
 import type { UserResponseDto } from '../../auth/dtos/user-response.dto';
 import { CreateReminderDto } from '../../demand-generation/dtos/create-reminder.dto';
@@ -34,6 +35,8 @@ import {
   CreateSqlCitaDto,
   UpdateSqlCitaDto,
 } from '../dtos/assign-sql.dto';
+import { CloseSqlCitaDto } from '../dtos/close-sql-cita.dto';
+import { SqlAppointmentEventResponseDto } from '../dtos/sql-appointment-event-response.dto';
 import {
   AssignSqlResponseDto,
   ConvertirSqlResponseDto,
@@ -42,6 +45,11 @@ import {
   SqlDetailDto,
   SqlsQueryDto,
 } from '../dtos/sql-response.dto';
+import {
+  SqlCitaEstado,
+  isOpenCitaEstado,
+} from '../models/enums/sql-cita-estado.enum';
+import { SqlAppointmentEvent } from '../models/sql-appointment-event.model';
 import { SqlCita } from '../models/sql-cita.model';
 import {
   isCompleteCitaContacto,
@@ -55,6 +63,8 @@ export class SqlsService {
     @InjectConnection() private readonly sequelize: Sequelize,
     @InjectModel(Sql) private readonly sqlModel: typeof Sql,
     @InjectModel(SqlCita) private readonly sqlCitaModel: typeof SqlCita,
+    @InjectModel(SqlAppointmentEvent)
+    private readonly sqlAppointmentEventModel: typeof SqlAppointmentEvent,
     private readonly demandGenerationService: DemandGenerationService,
     private readonly usersService: UsersService,
     private readonly workflowEngine: WorkflowEngineService,
@@ -269,6 +279,16 @@ export class SqlsService {
           },
           { transaction },
         );
+        await this.recordAppointmentEvent(
+          sql.sqlId,
+          SqlCitaEstado.Agendada,
+          soporteUserId,
+          {
+            fecha: String(cita.fecha).slice(0, 10),
+            hora: String(cita.hora).slice(0, 8),
+          },
+          transaction,
+        );
       }
 
       const citaDto = cita ? this.toCitaResponse(cita) : null;
@@ -341,9 +361,14 @@ export class SqlsService {
           message: `No cita found for SQL ${sqlId}`,
         });
       }
+      this.assertCitaIsOpen(cita);
+
+      const previousFecha = String(cita.fecha).slice(0, 10);
+      const previousHora = String(cita.hora).slice(0, 8);
 
       await cita.update(
         {
+          estado: SqlCitaEstado.Reagendada,
           ...(dto.lugar !== undefined ? { lugar: dto.lugar } : {}),
           ...(dto.fecha !== undefined ? { fecha: dto.fecha } : {}),
           ...(dto.hora !== undefined ? { hora: this.normalizeHora(dto.hora) } : {}),
@@ -373,6 +398,19 @@ export class SqlsService {
           this.citaLeadLabel(lead, sql.sqlId),
         );
       }
+
+      await this.recordAppointmentEvent(
+        sql.sqlId,
+        SqlCitaEstado.Reagendada,
+        actorUserId,
+        {
+          fecha: String(cita.fecha).slice(0, 10),
+          hora: String(cita.hora).slice(0, 8),
+          fecha_anterior: previousFecha,
+          hora_anterior: previousHora,
+        },
+        transaction,
+      );
 
       if (
         isQualificationRole(
@@ -445,6 +483,7 @@ export class SqlsService {
           message: `No cita found for SQL ${sqlId}`,
         });
       }
+      this.assertCitaIsOpen(cita);
 
       if (cita.graphEventId) {
         try {
@@ -464,7 +503,89 @@ export class SqlsService {
         }
       }
 
+      await this.recordAppointmentEvent(
+        sql.sqlId,
+        SqlCitaEstado.Cancelada,
+        actorUserId,
+        {
+          fecha: String(cita.fecha).slice(0, 10),
+          hora: String(cita.hora).slice(0, 8),
+        },
+        transaction,
+      );
       await cita.destroy({ transaction });
+    });
+  }
+
+  async listAppointmentEvents(
+    sqlId: string,
+    viewerUserId: string,
+    viewerRoleName?: string,
+  ): Promise<SqlAppointmentEventResponseDto[]> {
+    const sql = await this.findSqlOrFail(sqlId);
+    this.assertCanViewSql(sql, viewerUserId, viewerRoleName);
+    const events = await this.sqlAppointmentEventModel.findAll({
+      where: { sqlId },
+      include: [{ model: User, as: 'actor', required: false }],
+      order: [
+        ['occurredAt', 'ASC'],
+        ['createdAt', 'ASC'],
+      ],
+    });
+    return events.map((event) => this.toAppointmentEventResponse(event));
+  }
+
+  async closeCita(
+    sqlId: string,
+    dto: CloseSqlCitaDto,
+    actorUserId: string,
+    actorRoleName?: string,
+  ): Promise<SqlCitaResponseDto> {
+    return this.sequelize.transaction(async (transaction) => {
+      const sql = await this.sqlModel.findByPk(sqlId, {
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+        include: [{ model: Mql, required: true }],
+      });
+      if (!sql) {
+        throw new NotFoundException({
+          code: QUALIFICATION_ERROR_CODES.NOT_FOUND,
+          message: `SQL ${sqlId} not found`,
+        });
+      }
+      if (sql.estado !== SqlEstado.Asignado) {
+        throw new BadRequestException({
+          code: QUALIFICATION_ERROR_CODES.SQL_NOT_ASSIGNED,
+          message: 'SQL must be Asignado to close the cita',
+        });
+      }
+      this.assertCanScheduleAssignedCita(sql, actorUserId, actorRoleName);
+
+      const cita = await this.sqlCitaModel.findOne({
+        where: { sqlId },
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+      if (!cita) {
+        throw new NotFoundException({
+          code: QUALIFICATION_ERROR_CODES.CITA_NOT_FOUND,
+          message: `No cita found for SQL ${sqlId}`,
+        });
+      }
+      this.assertCitaIsOpen(cita);
+
+      await cita.update({ estado: dto.resultado }, { transaction });
+      await this.recordAppointmentEvent(
+        sql.sqlId,
+        dto.resultado,
+        actorUserId,
+        {
+          fecha: String(cita.fecha).slice(0, 10),
+          hora: String(cita.hora).slice(0, 8),
+        },
+        transaction,
+      );
+      return this.toCitaResponse(cita);
     });
   }
 
@@ -512,7 +633,11 @@ export class SqlsService {
         lock: transaction.LOCK.UPDATE,
       });
 
-      if (existing && isCitaVigente(existing.fecha, existing.hora)) {
+      if (
+        existing &&
+        isOpenCitaEstado(existing.estado) &&
+        isCitaVigente(existing.fecha, existing.hora)
+      ) {
         throw new BadRequestException({
           code: QUALIFICATION_ERROR_CODES.CITA_VIGENTE_EXISTS,
           message: `SQL ${sqlId} already has a vigente cita`,
@@ -548,6 +673,16 @@ export class SqlsService {
           transaction,
         );
         await created.update(graphFields, { transaction });
+        await this.recordAppointmentEvent(
+          sql.sqlId,
+          SqlCitaEstado.Agendada,
+          actorUserId,
+          {
+            fecha: dto.fecha.slice(0, 10),
+            hora: this.normalizeHora(dto.hora),
+          },
+          transaction,
+        );
         return this.toCitaResponse(created);
       }
 
@@ -567,9 +702,20 @@ export class SqlsService {
           contactoCargo: dto.contacto_cargo ?? null,
           descripcion: dto.descripcion ?? null,
           agendadaPor: actorUserId,
+          estado: SqlCitaEstado.Agendada,
           ...graphFields,
         },
         { transaction },
+      );
+      await this.recordAppointmentEvent(
+        sql.sqlId,
+        SqlCitaEstado.Agendada,
+        actorUserId,
+        {
+          fecha: dto.fecha.slice(0, 10),
+          hora: this.normalizeHora(dto.hora),
+        },
+        transaction,
       );
       return this.toCitaResponse(existing);
     });
@@ -726,6 +872,7 @@ export class SqlsService {
         descripcion: dto.descripcion ?? null,
         durationMinutes: dto.duration_minutes ?? 60,
         agendadaPor,
+        estado: SqlCitaEstado.Agendada,
       },
       { transaction },
     );
@@ -921,6 +1068,55 @@ export class SqlsService {
     };
   }
 
+  private assertCitaIsOpen(cita: SqlCita): void {
+    if (isOpenCitaEstado(cita.estado)) {
+      return;
+    }
+    throw new BadRequestException({
+      code: QUALIFICATION_ERROR_CODES.CITA_ALREADY_CLOSED,
+      message: 'La cita ya tiene un resultado final',
+    });
+  }
+
+  private async recordAppointmentEvent(
+    sqlId: string,
+    eventType: SqlCitaEstado,
+    actorUserId: string,
+    payload: {
+      fecha?: string;
+      hora?: string;
+      fecha_anterior?: string;
+      hora_anterior?: string;
+    },
+    transaction: Transaction,
+  ): Promise<void> {
+    await this.sqlAppointmentEventModel.create(
+      {
+        sqlId,
+        eventType,
+        actorUserId,
+        occurredAt: new Date(),
+        payload,
+      },
+      { transaction },
+    );
+  }
+
+  private toAppointmentEventResponse(
+    event: SqlAppointmentEvent,
+  ): SqlAppointmentEventResponseDto {
+    return {
+      sql_appointment_event_id: event.sqlAppointmentEventId,
+      sql_id: event.sqlId,
+      event_type: event.eventType,
+      occurred_at: event.occurredAt,
+      actor_user_id: event.actorUserId,
+      actor_name: event.actor?.fullName ?? null,
+      payload: event.payload ?? null,
+      notes: event.notes,
+    };
+  }
+
   private assertCanScheduleAssignedCita(
     sql: Sql,
     actorUserId: string,
@@ -1104,11 +1300,13 @@ export class SqlsService {
       contacto_cargo: cita.contactoCargo,
       descripcion: cita.descripcion,
       agendada_por: cita.agendadaPor,
+      estado: cita.estado ?? SqlCitaEstado.Agendada,
       graph_event_id: cita.graphEventId,
       graph_organizer_upn: cita.graphOrganizerUpn,
       teams_join_url: cita.teamsJoinUrl,
       duration_minutes: cita.durationMinutes ?? 60,
-      vigente: isCitaVigente(cita.fecha, cita.hora),
+      vigente:
+        isOpenCitaEstado(cita.estado) && isCitaVigente(cita.fecha, cita.hora),
       created_at: cita.createdAt,
       updated_at: cita.updatedAt,
     };

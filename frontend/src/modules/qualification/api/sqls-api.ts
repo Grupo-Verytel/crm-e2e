@@ -1,5 +1,6 @@
 import { apiRequest } from '../../../lib/api/http-client';
 import { buildQueryString } from '../../../lib/format';
+import type { SqlAppointmentEvent } from '../types/sql-appointment-event.types';
 
 export type SqlCita = {
   cita_id: string;
@@ -18,6 +19,7 @@ export type SqlCita = {
   contacto_cargo: string | null;
   descripcion: string | null;
   agendada_por: string;
+  estado?: string;
   graph_event_id?: string | null;
   graph_organizer_upn?: string | null;
   teams_join_url?: string | null;
@@ -148,6 +150,22 @@ export async function updateSqlCita(
   return apiRequest(`/qualification/sqls/${sqlId}/cita`, {
     method: 'PATCH',
     body: payload,
+  });
+}
+
+export async function fetchSqlAppointmentEvents(
+  sqlId: string,
+): Promise<SqlAppointmentEvent[]> {
+  return apiRequest(`/qualification/sqls/${sqlId}/cita/events`);
+}
+
+export async function closeSqlCita(
+  sqlId: string,
+  resultado: 'Realizada' | 'NoAsistio',
+): Promise<SqlCita> {
+  return apiRequest(`/qualification/sqls/${sqlId}/cita/outcome`, {
+    method: 'POST',
+    body: { resultado },
   });
 }
 

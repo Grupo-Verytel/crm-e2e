@@ -12,12 +12,15 @@ import {
   fetchSqlInteractions,
   registerSqlInteraction,
 } from '../api/sql-interactions-api';
-import { fetchSql, type SqlDetail } from '../api/sqls-api';
+import { closeSqlCita, fetchSql, type SqlDetail } from '../api/sqls-api';
+import { AssignSqlModal } from '../components/AssignSqlModal';
 import { ConvertirSqlEnOuvModal } from '../components/ConvertirSqlEnOuvModal';
 import { QualificationNav } from '../components/QualificationNav';
+import { SqlCitaTraceCard } from '../components/SqlCitaTraceCard';
 import { SqlDetailNav, type SqlDetailTab } from '../components/SqlDetailNav';
-import { cardClass, primaryButtonClass } from '../components/ui';
+import { cardClass, ghostButtonClass, primaryButtonClass } from '../components/ui';
 import { needsAgencyCitaGeneration, sqlLeadName } from '../lib/agency-cita';
+import { isOpenSqlCitaEstado } from '../types/sql-appointment-event.types';
 import { citaContactosFromLead } from '../lib/cita-contactos';
 import {
   formatLeadOrigin,
@@ -68,7 +71,12 @@ export function SqlDetailPage() {
     searchParams.get('tab') === 'interacciones' ? 'interacciones' : 'detalle',
   );
   const [showConvertModal, setShowConvertModal] = useState(false);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [listVersion, setListVersion] = useState(0);
+  const [traceVersion, setTraceVersion] = useState(0);
+  const [closingOutcome, setClosingOutcome] = useState<
+    'Realizada' | 'NoAsistio' | null
+  >(null);
 
   const loadSql = useCallback(async () => {
     if (!id) return;
@@ -100,12 +108,49 @@ export function SqlDetailPage() {
     user?.role_name === 'EjecutivoComercial' &&
     sql?.estado === 'Asignado' &&
     sql.comercial_asignado_id === user.user_id;
+  const canManageCita =
+    sql != null &&
+    sql.estado === 'Asignado' &&
+    (isRoleName(user?.role_name, 'SoporteComercial', 'Admin') ||
+      (isRoleName(user?.role_name, 'EjecutivoComercial') &&
+        sql.comercial_asignado_id === user?.user_id));
   const canRegister =
     sql != null &&
     REGISTRABLE_ESTADOS.has(sql.estado) &&
     (isRoleName(user?.role_name, 'SoporteComercial', 'Admin') ||
       (isRoleName(user?.role_name, 'EjecutivoComercial') &&
         sql.comercial_asignado_id === user?.user_id));
+  const canCloseCita =
+    canManageCita && sql.cita != null && isOpenSqlCitaEstado(sql.cita.estado);
+  const canScheduleNewCita =
+    canManageCita &&
+    (sql.cita == null || !isOpenSqlCitaEstado(sql.cita.estado));
+
+  async function handleCloseCita(resultado: 'Realizada' | 'NoAsistio') {
+    if (!sql) return;
+    const confirmLabel =
+      resultado === 'Realizada'
+        ? '¿Marcar la reunión como ejecutada?'
+        : '¿Marcar que no asistieron a la reunión?';
+    if (!window.confirm(confirmLabel)) {
+      return;
+    }
+    setClosingOutcome(resultado);
+    setError(null);
+    try {
+      await closeSqlCita(sql.sql_id, resultado);
+      await loadSql();
+      setTraceVersion((value) => value + 1);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'No se pudo registrar el resultado de la cita.',
+      );
+    } finally {
+      setClosingOutcome(null);
+    }
+  }
 
   const headerContact = sql
     ? [sql.lead.contacto_nombre, sql.lead.email]
@@ -165,6 +210,7 @@ export function SqlDetailPage() {
               }
             />
           ) : (
+            <>
             <div className="grid gap-4 lg:grid-cols-2">
               <section className={`${cardClass} p-5`}>
                 <h2 className="mb-4 text-sm font-bold text-ink">Información del SQL</h2>
@@ -245,6 +291,18 @@ export function SqlDetailPage() {
                 {sql.cita ? (
                   <dl className="mt-3 space-y-2 text-sm">
                     <div className="flex justify-between gap-4">
+                      <dt className="text-muted">Estado</dt>
+                      <dd className="font-bold text-ink">
+                        {sql.cita.estado === 'Realizada'
+                          ? 'Reunión ejecutada'
+                          : sql.cita.estado === 'NoAsistio'
+                            ? 'No asistieron'
+                            : sql.cita.estado === 'Reagendada'
+                              ? 'Reagendada'
+                              : 'Agendada'}
+                      </dd>
+                    </div>
+                    <div className="flex justify-between gap-4">
                       <dt className="text-muted">Lugar</dt>
                       <dd className="text-ink">{sql.cita.lugar}</dd>
                     </div>
@@ -311,8 +369,47 @@ export function SqlDetailPage() {
                 ) : (
                   <p className="mt-3 text-sm text-muted">Sin cita agendada.</p>
                 )}
+                {canCloseCita ? (
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      className={primaryButtonClass}
+                      disabled={closingOutcome !== null}
+                      onClick={() => void handleCloseCita('Realizada')}
+                    >
+                      {closingOutcome === 'Realizada'
+                        ? 'Guardando…'
+                        : 'Se ejecutó la reunión'}
+                    </button>
+                    <button
+                      type="button"
+                      className={ghostButtonClass}
+                      disabled={closingOutcome !== null}
+                      onClick={() => void handleCloseCita('NoAsistio')}
+                    >
+                      {closingOutcome === 'NoAsistio'
+                        ? 'Guardando…'
+                        : 'No asistieron'}
+                    </button>
+                  </div>
+                ) : null}
+                {canScheduleNewCita ? (
+                  <div className="mt-4">
+                    <button
+                      type="button"
+                      className={primaryButtonClass}
+                      onClick={() => setShowScheduleModal(true)}
+                    >
+                      Agendar nueva reunión
+                    </button>
+                  </div>
+                ) : null}
               </section>
             </div>
+            <div className="mt-4">
+              <SqlCitaTraceCard sqlId={sql.sql_id} refreshKey={traceVersion} />
+            </div>
+            </>
           )}
         </>
       ) : null}
@@ -324,6 +421,19 @@ export function SqlDetailPage() {
           onConverted={(ouvId) => {
             navigate(`/opportunities/${ouvId}`);
           }}
+        />
+      ) : null}
+      {showScheduleModal && sql ? (
+        <AssignSqlModal
+          sql={sql}
+          scheduleOnly
+          onClose={() => setShowScheduleModal(false)}
+          onAssigned={() => {
+            setShowScheduleModal(false);
+            void loadSql();
+            setTraceVersion((value) => value + 1);
+          }}
+          onVigenteConflict={() => void loadSql()}
         />
       ) : null}
     </AppLayout>

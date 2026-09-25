@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { SequelizeModule } from '@nestjs/sequelize';
 import { AuthModule } from '../auth/auth.module';
+import { User } from '../auth/models/user.model';
 import { DemandGenerationModule } from '../demand-generation/demand-generation.module';
 import { Lead } from '../demand-generation/models/lead.model';
 import { Mql } from '../demand-generation/models/mql.model';
@@ -10,11 +11,19 @@ import { GraphIntegrationModule } from '../graph-integration/graph-integration.m
 import { WorkflowEngineModule } from '../workflow-engine/workflow-engine.module';
 import { SqlsController } from './controllers/sqls.controller';
 import { SqlCita } from './models/sql-cita.model';
+import { SqlAppointmentEvent } from './models/sql-appointment-event.model';
 import { SqlsService } from './services/sqls.service';
 
 @Module({
   imports: [
-    SequelizeModule.forFeature([Sql, Mql, Lead, SqlCita]),
+    SequelizeModule.forFeature([
+      Sql,
+      Mql,
+      Lead,
+      SqlCita,
+      SqlAppointmentEvent,
+      User,
+    ]),
     AuthModule,
     DemandGenerationModule,
     DiscoveryModule,

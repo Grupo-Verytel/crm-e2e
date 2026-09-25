@@ -53,6 +53,7 @@ export class SqlCitaResponseDto {
   contacto_cargo: string | null;
   descripcion: string | null;
   agendada_por: string;
+  estado: string;
   graph_event_id: string | null;
   graph_organizer_upn: string | null;
   teams_join_url: string | null;

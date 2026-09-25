@@ -11,6 +11,7 @@ import { OuvsService } from '../../discovery/services/ouvs.service';
 import { GraphService } from '../../graph-integration/services/graph.service';
 import { WorkflowEngineService } from '../../workflow-engine/workflow-engine.service';
 import { CreateAssignedSqlCitaDto } from '../dtos/assign-sql.dto';
+import { SqlAppointmentEvent } from '../models/sql-appointment-event.model';
 import { SqlCita } from '../models/sql-cita.model';
 import { SqlsService } from './sqls.service';
 
@@ -121,6 +122,7 @@ describe('SqlsService.createCitaForAssignedSql', () => {
       } as unknown as Sequelize,
       sqlModel as unknown as typeof Sql,
       sqlCitaModel as unknown as typeof SqlCita,
+      { create: jest.fn() } as unknown as typeof SqlAppointmentEvent,
       {
         findLeadById: jest.fn().mockResolvedValue({
           name: 'Acme',
@@ -382,6 +384,7 @@ describe('createCitaForAssignedSql audit hook', () => {
         }),
       } as unknown as typeof Sql,
       CitaRow as unknown as typeof SqlCita,
+      { create: jest.fn() } as unknown as typeof SqlAppointmentEvent,
       {
         findLeadById: jest.fn().mockResolvedValue({ name: 'Acme' }),
       } as unknown as DemandGenerationService,

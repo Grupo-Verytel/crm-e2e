@@ -15,6 +15,7 @@ import {
   fetchAssignedSqls,
   type SqlDetail,
 } from '../api/sqls-api';
+import { isOpenSqlCitaEstado } from '../types/sql-appointment-event.types';
 import { AssignSqlModal } from '../components/AssignSqlModal';
 import { QualificationNav } from '../components/QualificationNav';
 import { RescheduleSqlCitaModal } from '../components/RescheduleSqlCitaModal';
@@ -88,7 +89,9 @@ export function AssignedSqlsPage() {
     if (!isSoporte && !isOwner) {
       return 'none';
     }
-    return sql.cita ? 'programada' : 'agendar';
+    return sql.cita && isOpenSqlCitaEstado(sql.cita.estado)
+      ? 'programada'
+      : 'agendar';
   }
 
   async function handleCancel(sql: SqlDetail) {

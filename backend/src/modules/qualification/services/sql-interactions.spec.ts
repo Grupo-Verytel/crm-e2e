@@ -9,6 +9,7 @@ import { Sql } from '../../demand-generation/models/sql.model';
 import { OuvsService } from '../../discovery/services/ouvs.service';
 import { GraphService } from '../../graph-integration/services/graph.service';
 import { WorkflowEngineService } from '../../workflow-engine/workflow-engine.service';
+import { SqlAppointmentEvent } from '../models/sql-appointment-event.model';
 import { SqlCita } from '../models/sql-cita.model';
 import { SqlsService } from './sqls.service';
 
@@ -47,6 +48,7 @@ function build(options?: {
     {} as Sequelize,
     { findByPk: jest.fn().mockResolvedValue(sql) } as unknown as typeof Sql,
     {} as typeof SqlCita,
+    { create: jest.fn() } as unknown as typeof SqlAppointmentEvent,
     {
       registerSqlInteraction,
       listInteractions,
