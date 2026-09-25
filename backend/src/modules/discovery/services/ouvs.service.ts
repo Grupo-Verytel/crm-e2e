@@ -37,6 +37,7 @@ import { nextZona, prevZona } from '../lib/ouv-zona-order';
 import { OuvOrigenVia, OuvResultado, OuvZona } from '../models/enums/ouv.enums';
 import { MotivoDescarte } from '../models/motivo-descarte.model';
 import { MotivoPerdida } from '../models/motivo-perdida.model';
+import { ProcessType } from '../models/process-type.model';
 import { Ouv } from '../models/ouv.model';
 import { CriteriosZonaEvaluator } from './criterios-zona.evaluator';
 import { OuvChecklistService } from './ouv-checklist.service';
@@ -77,6 +78,8 @@ export class OuvsService {
     private readonly motivoPerdidaModel: typeof MotivoPerdida,
     @InjectModel(MotivoDescarte)
     private readonly motivoDescarteModel: typeof MotivoDescarte,
+    @InjectModel(ProcessType)
+    private readonly processTypeModel: typeof ProcessType,
     private readonly demandGeneration: DemandGenerationService,
     private readonly accountsService: AccountsService,
     private readonly usersService: UsersService,
@@ -392,18 +395,16 @@ export class OuvsService {
 
       let motivoSnapshot: string | null = null;
       if (dto.motivo_id) {
-        const motivo = await this.motivoPerdidaModel.findByPk(dto.motivo_id, {
-          transaction,
-        });
-        if (!motivo) {
-          throw new BadRequestException(`motivo_id ${dto.motivo_id} not found`);
-        }
-        motivoSnapshot = motivo.nombre;
-        if (motivo.requiereDetalle && !dto.motivo_detalle?.trim()) {
+        const processType = await this.processTypeModel.findByPk(
+          dto.motivo_id,
+          { transaction },
+        );
+        if (!processType) {
           throw new BadRequestException(
-            'motivo_detalle is required for this motivo',
+            `process type ${dto.motivo_id} not found`,
           );
         }
+        motivoSnapshot = processType.name;
       }
 
       const zonaAlCerrar = ouv.zonaActual;

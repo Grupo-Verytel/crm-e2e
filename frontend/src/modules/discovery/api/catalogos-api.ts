@@ -46,6 +46,16 @@ export async function fetchEjecutivosComerciales(): Promise<
   return apiRequest('/discovery/ouvs/ejecutivos-comerciales');
 }
 
+export type ProcessTypeOption = {
+  process_type_id: string;
+  name: string;
+  sort_order: number;
+};
+
+export async function fetchProcessTypes(): Promise<ProcessTypeOption[]> {
+  return apiRequest('/discovery/process-types');
+}
+
 export async function fetchMotivosPerdida(): Promise<MotivoCatalogo[]> {
   return apiRequest('/discovery/motivos-perdida');
 }

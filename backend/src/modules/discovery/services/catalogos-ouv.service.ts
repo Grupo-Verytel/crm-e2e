@@ -8,10 +8,12 @@ import type {
   CrearZonaChecklistTemplateDto,
   EjecutivoComercialOptionDto,
   MotivoCatalogoResponseDto,
+  ProcessTypeResponseDto,
   ZonaChecklistTemplateResponseDto,
 } from '../dtos/catalogo.dto';
 import { MotivoDescarte } from '../models/motivo-descarte.model';
 import { MotivoPerdida } from '../models/motivo-perdida.model';
+import { ProcessType } from '../models/process-type.model';
 import { ZonaChecklistTemplate } from '../models/zona-checklist-template.model';
 
 @Injectable()
@@ -21,6 +23,8 @@ export class CatalogosOuvService {
     private readonly motivoPerdidaModel: typeof MotivoPerdida,
     @InjectModel(MotivoDescarte)
     private readonly motivoDescarteModel: typeof MotivoDescarte,
+    @InjectModel(ProcessType)
+    private readonly processTypeModel: typeof ProcessType,
     @InjectModel(ZonaChecklistTemplate)
     private readonly templateModel: typeof ZonaChecklistTemplate,
     private readonly usersService: UsersService,
@@ -32,6 +36,20 @@ export class CatalogosOuvService {
     return users.map((user) => ({
       user_id: user.user_id,
       full_name: user.full_name,
+    }));
+  }
+
+  async listProcessTypes(): Promise<ProcessTypeResponseDto[]> {
+    const rows = await this.processTypeModel.findAll({
+      order: [
+        ['sortOrder', 'ASC'],
+        ['name', 'ASC'],
+      ],
+    });
+    return rows.map((row) => ({
+      process_type_id: row.processTypeId,
+      name: row.name,
+      sort_order: row.sortOrder,
     }));
   }
 

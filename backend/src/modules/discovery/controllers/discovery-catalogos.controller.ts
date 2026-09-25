@@ -3,6 +3,7 @@ import { CheckAbility } from '../../auth/casl/check-ability.decorator';
 import {
   EjecutivoComercialOptionDto,
   MotivoCatalogoResponseDto,
+  ProcessTypeResponseDto,
 } from '../dtos/catalogo.dto';
 import { CatalogosOuvService } from '../services/catalogos-ouv.service';
 
@@ -19,6 +20,12 @@ export class DiscoveryCatalogosController {
   @CheckAbility({ action: 'read', subject: 'Opportunity' })
   listEjecutivosComerciales(): Promise<EjecutivoComercialOptionDto[]> {
     return this.catalogos.listEjecutivosComerciales();
+  }
+
+  @Get('process-types')
+  @CheckAbility({ action: 'read', subject: 'Opportunity' })
+  listProcessTypes(): Promise<ProcessTypeResponseDto[]> {
+    return this.catalogos.listProcessTypes();
   }
 
   @Get('motivos-perdida')

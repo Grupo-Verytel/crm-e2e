@@ -15,6 +15,7 @@ import { OuvsController } from './controllers/ouvs.controller';
 import { ZonaChecklistTemplatesController } from './controllers/zona-checklist-templates.controller';
 import { MotivoDescarte } from './models/motivo-descarte.model';
 import { MotivoPerdida } from './models/motivo-perdida.model';
+import { ProcessType } from './models/process-type.model';
 import { OuvChecklistItem } from './models/ouv-checklist-item.model';
 import { OuvContacto } from './models/ouv-contacto.model';
 import { OuvInfluencia } from './models/ouv-influencia.model';
@@ -42,6 +43,7 @@ import { OuvsService } from './services/ouvs.service';
       OuvInteractionReply,
       MotivoPerdida,
       MotivoDescarte,
+      ProcessType,
       ZonaChecklistTemplate,
       User,
     ]),

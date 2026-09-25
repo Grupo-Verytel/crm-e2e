@@ -106,6 +106,12 @@ export class EjecutivoComercialOptionDto {
   full_name!: string;
 }
 
+export class ProcessTypeResponseDto {
+  process_type_id!: string;
+  name!: string;
+  sort_order!: number;
+}
+
 export class MotivoCatalogoResponseDto {
   motivo_id!: string;
   nombre!: string;

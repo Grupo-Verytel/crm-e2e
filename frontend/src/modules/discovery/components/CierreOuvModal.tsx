@@ -14,7 +14,9 @@ import {
 import {
   fetchMotivosDescarte,
   fetchMotivosPerdida,
+  fetchProcessTypes,
   type MotivoCatalogo,
+  type ProcessTypeOption,
 } from '../api/catalogos-api';
 import { ModalShell } from './ModalShell';
 import {
@@ -56,6 +58,7 @@ function presupuestoAmount(ouv: Ouv): string {
 export function CierreOuvModal({ ouv, onClose, onClosed }: Props) {
   const [resultado, setResultado] = useState<ResultadoCierre>('Ganada');
   const [motivosPerdida, setMotivosPerdida] = useState<MotivoCatalogo[]>([]);
+  const [processTypes, setProcessTypes] = useState<ProcessTypeOption[]>([]);
   const [motivosDescarte, setMotivosDescarte] = useState<MotivoCatalogo[]>(
     [],
   );
@@ -75,11 +78,16 @@ export function CierreOuvModal({ ouv, onClose, onClosed }: Props) {
 
   useEffect(() => {
     let cancelled = false;
-    void Promise.all([fetchMotivosPerdida(), fetchMotivosDescarte()])
-      .then(([p, d]) => {
+    void Promise.all([
+      fetchMotivosPerdida(),
+      fetchMotivosDescarte(),
+      fetchProcessTypes(),
+    ])
+      .then(([p, d, types]) => {
         if (cancelled) return;
         setMotivosPerdida(asMotivoList(p));
         setMotivosDescarte(asMotivoList(d));
+        setProcessTypes(Array.isArray(types) ? types : []);
       })
       .catch((err: unknown) => {
         if (cancelled) return;
@@ -215,9 +223,12 @@ export function CierreOuvModal({ ouv, onClose, onClosed }: Props) {
                 onChange={(e) => setMotivoId(e.target.value)}
               >
                 <option value="">—</option>
-                {motivosPerdida.map((m) => (
-                  <option key={m.motivo_id} value={m.motivo_id}>
-                    {m.nombre}
+                {processTypes.map((item) => (
+                  <option
+                    key={item.process_type_id}
+                    value={item.process_type_id}
+                  >
+                    {item.name}
                   </option>
                 ))}
               </select>
