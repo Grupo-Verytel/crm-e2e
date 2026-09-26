@@ -774,6 +774,76 @@ export class LeadsService {
     return createdLead;
   }
 
+  /**
+   * Adds another contact from a repeated Empresa + NIT row onto a lead
+   * that this import already created or found.
+   */
+  async attachImportContactToLead(
+    leadId: string,
+    values: Record<string, string>,
+  ): Promise<'attached' | 'duplicate'> {
+    const lead = await this.findLeadOrFail(leadId);
+    if (!lead.accountId) {
+      throw new BadRequestException(
+        'El lead no tiene empresa para asociar el contacto',
+      );
+    }
+
+    const nombre = values.contacto_nombre?.trim();
+    const email = values.email?.trim().toLowerCase();
+    if (!nombre || !email) {
+      throw new BadRequestException('Missing required lead fields');
+    }
+
+    const duplicate = await this.findDuplicateByAccountIdAndEmail(
+      lead.accountId,
+      email,
+    );
+    if (duplicate) {
+      return 'duplicate';
+    }
+
+    const tipoInfluencia = this.parseImportInfluencia(values.tipo_influencia);
+    const telefono = values.telefono
+      ? normalizePhoneToE164(values.telefono)
+      : null;
+    const { person_id: personId } =
+      await this.accountsService.findOrCreatePersonForAccount(lead.accountId, {
+        person_name: nombre,
+        job_title: values.cargo?.trim() || null,
+        email,
+        phone: telefono,
+      });
+
+    const alreadyLinked = await this.leadContactModel.findOne({
+      where: { leadId, personId },
+    });
+    if (alreadyLinked) {
+      return 'duplicate';
+    }
+
+    await this.sequelize.transaction(async (transaction) => {
+      const maxPosition = Number(
+        await this.leadContactModel.max('position', {
+          where: { leadId },
+          transaction,
+        }),
+      );
+      const position = (Number.isFinite(maxPosition) ? maxPosition : 0) + 1;
+      await this.leadContactModel.create(
+        {
+          leadId,
+          position,
+          personId,
+          tipoInfluencia,
+        },
+        { transaction },
+      );
+    });
+
+    return 'attached';
+  }
+
   async findDuplicateByEmailAndNit(
     email: string,
     nit: string | null,

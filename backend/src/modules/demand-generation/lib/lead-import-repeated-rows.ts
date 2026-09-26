@@ -228,3 +228,27 @@ export function assertConsistentRepeatedCompanies(
     throw new Error(errors.join('\n'));
   }
 }
+
+/** One group per Empresa + NIT. Rows without a company stay alone. */
+export function groupLeadImportRowsByCompany<T extends LeadImportRowSnapshot>(
+  rows: T[],
+): T[][] {
+  const groups = new Map<string, T[]>();
+  const order: string[] = [];
+
+  for (const row of rows) {
+    const identity = accountIdentity(row.values);
+    const key = identity.name.trim()
+      ? companyGroupKey(identity)
+      : `__row_${row.rowNumber}`;
+    const group = groups.get(key);
+    if (group) {
+      group.push(row);
+      continue;
+    }
+    groups.set(key, [row]);
+    order.push(key);
+  }
+
+  return order.map((key) => groups.get(key) ?? []);
+}

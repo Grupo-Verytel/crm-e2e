@@ -13,6 +13,7 @@ import { loadLeadImportCatalog } from '../../lib/lead-import-catalog';
 import {
   duplicateImportRows,
   importRowKey,
+  LEAD_IMPORT_CONTACT_ATTACHED_REASON,
   pollLeadImportJob,
 } from '../../lib/lead-import-job';
 import type { BulkImportJobStatus } from '../../types';
@@ -174,6 +175,11 @@ export function LeadBulkImportModal({ onClose, onDone }: Props) {
     onClose();
   }
 
+  const attachedContacts =
+    status?.rows?.filter(
+      (row) => row.reason === LEAD_IMPORT_CONTACT_ATTACHED_REASON,
+    ).length ?? 0;
+
   return (
     <ModalShell title="Carga masiva de leads" onClose={handleClose} size="wide">
       <div className="space-y-4">
@@ -186,8 +192,9 @@ export function LeadBulkImportModal({ onClose, onDone }: Props) {
               La empresa debe existir en el CRM; el cargue no crea empresas.
               Puedes repetir la misma empresa y el mismo NIT en varias filas
               si cada una trae un contacto distinto (nombre, cargo, email y
-              teléfono). En esas filas, origen, canal, segmento, subsegmento
-              y ciudad deben ser iguales.
+              teléfono). Esas filas crean un solo lead y cada contacto queda
+              asociado a ese lead. En esas filas, origen, canal, segmento,
+              subsegmento y ciudad deben ser iguales.
             </p>
             <div className="overflow-x-auto rounded border border-border">
               <table className="w-full min-w-[640px] text-left text-sm">
@@ -219,10 +226,9 @@ export function LeadBulkImportModal({ onClose, onDone }: Props) {
             </div>
             <p className="text-xs text-muted">
               El nombre del lead se genera con la empresa. Elige la empresa de
-              la lista; si no está, créala antes en Empresas. Si coinciden
-              empresa y email con un lead ya creado, verás el cargue completo y
-              tendrás que autorizar cada fila duplicada para crearla. El
-              responsable es quien hace la carga.
+              la lista; si no está, créala antes en Empresas. Si el email ya
+              está en un lead de esa empresa, ese contacto no se vuelve a
+              crear. El responsable es quien hace la carga.
             </p>
             {error ? (
               <p className="whitespace-pre-line text-sm text-danger">{error}</p>
@@ -369,7 +375,11 @@ export function LeadBulkImportModal({ onClose, onDone }: Props) {
               <p className="text-sm text-ink">
                 Importación completada:{' '}
                 <span className="font-bold">{status.created}</span> leads
-                creados, {status.skipped.length} omitidos.
+                creados
+                {attachedContacts > 0
+                  ? `, ${attachedContacts} contactos asociados`
+                  : ''}
+                , {status.skipped.length} omitidos.
               </p>
             )}
             {status.skipped.length > 0 ? (

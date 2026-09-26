@@ -3,11 +3,11 @@ import { randomUUID } from 'crypto';
 import {
   CSV_LEAD_REQUIRED_HEADERS,
   DEMAND_GENERATION_ERROR_CODES,
+  LEAD_IMPORT_CONTACT_ATTACHED_REASON,
   LEAD_IMPORT_DUPLICATE_REASON,
   LEAD_IMPORT_SKIP_CODES,
 } from '../constants/demand-generation.constants';
 import {
-  AuthorizedDuplicateRowDto,
   BulkImportJobAcceptedDto,
   BulkImportJobStatusDto,
   BulkImportOptionsDto,
@@ -16,9 +16,13 @@ import {
   ImportJobStatus,
 } from '../dtos/bulk-import-job.dto';
 import { parseCsvContent, type ParsedCsvRow } from '../lib/csv-parser';
-import { assertConsistentRepeatedCompanies } from '../lib/lead-import-repeated-rows';
+import {
+  assertConsistentRepeatedCompanies,
+  groupLeadImportRowsByCompany,
+} from '../lib/lead-import-repeated-rows';
 import { resolveSegmentoFromInput } from '../lib/segment-catalog';
 import { SegmentoObjetivo } from '../models/enums/segment.enum';
+import { Lead } from '../models/lead.model';
 import { LeadsService } from './leads.service';
 
 interface ImportJob {
@@ -130,96 +134,8 @@ export class LeadImportJobService {
       canalOrigen: options.canal_origen,
     };
 
-    for (const row of rows) {
-      const email = row.values.email?.trim().toLowerCase() ?? '';
-      const nit = row.values.tax_id || row.values.nit || null;
-      const accountRaw =
-        row.values.account_name ||
-        row.values.empresa ||
-        row.values.empresa_nombre ||
-        '';
-      const contactoNombre = row.values.contacto_nombre?.trim() || null;
-
-      if (!email) {
-        this.recordSkip(job, {
-          row: row.rowNumber,
-          email: '',
-          nit,
-          account_name: accountRaw || null,
-          contacto_nombre: contactoNombre,
-          reason: 'Missing email',
-          code: null,
-        });
-        continue;
-      }
-
-      try {
-        const duplicate = await this.leadsService.findDuplicateByEmailAndNit(
-          email,
-          nit,
-          accountRaw,
-        );
-        const authorized = this.isAuthorizedDuplicate(
-          options.authorized_duplicates,
-          row.rowNumber,
-          email,
-        );
-
-        if (duplicate && !authorized) {
-          this.recordSkip(job, {
-            row: row.rowNumber,
-            email,
-            nit,
-            account_name: accountRaw || null,
-            contacto_nombre: contactoNombre,
-            reason: LEAD_IMPORT_DUPLICATE_REASON,
-            code: LEAD_IMPORT_SKIP_CODES.DUPLICATE_ACCOUNT_EMAIL,
-            existing_lead_id: duplicate.leadId,
-            existing_lead_name: duplicate.name,
-            outcome: 'duplicate',
-          });
-          continue;
-        }
-
-        const lead = await this.leadsService.importLeadRow(
-          row.values,
-          createdBy,
-          {
-            ...importOptions,
-            allowDuplicate: Boolean(duplicate && authorized),
-          },
-        );
-        job.created += 1;
-        job.createdLeadIds.push(lead.leadId);
-        job.rows.push({
-          row: row.rowNumber,
-          email,
-          nit,
-          account_name: accountRaw || null,
-          contacto_nombre: contactoNombre,
-          outcome: 'created',
-          reason: null,
-          code: null,
-          lead_id: lead.leadId,
-          existing_lead_id: duplicate?.leadId ?? null,
-          existing_lead_name: duplicate?.name ?? null,
-        });
-      } catch (error) {
-        const reason = this.importSkipReason(error);
-        const isDuplicate = reason === LEAD_IMPORT_DUPLICATE_REASON;
-        this.recordSkip(job, {
-          row: row.rowNumber,
-          email,
-          nit,
-          account_name: accountRaw || null,
-          contacto_nombre: contactoNombre,
-          reason,
-          code: isDuplicate
-            ? LEAD_IMPORT_SKIP_CODES.DUPLICATE_ACCOUNT_EMAIL
-            : null,
-          outcome: isDuplicate ? 'duplicate' : 'skipped',
-        });
-      }
+    for (const group of groupLeadImportRowsByCompany(rows)) {
+      await this.processCompanyGroup(job, group, createdBy, importOptions);
     }
 
     job.status = 'completed';
@@ -229,18 +145,140 @@ export class LeadImportJobService {
     );
   }
 
-  private isAuthorizedDuplicate(
-    authorized: AuthorizedDuplicateRowDto[] | undefined,
-    row: number,
-    email: string,
-  ): boolean {
-    if (!authorized?.length) {
-      return false;
+  /**
+   * Repeated Empresa + NIT rows become one lead. The first new row creates
+   * it; the rest only add contacts.
+   */
+  private async processCompanyGroup(
+    job: ImportJob,
+    group: ParsedCsvRow[],
+    createdBy: string,
+    importOptions: {
+      campanaId?: string;
+      canalOrigen?: BulkImportOptionsDto['canal_origen'];
+    },
+  ): Promise<void> {
+    let lead: Lead | null = null;
+
+    for (const row of group) {
+      const email = row.values.email?.trim().toLowerCase() ?? '';
+      const nit = row.values.tax_id || row.values.nit || null;
+      const accountRaw =
+        row.values.account_name ||
+        row.values.empresa ||
+        row.values.empresa_nombre ||
+        '';
+      const contactoNombre = row.values.contacto_nombre?.trim() || null;
+      const identity = {
+        row: row.rowNumber,
+        email,
+        nit,
+        account_name: accountRaw || null,
+        contacto_nombre: contactoNombre,
+      };
+
+      if (!email) {
+        this.recordSkip(job, {
+          ...identity,
+          email: '',
+          reason: 'Missing email',
+          code: null,
+        });
+        continue;
+      }
+
+      if (!lead) {
+        try {
+          const duplicate = await this.leadsService.findDuplicateByEmailAndNit(
+            email,
+            nit,
+            accountRaw,
+          );
+          if (duplicate) {
+            lead = duplicate;
+            this.recordSkip(job, {
+              ...identity,
+              reason: LEAD_IMPORT_DUPLICATE_REASON,
+              code: LEAD_IMPORT_SKIP_CODES.DUPLICATE_ACCOUNT_EMAIL,
+              existing_lead_id: duplicate.leadId,
+              existing_lead_name: duplicate.name,
+              outcome: 'duplicate',
+            });
+            continue;
+          }
+
+          lead = await this.leadsService.importLeadRow(
+            row.values,
+            createdBy,
+            importOptions,
+          );
+          job.created += 1;
+          job.createdLeadIds.push(lead.leadId);
+          job.rows.push({
+            ...identity,
+            outcome: 'created',
+            reason: null,
+            code: null,
+            lead_id: lead.leadId,
+            existing_lead_id: null,
+            existing_lead_name: null,
+          });
+        } catch (error) {
+          this.recordRowError(job, identity, error);
+        }
+        continue;
+      }
+
+      try {
+        const attached = await this.leadsService.attachImportContactToLead(
+          lead.leadId,
+          row.values,
+        );
+        if (attached === 'duplicate') {
+          this.recordSkip(job, {
+            ...identity,
+            reason: LEAD_IMPORT_DUPLICATE_REASON,
+            code: LEAD_IMPORT_SKIP_CODES.DUPLICATE_ACCOUNT_EMAIL,
+            existing_lead_id: lead.leadId,
+            existing_lead_name: lead.name,
+            outcome: 'duplicate',
+          });
+          continue;
+        }
+        job.rows.push({
+          ...identity,
+          outcome: 'created',
+          reason: LEAD_IMPORT_CONTACT_ATTACHED_REASON,
+          code: null,
+          lead_id: lead.leadId,
+          existing_lead_id: null,
+          existing_lead_name: null,
+        });
+      } catch (error) {
+        this.recordRowError(job, identity, error);
+      }
     }
-    return authorized.some(
-      (item) =>
-        item.row === row && item.email.trim().toLowerCase() === email,
-    );
+  }
+
+  private recordRowError(
+    job: ImportJob,
+    identity: {
+      row: number;
+      email: string;
+      nit: string | null;
+      account_name: string | null;
+      contacto_nombre: string | null;
+    },
+    error: unknown,
+  ): void {
+    const reason = this.importSkipReason(error);
+    const isDuplicate = reason === LEAD_IMPORT_DUPLICATE_REASON;
+    this.recordSkip(job, {
+      ...identity,
+      reason,
+      code: isDuplicate ? LEAD_IMPORT_SKIP_CODES.DUPLICATE_ACCOUNT_EMAIL : null,
+      outcome: isDuplicate ? 'duplicate' : 'skipped',
+    });
   }
 
   private recordSkip(

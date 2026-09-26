@@ -26,6 +26,9 @@ export const INTERACTION_MAX_BACKDATE_HOURS = 96;
 export const LEAD_IMPORT_DUPLICATE_REASON =
   'Ya existe un lead con esta empresa y este email';
 
+export const LEAD_IMPORT_CONTACT_ATTACHED_REASON =
+  'Contacto asociado al lead de la empresa';
+
 export const LEAD_IMPORT_SKIP_CODES = {
   DUPLICATE_ACCOUNT_EMAIL: 'DUPLICATE_ACCOUNT_EMAIL',
 } as const;

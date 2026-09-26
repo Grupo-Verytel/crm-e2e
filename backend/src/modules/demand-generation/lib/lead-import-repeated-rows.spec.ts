@@ -1,4 +1,7 @@
-import { assertConsistentRepeatedCompanies } from './lead-import-repeated-rows';
+import {
+  assertConsistentRepeatedCompanies,
+  groupLeadImportRowsByCompany,
+} from './lead-import-repeated-rows';
 
 const company = {
   origen: 'Web',
@@ -97,6 +100,28 @@ describe('repeated company rows in lead import', () => {
         }),
       ]),
     ).not.toThrow();
+  });
+
+  it('groups repeated empresa and NIT into one company and keeps other companies apart', () => {
+    const groups = groupLeadImportRowsByCompany([
+      row(2, { contacto_nombre: 'Ana Pérez', email: 'ana@acme.com' }),
+      row(3, {
+        account_name: 'Otra empresa',
+        tax_id: '800111222',
+        contacto_nombre: 'Luis Gómez',
+        email: 'luis@otra.com',
+      }),
+      row(4, {
+        contacto_nombre: 'Gloria Peña',
+        email: 'gloria@acme.com',
+        telefono: '3014445566',
+      }),
+    ]);
+
+    expect(groups.map((group) => group.map((item) => item.rowNumber))).toEqual([
+      [2, 4],
+      [3],
+    ]);
   });
 
   it('treats Empresa (NIT) and a separate NIT column as the same company', () => {

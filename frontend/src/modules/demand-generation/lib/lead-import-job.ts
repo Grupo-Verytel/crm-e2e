@@ -3,6 +3,9 @@ import { fetchImportStatus } from '../api/leads-api';
 
 export const LEAD_IMPORT_DUPLICATE_CODE = 'DUPLICATE_ACCOUNT_EMAIL';
 
+export const LEAD_IMPORT_CONTACT_ATTACHED_REASON =
+  'Contacto asociado al lead de la empresa';
+
 export function importRowKey(row: number, email: string): string {
   return `${row}:${email.trim().toLowerCase()}`;
 }
