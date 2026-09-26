@@ -34,6 +34,7 @@ export class OuvResponseDto {
   moneda_final!: string | null;
   monto_estimado_perdido!: string | null;
   fecha_cierre!: Date | null;
+  plazo_ejecucion_meses!: number | null;
   created_at!: Date;
   updated_at!: Date;
   dias_por_zona?: {

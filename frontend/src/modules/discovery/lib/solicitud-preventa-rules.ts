@@ -1,4 +1,7 @@
-import type { SolicitudPreventa } from '../api/solicitudes-preventa-api';
+import type {
+  SolicitudPreventa,
+  SolicitudServicio,
+} from '../api/solicitudes-preventa-api';
 import {
   SERVICE_COMBOS,
   type ServiceComboId,
@@ -10,7 +13,9 @@ const DUPLICATE_COMBO_MESSAGE =
 export type MepSolicitudStatus =
   | 'Aceptado'
   | 'En progreso'
+  | 'Parcialmente completo'
   | 'Completado'
+  | 'Cancelado'
   | 'Rechazado'
   | 'Pendiente';
 
@@ -24,6 +29,10 @@ export function derivarMepStatus(
 ): MepSolicitudStatus {
   const hito = solicitud.estado.hito;
   const responseStatus = solicitud.estado.response_status;
+
+  if (responseStatus === 'PARTIALLY_COMPLETED') {
+    return 'Parcialmente completo';
+  }
 
   if (hito === 'INTERACTION_COMPLETED' || responseStatus === 'COMPLETED') {
     return 'Completado';
@@ -51,13 +60,36 @@ export function derivarMepStatus(
   return 'Pendiente';
 }
 
+/** Badge por servicio: `service_results[].status`, no el `response_status` global. */
+export function derivarEstadoServicio(
+  resultado: SolicitudServicio | undefined,
+): MepSolicitudStatus {
+  if (!resultado) {
+    return 'Pendiente';
+  }
+
+  switch (resultado.status) {
+    case 'COMPLETED':
+      return 'Completado';
+    case 'IN_PROGRESS':
+      return 'En progreso';
+    case 'RECEIVED':
+      return 'Aceptado';
+    case 'CANCELLED':
+      return 'Cancelado';
+    default:
+      return 'Pendiente';
+  }
+}
+
 /** Pendiente, Aceptado o En progreso cubren servicios; Completada y Rechazada no. */
 export function esSolicitudEnCurso(solicitud: SolicitudPreventa): boolean {
   const estado = derivarMepStatus(solicitud);
   return (
     estado === 'Pendiente' ||
     estado === 'Aceptado' ||
-    estado === 'En progreso'
+    estado === 'En progreso' ||
+    estado === 'Parcialmente completo'
   );
 }
 

@@ -1,4 +1,5 @@
-import { ServiceHorizon, OpportunityStatus } from '../domain/enums';
+import { OuvResultado } from '../../discovery/models/enums/ouv.enums';
+import { ServiceHorizon } from '../domain/enums';
 import { CommercialInteraction, CommercialOpportunity } from '../models';
 import {
   InteractionContract,
@@ -46,7 +47,7 @@ function opportunityDouble(
     commercialCurrency: 'COP',
     stageRef: 'stage_design',
     stageName: 'Diseño de preventa',
-    status: OpportunityStatus.OPEN,
+    status: OuvResultado.EnCurso,
     expectedCloseDate: '2026-09-30',
     commercialOwnerRef: 'commercial_17',
     commercialOwnerName: 'Ejecutivo Comercial',
@@ -127,7 +128,7 @@ describe('presentador de oportunidad — §6.3', () => {
       organization: { ref: 'org_4101', name: 'Cliente de ejemplo' },
       commercial_value: { amount: 125000000, currency: 'COP' },
       stage: { ref: 'stage_design', name: 'Diseño de preventa' },
-      status: 'OPEN',
+      status: 'EnCurso',
       expected_close_date: '2026-09-30',
       commercial_owner: {
         ref: 'commercial_17',

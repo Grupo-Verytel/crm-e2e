@@ -28,7 +28,7 @@ export class CreateProcessingReceiptDto {
   receipt_id!: string;
 
   @IsInt()
-  @Min(1)
+  @Min(0)
   receipt_version!: number;
 
   @IsEnum(ProcessingStatus)

@@ -39,6 +39,7 @@ export enum BusinessMilestone {
 export enum ResponseStatus {
   RECEIVED = 'RECEIVED',
   IN_PROGRESS = 'IN_PROGRESS',
+  PARTIALLY_COMPLETED = 'PARTIALLY_COMPLETED',
   COMPLETED = 'COMPLETED',
 }
 
@@ -68,9 +69,10 @@ export enum CapacityStatus {
   CONDITIONED = 'CONDITIONED',
 }
 
+/** Mirrors `ouvs.resultado` — same values as CRM discovery. */
 export enum OpportunityStatus {
-  OPEN = 'OPEN',
-  WON = 'WON',
-  LOST = 'LOST',
-  CANCELLED = 'CANCELLED',
+  EnCurso = 'EnCurso',
+  Ganada = 'Ganada',
+  Perdida = 'Perdida',
+  Descartada = 'Descartada',
 }

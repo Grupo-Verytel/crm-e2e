@@ -1,5 +1,6 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { SequelizeModule } from '@nestjs/sequelize';
+import { User } from '../auth/models/user.model';
 import { Ouv } from '../discovery/models/ouv.model';
 import { PresalesRequestsController } from './crm-projection/presales-requests.controller';
 import { PresalesRequestsService } from './crm-projection/presales-requests.service';
@@ -34,7 +35,7 @@ import { ResponseSemanticValidator } from './validation/response-semantic.valida
  * del CRM conserva su JWT + CASL y su prefijo `api/v1` sin cambios.
  */
 @Module({
-  imports: [SequelizeModule.forFeature([...MEP_INTEGRATION_MODELS, Ouv])],
+  imports: [SequelizeModule.forFeature([...MEP_INTEGRATION_MODELS, Ouv, User])],
   controllers: [
     // Contrato MEP-LEAN bajo `/v1` (X-API-Key, servidor-a-servidor)
     CommercialInteractionsController,

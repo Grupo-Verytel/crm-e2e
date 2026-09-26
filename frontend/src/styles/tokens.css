@@ -31,6 +31,8 @@
   --semaphore-verde: color-mix(in srgb, var(--brand-turquoise) 32%, var(--success) 68%);
   --warning: #E0A100;
   --danger: #C2362F;
+  /** MEP `PARTIALLY_COMPLETED` — solicitud en curso con cierre parcial. */
+  --mep-partial: #4BFAB6;
   /**
    * Selected-chip pairs (pastel fill + contrasting text).
    * Light: darker text on a soft fill. Dark overrides below with lighter text.

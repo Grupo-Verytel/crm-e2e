@@ -414,7 +414,7 @@ components:
         - INTERACTION_COMPLETED
     ResponseStatus:
       type: string
-      enum: [RECEIVED, IN_PROGRESS, COMPLETED]
+      enum: [RECEIVED, IN_PROGRESS, PARTIALLY_COMPLETED, COMPLETED]
     ServiceResultStatus:
       type: string
       enum: [RECEIVED, IN_PROGRESS, COMPLETED, CANCELLED]
@@ -432,8 +432,9 @@ components:
       type: string
       enum: [PLANNED, NOT_PLANNED, CONDITIONED]
     OpportunityStatus:
+      description: Espejo de `ouvs.resultado` en el CRM (autoridad del CRM).
       type: [string, 'null']
-      enum: [OPEN, WON, LOST, CANCELLED, null]
+      enum: [EnCurso, Ganada, Perdida, Descartada, null]
 
     SemanticFingerprint:
       description: |
@@ -582,7 +583,7 @@ components:
         - semantic_fingerprint
       properties:
         receipt_id: { type: string, maxLength: 128 }
-        receipt_version: { type: integer, minimum: 1 }
+        receipt_version: { type: integer, minimum: 0 }
         processing_status: { $ref: '#/components/schemas/ProcessingStatus' }
         correlation_id: { type: string, maxLength: 128 }
         observed_at: { type: string, format: date-time }

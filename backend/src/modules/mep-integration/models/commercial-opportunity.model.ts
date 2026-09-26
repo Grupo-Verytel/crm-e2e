@@ -5,7 +5,7 @@ import {
   PrimaryKey,
   Table,
 } from 'sequelize-typescript';
-import { OpportunityStatus } from '../domain/enums';
+import { OuvResultado } from '../../discovery/models/enums/ouv.enums';
 
 /**
  * §8 `commercial_opportunity` — OUV/oportunidad, autoridad total del CRM.
@@ -72,10 +72,10 @@ export class CommercialOpportunity extends Model {
   declare stageName: string | null;
 
   @Column({
-    type: DataType.ENUM(...Object.values(OpportunityStatus)),
+    type: DataType.STRING(32),
     allowNull: true,
   })
-  declare status: OpportunityStatus | null;
+  declare status: OuvResultado | null;
 
   @Column({
     type: DataType.DATEONLY,

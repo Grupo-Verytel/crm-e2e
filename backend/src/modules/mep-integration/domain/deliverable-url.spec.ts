@@ -4,10 +4,16 @@ const DOCUMENT =
   'https://verytel.sharepoint.com/sites/preventa/Shared%20Documents/int_20004/diseno-tecnico.pdf';
 const LIST_RECORD =
   'https://verytel.sharepoint.com/sites/preventa/Lists/Commitments/DispForm.aspx?ID=20004';
+const SHARING_LINK =
+  'https://verytelcsp.sharepoint.com/:x:/s/PREVENTA/IQD9TWf3TP_YSIM_vTJ7NiLjAYvuYE0GSOw4uUNZA19vaUw?e=wrEL2K';
 
 describe('entregables — §6.5 / INV-23 / AC-29', () => {
   it('INV-23: una URL de SharePoint Documents es un entregable válido', () => {
     expect(isSharePointDocumentUrl(DOCUMENT)).toBe(true);
+  });
+
+  it('acepta vínculo compartido M365 (/:x:/s/…) en host sharepoint.com', () => {
+    expect(isSharePointDocumentUrl(SHARING_LINK)).toBe(true);
   });
 
   it('TS-SVC-09 / INV-23: el registro de SharePoint List nunca es entregable', () => {

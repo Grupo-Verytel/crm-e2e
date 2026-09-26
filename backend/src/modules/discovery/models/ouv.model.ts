@@ -252,6 +252,14 @@ export class Ouv extends Model {
   @Column({ type: DataType.DATE, field: 'fecha_cierre', allowNull: true })
   declare fechaCierre: Date | null;
 
+  /** Execution term in whole months; drives MEP `expected_close_date`. */
+  @Column({
+    type: DataType.SMALLINT.UNSIGNED,
+    field: 'plazo_ejecucion_meses',
+    allowNull: true,
+  })
+  declare plazoEjecucionMeses: number | null;
+
   @HasMany(() => OuvContacto, { foreignKey: 'ouvId', as: 'contactos' })
   declare contactos: OuvContacto[];
 

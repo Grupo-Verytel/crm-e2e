@@ -1,3 +1,4 @@
+import { X } from 'lucide-react';
 import { useEffect, type ReactNode } from 'react';
 
 export function ModalShell({
@@ -32,6 +33,13 @@ export function ModalShell({
     };
   }, []);
 
+  let maxWidthClass = 'max-w-lg';
+  if (size === 'wide') {
+    maxWidthClass = 'max-w-3xl';
+  } else if (size === 'compact') {
+    maxWidthClass = 'max-w-[33.6rem]';
+  }
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-ink/30 p-4"
@@ -41,20 +49,29 @@ export function ModalShell({
     >
       <div
         className={[
-          // Columna: el encabezado queda fijo y solo scrollea el contenido.
           'flex max-h-[90vh] w-full flex-col rounded bg-surface shadow-card transition-[max-width] duration-200',
-          size === 'wide'
-            ? 'max-w-3xl'
-            : size === 'compact'
-              ? 'max-w-[33.6rem]' /* ~30% mas angosto que wide */
-              : 'max-w-lg',
+          maxWidthClass,
         ].join(' ')}
       >
-        <div className="flex shrink-0 items-start justify-between gap-3 px-6 pb-4 pt-6">
-          <h2 className="text-base font-bold text-ink">{title}</h2>
+        <div className="flex shrink-0 items-start gap-2 px-6 pb-4 pt-6">
+          <h2 className="min-w-0 shrink-0 text-base font-bold text-ink">
+            {title}
+          </h2>
           {headerAside ? (
-            <div className="flex shrink-0 items-center gap-2">{headerAside}</div>
-          ) : null}
+            <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">
+              {headerAside}
+            </div>
+          ) : (
+            <div className="flex-1" aria-hidden={true} />
+          )}
+          <button
+            type="button"
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded text-muted hover:bg-bg hover:text-ink"
+            aria-label="Cerrar"
+            onClick={onClose}
+          >
+            <X size={18} strokeWidth={2} />
+          </button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 pb-6">
           {children}

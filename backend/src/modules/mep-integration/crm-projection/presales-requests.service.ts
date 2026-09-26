@@ -7,8 +7,14 @@ import {
 import { InjectModel } from '@nestjs/sequelize';
 import { Transaction, UniqueConstraintError } from 'sequelize';
 import { Sequelize } from 'sequelize-typescript';
+import { User } from '../../auth/models/user.model';
 import { Ouv } from '../../discovery/models/ouv.model';
+import {
+  applyOuvFieldsToCommercialOpportunity,
+  ouvToOpportunityProjection,
+} from '../domain/apply-ouv-to-commercial-opportunity';
 import { isSharePointDocumentUrl } from '../domain/deliverable-url';
+import { OuvResultado } from '../../discovery/models/enums/ouv.enums';
 import { resourceEtag } from '../domain/etag';
 import {
   CommercialInteraction,
@@ -164,8 +170,20 @@ export class PresalesRequestsService {
 
   // ---------------------------------------------------------------- helpers
 
-  private async requireOuv(ouvId: string): Promise<Ouv> {
-    const ouv = await this.ouvModel.findByPk(ouvId);
+  private async requireOuv(
+    ouvId: string,
+    transaction?: Transaction,
+  ): Promise<Ouv> {
+    const ouv = await this.ouvModel.findByPk(ouvId, {
+      include: [
+        {
+          model: User,
+          as: 'comercial',
+          attributes: ['fullName'],
+        },
+      ],
+      transaction,
+    });
 
     if (!ouv) {
       throw new NotFoundException({
@@ -207,16 +225,25 @@ export class PresalesRequestsService {
       commercialCurrency: ouv.presupuestoMoneda,
       stageRef: ouv.zonaActual,
       stageName: ouv.zonaActual,
-      status: null,
-      expectedCloseDate: null,
+      status: null as OuvResultado | null,
+      expectedCloseDate: null as string | null,
       commercialOwnerRef: ouv.comercialId,
-      commercialOwnerName: null,
+      commercialOwnerName: ouvToOpportunityProjection(ouv).commercialOwnerDisplayName,
       archetypeRef: ouv.segmentId ?? null,
       archetypeName: ouv.segmento ?? null,
       sourceVersion,
       etag: resourceEtag(`ouv-${ouv.consecutivo}`, `v${sourceVersion}`),
       updatedAt: new Date(),
     };
+
+    const draft = this.opportunityModel.build(values);
+    applyOuvFieldsToCommercialOpportunity(
+      draft,
+      ouvToOpportunityProjection(ouv),
+    );
+    values.status = draft.status;
+    values.expectedCloseDate = draft.expectedCloseDate;
+    values.etag = draft.etag;
 
     if (existing) {
       await this.opportunityModel.update(values, {

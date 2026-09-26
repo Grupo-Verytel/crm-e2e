@@ -1,8 +1,9 @@
 /**
  * Validación de entregables — §6.5, INV-23 / AC-29.
  *
- * Un entregable es una URL de **SharePoint Documents**. El registro de
- * SharePoint List (`/Lists/…`, `DispForm.aspx`, `AllItems.aspx`) nunca es
+ * Un entregable es una URL HTTPS de SharePoint: biblioteca de documentos
+ * (`/Shared Documents/`, …) o vínculo compartido moderno (`/:x:/s/…`, `/:w:/`, …).
+ * El registro de SharePoint List (`/Lists/…`, `DispForm.aspx`, …) nunca es
  * entregable: se rechaza con 422 DELIVERABLE_NOT_A_DOCUMENT.
  */
 
@@ -25,6 +26,9 @@ const DOCUMENT_MARKERS = [
   '/documentos%20compartidos/',
   '/documentos compartidos/',
 ];
+
+/** Vínculos “Copiar vínculo” de Microsoft 365 (`/:x:/s/Site/…`, etc.). */
+const SHAREPOINT_SHARING_LINK = /\/:[a-z]:\//i;
 
 export function isSharePointDocumentUrl(rawUrl: string): boolean {
   let url: URL;
@@ -49,7 +53,11 @@ export function isSharePointDocumentUrl(rawUrl: string): boolean {
     return false;
   }
 
-  return DOCUMENT_MARKERS.some((marker) => path.includes(marker));
+  if (DOCUMENT_MARKERS.some((marker) => path.includes(marker))) {
+    return true;
+  }
+
+  return SHAREPOINT_SHARING_LINK.test(path);
 }
 
 /** HTTPS obligatorio para cualquier enlace operativo del contrato. */

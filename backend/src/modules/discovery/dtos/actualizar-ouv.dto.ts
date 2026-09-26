@@ -2,10 +2,13 @@ import {
   IsBoolean,
   IsEnum,
   IsIn,
+  IsInt,
   IsOptional,
   IsString,
   IsUUID,
+  Max,
   MaxLength,
+  Min,
   ValidateIf,
 } from 'class-validator';
 import {
@@ -91,4 +94,12 @@ export class ActualizarOuvDto {
   @ValidateIf((_, value) => value !== null)
   @IsBoolean()
   is_recurring?: boolean | null;
+
+  /** Whole months from OUV creation; null clears the term. */
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null)
+  @IsInt()
+  @Min(1)
+  @Max(360)
+  plazo_ejecucion_meses?: number | null;
 }

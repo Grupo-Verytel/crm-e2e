@@ -42,7 +42,10 @@ export interface IdempotencyKeyInput {
  * que ambas cosas se confirman o se revierten juntas.
  *
  * Un replay devuelve la respuesta guardada sin ejecutar la lógica de negocio:
- * por eso un retry no avanza `response_version` (INV-29).
+ * por eso un retry no avanza `response_version` (INV-29). Para publicar
+ * respuestas, el scope interno del path incluye `response_version`, de modo
+ * que la misma `Idempotency-Key` puede usarse al avanzar 1 → 2 → 3 sin
+ * `IDEMPOTENCY_KEY_REUSE`.
  */
 @Injectable()
 export class IdempotencyService {
