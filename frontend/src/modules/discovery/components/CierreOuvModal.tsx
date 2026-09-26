@@ -235,7 +235,7 @@ export function CierreOuvModal({ ouv, onClose, onClosed }: Props) {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className={labelClass}>Monto Final (Millones)</label>
+                <label className={labelClass}>Monto Final</label>
                 <input
                   className={inputClass}
                   value={montoFinal}
