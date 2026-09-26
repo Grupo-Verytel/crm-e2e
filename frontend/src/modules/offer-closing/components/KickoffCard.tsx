@@ -46,26 +46,19 @@ export function KickoffCard({
   attendance = null,
 }: Props) {
   const [modalOpen, setModalOpen] = useState(false);
+  const [reagendar, setReagendar] = useState(false);
   const hasAgenda = Boolean(
     kickoff.agendamientoConfirmado && kickoff.agenda,
   );
 
   function openSchedule() {
+    setReagendar(false);
     setModalOpen(true);
   }
 
+  // El kickoff no cambia hasta confirmar en el modal: cerrarlo lo deja intacto.
   function startReagendar() {
-    onChange({
-      ...kickoff,
-      agendamientoConfirmado: false,
-      estado: 'Programado',
-      fechaRealizacion: null,
-      validadoTeams: false,
-      aprobaciones: kickoff.aprobaciones.map((a) => ({
-        ...a,
-        completada: false,
-      })),
-    });
+    setReagendar(true);
     setModalOpen(true);
   }
 
@@ -161,6 +154,7 @@ export function KickoffCard({
         kickoff={kickoff}
         onChange={onChange}
         invitationContext={invitationContext}
+        reagendar={reagendar}
       />
     </>
   );

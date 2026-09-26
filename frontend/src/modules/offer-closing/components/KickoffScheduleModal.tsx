@@ -70,6 +70,7 @@ type Props = {
   onChange: (kickoff: KickoffRecord) => void;
   /** Contexto para la plantilla del correo de invitación. */
   invitationContext?: KickoffInvitationContext;
+  reagendar?: boolean;
 };
 
 /** Correos ficticios de los mocks (`…@cuenta.local`) no se invitan en Graph. */
@@ -208,9 +209,11 @@ export function KickoffScheduleModal({
   kickoff,
   onChange,
   invitationContext,
+  reagendar = false,
 }: Props) {
   const { user } = useAuth();
   const [tab, setTab] = useState<ScheduleTab>('datos');
+  const [reagendando, setReagendando] = useState(false);
   const [nombreReunion, setNombreReunion] = useState('');
   const [fecha, setFecha] = useState('');
   const [horaInicio, setHoraInicio] = useState('');
@@ -271,8 +274,11 @@ export function KickoffScheduleModal({
     setAvailabilityError(null);
     setError(null);
     setInviteQuery('');
-    setTab(kickoff.agendamientoConfirmado ? 'confirmacion' : 'datos');
-  }, [open, kickoff]);
+    setReagendando(reagendar);
+    setTab(
+      kickoff.agendamientoConfirmado && !reagendar ? 'confirmacion' : 'datos',
+    );
+  }, [open, kickoff, reagendar]);
 
   // Estado de la integración: avisa si faltan credenciales o permisos.
   useEffect(() => {
@@ -427,7 +433,7 @@ export function KickoffScheduleModal({
   const today = useMemo(() => new Date(), []);
   const weekAnchor = inicio ?? today;
   const disponibilidadUnlocked = validation !== null;
-  const confirmacionUnlocked = kickoff.agendamientoConfirmado;
+  const confirmacionUnlocked = kickoff.agendamientoConfirmado && !reagendando;
   const salaSeleccionada =
     ubicaciones.includes('Presencial') && salaVerytel ? salaVerytel : null;
 
@@ -698,6 +704,9 @@ export function KickoffScheduleModal({
         fechaRealizacion: null,
         validadoTeams: false,
         agendamientoConfirmado: true,
+        aprobaciones: previousEventId
+          ? kickoff.aprobaciones.map((a) => ({ ...a, completada: false }))
+          : kickoff.aprobaciones,
         agenda: {
           nombreReunion: nombreReunion.trim(),
           invitados,
@@ -713,6 +722,7 @@ export function KickoffScheduleModal({
           joinUrl: joinUrl || null,
         },
       });
+      setReagendando(false);
       setTab('confirmacion');
     } catch (err) {
       setError(
@@ -1114,11 +1124,11 @@ export function KickoffScheduleModal({
             </div>
           ) : null}
 
-          {tab === 'confirmacion' && kickoff.agendamientoConfirmado ? (
+          {tab === 'confirmacion' && confirmacionUnlocked ? (
             <KickoffProgramacionPanel kickoff={kickoff} onChange={onChange} />
           ) : null}
 
-          {tab === 'confirmacion' && !kickoff.agendamientoConfirmado ? (
+          {tab === 'confirmacion' && !confirmacionUnlocked ? (
             <p className="text-sm text-muted">
               Confirma la agenda en Disponibilidad para ver la confirmación.
             </p>
