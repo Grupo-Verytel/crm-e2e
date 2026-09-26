@@ -5,6 +5,7 @@ import { AppLayout } from '../../../layout/AppLayout';
 import { useAuth } from '../../auth/hooks/useAuth';
 import { ApiError } from '../../auth/types';
 import { fetchOuv, type Ouv } from '../../discovery/api/ouvs-api';
+import { fetchSolicitudesPreventa } from '../../discovery/api/solicitudes-preventa-api';
 import { OuvReadonlyHeaderCard } from '../../discovery/components/OuvReadonlyHeaderCard';
 import { loadOuvExtensions } from '../../discovery/lib/ouv-detail-extensions';
 import type { OuvDetailExtensions } from '../../discovery/lib/ouv-detail-extensions';
@@ -28,6 +29,12 @@ import { FormularioDatosProyecto } from '../components/FormularioDatosProyecto';
 import { KickoffCard } from '../components/KickoffCard';
 import { ResumenEnvioPmoModal } from '../components/ResumenEnvioPmoModal';
 import { SharePointPreviewModal } from '../components/SharePointPreviewModal';
+import { useKickoffAttendance } from '../lib/use-kickoff-attendance';
+import type { GraphAttendance } from '../api/graph-api';
+import {
+  applyDocumentosPreventa,
+  documentosPreventa,
+} from '../lib/preventa-documentos';
 import {
   badgeClass,
   cardClass,
@@ -63,6 +70,7 @@ function ouvFromVentaRecord(record: VentaGanadaRecord): Ouv {
     empresa_nombre: record.empresaNombre,
     city: null,
     region: null,
+    is_recurring: null,
     descripcion: null,
     segmento: 'Gobierno central',
     segment_id: null,
@@ -124,6 +132,7 @@ export function VentaGanadaDetailPage() {
   const [ouv, setOuv] = useState<Ouv | null>(null);
   const [ouvExtensions, setOuvExtensions] = useState<OuvDetailExtensions>({});
   const [tab, setTab] = useState<Tab>('validaciones');
+  const [visitaKickoff, setVisitaKickoff] = useState(0);
   const [showResumen, setShowResumen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -201,9 +210,21 @@ export function VentaGanadaDetailPage() {
       setRecord(base);
 
       if (!persisted) return;
-      const wonSale = await fetchWonSale(ouvId);
-      if (cancelled || !wonSale) return;
-      setRecord((prev) => (prev ? applyWonSale(prev, wonSale) : prev));
+      const [wonSale, documentos] = await Promise.all([
+        // Sin `read WonSale` responde 403: no debe ocultar los documentos.
+        fetchWonSale(ouvId).catch(() => null),
+        fetchSolicitudesPreventa(ouvId)
+          .then(documentosPreventa)
+          .catch(() => null),
+      ]);
+      if (cancelled) return;
+      setRecord((prev) => {
+        if (!prev) return prev;
+        const conExpediente = wonSale ? applyWonSale(prev, wonSale) : prev;
+        return documentos
+          ? applyDocumentosPreventa(conExpediente, documentos)
+          : conExpediente;
+      });
     }
 
     setLoadError(null);
@@ -251,6 +272,42 @@ export function VentaGanadaDetailPage() {
       .then(setOuv)
       .catch(() => setOuv(ouvFromVentaRecord(record)));
   }, [record]);
+
+  const kickoffRef = useRef<VentaGanadaRecord['kickoff'] | null>(null);
+  useEffect(() => {
+    kickoffRef.current = record?.kickoff ?? null;
+  }, [record?.kickoff]);
+
+  const marcarKickoffRealizado = useCallback(
+    (informe: GraphAttendance) => {
+      const actual = kickoffRef.current;
+      if (!actual || !isPersistedOuvId(ouvId)) return;
+      const next: VentaGanadaRecord['kickoff'] = {
+        ...actual,
+        estado: 'Realizado',
+        fechaRealizacion:
+          informe.meetingEndDateTime ??
+          informe.meetingStartDateTime ??
+          new Date().toISOString(),
+        validadoTeams: true,
+      };
+      setRecord((prev) => (prev ? { ...prev, kickoff: next } : prev));
+      saveKickoff(ouvId, next)
+        .then((saved) =>
+          setRecord((prev) => (prev ? { ...prev, kickoff: saved } : prev)),
+        )
+        .catch(() =>
+          setToast('No se pudo guardar la asistencia validada del kickoff.'),
+        );
+    },
+    [ouvId],
+  );
+
+  const attendance = useKickoffAttendance(
+    record?.kickoff ?? null,
+    visitaKickoff,
+    marcarKickoffRealizado,
+  );
 
   if (!record) {
     return (
@@ -354,32 +411,67 @@ export function VentaGanadaDetailPage() {
     ? null
     : `Aprueba la viabilidad ${validacionesPendientes.join(' y ')} para habilitar esta sección.`;
 
+  const datosHabilitado =
+    kickoffHabilitado &&
+    record.kickoff.estado === 'Realizado' &&
+    record.kickoff.validadoTeams;
+  const motivoBloqueoDatos =
+    motivoBloqueo ??
+    (datosHabilitado
+      ? null
+      : 'Se habilita cuando el kickoff se realiza y Teams confirma la asistencia.');
+
   // Si la viabilidad se revierte mientras el usuario está en una pestaña
   // bloqueada, se la devuelve a Viabilidad en vez de dejarla editando algo
   // que ya no debería tocar.
-  const tabActivo: Tab =
-    !kickoffHabilitado && tab !== 'validaciones' ? 'validaciones' : tab;
+  const tabActivo: Tab = !kickoffHabilitado
+    ? 'validaciones'
+    : tab === 'datos' && !datosHabilitado
+      ? 'kickoff'
+      : tab;
 
-  const tabBtn = (t: Tab, label: string, bloqueado = false) => (
+  const tabBtn = (t: Tab, label: string, motivo: string | null = null) => (
     <button
       type="button"
-      disabled={bloqueado}
-      title={bloqueado ? (motivoBloqueo ?? undefined) : undefined}
+      disabled={Boolean(motivo)}
+      title={motivo ?? undefined}
       className={`-mb-px border-b-2 px-4 py-2 text-sm ${
-        bloqueado
+        motivo
           ? 'cursor-not-allowed border-transparent text-muted/50'
           : tabActivo === t
             ? 'border-accent font-bold text-accent'
             : 'border-transparent text-muted hover:text-accent'
       }`}
-      onClick={() => setTab(t)}
+      onClick={() => {
+        setTab(t);
+        if (t === 'kickoff') setVisitaKickoff((n) => n + 1);
+      }}
     >
       {label}
     </button>
   );
 
   const headerOuv = ouv ?? ouvFromVentaRecord(record);
-  const pmo = puedeEnviarAPmo(record);
+  // "Proyecto" de la OUV define la clasificación que se muestra y va al PMO.
+  const recurrenteOuv = headerOuv.is_recurring;
+  const recordEfectivo: VentaGanadaRecord =
+    recurrenteOuv === null
+      ? record
+      : { ...record, datosBase: { ...record.datosBase, recurrente: recurrenteOuv } };
+  const pmo = puedeEnviarAPmo(recordEfectivo);
+  // Misma regla que el backend: CASL `update WonSale` y, para el ejecutivo
+  // comercial, solo sus propias OUV.
+  const puedeEditar =
+    Boolean(
+      user?.permissions?.some(
+        (p) =>
+          (p.action === 'update' || p.action === 'manage') &&
+          (p.subject === 'WonSale' || p.subject === 'all'),
+      ),
+    ) &&
+    (user?.role_name !== 'EjecutivoComercial' ||
+      headerOuv.comercial_id === user.user_id);
+  const disabledClass = 'disabled:cursor-not-allowed disabled:opacity-60';
 
   return (
     <AppLayout title={record.consecutivo}>
@@ -415,8 +507,8 @@ export function VentaGanadaDetailPage() {
         aria-label="Detalle venta ganada"
       >
         {tabBtn('validaciones', 'Viabilidad')}
-        {tabBtn('kickoff', 'Kickoff', !kickoffHabilitado)}
-        {tabBtn('datos', 'Datos proyecto', !kickoffHabilitado)}
+        {tabBtn('kickoff', 'Kickoff', motivoBloqueo)}
+        {tabBtn('datos', 'Datos proyecto', motivoBloqueoDatos)}
         {tabActivo === 'datos' ? (
           <div className="ml-auto flex items-center pb-1">
             <button
@@ -446,7 +538,8 @@ export function VentaGanadaDetailPage() {
                     </span>
                   </div>
                   <select
-                    className={selectClass}
+                    className={`${selectClass} ${disabledClass}`}
+                    disabled={!puedeEditar}
                     value={v.estado}
                     onChange={(e) =>
                       setValidacion(
@@ -462,7 +555,8 @@ export function VentaGanadaDetailPage() {
                   </select>
                   <label className={`${labelClass} mt-2`}>Observación</label>
                   <textarea
-                    className={`${inputClass} min-h-16 flex-1 py-2`}
+                    className={`${inputClass} min-h-16 flex-1 py-2 ${disabledClass}`}
+                    disabled={!puedeEditar}
                     value={v.observacion}
                     onChange={(e) =>
                       setValidacion(tipo, v.estado, e.target.value)
@@ -497,11 +591,6 @@ export function VentaGanadaDetailPage() {
               );
             })}
           </div>
-          {puedeEnviarKickoff(record) ? (
-            <p className="text-sm text-positive">
-              Viabilidad técnica y financiera aprobada — kickoff habilitado.
-            </p>
-          ) : null}
         </div>
       ) : null}
 
@@ -512,6 +601,7 @@ export function VentaGanadaDetailPage() {
           empresaNombre={headerOuv.empresa_nombre || record.empresaNombre}
           kickoff={record.kickoff}
           onChange={(kickoff) => void saveKickoffRecord(kickoff)}
+          attendance={attendance}
           invitationContext={{
             consecutivo: record.consecutivo,
             proyecto: record.datosBase.nombreProyecto || record.titulo,
@@ -523,9 +613,10 @@ export function VentaGanadaDetailPage() {
       {tabActivo === 'datos' ? (
         <>
           <FormularioDatosProyecto
-            datos={record.datosBase}
+            datos={recordEfectivo.datosBase}
             modo="crear"
             onChange={(datosBase) => save({ ...record, datosBase })}
+            recurrenteBloqueado={recurrenteOuv !== null}
           />
           {!pmo.ok && pmo.reason ? (
             <p className="mt-2 text-xs text-muted">{pmo.reason}</p>
@@ -534,7 +625,7 @@ export function VentaGanadaDetailPage() {
       ) : null}
 
       <ResumenEnvioPmoModal
-        record={record}
+        record={recordEfectivo}
         open={showResumen}
         onClose={() => setShowResumen(false)}
         onSent={async (updated) => {
@@ -549,7 +640,7 @@ export function VentaGanadaDetailPage() {
           setRecord(updated);
           try {
             setRecord(applyWonSale(updated, await saveWonSale(updated)));
-            navigate('/services');
+            navigate('/services', { state: { celebrar: true } });
           } catch (error) {
             // El proyecto ya existe en el PMO; al reintentar, el 409 se
             // recupera y se vuelve a guardar el envío.

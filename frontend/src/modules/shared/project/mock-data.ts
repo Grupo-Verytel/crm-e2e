@@ -383,16 +383,7 @@ export function createVentaFromOuvApi(ouv: {
     empresaNombre: ouv.empresa_nombre,
     vendedorNombre,
     estadoRevision: 'Pendiente',
-    validaciones: emptyValidaciones({
-      Tecnica: {
-        sharepointUrl: spUrl(`${ouv.consecutivo}/Diseno_Tecnico.pdf`),
-        sharepointNombre: 'Diseño técnico.pdf',
-      },
-      Financiera: {
-        sharepointUrl: spUrl(`${ouv.consecutivo}/Modelo_Financiero.xlsx`),
-        sharepointNombre: 'Modelo financiero.xlsx',
-      },
-    }),
+    validaciones: emptyValidaciones(),
     datosBase: {
       ouvId: ouv.ouv_id,
       consecutivo: ouv.consecutivo,

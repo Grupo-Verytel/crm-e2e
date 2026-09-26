@@ -71,6 +71,7 @@ import {
 } from '../lib/ouv-vocab';
 import {
   loadOuvExtensions,
+  isRecurringDeProyecto,
   saveOuvExtensions,
   type OuvDetailExtensions,
 } from '../lib/ouv-detail-extensions';
@@ -365,6 +366,7 @@ export function OuvDetailPage() {
         descripcion: draft.descripcion.trim(),
         city: draft.city.trim() || null,
         region: draft.region.trim() || null,
+        is_recurring: isRecurringDeProyecto(draft.extensions.proyecto),
       });
       saveOuvExtensions(id, draft.extensions);
       setOuvExtensions(draft.extensions);
@@ -379,6 +381,7 @@ export function OuvDetailPage() {
               descripcion: draft.descripcion.trim() || null,
               city: draft.city.trim() || null,
               region: draft.region.trim() || null,
+              is_recurring: isRecurringDeProyecto(draft.extensions.proyecto),
               updated_at: new Date().toISOString(),
             }
           : prev,

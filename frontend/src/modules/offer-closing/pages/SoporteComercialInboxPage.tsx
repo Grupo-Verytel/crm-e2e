@@ -49,6 +49,7 @@ export function SoporteComercialInboxPage() {
         user?.role_name === 'SoporteComercial' || user?.role_name === 'Admin';
       const res = await fetchOuvs({
         resultado: 'Ganada',
+        preventa_completada: true,
         // Las ya enviadas al PMO viven en /services, no aquí.
         pmo_enviado: false,
         // Búsqueda del header: el backend filtra por consecutivo, título y empresa.
@@ -185,7 +186,7 @@ export function SoporteComercialInboxPage() {
                 <td colSpan={7} className="px-4 py-8 text-center text-muted">
                   {query
                     ? 'No hay ventas ganadas que coincidan con la búsqueda.'
-                    : 'No hay ventas ganadas pendientes. Marca una OUV como Ganada en Oportunidades para que aparezca aquí.'}
+                    : 'No hay OUV ganadas con solicitud de preventa completada y documento en SharePoint.'}
                 </td>
               </tr>
             ) : (

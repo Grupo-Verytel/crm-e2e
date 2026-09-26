@@ -6,6 +6,26 @@ export type OuvDetailExtensions = {
   region?: string;
 };
 
+type Proyecto = NonNullable<OuvDetailExtensions['proyecto']>;
+
+/** `ouvs.is_recurring` manda; lo guardado en el navegador es respaldo legado. */
+export function proyectoDeOuv(
+  isRecurring: boolean | null | undefined,
+  extensions: OuvDetailExtensions,
+): Proyecto | undefined {
+  if (isRecurring === true) return 'Recurrente';
+  if (isRecurring === false) return 'No recurrente';
+  return extensions.proyecto;
+}
+
+export function isRecurringDeProyecto(
+  proyecto: Proyecto | undefined,
+): boolean | null {
+  if (proyecto === 'Recurrente') return true;
+  if (proyecto === 'No recurrente') return false;
+  return null;
+}
+
 const STORAGE_PREFIX = 'crm-ouv-detail-ext-';
 
 export function loadOuvExtensions(ouvId: string): OuvDetailExtensions {

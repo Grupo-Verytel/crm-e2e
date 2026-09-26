@@ -2,7 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import { Users } from 'lucide-react';
 import { formatDateTime } from '../../../lib/format';
 import type { Ouv } from '../api/ouvs-api';
-import type { OuvDetailExtensions } from '../lib/ouv-detail-extensions';
+import {
+  proyectoDeOuv,
+  type OuvDetailExtensions,
+} from '../lib/ouv-detail-extensions';
 import {
   buildOuvMetaFields,
   formatOuvOrigin,
@@ -49,7 +52,10 @@ function draftFromOuv(ouv: Ouv, extensions: OuvDetailExtensions): OuvHeaderDraft
     descripcion: ouv.descripcion ?? '',
     city: ouv.city?.trim() || extensions.ciudad?.trim() || '',
     region: ouv.region?.trim() || extensions.region?.trim() || '',
-    extensions: { ...extensions },
+    extensions: {
+      ...extensions,
+      proyecto: proyectoDeOuv(ouv.is_recurring, extensions),
+    },
   };
 }
 

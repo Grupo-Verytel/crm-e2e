@@ -99,6 +99,9 @@ export class Ouv extends Model {
   @Column({ type: DataType.STRING(60), allowNull: true })
   declare region: string | null;
 
+  @Column({ type: DataType.BOOLEAN, field: 'is_recurring', allowNull: true })
+  declare isRecurring: boolean | null;
+
   /** Snapshot of client name (from accounts.name in Vía 1, or captured by comercial). */
   @Column({
     type: DataType.STRING(200),

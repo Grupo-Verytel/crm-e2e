@@ -3,6 +3,7 @@ import { CalendarPlus } from 'lucide-react';
 import type { KickoffRecord } from '../../shared/project/types';
 import { createEmptyKickoff } from '../../shared/project/mock-data';
 import { formatKickoffRange } from '../lib/kickoff-scheduling';
+import type { GraphAttendance } from '../api/graph-api';
 import { KickoffProgramacionPanel } from './KickoffProgramacionPanel';
 import type { KickoffInvitationContext } from '../api/graph-api';
 import { KickoffScheduleModal } from './KickoffScheduleModal';
@@ -20,6 +21,7 @@ type Props = {
   kickoff: KickoffRecord;
   onChange: (kickoff: KickoffRecord) => void;
   invitationContext?: KickoffInvitationContext;
+  attendance?: GraphAttendance | null;
 };
 
 const ESTADO_TONE: Record<KickoffRecord['estado'], string> = {
@@ -41,28 +43,22 @@ export function KickoffCard({
   kickoff,
   onChange,
   invitationContext,
+  attendance = null,
 }: Props) {
   const [modalOpen, setModalOpen] = useState(false);
+  const [reagendar, setReagendar] = useState(false);
   const hasAgenda = Boolean(
     kickoff.agendamientoConfirmado && kickoff.agenda,
   );
 
   function openSchedule() {
+    setReagendar(false);
     setModalOpen(true);
   }
 
+  // El kickoff no cambia hasta confirmar en el modal: cerrarlo lo deja intacto.
   function startReagendar() {
-    onChange({
-      ...kickoff,
-      agendamientoConfirmado: false,
-      estado: 'Programado',
-      fechaRealizacion: null,
-      validadoTeams: false,
-      aprobaciones: kickoff.aprobaciones.map((a) => ({
-        ...a,
-        completada: false,
-      })),
-    });
+    setReagendar(true);
     setModalOpen(true);
   }
 
@@ -80,7 +76,7 @@ export function KickoffCard({
             <div className="min-w-0">
               <p className="text-xs font-bold text-muted">
                 {kickoff.estado === 'Realizado' && kickoff.validadoTeams
-                  ? 'Etapa 4 · Confirmación del Kickoff'
+                  ? 'Kickoff realizado'
                   : 'Kickoff agendado'}
               </p>
               {kickoff.agenda ? (
@@ -119,7 +115,10 @@ export function KickoffCard({
               </button>
             </div>
           </div>
-          <KickoffProgramacionPanel kickoff={kickoff} onChange={onChange} />
+          <KickoffProgramacionPanel
+            kickoff={kickoff}
+            attendance={attendance}
+          />
         </div>
       ) : (
         <section
@@ -154,6 +153,7 @@ export function KickoffCard({
         kickoff={kickoff}
         onChange={onChange}
         invitationContext={invitationContext}
+        reagendar={reagendar}
       />
     </>
   );

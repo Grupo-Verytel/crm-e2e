@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Pagination } from '../../../components/Pagination';
 import { AppLayout } from '../../../layout/AppLayout';
 import { useModuleSearch } from '../../../layout/useModuleSearch';
@@ -7,6 +7,7 @@ import { formatDateTime } from '../../../lib/format';
 import { ApiError } from '../../auth/types';
 import { useAuth } from '../../auth/hooks/useAuth';
 import { fetchOuvs, type Ouv } from '../../discovery/api/ouvs-api';
+import { WonCelebration } from '../../discovery/components/WonCelebration';
 import {
   fetchWonSales,
   type WonSaleDto,
@@ -24,6 +25,12 @@ type Fila = { ouv: Ouv; expediente: WonSaleDto | null };
  */
 export function ServicesListPage() {
   const { user } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
+  // Llega desde /offers tras enviar el proyecto al PMO.
+  const [celebrar, setCelebrar] = useState(
+    () => (location.state as { celebrar?: boolean } | null)?.celebrar === true,
+  );
   const { query } = useModuleSearch();
   const canListAll =
     user?.role_name === 'SoporteComercial' || user?.role_name === 'Admin';
@@ -182,6 +189,15 @@ export function ServicesListPage() {
           onPageChange={setPage}
         />
       </div>
+      {celebrar ? (
+        <WonCelebration
+          onDone={() => {
+            setCelebrar(false);
+            // Sin el estado, recargar la página no repite la animación.
+            navigate(location.pathname, { replace: true, state: null });
+          }}
+        />
+      ) : null}
     </AppLayout>
   );
 }

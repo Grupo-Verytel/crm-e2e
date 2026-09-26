@@ -2,7 +2,10 @@ import { formatDateTime } from '../../../lib/format';
 import { CANAL_ORIGEN_LABEL } from '../../demand-generation/lib/lead-vocab';
 import type { CanalOrigen } from '../../demand-generation/types';
 import type { Ouv } from '../api/ouvs-api';
-import type { OuvDetailExtensions } from './ouv-detail-extensions';
+import {
+  proyectoDeOuv,
+  type OuvDetailExtensions,
+} from './ouv-detail-extensions';
 
 export const SEGMENTO_LABEL: Record<string, string> = {
   'Ciudades y gobernaciones': 'Ciudades y gobernaciones',
@@ -72,7 +75,10 @@ export function buildOuvMetaFields(
       label: 'Canal de origen',
       value: formatOuvSourceChannel(ouv.source_channel),
     },
-    { label: 'Proyecto', value: extensions.proyecto ?? '—' },
+    {
+      label: 'Proyecto',
+      value: proyectoDeOuv(ouv.is_recurring, extensions) ?? '—',
+    },
     {
       label: 'Plazo ejecución',
       value: extensions.plazo_ejecucion
