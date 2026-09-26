@@ -88,6 +88,17 @@ describe('validador semántico del acuse técnico — §6.4', () => {
     ).toBe('MISSING_REASON_CODE');
   });
 
+  it('permite receipt_version 0 como primera versión del receipt_id', () => {
+    const payload = { ...fixture('receipt-accepted'), receipt_version: 0 };
+
+    expect(() =>
+      validator.validate(payload, {
+        rawBody: payload,
+        latestReceiptVersion: null,
+      }),
+    ).not.toThrow();
+  });
+
   it('TS-RCP-07: receipt_version no monotónica → NON_MONOTONIC_VERSION', () => {
     const payload = fixture('receipt-accepted');
 

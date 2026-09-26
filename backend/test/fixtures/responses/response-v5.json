@@ -65,6 +65,6 @@
     "route_capacity_register_url": "https://verytel.sharepoint.com/sites/preventa/Lists/Commitments/DispForm.aspx?ID=20004"
   },
   "narrative_note": "Los diseños técnico y financiero fueron completados. Los entregables están disponibles en SharePoint.",
-  "delivered_interaction_type": null,
+  "delivered_interaction_type": "DISENO_TECNICO_FINANCIERO",
   "semantic_fingerprint": "5555555555555555555555555555555555555555555555555555555555555555"
 }

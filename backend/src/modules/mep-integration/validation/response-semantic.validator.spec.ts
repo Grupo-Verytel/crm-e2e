@@ -225,6 +225,28 @@ describe('validador semántico de respuestas — §7 / §9.3', () => {
     ).toBe('INTERACTION_ALREADY_COMPLETED');
   });
 
+  it('INTERACTION_COMPLETED acepta PARTIALLY_COMPLETED además de COMPLETED', () => {
+    const payload = {
+      ...fixture(5),
+      business_milestone: BusinessMilestone.INTERACTION_COMPLETED,
+      response_status: 'PARTIALLY_COMPLETED',
+      delivered_interaction_type: 'DISENO_TECNICO_FINANCIERO',
+    } as unknown as PublishResponseDto;
+
+    expect(() =>
+      validator.validate(
+        payload,
+        context(
+          {
+            currentMilestone: BusinessMilestone.ROUTE_CAPACITY_REGISTERED,
+            existingResponseId: ROUTE_RESPONSE_ID,
+          },
+          payload,
+        ),
+      ),
+    ).not.toThrow();
+  });
+
   it('TS-MIL-01: INTERACTION_RECEIVED con response_status distinto de RECEIVED → 422', () => {
     const payload = {
       ...fixture(1),

@@ -3,6 +3,7 @@ import { InjectModel } from '@nestjs/sequelize';
 import { Transaction } from 'sequelize';
 import { Sequelize } from 'sequelize-typescript';
 import { canonicalHash } from '../domain/canonical-json';
+import { idempotencyPathForResponsePublish } from '../domain/idempotency-scope';
 import { BusinessMilestone } from '../domain/enums';
 import { etagMatches, resourceEtag } from '../domain/etag';
 import { MepProblemException } from '../domain/mep-problem.exception';
@@ -85,7 +86,10 @@ export class MepResponseService {
     const reservation = await this.idempotency.begin({
       apiKeyId: context.identity.apiKeyId,
       method: context.httpMethod,
-      path: context.httpPath,
+      path: idempotencyPathForResponsePublish(
+        context.httpPath,
+        payload.response_version,
+      ),
       idempotencyKey: context.idempotencyKey,
       requestHash,
     });

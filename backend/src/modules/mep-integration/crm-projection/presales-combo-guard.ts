@@ -33,9 +33,13 @@ type ComboStatusView = {
 
 /** Aprobada o Rechazada ya no cubren el tipo; el resto sigue en curso. */
 export function isSolicitudEnCurso(view: ComboStatusView): boolean {
+  if (view.estado.response_status === ResponseStatus.COMPLETED) {
+    return false;
+  }
+
   if (
-    view.estado.hito === BusinessMilestone.INTERACTION_COMPLETED ||
-    view.estado.response_status === ResponseStatus.COMPLETED
+    view.estado.hito === BusinessMilestone.INTERACTION_COMPLETED &&
+    view.estado.response_status !== ResponseStatus.PARTIALLY_COMPLETED
   ) {
     return false;
   }

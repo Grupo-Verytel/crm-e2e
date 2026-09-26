@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { MepErrorCode, ProblemErrorItem } from '../constants/error-catalog';
 import {
   BusinessMilestone,
+  ResponseStatus,
   ServiceOutcome,
   ServiceResultStatus,
 } from '../domain/enums';
@@ -197,13 +198,31 @@ export class ResponseSemanticValidator {
     out: Violation[],
   ): void {
     const required = requiredResponseStatus(payload.business_milestone);
-    if (required !== null && payload.response_status !== required) {
+    if (
+      required !== null &&
+      !this.responseStatusMatchesMilestone(payload, required)
+    ) {
       out.push({
         code: 'INVALID_RESPONSE_STATUS',
         pointer: '/response_status',
         detail: `El hito ${payload.business_milestone} exige response_status = ${required}.`,
       });
     }
+  }
+
+  /** COMPLETED hito also accepts PARTIALLY_COMPLETED (entrega parcial). */
+  private responseStatusMatchesMilestone(
+    payload: PublishResponseDto,
+    required: ResponseStatus,
+  ): boolean {
+    if (payload.response_status === required) {
+      return true;
+    }
+    return (
+      payload.business_milestone === BusinessMilestone.INTERACTION_COMPLETED &&
+      required === ResponseStatus.COMPLETED &&
+      payload.response_status === ResponseStatus.PARTIALLY_COMPLETED
+    );
   }
 
   /**

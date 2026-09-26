@@ -75,6 +75,17 @@ describe('presales-combo-guard', () => {
 
     expect(
       isSolicitudEnCurso({
+        estado: {
+          hito: BusinessMilestone.INTERACTION_COMPLETED,
+          response_status: ResponseStatus.PARTIALLY_COMPLETED,
+        },
+        pista_tecnica: [{ processing_status: ProcessingStatus.ACCEPTED }],
+        polling_status: ProcessingStatus.ACCEPTED,
+      }),
+    ).toBe(true);
+
+    expect(
+      isSolicitudEnCurso({
         estado: { hito: null },
         pista_tecnica: [{ processing_status: ProcessingStatus.REJECTED }],
         polling_status: ProcessingStatus.REJECTED,

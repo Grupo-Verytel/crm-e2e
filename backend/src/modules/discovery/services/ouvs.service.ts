@@ -664,6 +664,9 @@ export class OuvsService {
       if (dto.is_recurring !== undefined) {
         patch.isRecurring = dto.is_recurring;
       }
+      if (dto.plazo_ejecucion_meses !== undefined) {
+        patch.plazoEjecucionMeses = dto.plazo_ejecucion_meses;
+      }
 
       // Vincular / desvincular la account. Si vincula, alinea empresa_nombre
       // al snapshot de accounts.name — a menos que el DTO ya haya mandado
@@ -1017,6 +1020,7 @@ export class OuvsService {
       moneda_final: ouv.monedaFinal,
       monto_estimado_perdido: ouv.montoEstimadoPerdido,
       fecha_cierre: ouv.fechaCierre,
+      plazo_ejecucion_meses: ouv.plazoEjecucionMeses ?? null,
       created_at: ouv.createdAt,
       updated_at: ouv.updatedAt,
       ...(diasPorZona ? { dias_por_zona: diasPorZona } : {}),

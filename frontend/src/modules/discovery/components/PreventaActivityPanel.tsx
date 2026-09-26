@@ -17,8 +17,16 @@ import type {
   BusinessMilestone,
   ProcessingStatus,
 } from '../lib/preventa-vocab';
-import { sharePointDocumentName } from '../lib/sharepoint-document';
 import {
+  labelResponseStatus,
+  labelViabilidadPreventa,
+} from '../lib/preventa-vocab';
+import {
+  deliverableDisplayName,
+  type DeliverableDisplayInput,
+} from '../lib/sharepoint-document';
+import {
+  derivarEstadoServicio,
   derivarMepStatus,
   type MepSolicitudStatus,
 } from '../lib/solicitud-preventa-rules';
@@ -39,7 +47,9 @@ export type { MepSolicitudStatus };
 const MEP_STATUS_CLASS: Record<MepSolicitudStatus, string> = {
   Aceptado: 'bg-accent text-white',
   'En progreso': 'bg-brand text-white',
+  'Parcialmente completo': 'bg-mep-partial text-ink',
   Completado: 'bg-success text-white',
+  Cancelado: 'bg-border text-muted',
   Rechazado: 'bg-danger text-white',
   Pendiente: 'bg-border text-muted',
 };
@@ -159,25 +169,29 @@ function formatFechaEntrega(etaDate: string | null): string {
  * otro servicio o el adjunto de creación. Un servicio bloqueado solo muestra
  * su propio entregable.
  */
-function linkSharePoint(
+function entregableSharePoint(
   solicitud: SolicitudPreventa,
   service: ServiceCardView,
   resultado: SolicitudServicio | undefined,
-): string | null {
-  const delServicio = resultado?.entregables[0]?.url;
-  if (delServicio) {
+): DeliverableDisplayInput | null {
+  const delServicio = resultado?.entregables[0];
+  if (delServicio?.url) {
     return delServicio;
   }
   if (service.state === 'blocked') {
     return null;
   }
   for (const servicio of solicitud.servicios) {
-    const url = servicio.entregables[0]?.url;
-    if (url) {
-      return url;
+    const entregable = servicio.entregables[0];
+    if (entregable?.url) {
+      return entregable;
     }
   }
-  return solicitud.sharepoint_document_url;
+  const crmUrl = solicitud.sharepoint_document_url;
+  if (crmUrl) {
+    return { url: crmUrl, label: null };
+  }
+  return null;
 }
 
 type DetailTab = 'informacion' | 'historico';
@@ -205,25 +219,11 @@ const MILESTONE_ACCION: Record<BusinessMilestone, string> = {
   INTERACTION_COMPLETED: 'Entrega de diseño y cierre',
 };
 
-const RESPONSE_STATUS_LABEL: Record<string, string> = {
-  RECEIVED: 'Recibida',
-  IN_PROGRESS: 'En progreso',
-  COMPLETED: 'Completada',
-  CANCELLED: 'Cancelada',
-};
-
 const PROCESSING_STATUS_LABEL: Record<ProcessingStatus, string> = {
   ACCEPTED: 'Aceptado',
   DUPLICATE: 'Duplicado',
   QUARANTINED: 'En cuarentena',
   REJECTED: 'Rechazado',
-};
-
-const VIABILIDAD_LABEL: Record<string, string> = {
-  VIABLE: 'Viable',
-  NOT_VIABLE: 'No viable',
-  PARTIAL: 'Parcial',
-  CONDITIONED: 'Condicionada',
 };
 
 function narrativaMessage(entrada: SolicitudNarrativa): string {
@@ -232,25 +232,6 @@ function narrativaMessage(entrada: SolicitudNarrativa): string {
     MILESTONE_ACCION[entrada.business_milestone] ||
     entrada.business_milestone
   );
-}
-
-/**
- * Viabilidad del servicio: el `outcome` que MEP devolvió para ese servicio;
- * para el diseño técnico, a falta de outcome, el estado de la ruta registrada.
- */
-function resolveViabilidad(
-  solicitud: SolicitudPreventa,
-  service: ServiceCardView,
-  resultado: SolicitudServicio | undefined,
-): string {
-  if (resultado?.outcome) {
-    return VIABILIDAD_LABEL[resultado.outcome] ?? resultado.outcome;
-  }
-  const route = solicitud.ruta_capacidad?.route_status;
-  if (service.service === 'TECHNICAL_DESIGN' && route) {
-    return VIABILIDAD_LABEL[route] ?? route;
-  }
-  return '—';
 }
 
 /** Resumen del servicio; si no hay, la nota de la versión más reciente. */
@@ -275,11 +256,11 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 
 function ServiceCard({
   card,
-  mepStatus,
+  serviceStatus,
   onOpen,
 }: {
   card: ServiceCardView;
-  mepStatus: MepSolicitudStatus;
+  serviceStatus: MepSolicitudStatus;
   onOpen: () => void;
 }) {
   const active = card.state === 'active';
@@ -304,7 +285,7 @@ function ServiceCard({
         >
           {card.label}
         </span>
-        <MepStatusBadge status={mepStatus} />
+        <MepStatusBadge status={serviceStatus} />
         {active ? (
           <span className="text-xs font-bold text-accent">Activa</span>
         ) : (
@@ -344,7 +325,11 @@ function SolicitudDetailModal({
   const resultado = solicitud.servicios.find(
     (s) => s.service === service.service,
   );
-  const sharePointUrl = linkSharePoint(solicitud, service, resultado);
+  const documentoPrincipal = entregableSharePoint(
+    solicitud,
+    service,
+    resultado,
+  );
   const entregablesExtra = (resultado?.entregables ?? []).slice(1);
   const tipoNombre = nombreDelTipo(solicitud);
   // Narrativa MEP: más reciente primero (T-302).
@@ -381,7 +366,7 @@ function SolicitudDetailModal({
                 Bloqueada
               </span>
             ) : null}
-            <MepStatusBadge status={derivarMepStatus(solicitud)} />
+            <MepStatusBadge status={derivarEstadoServicio(resultado)} />
           </div>
         }
       >
@@ -442,25 +427,31 @@ function SolicitudDetailModal({
               <div>
                 <p className={labelClass}>Viabilidad</p>
                 <p className={fieldValueClass}>
-                  {resolveViabilidad(solicitud, service, resultado)}
+                  {labelViabilidadPreventa({
+                    service: service.service,
+                    outcome: resultado?.outcome ?? null,
+                    status: resultado?.status ?? null,
+                    entregablesCount: resultado?.entregables.length ?? 0,
+                    routeStatus: solicitud.ruta_capacidad?.route_status ?? null,
+                  })}
                 </p>
               </div>
               <div>
                 <p className={labelClass}>Documento</p>
-                {sharePointUrl ? (
+                {documentoPrincipal ? (
                   <button
                     type="button"
                     className="inline-flex min-h-9 w-full max-w-full items-center gap-2 rounded border border-border bg-bg px-3 py-2 text-left text-sm font-bold text-accent hover:underline"
                     onClick={() =>
                       setPreview({
-                        title: sharePointDocumentName(sharePointUrl),
-                        url: sharePointUrl,
+                        title: deliverableDisplayName(documentoPrincipal),
+                        url: documentoPrincipal.url,
                       })
                     }
                   >
                     <ExternalLink size={15} aria-hidden />
                     <span className="truncate text-accent">
-                      {sharePointDocumentName(sharePointUrl)}
+                      {deliverableDisplayName(documentoPrincipal)}
                     </span>
                   </button>
                 ) : (
@@ -478,15 +469,12 @@ function SolicitudDetailModal({
                           className="text-xs font-bold text-accent hover:underline"
                           onClick={() =>
                             setPreview({
-                              title:
-                                entregable.label ??
-                                sharePointDocumentName(entregable.url),
+                              title: deliverableDisplayName(entregable),
                               url: entregable.url,
                             })
                           }
                         >
-                          {entregable.label ??
-                            sharePointDocumentName(entregable.url)}
+                          {deliverableDisplayName(entregable)}
                         </button>
                       </li>
                     ))}
@@ -564,10 +552,7 @@ function SolicitudDetailModal({
                           />
                           <DetailRow
                             label="Resultado"
-                            value={
-                              RESPONSE_STATUS_LABEL[entrada.response_status] ??
-                              entrada.response_status
-                            }
+                            value={labelResponseStatus(entrada.response_status)}
                           />
                           <DetailRow label="Origen" value="MEP-LEAN" />
                           <DetailRow
@@ -699,20 +684,29 @@ function SolicitudListItem({
               Secuencia: técnica primero, financiera al recibir viabilidad
             </p>
           )}
-          {services.map((card) => (
-            <ServiceCard
-              key={card.service}
-              card={card}
-              mepStatus={mepStatus}
-              onOpen={() => onOpenService(card)}
-            />
-          ))}
+          {services.map((card) => {
+            const resultado = solicitud.servicios.find(
+              (s) => s.service === card.service,
+            );
+            return (
+              <ServiceCard
+                key={card.service}
+                card={card}
+                serviceStatus={derivarEstadoServicio(resultado)}
+                onOpen={() => onOpenService(card)}
+              />
+            );
+          })}
         </div>
       ) : services[0] ? (
         <div className="max-w-sm">
           <ServiceCard
             card={services[0]}
-            mepStatus={mepStatus}
+            serviceStatus={derivarEstadoServicio(
+              solicitud.servicios.find(
+                (s) => s.service === services[0].service,
+              ),
+            )}
             onOpen={() => onOpenService(services[0])}
           />
         </div>

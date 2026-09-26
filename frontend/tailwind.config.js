@@ -10,7 +10,7 @@ module.exports = {
         ink: 'var(--ink)',
         navy: 'var(--navy)', 'blue-500': 'var(--blue-500)', sky: 'var(--sky)',
         bg: 'var(--bg)', surface: 'var(--surface)', border: 'var(--border)', muted: 'var(--text-muted)',
-        positive: 'var(--positive)', success: 'var(--success)', 'semaphore-verde': 'var(--semaphore-verde)', warning: 'var(--warning)', danger: 'var(--danger)',
+        positive: 'var(--positive)', success: 'var(--success)', 'semaphore-verde': 'var(--semaphore-verde)', warning: 'var(--warning)', danger: 'var(--danger)', 'mep-partial': 'var(--mep-partial)',
         'estado-verde-fill': 'var(--estado-verde-fill)', 'estado-verde-fg': 'var(--estado-verde-fg)',
         'estado-amarillo-fill': 'var(--estado-amarillo-fill)', 'estado-amarillo-fg': 'var(--estado-amarillo-fg)',
         'estado-rojo-fill': 'var(--estado-rojo-fill)', 'estado-rojo-fg': 'var(--estado-rojo-fg)',
