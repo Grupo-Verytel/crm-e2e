@@ -51,9 +51,13 @@ export function CampaignLeadImportCard({ file, onFileChange }: Props) {
         </button>
       </div>
       <p className="text-xs text-muted">
-        Usa la misma plantilla del cargue de leads. Elige la empresa de la
-        lista (debe existir en el CRM). Solo se pide ciudad; la región sale
-        del departamento. El canal queda como Generación de demanda (agencia).
+        Usa la misma plantilla y las mismas reglas del cargue de leads. Puedes
+        repetir empresa y NIT si cada fila trae un contacto distinto (nombre,
+        cargo, email y teléfono): se crea un solo lead y cada fila queda como
+        contacto. En esas filas, origen, canal, segmento, subsegmento y ciudad
+        deben ser iguales. El segmento del archivo tiene que coincidir con el
+        segmento objetivo de la campaña. La empresa debe existir en el CRM. El
+        canal del lead queda como Generación de demanda (agencia).
       </p>
       {downloadError ? <p className="text-sm text-danger">{downloadError}</p> : null}
       <div className="rounded border border-border bg-bg p-4">

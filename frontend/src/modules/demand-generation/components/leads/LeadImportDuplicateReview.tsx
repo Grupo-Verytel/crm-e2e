@@ -4,6 +4,7 @@ import {
   duplicateImportRows,
   importResultRows,
   importRowKey,
+  LEAD_IMPORT_CONTACT_ATTACHED_REASON,
 } from '../../lib/lead-import-job';
 
 const OUTCOME_LABEL: Record<BulkImportRowResult['outcome'], string> = {
@@ -44,20 +45,26 @@ export function LeadImportDuplicateReview({
   const authorizedCount = duplicateKeys.filter((key) =>
     authorizedKeys.has(key),
   ).length;
+  const attachedContacts = rows.filter(
+    (row) => row.reason === LEAD_IMPORT_CONTACT_ATTACHED_REASON,
+  ).length;
 
   return (
     <div className="space-y-4">
       <p className="text-sm text-ink">
         El archivo tiene{' '}
         <span className="font-bold">{status.total_rows}</span> filas:{' '}
-        <span className="font-bold">{status.created}</span> leads creados,{' '}
-        <span className="font-bold">{duplicates.length}</span> duplicados por
+        <span className="font-bold">{status.created}</span> leads creados
+        {attachedContacts > 0
+          ? `, ${attachedContacts} contactos asociados`
+          : ''}
+        , <span className="font-bold">{duplicates.length}</span> duplicados por
         empresa y email, {status.skipped.length - duplicates.length} omitidos
         por otro motivo.
       </p>
       <p className="text-sm text-muted">
-        Marca cada duplicado que quieras crear igual. Sin tu autorización
-        expresa esa fila no se convierte en un lead nuevo.
+        Las filas de la misma empresa y el mismo NIT quedan en un solo lead.
+        Un email que ya existe en esa empresa no crea otro lead.
       </p>
       <div className="overflow-x-auto rounded border border-border">
         <table className="w-full min-w-[720px] text-left text-sm">
@@ -144,8 +151,8 @@ export function LeadImportDuplicateReview({
             onClick={onConfirm}
           >
             {confirming
-              ? 'Creando leads…'
-              : `Crear ${authorizedCount} autorizados`}
+              ? 'Procesando…'
+              : `Confirmar ${authorizedCount} seleccionados`}
           </button>
         </div>
       </div>
