@@ -70,6 +70,7 @@ function ouvFromVentaRecord(record: VentaGanadaRecord): Ouv {
     empresa_nombre: record.empresaNombre,
     city: null,
     region: null,
+    is_recurring: null,
     descripcion: null,
     segmento: 'Gobierno central',
     segment_id: null,
@@ -410,19 +411,32 @@ export function VentaGanadaDetailPage() {
     ? null
     : `Aprueba la viabilidad ${validacionesPendientes.join(' y ')} para habilitar esta sección.`;
 
+  const datosHabilitado =
+    kickoffHabilitado &&
+    record.kickoff.estado === 'Realizado' &&
+    record.kickoff.validadoTeams;
+  const motivoBloqueoDatos =
+    motivoBloqueo ??
+    (datosHabilitado
+      ? null
+      : 'Se habilita cuando el kickoff se realiza y Teams confirma la asistencia.');
+
   // Si la viabilidad se revierte mientras el usuario está en una pestaña
   // bloqueada, se la devuelve a Viabilidad en vez de dejarla editando algo
   // que ya no debería tocar.
-  const tabActivo: Tab =
-    !kickoffHabilitado && tab !== 'validaciones' ? 'validaciones' : tab;
+  const tabActivo: Tab = !kickoffHabilitado
+    ? 'validaciones'
+    : tab === 'datos' && !datosHabilitado
+      ? 'kickoff'
+      : tab;
 
-  const tabBtn = (t: Tab, label: string, bloqueado = false) => (
+  const tabBtn = (t: Tab, label: string, motivo: string | null = null) => (
     <button
       type="button"
-      disabled={bloqueado}
-      title={bloqueado ? (motivoBloqueo ?? undefined) : undefined}
+      disabled={Boolean(motivo)}
+      title={motivo ?? undefined}
       className={`-mb-px border-b-2 px-4 py-2 text-sm ${
-        bloqueado
+        motivo
           ? 'cursor-not-allowed border-transparent text-muted/50'
           : tabActivo === t
             ? 'border-accent font-bold text-accent'
@@ -438,7 +452,13 @@ export function VentaGanadaDetailPage() {
   );
 
   const headerOuv = ouv ?? ouvFromVentaRecord(record);
-  const pmo = puedeEnviarAPmo(record);
+  // "Proyecto" de la OUV define la clasificación que se muestra y va al PMO.
+  const recurrenteOuv = headerOuv.is_recurring;
+  const recordEfectivo: VentaGanadaRecord =
+    recurrenteOuv === null
+      ? record
+      : { ...record, datosBase: { ...record.datosBase, recurrente: recurrenteOuv } };
+  const pmo = puedeEnviarAPmo(recordEfectivo);
   // Misma regla que el backend: CASL `update WonSale` y, para el ejecutivo
   // comercial, solo sus propias OUV.
   const puedeEditar =
@@ -487,8 +507,8 @@ export function VentaGanadaDetailPage() {
         aria-label="Detalle venta ganada"
       >
         {tabBtn('validaciones', 'Viabilidad')}
-        {tabBtn('kickoff', 'Kickoff', !kickoffHabilitado)}
-        {tabBtn('datos', 'Datos proyecto', !kickoffHabilitado)}
+        {tabBtn('kickoff', 'Kickoff', motivoBloqueo)}
+        {tabBtn('datos', 'Datos proyecto', motivoBloqueoDatos)}
         {tabActivo === 'datos' ? (
           <div className="ml-auto flex items-center pb-1">
             <button
@@ -593,9 +613,10 @@ export function VentaGanadaDetailPage() {
       {tabActivo === 'datos' ? (
         <>
           <FormularioDatosProyecto
-            datos={record.datosBase}
+            datos={recordEfectivo.datosBase}
             modo="crear"
             onChange={(datosBase) => save({ ...record, datosBase })}
+            recurrenteBloqueado={recurrenteOuv !== null}
           />
           {!pmo.ok && pmo.reason ? (
             <p className="mt-2 text-xs text-muted">{pmo.reason}</p>
@@ -604,7 +625,7 @@ export function VentaGanadaDetailPage() {
       ) : null}
 
       <ResumenEnvioPmoModal
-        record={record}
+        record={recordEfectivo}
         open={showResumen}
         onClose={() => setShowResumen(false)}
         onSent={async (updated) => {
@@ -619,7 +640,7 @@ export function VentaGanadaDetailPage() {
           setRecord(updated);
           try {
             setRecord(applyWonSale(updated, await saveWonSale(updated)));
-            navigate('/services');
+            navigate('/services', { state: { celebrar: true } });
           } catch (error) {
             // El proyecto ya existe en el PMO; al reintentar, el 409 se
             // recupera y se vuelve a guardar el envío.

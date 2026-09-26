@@ -1,4 +1,5 @@
 import {
+  IsBoolean,
   IsEnum,
   IsIn,
   IsOptional,
@@ -84,4 +85,10 @@ export class ActualizarOuvDto {
   @IsString()
   @MaxLength(60)
   region?: string | null;
+
+  /** null = sin definir. */
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null)
+  @IsBoolean()
+  is_recurring?: boolean | null;
 }

@@ -19,6 +19,7 @@ export type Ouv = {
   empresa_nombre: string;
   city: string | null;
   region: string | null;
+  is_recurring: boolean | null;
   descripcion: string | null;
   segmento: string;
   segment_id: string | null;
@@ -136,6 +137,7 @@ export type CrearOuvDirectaPayload = {
   subsegment_id?: string;
   city?: string;
   region?: string;
+  is_recurring?: boolean;
 };
 
 export type ContactoPayload = {
@@ -171,6 +173,7 @@ export type UpdateOuvPayload = {
   comercial_id?: string;
   city?: string | null;
   region?: string | null;
+  is_recurring?: boolean | null;
 };
 
 export async function updateOuv(

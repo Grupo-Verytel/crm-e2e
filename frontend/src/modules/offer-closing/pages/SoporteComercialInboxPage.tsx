@@ -48,6 +48,7 @@ export function SoporteComercialInboxPage() {
       const canAll =
         user?.role_name === 'SoporteComercial' || user?.role_name === 'Admin';
       const res = await fetchOuvs({
+        resultado: 'Ganada',
         preventa_completada: true,
         // Las ya enviadas al PMO viven en /services, no aquí.
         pmo_enviado: false,
@@ -185,7 +186,7 @@ export function SoporteComercialInboxPage() {
                 <td colSpan={7} className="px-4 py-8 text-center text-muted">
                   {query
                     ? 'No hay ventas ganadas que coincidan con la búsqueda.'
-                    : 'No hay OUV con solicitud de preventa completada y documento en SharePoint.'}
+                    : 'No hay OUV ganadas con solicitud de preventa completada y documento en SharePoint.'}
                 </td>
               </tr>
             ) : (

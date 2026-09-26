@@ -5,7 +5,10 @@ import { ApiError } from '../../auth/types';
 import { fetchSegments } from '../../demand-generation/api/segments-api';
 import type { Segment } from '../../demand-generation/types';
 import { crearOuvDirecta } from '../api/ouvs-api';
-import { saveOuvExtensions } from '../lib/ouv-detail-extensions';
+import {
+  isRecurringDeProyecto,
+  saveOuvExtensions,
+} from '../lib/ouv-detail-extensions';
 import { SEGMENTOS, VERTICALES } from '../lib/ouv-vocab';
 import { ColombiaCitySearchField } from './ColombiaCitySearchField';
 import {
@@ -140,6 +143,9 @@ export function CrearOuvDirectaModal({ onClose, onCreated }: Props) {
           : {}),
         ...(ciudad.trim() ? { city: ciudad.trim() } : {}),
         ...(region.trim() ? { region: region.trim() } : {}),
+        ...(proyecto
+          ? { is_recurring: isRecurringDeProyecto(proyecto) === true }
+          : {}),
       });
 
       saveOuvExtensions(ouv.ouv_id, {

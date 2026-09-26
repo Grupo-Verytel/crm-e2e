@@ -76,7 +76,7 @@ export function KickoffCard({
             <div className="min-w-0">
               <p className="text-xs font-bold text-muted">
                 {kickoff.estado === 'Realizado' && kickoff.validadoTeams
-                  ? 'Etapa 4 · Confirmación del Kickoff'
+                  ? 'Kickoff realizado'
                   : 'Kickoff agendado'}
               </p>
               {kickoff.agenda ? (
@@ -117,7 +117,6 @@ export function KickoffCard({
           </div>
           <KickoffProgramacionPanel
             kickoff={kickoff}
-            onChange={onChange}
             attendance={attendance}
           />
         </div>

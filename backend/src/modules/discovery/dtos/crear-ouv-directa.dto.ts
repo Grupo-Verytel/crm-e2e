@@ -1,4 +1,5 @@
 import {
+  IsBoolean,
   IsEnum,
   IsIn,
   IsNotEmpty,
@@ -55,4 +56,8 @@ export class CrearOuvDirectaDto {
   @IsString()
   @MaxLength(60)
   region?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  is_recurring?: boolean;
 }

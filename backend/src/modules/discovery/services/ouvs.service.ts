@@ -217,6 +217,7 @@ export class OuvsService {
           empresaNombre,
           city: dto.city?.trim() || null,
           region: dto.region?.trim() || null,
+          isRecurring: dto.is_recurring ?? null,
           descripcion: dto.descripcion.trim(),
           segmento: dto.segmento,
           segmentId: dto.segment_id ?? null,
@@ -660,6 +661,9 @@ export class OuvsService {
       if (dto.region !== undefined) {
         patch.region = dto.region?.trim() || null;
       }
+      if (dto.is_recurring !== undefined) {
+        patch.isRecurring = dto.is_recurring;
+      }
 
       // Vincular / desvincular la account. Si vincula, alinea empresa_nombre
       // al snapshot de accounts.name — a menos que el DTO ya haya mandado
@@ -990,6 +994,7 @@ export class OuvsService {
       empresa_nombre: ouv.empresaNombre,
       city: ouv.city ?? null,
       region: ouv.region ?? null,
+      is_recurring: ouv.isRecurring ?? null,
       descripcion: ouv.descripcion,
       segmento: ouv.segmento,
       segment_id: ouv.segmentId ?? null,

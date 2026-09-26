@@ -218,9 +218,6 @@ export function puedeEnviarAPmo(record: VentaGanadaRecord): { ok: boolean; reaso
   if (record.kickoff.estado !== 'Realizado' || !record.kickoff.validadoTeams) {
     return { ok: false, reason: null };
   }
-  if (!record.kickoff.aprobaciones.every((a) => a.completada)) {
-    return { ok: false, reason: 'Faltan aprobaciones del kickoff.' };
-  }
   const missing = validateDatosBase(record.datosBase);
   if (missing.length > 0) {
     return { ok: false, reason: `Datos incompletos: ${missing.join(', ')}` };
@@ -231,8 +228,6 @@ export function puedeEnviarAPmo(record: VentaGanadaRecord): { ok: boolean; reaso
 export function checklistAvancePct(record: VentaGanadaRecord): number {
   let total = 2;
   let done = Object.values(record.validaciones).filter((v) => v.estado === 'Aprobado').length;
-  total += 3;
-  done += record.kickoff.aprobaciones.filter((a) => a.completada).length;
   if (record.kickoff.estado === 'Realizado') done += 1;
   total += 1;
   const missing = validateDatosBase(record.datosBase);

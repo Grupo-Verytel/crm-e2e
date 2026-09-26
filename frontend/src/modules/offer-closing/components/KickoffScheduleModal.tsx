@@ -704,9 +704,6 @@ export function KickoffScheduleModal({
         fechaRealizacion: null,
         validadoTeams: false,
         agendamientoConfirmado: true,
-        aprobaciones: previousEventId
-          ? kickoff.aprobaciones.map((a) => ({ ...a, completada: false }))
-          : kickoff.aprobaciones,
         agenda: {
           nombreReunion: nombreReunion.trim(),
           invitados,
@@ -1125,7 +1122,7 @@ export function KickoffScheduleModal({
           ) : null}
 
           {tab === 'confirmacion' && confirmacionUnlocked ? (
-            <KickoffProgramacionPanel kickoff={kickoff} onChange={onChange} />
+            <KickoffProgramacionPanel kickoff={kickoff} />
           ) : null}
 
           {tab === 'confirmacion' && !confirmacionUnlocked ? (

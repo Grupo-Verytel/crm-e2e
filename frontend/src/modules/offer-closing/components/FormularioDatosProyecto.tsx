@@ -78,6 +78,8 @@ type Props = {
   datos: DatosBaseProyecto;
   modo: 'crear' | 'ampliar';
   onChange: (datos: DatosBaseProyecto) => void;
+  /** La clasificación viene de la OUV ("Proyecto") y no se edita aquí. */
+  recurrenteBloqueado?: boolean;
 };
 
 /** C6 — HU-F04 form, reused by HU-F06 "Ampliar proyecto". */
@@ -85,6 +87,7 @@ export function FormularioDatosProyecto({
   datos,
   modo,
   onChange,
+  recurrenteBloqueado = false,
 }: Props) {
   const pctSum = datos.unionesTemporales.reduce(
     (s, u) => s + u.participacionPct,
@@ -212,6 +215,7 @@ export function FormularioDatosProyecto({
                 <input
                   type="radio"
                   checked={!datos.recurrente}
+                  disabled={recurrenteBloqueado}
                   onChange={() => patch({ recurrente: false })}
                 />
                 No recurrente
@@ -220,6 +224,7 @@ export function FormularioDatosProyecto({
                 <input
                   type="radio"
                   checked={datos.recurrente}
+                  disabled={recurrenteBloqueado}
                   onChange={() => patch({ recurrente: true })}
                 />
                 Recurrente

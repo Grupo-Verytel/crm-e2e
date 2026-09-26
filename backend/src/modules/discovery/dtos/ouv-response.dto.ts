@@ -11,6 +11,7 @@ export class OuvResponseDto {
   empresa_nombre!: string;
   city!: string | null;
   region!: string | null;
+  is_recurring!: boolean | null;
   descripcion!: string | null;
   segmento!: string;
   segment_id!: string | null;
