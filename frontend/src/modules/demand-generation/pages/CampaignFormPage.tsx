@@ -17,6 +17,7 @@ import {
 } from '../components/ui';
 import {
   assertCampaignFileMatchesSegmento,
+  assertRepeatedCompaniesInLeadCsv,
   fileToLeadImportCsv,
 } from '../lib/lead-bulk-import';
 import {
@@ -161,6 +162,7 @@ export function CampaignFormPage() {
 
     try {
       const csv = await fileToLeadImportCsv(file);
+      assertRepeatedCompaniesInLeadCsv(csv);
       assertCampaignFileMatchesSegmento(csv, form.segmento_objetivo);
 
       const payload: CreateCampaignPayload = {
@@ -306,7 +308,9 @@ export function CampaignFormPage() {
             </Field>
           </div>
 
-          {error ? <p className="text-sm text-danger">{error}</p> : null}
+          {error ? (
+            <p className="whitespace-pre-line text-sm text-danger">{error}</p>
+          ) : null}
 
           <button type="submit" disabled={isSubmitting} className={primaryButtonClass}>
             {isSubmitting ? 'Creando campaña…' : 'Crear campaña'}

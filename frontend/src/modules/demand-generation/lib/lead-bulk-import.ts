@@ -1,4 +1,5 @@
 import { COLOMBIA_MUNICIPIOS } from '../../discovery/lib/colombia-municipios';
+import { assertConsistentRepeatedCompanies } from './lead-import-repeated-rows';
 import { LEAD_INFLUENCIA_SLOTS } from './lead-vocab';
 import {
   CANALES_ORIGEN,
@@ -745,6 +746,42 @@ function parseCsvLine(line: string): string[] {
   }
   values.push(current.trim());
   return values;
+}
+
+function csvToImportRows(csv: string): Array<{
+  rowNumber: number;
+  values: Record<string, string>;
+}> {
+  const lines = csv
+    .replace(/^\uFEFF/, '')
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+
+  if (lines.length < 2) {
+    return [];
+  }
+
+  const headers = parseCsvLine(lines[0]).map((header) =>
+    canonicalCsvHeader(header.replace(/^"(.*)"$/s, '$1')),
+  );
+  const rows: Array<{ rowNumber: number; values: Record<string, string> }> =
+    [];
+
+  for (let lineIndex = 1; lineIndex < lines.length; lineIndex += 1) {
+    const cells = parseCsvLine(lines[lineIndex]);
+    const values: Record<string, string> = {};
+    headers.forEach((header, columnIndex) => {
+      values[header] = cells[columnIndex]?.trim() ?? '';
+    });
+    rows.push({ rowNumber: lineIndex + 1, values });
+  }
+
+  return rows;
+}
+
+export function assertRepeatedCompaniesInLeadCsv(csv: string): void {
+  assertConsistentRepeatedCompanies(csvToImportRows(csv));
 }
 
 export function assertCampaignFileMatchesSegmento(

@@ -4,6 +4,7 @@ import { enqueueLeadImport } from '../../api/leads-api';
 import {
   downloadLeadImportTemplate,
   excelColumnLetter,
+  assertRepeatedCompaniesInLeadCsv,
   fileToLeadImportCsv,
   LEAD_CSV_FIELDS,
   snapshotImportFile,
@@ -80,6 +81,7 @@ export function LeadBulkImportModal({ onClose, onDone }: Props) {
     setError(null);
     try {
       const csv = await fileToLeadImportCsv(file);
+      assertRepeatedCompaniesInLeadCsv(csv);
       const csvFile = new File([csv], file.name.replace(/\.(xls|xlsx)$/i, '.csv'), {
         type: 'text/csv',
       });
@@ -182,6 +184,10 @@ export function LeadBulkImportModal({ onClose, onDone }: Props) {
               ciudad, empresa y las demás columnas de catálogo abre la flecha y
               elige un valor de la lista. La región se infiere de la ciudad.
               La empresa debe existir en el CRM; el cargue no crea empresas.
+              Puedes repetir la misma empresa y el mismo NIT en varias filas
+              si cada una trae un contacto distinto (nombre, cargo, email y
+              teléfono). En esas filas, origen, canal, segmento, subsegmento
+              y ciudad deben ser iguales.
             </p>
             <div className="overflow-x-auto rounded border border-border">
               <table className="w-full min-w-[640px] text-left text-sm">
@@ -218,7 +224,9 @@ export function LeadBulkImportModal({ onClose, onDone }: Props) {
               tendrás que autorizar cada fila duplicada para crearla. El
               responsable es quien hace la carga.
             </p>
-            {error ? <p className="text-sm text-danger">{error}</p> : null}
+            {error ? (
+              <p className="whitespace-pre-line text-sm text-danger">{error}</p>
+            ) : null}
             <div className="flex flex-wrap justify-end gap-2">
               <button type="button" className={ghostButtonClass} onClick={handleClose}>
                 Cancelar
@@ -292,7 +300,11 @@ export function LeadBulkImportModal({ onClose, onDone }: Props) {
                   {file ? file.name : 'Ningún archivo seleccionado'}
                 </span>
               </div>
-              {error ? <p className="mt-2 text-sm text-danger">{error}</p> : null}
+              {error ? (
+                <p className="mt-2 whitespace-pre-line text-sm text-danger">
+                  {error}
+                </p>
+              ) : null}
             </div>
             <div className="flex flex-wrap justify-end gap-2">
               <button
@@ -350,7 +362,7 @@ export function LeadBulkImportModal({ onClose, onDone }: Props) {
         {step === 'done' && status ? (
           <>
             {status.status === 'failed' ? (
-              <p className="text-sm text-danger">
+              <p className="whitespace-pre-line text-sm text-danger">
                 Importación fallida: {status.error}
               </p>
             ) : (

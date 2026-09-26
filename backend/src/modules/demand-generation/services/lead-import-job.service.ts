@@ -16,6 +16,7 @@ import {
   ImportJobStatus,
 } from '../dtos/bulk-import-job.dto';
 import { parseCsvContent, type ParsedCsvRow } from '../lib/csv-parser';
+import { assertConsistentRepeatedCompanies } from '../lib/lead-import-repeated-rows';
 import { resolveSegmentoFromInput } from '../lib/segment-catalog';
 import { SegmentoObjetivo } from '../models/enums/segment.enum';
 import { LeadsService } from './leads.service';
@@ -113,6 +114,7 @@ export class LeadImportJobService {
     try {
       rows = parseCsvContent(csvContent, CSV_LEAD_REQUIRED_HEADERS);
       this.assertExpectedSegmento(rows, options.expected_segmento);
+      assertConsistentRepeatedCompanies(rows);
     } catch (error) {
       job.status = 'failed';
       job.error =
