@@ -27,9 +27,6 @@ const MqlInboxPage = lazy(
 const MarketingDashboardPage = lazy(
   () => import('../modules/demand-generation/pages/MarketingDashboardPageLazy'),
 );
-const AgendaInboxPage = lazy(
-  () => import('../modules/demand-generation/pages/AgendaInboxPageLazy'),
-);
 const QualificationHomePage = lazy(
   () => import('../modules/qualification/pages/QualificationHomePageLazy'),
 );
@@ -222,13 +219,7 @@ export function AppRoutes() {
     },
     {
       path: '/demand/agenda',
-      element: (
-        <ProtectedRoute>
-          <RoleRoute roles={['SoporteComercial', 'GestorMercadeo']}>
-            <AgendaInboxPage />
-          </RoleRoute>
-        </ProtectedRoute>
-      ),
+      element: <Navigate to="/demand" replace />,
     },
     {
       path: '/demand/dashboard',

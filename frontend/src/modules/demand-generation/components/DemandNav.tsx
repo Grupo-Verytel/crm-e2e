@@ -3,13 +3,9 @@ import { NavLink } from 'react-router-dom';
 import { isRoleName } from '../../../lib/roles';
 import { useAuth } from '../../auth/hooks/useAuth';
 
-const SUPPORT_ROLE = 'SoporteComercial';
 const GESTOR_ROLE = 'GestorMercadeo';
 const PRODUCT_MANAGER_ROLE = 'ProductManager';
 const TRADUCTOR_ROLE = 'TraductorDeNegocio';
-
-/** Roles that can open Bandeja de Agenda / register agency citas (MOFU → BOFU). */
-const AGENDA_ROLES = new Set([SUPPORT_ROLE, GESTOR_ROLE, 'Admin']);
 
 /** Bandeja MQL is the Director's approval tray. Gestor de Mercadeo does not open it. */
 export function canOpenMqlInbox(roleName: string | undefined): boolean {
@@ -20,7 +16,6 @@ type NavItem = {
   to: string;
   label: string;
   end: boolean;
-  agendaOnly?: boolean;
   mqlInbox?: boolean;
 };
 
@@ -28,12 +23,6 @@ const LINKS: NavItem[] = [
   { to: '/demand', label: 'Leads', end: true },
   { to: '/demand/campaigns', label: 'Campañas', end: false },
   { to: '/demand/mqls', label: 'Bandeja MQL', end: false, mqlInbox: true },
-  {
-    to: '/demand/agenda',
-    label: 'Bandeja de Agenda',
-    end: false,
-    agendaOnly: true,
-  },
   { to: '/demand/dashboard', label: 'Dashboard', end: false },
 ];
 
@@ -46,7 +35,6 @@ export function DemandNav({ actions }: DemandNavProps) {
   const roleName = user?.role_name;
   const isTraductor = roleName === TRADUCTOR_ROLE;
   const isProductManager = roleName === PRODUCT_MANAGER_ROLE;
-  const canUseAgenda = !!roleName && AGENDA_ROLES.has(roleName);
   const showMqlInbox = canOpenMqlInbox(roleName);
 
   let links: NavItem[];
@@ -55,10 +43,7 @@ export function DemandNav({ actions }: DemandNavProps) {
   } else if (isProductManager) {
     links = [{ to: '/demand', label: 'Leads', end: true }];
   } else {
-    links = LINKS.filter(
-      (link) =>
-        (!link.agendaOnly || canUseAgenda) && (!link.mqlInbox || showMqlInbox),
-    );
+    links = LINKS.filter((link) => !link.mqlInbox || showMqlInbox);
   }
 
   return (
