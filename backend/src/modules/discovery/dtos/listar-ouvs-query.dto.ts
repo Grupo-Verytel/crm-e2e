@@ -81,6 +81,11 @@ export class ListarOuvsQueryDto {
   @IsBoolean()
   pmo_enviado?: boolean;
 
+  @IsOptional()
+  @Transform(queryBoolean)
+  @IsBoolean()
+  preventa_completada?: boolean;
+
   /** Owner filter. Applied only when `all` is true (follow-up roles). */
   @IsOptional()
   @IsUUID('4')

@@ -817,6 +817,25 @@ export class OuvsService {
         ? { [Op.in]: enviadas }
         : { [Op.notIn]: enviadas };
     }
+    if (query.preventa_completada) {
+      // COLLATE: `commercial_interaction` usa unicode_ci y `ouvs` 0900_ai_ci.
+      const sharePoint = `'^https://[^/]+[.]sharepoint[.]com/'`;
+      const completadas = Sequelize.literal(
+        `(SELECT ci.crm_opportunity_ref COLLATE utf8mb4_0900_ai_ci FROM commercial_interaction ci
+          JOIN mep_response r ON r.interaction_id = ci.id
+          JOIN mep_response_version v ON v.mep_response_id = r.id
+            AND v.response_version = (
+              SELECT MAX(v2.response_version) FROM mep_response_version v2
+              WHERE v2.mep_response_id = r.id)
+          WHERE (v.business_milestone = 'INTERACTION_COMPLETED' OR v.response_status = 'COMPLETED')
+            AND (ci.sharepoint_document_url REGEXP ${sharePoint}
+              OR EXISTS (
+                SELECT 1 FROM mep_service_result s
+                JOIN mep_deliverable d ON d.service_result_id = s.id
+                WHERE s.response_version_id = v.id AND d.url REGEXP ${sharePoint})))`,
+      );
+      where.consecutivo = { [Op.in]: completadas };
+    }
     if (query.q?.trim()) {
       const like = `%${query.q.trim()}%`;
       where[Op.or] = [

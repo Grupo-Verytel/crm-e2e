@@ -1,8 +1,6 @@
 /**
  * Cuerpo HTML de la invitación de kickoff que se envía por Microsoft Graph.
  *
- * Teams agrega su propio bloque ("Unirse", Id. de reunión…) debajo de este
- * contenido; eso no se controla desde aquí.
  *
  * Restricciones de Outlook: sin CSS externo ni `<style>` confiable, así que el
  * diseño va en tablas con estilos en línea. Todo valor que viene del usuario
@@ -11,6 +9,8 @@
 
 const COLORS = {
   brand: '#0033A0',
+  header: '#B55802',
+  onHeader: '#FFFFFF',
   accent: '#F88702',
   ink: '#1D1D1B',
   muted: '#6B6B6B',
@@ -19,15 +19,6 @@ const COLORS = {
 } as const;
 
 const FONT = "'Segoe UI', Arial, Helvetica, sans-serif";
-
-/** Temario base de un kickoff; se muestra igual en todas las invitaciones. */
-const AGENDA_SUGERIDA = [
-  'Presentación del equipo del cliente y del equipo ejecutor',
-  'Objetivos y alcance del proyecto',
-  'Cronograma, hitos y entregables',
-  'Canales de comunicación y gestión de cambios',
-  'Próximos pasos y compromisos',
-];
 
 export type KickoffInvitationData = {
   subject: string;
@@ -41,6 +32,7 @@ export type KickoffInvitationData = {
   organizerName?: string | null;
   locationName?: string | null;
   isOnlineMeeting: boolean;
+  joinUrl?: string | null;
   attendeeNames: string[];
   observaciones?: string | null;
 };
@@ -129,14 +121,26 @@ export function renderKickoffInvitationHtml(
             ${fila('Organiza', data.organizerName)}
           </table>`;
 
-  const agenda = `
-          <ol style="margin:0;padding-left:20px;font-family:${FONT};font-size:14px;line-height:22px;color:${COLORS.ink};">
-            ${AGENDA_SUGERIDA.map((item) => `<li>${escapeHtml(item)}</li>`).join('\n            ')}
-          </ol>`;
+  const joinUrl = data.isOnlineMeeting ? data.joinUrl?.trim() : null;
+  const unirseHtml = joinUrl
+    ? `
+          <tr>
+            <td style="padding:22px 28px 0 28px;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td bgcolor="${COLORS.header}" style="background-color:${COLORS.header};border-radius:4px;">
+                    <a href="${escapeHtml(joinUrl)}" target="_blank" style="display:inline-block;padding:12px 24px;font-family:${FONT};font-size:15px;font-weight:bold;color:${COLORS.onHeader};text-decoration:none;">Unirse a la reunión de Teams</a>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin:10px 0 0 0;font-family:${FONT};font-size:12px;line-height:18px;color:${COLORS.muted};">
+                ¿No funciona el botón? <a href="${escapeHtml(joinUrl)}" target="_blank" style="color:${COLORS.brand};">Abrir el enlace de la reunión</a>
+              </p>
+            </td>
+          </tr>`
+    : '';
 
-  const invitados = data.attendeeNames
-    .map((n) => n.trim())
-    .filter(Boolean);
+  const invitados = data.attendeeNames.map((n) => n.trim()).filter(Boolean);
   const invitadosHtml = invitados.length
     ? `<p style="margin:0;font-family:${FONT};font-size:14px;line-height:22px;color:${COLORS.ink};">${invitados
         .map(escapeHtml)
@@ -159,27 +163,26 @@ export function renderKickoffInvitationHtml(
       <td align="left" style="padding:8px 0;">
         <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;border:1px solid ${COLORS.border};">
           <tr>
-            <td bgcolor="${COLORS.brand}" style="background-color:${COLORS.brand};padding:22px 28px;">
-              <p style="margin:0;font-family:${FONT};font-size:12px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;color:#FFFFFF;opacity:0.85;">Kickoff de proyecto</p>
-              <p style="margin:6px 0 0 0;font-family:${FONT};font-size:20px;font-weight:bold;line-height:26px;color:#FFFFFF;">${escapeHtml(data.subject)}</p>
-              ${encabezado ? `<p style="margin:6px 0 0 0;font-family:${FONT};font-size:13px;color:#FFFFFF;">${escapeHtml(encabezado)}</p>` : ''}
+            <td bgcolor="${COLORS.header}" style="background-color:${COLORS.header};padding:22px 28px;">
+              <p style="margin:0;font-family:${FONT};font-size:12px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;color:${COLORS.onHeader};">Kickoff de proyecto</p>
+              <p style="margin:6px 0 0 0;font-family:${FONT};font-size:20px;font-weight:bold;line-height:26px;color:${COLORS.onHeader};">${escapeHtml(data.subject)}</p>
+              ${encabezado ? `<p style="margin:6px 0 0 0;font-family:${FONT};font-size:13px;color:${COLORS.onHeader};">${escapeHtml(encabezado)}</p>` : ''}
             </td>
           </tr>
-          <tr><td bgcolor="${COLORS.accent}" style="background-color:${COLORS.accent};height:4px;line-height:4px;font-size:0;">&nbsp;</td></tr>
+          <tr><td bgcolor="${COLORS.brand}" style="background-color:${COLORS.brand};height:4px;line-height:4px;font-size:0;">&nbsp;</td></tr>
           <tr>
             <td style="padding:22px 28px 0 28px;font-family:${FONT};font-size:14px;line-height:22px;color:${COLORS.ink};">
               Te invitamos a la reunión de inicio del proyecto. En esta sesión alineamos
               alcance, cronograma y responsables antes de arrancar la ejecución.
             </td>
           </tr>
+          ${unirseHtml}
           ${seccion('Detalles', detalles)}
-          ${seccion('Agenda sugerida', agenda)}
           ${invitadosHtml ? seccion('Participantes', invitadosHtml) : ''}
           ${observacionesHtml ? seccion('Observaciones', observacionesHtml) : ''}
           <tr>
             <td style="padding:24px 28px 20px 28px;">
               <p style="margin:0;padding-top:14px;border-top:1px solid ${COLORS.border};font-family:${FONT};font-size:12px;line-height:18px;color:${COLORS.muted};">
-                ${data.isOnlineMeeting ? 'El enlace para unirse por Microsoft Teams está al final de esta invitación.<br>' : ''}
                 Enviado desde CRM Frisson · Grupo Verytel
               </p>
             </td>

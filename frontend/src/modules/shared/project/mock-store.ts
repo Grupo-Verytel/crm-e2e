@@ -215,14 +215,8 @@ export function puedeEnviarAPmo(record: VentaGanadaRecord): { ok: boolean; reaso
   if (!allValidacionesAprobadas(record)) {
     return { ok: false, reason: 'Hay validaciones pendientes o rechazadas.' };
   }
-  if (record.kickoff.estado !== 'Realizado') {
-    return { ok: false, reason: 'El kickoff debe estar marcado como Realizado.' };
-  }
-  if (!record.kickoff.validadoTeams) {
-    return {
-      ok: false,
-      reason: 'Pendiente validar asistencia del kickoff en Teams.',
-    };
+  if (record.kickoff.estado !== 'Realizado' || !record.kickoff.validadoTeams) {
+    return { ok: false, reason: null };
   }
   if (!record.kickoff.aprobaciones.every((a) => a.completada)) {
     return { ok: false, reason: 'Faltan aprobaciones del kickoff.' };

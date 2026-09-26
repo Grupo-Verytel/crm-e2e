@@ -252,18 +252,49 @@ export class GraphService {
     dto: CreateGraphMeetingDto,
   ): Promise<GraphMeetingResponseDto> {
     const draft = await this.buildEventDraft(dto);
-    const event = await this.hydrateMeetingEvent(
-      draft.organizer.id,
+    const organizerId = draft.organizer.id;
+    const headers = outlookPreferHeader(draft.timeZone);
+    const conEnlace = draft.kickoffBody && draft.payload.isOnlineMeeting;
+
+    if (!conEnlace) {
+      const event = await this.hydrateMeetingEvent(
+        organizerId,
+        await this.client.request<GraphEvent>(
+          'POST',
+          `/users/${organizerId}/events`,
+          { data: draft.payload, headers },
+        ),
+      );
+      return this.toMeetingResponse(event, draft);
+    }
+
+    // Sin invitados primero: el `joinUrl` solo existe tras crear el evento.
+    const { attendees, ...sinInvitados } = draft.payload;
+    const creado = await this.hydrateMeetingEvent(
+      organizerId,
       await this.client.request<GraphEvent>(
         'POST',
-        `/users/${draft.organizer.id}/events`,
-        {
-          data: draft.payload,
-          headers: outlookPreferHeader(draft.timeZone),
-        },
+        `/users/${organizerId}/events`,
+        { data: sinInvitados, headers },
       ),
     );
-    return this.toMeetingResponse(event, draft);
+    const eventPath = `/users/${organizerId}/events/${encodeURIComponent(creado.id)}`;
+    try {
+      const event = await this.hydrateMeetingEvent(
+        organizerId,
+        await this.client.request<GraphEvent>('PATCH', eventPath, {
+          data: {
+            attendees,
+            body: draft.kickoffBody!(joinUrlFromEvent(creado)),
+          },
+          headers,
+        }),
+      );
+      return this.toMeetingResponse(event, draft);
+    } catch (error) {
+      await this.client.request('DELETE', eventPath).catch(() => undefined);
+      throw error;
+    }
   }
 
   /**
@@ -284,6 +315,13 @@ export class GraphService {
     // reenvía, Graph responde 400. `isOnlineMeeting` sí admite cambio.
     const payload = { ...draft.payload };
     delete payload.onlineMeetingProvider;
+
+    if (draft.kickoffBody && payload.isOnlineMeeting) {
+      const actual = await this.hydrateMeetingEvent(draft.organizer.id, {
+        id: eventId,
+      });
+      payload.body = draft.kickoffBody(joinUrlFromEvent(actual));
+    }
 
     const event = await this.hydrateMeetingEvent(
       draft.organizer.id,
@@ -306,6 +344,9 @@ export class GraphService {
   private async buildEventDraft(dto: CreateGraphMeetingDto): Promise<{
     organizer: GraphUser;
     payload: Record<string, unknown>;
+    kickoffBody:
+      | ((joinUrl: string | null) => { contentType: string; content: string })
+      | null;
     subject: string;
     timeZone: string;
     startDateTime: string;
@@ -380,28 +421,33 @@ export class GraphService {
     if (isOnlineMeeting) {
       payload.onlineMeetingProvider = 'teamsForBusiness';
     }
-    if (dto.kickoff) {
-      // Kickoff: invitación con la plantilla de marca; `body` queda como la
-      // sección de observaciones dentro del HTML.
-      payload.body = {
-        contentType: 'HTML',
-        content: renderKickoffInvitationHtml({
-          subject: dto.subject.trim(),
-          startDateTime,
-          endDateTime,
-          timeZone,
-          consecutivo: dto.kickoff.consecutivo,
-          proyecto: dto.kickoff.proyecto,
-          cliente: dto.kickoff.cliente,
-          organizerName: organizer.displayName ?? organizer.mail ?? null,
-          locationName,
-          isOnlineMeeting,
-          attendeeNames: (dto.attendees ?? []).map(
-            (a) => a.name?.trim() || a.email,
-          ),
-          observaciones: dto.body,
-        }),
-      };
+    const kickoff = dto.kickoff;
+    // Kickoff: invitación con la plantilla de marca; `body` queda como la
+    // sección de observaciones dentro del HTML.
+    const kickoffBody = kickoff
+      ? (joinUrl: string | null) => ({
+          contentType: 'HTML',
+          content: renderKickoffInvitationHtml({
+            subject: dto.subject.trim(),
+            startDateTime,
+            endDateTime,
+            timeZone,
+            consecutivo: kickoff.consecutivo,
+            proyecto: kickoff.proyecto,
+            cliente: kickoff.cliente,
+            organizerName: organizer.displayName ?? organizer.mail ?? null,
+            locationName,
+            isOnlineMeeting,
+            joinUrl,
+            attendeeNames: (dto.attendees ?? []).map(
+              (a) => a.name?.trim() || a.email,
+            ),
+            observaciones: dto.body,
+          }),
+        })
+      : null;
+    if (kickoffBody) {
+      payload.body = kickoffBody(null);
     } else if (dto.body?.trim()) {
       payload.body = { contentType: 'Text', content: dto.body.trim() };
     }
@@ -414,6 +460,7 @@ export class GraphService {
     return {
       organizer,
       payload,
+      kickoffBody,
       subject: payload.subject as string,
       timeZone,
       startDateTime,
@@ -668,7 +715,10 @@ export class GraphService {
               dateTime: startTime,
               timeZone: toOutlookTimeZone(timeZone),
             },
-            endTime: { dateTime: endTime, timeZone: toOutlookTimeZone(timeZone) },
+            endTime: {
+              dateTime: endTime,
+              timeZone: toOutlookTimeZone(timeZone),
+            },
             availabilityViewInterval: GRAPH_AVAILABILITY_INTERVAL,
           },
         },

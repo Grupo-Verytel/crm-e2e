@@ -3,6 +3,7 @@ import { CalendarPlus } from 'lucide-react';
 import type { KickoffRecord } from '../../shared/project/types';
 import { createEmptyKickoff } from '../../shared/project/mock-data';
 import { formatKickoffRange } from '../lib/kickoff-scheduling';
+import type { GraphAttendance } from '../api/graph-api';
 import { KickoffProgramacionPanel } from './KickoffProgramacionPanel';
 import type { KickoffInvitationContext } from '../api/graph-api';
 import { KickoffScheduleModal } from './KickoffScheduleModal';
@@ -20,6 +21,7 @@ type Props = {
   kickoff: KickoffRecord;
   onChange: (kickoff: KickoffRecord) => void;
   invitationContext?: KickoffInvitationContext;
+  attendance?: GraphAttendance | null;
 };
 
 const ESTADO_TONE: Record<KickoffRecord['estado'], string> = {
@@ -41,6 +43,7 @@ export function KickoffCard({
   kickoff,
   onChange,
   invitationContext,
+  attendance = null,
 }: Props) {
   const [modalOpen, setModalOpen] = useState(false);
   const hasAgenda = Boolean(
@@ -119,7 +122,11 @@ export function KickoffCard({
               </button>
             </div>
           </div>
-          <KickoffProgramacionPanel kickoff={kickoff} onChange={onChange} />
+          <KickoffProgramacionPanel
+            kickoff={kickoff}
+            onChange={onChange}
+            attendance={attendance}
+          />
         </div>
       ) : (
         <section

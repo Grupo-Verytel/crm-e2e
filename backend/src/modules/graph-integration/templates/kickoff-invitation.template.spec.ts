@@ -35,10 +35,25 @@ describe('kickoff invitation template', () => {
     expect(html).toContain('09:00 – 10:30 (hora Colombia)');
     expect(html).toContain('Virtual · Microsoft Teams');
     expect(html).toContain('Ana Gómez · Luis Pérez');
-    expect(html).toContain('Microsoft Teams está al final');
+    expect(html).toContain('#B55802');
+    expect(html).not.toContain('Agenda sugerida');
   });
 
-  it('shows the room for hybrid meetings and omits the Teams note when in person only', () => {
+  it('renders the Teams join button only when there is a join link', () => {
+    const joinUrl = 'https://teams.microsoft.com/l/meetup-join/19%3a1?a=1&b=2';
+    const html = renderKickoffInvitationHtml({ ...base, joinUrl });
+    expect(html).toContain('Unirse a la reunión de Teams');
+    expect(html).toContain(`href="${escapeHtml(joinUrl)}"`);
+
+    expect(renderKickoffInvitationHtml(base)).not.toContain(
+      'Unirse a la reunión',
+    );
+    expect(
+      renderKickoffInvitationHtml({ ...base, joinUrl, isOnlineMeeting: false }),
+    ).not.toContain('Unirse a la reunión');
+  });
+
+  it('shows the room for hybrid meetings and in-person modality', () => {
     expect(
       renderKickoffInvitationHtml({ ...base, locationName: 'Sala Bogotá' }),
     ).toContain('Presencial (Sala Bogotá) y Teams');
@@ -49,7 +64,6 @@ describe('kickoff invitation template', () => {
       locationName: 'Sala Bogotá',
     });
     expect(presencial).toContain('Presencial · Sala Bogotá');
-    expect(presencial).not.toContain('Microsoft Teams está al final');
   });
 
   it('escapes user-provided values and keeps observation line breaks', () => {

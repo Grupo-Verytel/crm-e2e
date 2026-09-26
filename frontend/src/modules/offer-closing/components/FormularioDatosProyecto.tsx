@@ -286,11 +286,7 @@ export function FormularioDatosProyecto({
               <p className="text-xs font-bold text-accent">
                 La suma de % de ingresos debe ser 100% (actual: {pctSum}%)
               </p>
-            ) : (
-              <p className="text-xs text-muted">
-                Suma de participación: {pctSum}%
-              </p>
-            )}
+            ) : null}
           </>
         )}
       </section>
