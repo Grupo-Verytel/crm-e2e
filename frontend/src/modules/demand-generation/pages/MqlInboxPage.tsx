@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { AppLayout } from '../../../layout/AppLayout';
 import { Pagination } from '../../../components/Pagination';
 import { formatDateTime } from '../../../lib/format';
 import { useAuth } from '../../auth/hooks/useAuth';
 import { fetchLead } from '../api/leads-api';
 import { approveMql, fetchMqls, rejectMql } from '../api/mqls-api';
-import { DemandNav } from '../components/DemandNav';
+import { DemandNav, canOpenMqlInbox } from '../components/DemandNav';
 import { MotivoModal } from '../components/MotivoModal';
 import { ModalShell } from '../components/ModalShell';
 import { RegisterAppointmentModal } from '../components/leads/RegisterAppointmentModal';
@@ -62,9 +62,10 @@ export function MqlInboxPage() {
   }, [page, limit]);
 
   useEffect(() => {
+    if (!canOpenMqlInbox(user?.role_name)) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetch on page change
     void loadMqls();
-  }, [loadMqls]);
+  }, [loadMqls, user?.role_name]);
 
   async function handleApprove(
     mql: Mql,
@@ -103,6 +104,10 @@ export function MqlInboxPage() {
   const approvingLead = approving ? leads[approving.lead_id] : undefined;
   const isAgencyApprove =
     approvingLead?.canal_origen === 'GENERACION_DEMANDA_AGENCIA';
+
+  if (!canOpenMqlInbox(user?.role_name)) {
+    return <Navigate to="/demand" replace />;
+  }
 
   return (
     <AppLayout title="Bandeja de MQL">

@@ -2,8 +2,9 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { Pagination } from '../../../components/Pagination';
 import { AppLayout } from '../../../layout/AppLayout';
+import { useAuth } from '../../auth/hooks/useAuth';
 import { fetchLeads } from '../api/leads-api';
-import { DemandNav } from '../components/DemandNav';
+import { DemandNav, canOpenMqlInbox } from '../components/DemandNav';
 import {
   cardClass,
   inputClass,
@@ -22,6 +23,8 @@ function daysSince(date: string): number {
 }
 
 export function AgendaInboxPage() {
+  const { user } = useAuth();
+  const showMqlInbox = canOpenMqlInbox(user?.role_name);
   const [items, setItems] = useState<Lead[]>([]);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
@@ -68,9 +71,13 @@ export function AgendaInboxPage() {
       <p className="mb-4 text-sm text-muted">
         Los leads de agencia avanzan a BOFU con el mismo checklist que el resto de
         canales. La cita se registra en la{' '}
-        <Link to="/demand/mqls" className="font-bold text-accent hover:underline">
-          Bandeja MQL
-        </Link>{' '}
+        {showMqlInbox ? (
+          <Link to="/demand/mqls" className="font-bold text-accent hover:underline">
+            Bandeja MQL
+          </Link>
+        ) : (
+          'Bandeja MQL'
+        )}{' '}
         al aprobar el SQL.
       </p>
 

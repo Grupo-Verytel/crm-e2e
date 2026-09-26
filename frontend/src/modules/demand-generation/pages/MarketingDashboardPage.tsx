@@ -4,11 +4,12 @@ import { Link } from 'react-router-dom';
 import { DatePickerField } from '../../../components/DatePickerField';
 import { Pagination } from '../../../components/Pagination';
 import { AppLayout } from '../../../layout/AppLayout';
+import { useAuth } from '../../auth/hooks/useAuth';
 import {
   fetchMarketingDashboard,
   fetchMarketingDashboardDetails,
 } from '../api/dashboard-api';
-import { DemandNav } from '../components/DemandNav';
+import { DemandNav, canOpenMqlInbox } from '../components/DemandNav';
 import { ModalShell } from '../components/ModalShell';
 import { cardClass, ghostButtonClass, inputClass, labelClass } from '../components/ui';
 import { CANAL_ORIGEN_LABEL, leadEstadoLabel } from '../lib/lead-vocab';
@@ -67,6 +68,8 @@ function periodLeadsLabelFromRange(from: string, to: string): string {
 }
 
 export function MarketingDashboardPage() {
+  const { user } = useAuth();
+  const showMqlInbox = canOpenMqlInbox(user?.role_name);
   const accumulatedYearOptions = useMemo(() => buildAccumulatedYearOptions(), []);
   const [accumulatedYear, setAccumulatedYear] = useState<number | null>(null);
   const [quarter, setQuarter] = useState<number | null>(null);
@@ -338,17 +341,28 @@ export function MarketingDashboardPage() {
                     <p className="mt-1 text-2xl font-bold text-ink">{stage.count}</p>
                   </article>
                 ))}
-              <Link
-                to="/demand/mqls"
-                className={`${cardClass} px-4 py-3 focus-visible:ring-2 focus-visible:ring-brand`}
-              >
-                <p className="text-xs font-bold uppercase tracking-wide text-muted">
-                  MQL pendientes
-                </p>
-                <p className="mt-1 text-2xl font-bold text-ink">
-                  {data.pending_mqls}
-                </p>
-              </Link>
+              {showMqlInbox ? (
+                <Link
+                  to="/demand/mqls"
+                  className={`${cardClass} px-4 py-3 focus-visible:ring-2 focus-visible:ring-brand`}
+                >
+                  <p className="text-xs font-bold uppercase tracking-wide text-muted">
+                    MQL pendientes
+                  </p>
+                  <p className="mt-1 text-2xl font-bold text-ink">
+                    {data.pending_mqls}
+                  </p>
+                </Link>
+              ) : (
+                <article className={`${cardClass} px-4 py-3`}>
+                  <p className="text-xs font-bold uppercase tracking-wide text-muted">
+                    MQL pendientes
+                  </p>
+                  <p className="mt-1 text-2xl font-bold text-ink">
+                    {data.pending_mqls}
+                  </p>
+                </article>
+              )}
               {data.funnel
                 .filter((stage) => stage.estado === 'SQL')
                 .map((stage) => (
