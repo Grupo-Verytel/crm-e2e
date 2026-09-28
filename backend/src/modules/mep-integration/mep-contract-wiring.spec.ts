@@ -245,6 +245,26 @@ describe('cableado HTTP del contrato — §5 / §6', () => {
     expect(response.status).not.toBe(413);
   });
 
+  it('ouv_context se publica bajo `/v1` y no bajo el prefijo del CRM', async () => {
+    await request(app.getHttpServer())
+      .get('/v1/ouv_context/OUV-0001')
+      .expect(401);
+
+    await request(app.getHttpServer())
+      .get('/api/v1/v1/ouv_context/OUV-0001')
+      .expect(404);
+  });
+
+  it('INV-11: no existe verbo de escritura sobre ouv_context', async () => {
+    for (const method of ['post', 'put', 'patch', 'delete'] as const) {
+      await request(app.getHttpServer())
+        [method]('/v1/ouv_context/OUV-0001')
+        .set('Content-Type', 'application/json')
+        .set('X-Correlation-ID', 'corr_1')
+        .expect(404);
+    }
+  });
+
   it('INV-11 / TS-OUV-04: no existe verbo de escritura sobre la OUV', async () => {
     for (const method of ['post', 'put', 'patch', 'delete'] as const) {
       await request(app.getHttpServer())

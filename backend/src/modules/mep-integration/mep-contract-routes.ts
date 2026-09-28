@@ -14,6 +14,8 @@ export const MEP_CONTRACT_ROUTES = [
   'v1/commercial-interactions/:interaction_ref',
   // 3. Opportunity — contexto de OUV
   'v1/commercial-opportunities/:opportunity_ref',
+  // Lectura contextual (consecutivo). Misma superficie `/v1`; no es una de las 6.
+  'v1/ouv_context/:ouv_id',
   // 4. Processing — acuse técnico
   'v1/commercial-interactions/:interaction_ref/processing-receipts',
   // 5 y 6. Response — publicación y verificación post-write

@@ -6,6 +6,7 @@ import { PresalesRequestsController } from './crm-projection/presales-requests.c
 import { PresalesRequestsService } from './crm-projection/presales-requests.service';
 import { CommercialInteractionsController } from './controllers/commercial-interactions.controller';
 import { CommercialOpportunitiesController } from './controllers/commercial-opportunities.controller';
+import { OuvContextController } from './controllers/ouv-context.controller';
 import { MepProblemFilter } from './filters/mep-problem.filter';
 import { ApiKeyGuard } from './guards/api-key.guard';
 import { RateLimitGuard } from './guards/rate-limit.guard';
@@ -19,6 +20,7 @@ import { IntakeService } from './services/intake.service';
 import { MepAuditService } from './services/mep-audit.service';
 import { MepResponseService } from './services/mep-response.service';
 import { OpportunityService } from './services/opportunity.service';
+import { OuvContextService } from './services/ouv-context.service';
 import { ProcessingReceiptService } from './services/processing-receipt.service';
 import { RateLimitService } from './services/rate-limit.service';
 import { ReceiptSemanticValidator } from './validation/receipt-semantic.validator';
@@ -40,6 +42,7 @@ import { ResponseSemanticValidator } from './validation/response-semantic.valida
     // Contrato MEP-LEAN bajo `/v1` (X-API-Key, servidor-a-servidor)
     CommercialInteractionsController,
     CommercialOpportunitiesController,
+    OuvContextController,
     // Proyección para la UI del CRM bajo `api/v1` (JWT + CASL) — Fase 3
     PresalesRequestsController,
   ],
@@ -60,6 +63,7 @@ import { ResponseSemanticValidator } from './validation/response-semantic.valida
     // Fase 1 — lectura
     IntakeService,
     OpportunityService,
+    OuvContextService,
     // Fase 2 — escritura
     ProcessingReceiptService,
     MepResponseService,
@@ -75,6 +79,7 @@ export class MepIntegrationModule implements NestModule {
       .forRoutes(
         CommercialInteractionsController,
         CommercialOpportunitiesController,
+        OuvContextController,
       );
   }
 }

@@ -163,6 +163,58 @@ paths:
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
 
+  /v1/ouv_context/{ouv_id}:
+    get:
+      tags: [Opportunity]
+      operationId: getOuvContext
+      summary: Lectura contextual de la OUV y su historial con MEP-LEAN
+      description: |
+        `{ouv_id}` es el consecutivo de la OUV (`OUV-####`), el mismo
+        identificador que `crm_opportunity_ref`.
+
+        `opportunity` es la misma proyección que
+        `GET /v1/commercial-opportunities/{opportunity_ref}`. Si la OUV aún no
+        tiene fila espejo, se proyecta desde `ouvs` sin crearla
+        (`source_version` = `0`).
+
+        `mep_interactions` es el historial que la UI muestra en Solicitudes de
+        Preventa: la solicitud del CRM (`commercial_interaction`) y, en cada
+        una, `narrativa` (respuestas MEP, de la más reciente a la más antigua)
+        y `pista_tecnica` (acuses). No incluye `semantic_fingerprint` ni
+        `payload_hash`.
+
+        `mep_interactions.items` es siempre el listado completo de solicitudes
+        de esa OUV, de la más reciente a la más antigua. Sin solicitudes, solo
+        trae `items: []`. Solo lectura: no actualiza la OUV, su versión ni su
+        ETag persistido. El header `ETag` es del agregado de esta respuesta.
+      security:
+        - apiKeyAuth: [opportunities:read]
+      parameters:
+        - $ref: '#/components/parameters/OuvContextId'
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          description: Oportunidad y listado completo de interacciones con MEP-LEAN
+          headers:
+            ETag: { $ref: '#/components/headers/ETag' }
+            X-Correlation-ID: { $ref: '#/components/headers/XCorrelationId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OuvContext' }
+              examples:
+                con-historial:
+                  $ref: '#/components/examples/OuvContextWithHistory'
+                sin-solicitudes:
+                  $ref: '#/components/examples/OuvContextEmpty'
+        '304': { $ref: '#/components/responses/NotModified' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+
   /v1/commercial-interactions/{interaction_ref}/processing-receipts:
     post:
       tags: [Processing]
@@ -374,7 +426,12 @@ components:
       in: header
       required: false
       schema: { type: string }
-
+    OuvContextId:
+      name: ouv_id
+      in: path
+      required: true
+      description: Consecutivo de la OUV (`OUV-####`).
+      schema: { type: string, maxLength: 64 }
   headers:
     ETag:
       description: Versión opaca fuerte y entrecomillada del recurso.
@@ -568,6 +625,199 @@ components:
         context_observed_at: { type: string, format: date-time }
         source_version: { type: string, maxLength: 32 }
         etag: { type: string, maxLength: 96 }
+
+    OuvContext:
+      type: object
+      additionalProperties: false
+      required: [etag, opportunity, mep_interactions]
+      properties:
+        etag:
+          description: |
+            ETag del agregado. Idéntico al header `ETag`. No se persiste y
+            no modifica el `etag` de la OUV.
+          type: string
+        opportunity: { $ref: '#/components/schemas/CommercialOpportunity' }
+        mep_interactions:
+          type: object
+          additionalProperties: false
+          required: [items]
+          properties:
+            items:
+              description: Listado completo de solicitudes de la OUV.
+              type: array
+              items: { $ref: '#/components/schemas/OuvContextInteraction' }
+
+    OuvContextInteraction:
+      description: |
+        Solicitud CRM → MEP-LEAN y su historial, la misma proyección que ve
+        la UI de Preventa. Sin `semantic_fingerprint` ni `payload_hash`.
+      type: object
+      additionalProperties: false
+      required:
+        - crm_interaction_ref
+        - crm_opportunity_ref
+        - subject
+        - service_horizon
+        - requested_services
+        - source_content
+        - sharepoint_document_url
+        - source_created_at
+        - source_version
+        - etag
+        - estado
+        - asignacion
+        - ruta_capacidad
+        - servicios
+        - planner_url
+        - clasificacion_entregada
+        - narrativa
+        - pista_tecnica
+        - polling_status
+      properties:
+        crm_interaction_ref: { type: string, maxLength: 64 }
+        crm_opportunity_ref: { type: [string, 'null'], maxLength: 64 }
+        subject: { type: [string, 'null'], maxLength: 512 }
+        service_horizon: { $ref: '#/components/schemas/ServiceHorizon' }
+        requested_services:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [service, label, dependency]
+            properties:
+              service: { $ref: '#/components/schemas/ServiceName' }
+              label: { type: string }
+              dependency: { $ref: '#/components/schemas/ServiceDependency' }
+        source_content: { type: string }
+        sharepoint_document_url: { type: [string, 'null'] }
+        source_created_at: { type: [string, 'null'], format: date-time }
+        source_version: { type: string }
+        etag: { type: string }
+        estado:
+          type: object
+          additionalProperties: false
+          required: [hito, response_status, eta_date, next_milestone, sin_respuesta_mep]
+          properties:
+            hito:
+              oneOf:
+                - $ref: '#/components/schemas/BusinessMilestone'
+                - type: 'null'
+            response_status:
+              oneOf:
+                - $ref: '#/components/schemas/ResponseStatus'
+                - type: 'null'
+            eta_date: { type: [string, 'null'], format: date }
+            next_milestone: { type: [string, 'null'] }
+            sin_respuesta_mep: { type: boolean }
+        asignacion:
+          type: [object, 'null']
+          additionalProperties: false
+          required: [engineer, assigned_at]
+          properties:
+            engineer:
+              type: object
+              additionalProperties: false
+              required: [ref, display_name]
+              properties:
+                ref: { type: string }
+                display_name: { type: string }
+            assigned_at: { type: [string, 'null'], format: date-time }
+        ruta_capacidad:
+          type: [object, 'null']
+          additionalProperties: false
+          required: [version, route_status, capacity_status, summary, registered_at, registro_url]
+          properties:
+            version: { type: string }
+            route_status:
+              oneOf:
+                - $ref: '#/components/schemas/RouteStatus'
+                - type: 'null'
+            capacity_status:
+              oneOf:
+                - $ref: '#/components/schemas/CapacityStatus'
+                - type: 'null'
+            summary: { type: [string, 'null'] }
+            registered_at: { type: [string, 'null'], format: date-time }
+            registro_url: { type: [string, 'null'] }
+        servicios:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required:
+              - service
+              - label
+              - status
+              - outcome
+              - dependency
+              - summary
+              - reason_code
+              - bloqueado_por_dependencia
+              - entregables
+            properties:
+              service: { $ref: '#/components/schemas/ServiceName' }
+              label: { type: string }
+              status: { $ref: '#/components/schemas/ServiceResultStatus' }
+              outcome: { $ref: '#/components/schemas/ServiceOutcome' }
+              dependency: { $ref: '#/components/schemas/ServiceDependency' }
+              summary: { type: [string, 'null'] }
+              reason_code: { type: [string, 'null'] }
+              bloqueado_por_dependencia: { type: boolean }
+              entregables:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [url, label, published_at]
+                  properties:
+                    url: { type: string }
+                    label: { type: [string, 'null'] }
+                    published_at: { type: [string, 'null'], format: date-time }
+        planner_url: { type: [string, 'null'] }
+        clasificacion_entregada: { type: [string, 'null'] }
+        narrativa:
+          description: Respuestas MEP, de la más reciente a la más antigua.
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required:
+              - response_version
+              - business_milestone
+              - response_status
+              - narrative_note
+              - responded_at
+              - responded_by
+            properties:
+              response_version: { type: integer, minimum: 1 }
+              business_milestone: { $ref: '#/components/schemas/BusinessMilestone' }
+              response_status: { $ref: '#/components/schemas/ResponseStatus' }
+              narrative_note: { type: [string, 'null'] }
+              responded_at: { type: [string, 'null'], format: date-time }
+              responded_by:
+                type: object
+                additionalProperties: false
+                required: [ref, display_name]
+                properties:
+                  ref: { type: string }
+                  display_name: { type: string }
+        pista_tecnica:
+          description: Acuses técnicos, separados de la narrativa.
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [receipt_id, receipt_version, processing_status, reason_code, observed_at]
+            properties:
+              receipt_id: { type: string }
+              receipt_version: { type: integer, minimum: 0 }
+              processing_status: { $ref: '#/components/schemas/ProcessingStatus' }
+              reason_code: { type: [string, 'null'] }
+              observed_at: { type: [string, 'null'], format: date-time }
+        polling_status:
+          oneOf:
+            - $ref: '#/components/schemas/ProcessingStatus'
+            - type: 'null'
 
     ProcessingReceipt:
       type: object
@@ -838,6 +1088,93 @@ components:
     OpportunityNulls:
       summary: OUV con todos los opcionales en null
       externalValue: ../backend/test/fixtures/opportunity/ouv-9102-nulls.json
+    OuvContextWithHistory:
+      summary: OUV con una solicitud y la respuesta de MEP-LEAN
+      value:
+        etag: '"ouv-context-OUV-0001-9f3a1c0e"'
+        opportunity:
+          crm_opportunity_ref: OUV-0001
+          title: Enlace norte
+          organization: { ref: acc_1, name: Alcaldía }
+          commercial_value: { amount: 1000000, currency: COP }
+          stage: { ref: UNIVERSO, name: UNIVERSO }
+          status: EnCurso
+          expected_close_date: '2026-07-15'
+          commercial_owner: { ref: user_1, display_name: Carlos Ruiz }
+          commercial_archetype: { ref: seg_1, name: Gobierno central }
+          context_observed_at: '2026-09-28T15:00:00.000Z'
+          source_version: '4'
+          etag: '"ouv-OUV-0001-4-EnCurso-6-2026-09-01T00:00:00.000Z"'
+        mep_interactions:
+          items:
+            - crm_interaction_ref: int_ouv0001_1
+              crm_opportunity_ref: OUV-0001
+              subject: Diseño técnico
+              service_horizon: IMMEDIATE
+              requested_services:
+                - service: TECHNICAL_DESIGN
+                  label: Técnica
+                  dependency: NONE
+              source_content: Necesitamos viabilidad.
+              sharepoint_document_url: https://contoso.sharepoint.com/sites/docs/a.docx
+              source_created_at: '2026-09-01T10:00:00.000Z'
+              source_version: '1'
+              etag: '"int_ouv0001_1-v1"'
+              estado:
+                hito: ENGINEER_ASSIGNED
+                response_status: IN_PROGRESS
+                eta_date: '2026-09-20'
+                next_milestone: null
+                sin_respuesta_mep: false
+              asignacion:
+                engineer: { ref: eng_1, display_name: Ana Pérez }
+                assigned_at: '2026-09-01T12:00:00.000Z'
+              ruta_capacidad: null
+              servicios:
+                - service: TECHNICAL_DESIGN
+                  label: Técnica
+                  status: IN_PROGRESS
+                  outcome: null
+                  dependency: NONE
+                  summary: En curso
+                  reason_code: null
+                  bloqueado_por_dependencia: false
+                  entregables: []
+              planner_url: null
+              clasificacion_entregada: null
+              narrativa:
+                - response_version: 2
+                  business_milestone: ENGINEER_ASSIGNED
+                  response_status: IN_PROGRESS
+                  narrative_note: Ingeniero asignado.
+                  responded_at: '2026-09-01T12:00:00.000Z'
+                  responded_by: { ref: mep_user, display_name: Preventa MEP }
+              pista_tecnica:
+                - receipt_id: rcpt_1
+                  receipt_version: 1
+                  processing_status: ACCEPTED
+                  reason_code: null
+                  observed_at: '2026-09-01T11:00:00.000Z'
+              polling_status: ACCEPTED
+    OuvContextEmpty:
+      summary: OUV sin solicitudes de preventa
+      value:
+        etag: '"ouv-context-OUV-0001-empty"'
+        opportunity:
+          crm_opportunity_ref: OUV-0001
+          title: Enlace norte
+          organization: { ref: acc_1, name: Alcaldía }
+          commercial_value: { amount: 1000000, currency: COP }
+          stage: { ref: UNIVERSO, name: UNIVERSO }
+          status: EnCurso
+          expected_close_date: '2026-07-15'
+          commercial_owner: { ref: user_1, display_name: Carlos Ruiz }
+          commercial_archetype: { ref: seg_1, name: Gobierno central }
+          context_observed_at: '2026-09-28T15:00:00.000Z'
+          source_version: '0'
+          etag: '"ouv-OUV-0001-v0"'
+        mep_interactions:
+          items: []
     ReceiptAccepted:
       summary: Acuse técnico ACCEPTED
       externalValue: ../backend/test/fixtures/receipts/receipt-accepted.json

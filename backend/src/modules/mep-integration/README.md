@@ -33,6 +33,7 @@ prohíbe abrir CORS sobre esa superficie. Para la UI existe la proyección de la
 | 1 | `GET /v1/commercial-interactions` | `interactions:read` | `read-list` |
 | 2 | `GET /v1/commercial-interactions/{interaction_ref}` | `interactions:read` | `read-item` |
 | 3 | `GET /v1/commercial-opportunities/{opportunity_ref}` | `opportunities:read` | `read-item` |
+| — | `GET /v1/ouv_context/{ouv_id}` | `opportunities:read` | `read-list` |
 | 4 | `POST /v1/commercial-interactions/{interaction_ref}/processing-receipts` | `receipts:write` | `write` |
 | 5 | `PUT /v1/commercial-interactions/{interaction_ref}/responses/{response_id}` | `responses:write` | `write` |
 | 6 | `GET /v1/commercial-interactions/{interaction_ref}/responses/{response_id}` | `responses:read` | `read-item` |
