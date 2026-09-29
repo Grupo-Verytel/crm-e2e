@@ -71,6 +71,7 @@ describe('presentador de interacción — §4 / §6.1', () => {
       'subject',
       'source_content',
       'source_created_at',
+      'interaction_closed_at',
       'source_version',
       'etag',
     ]);

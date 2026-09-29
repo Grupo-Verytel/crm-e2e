@@ -7,6 +7,8 @@ import {
 import { InjectModel } from '@nestjs/sequelize';
 import { Transaction, UniqueConstraintError } from 'sequelize';
 import { Sequelize } from 'sequelize-typescript';
+import { AuditService } from '../../audit/services/audit.service';
+import { AuditAction } from '../../audit/models/audit-action.enum';
 import { User } from '../../auth/models/user.model';
 import { Ouv } from '../../discovery/models/ouv.model';
 import {
@@ -27,6 +29,7 @@ import {
   ProcessingReceipt,
 } from '../models';
 import { CreatePresalesRequestDto } from './dtos/create-presales-request.dto';
+import { UpdatePresalesRequestDto } from './dtos/update-presales-request.dto';
 import {
   DUPLICATE_ACTIVITY_TYPE_CODE,
   DUPLICATE_ACTIVITY_TYPE_MESSAGE,
@@ -71,6 +74,7 @@ export class PresalesRequestsService {
     @InjectModel(ProcessingReceipt)
     private readonly receiptModel: typeof ProcessingReceipt,
     private readonly sequelize: Sequelize,
+    private readonly auditService: AuditService,
   ) {}
 
   /** Lista las solicitudes de preventa de una OUV, con su proyección MEP. */
@@ -164,6 +168,82 @@ export class PresalesRequestsService {
         );
       },
     );
+
+    return this.project(interaction);
+  }
+
+  /** Persists commercial closure date for MEP intake (`interaction_closed_at`). */
+  async updateClosure(
+    ouvId: string,
+    interactionRef: string,
+    payload: UpdatePresalesRequestDto,
+  ): Promise<PresalesRequestView> {
+    if (payload.interaction_closed_at === undefined) {
+      throw new BadRequestException({
+        codigo_error: 'PAYLOAD_VACIO',
+        detalle: 'Debe enviar interaction_closed_at.',
+      });
+    }
+
+    const ouv = await this.requireOuv(ouvId);
+    const interaction = await this.interactionModel.findOne({
+      where: {
+        crmInteractionRef: interactionRef,
+        crmOpportunityRef: ouv.consecutivo,
+      },
+      include: [InteractionRequestedService],
+    });
+
+    if (!interaction) {
+      throw new NotFoundException({
+        codigo_error: 'SOLICITUD_NO_ENCONTRADA',
+        detalle: 'La solicitud de preventa no existe para esta OUV.',
+      });
+    }
+
+    const previous = interaction.interactionClosedAt;
+    const nextValue =
+      payload.interaction_closed_at === null
+        ? null
+        : new Date(payload.interaction_closed_at);
+
+    if (nextValue !== null && Number.isNaN(nextValue.getTime())) {
+      throw new BadRequestException({
+        codigo_error: 'FECHA_CIERRE_INVALIDA',
+        detalle: 'interaction_closed_at debe ser ISO 8601.',
+      });
+    }
+
+    const prevVersion = Number(interaction.sourceVersion);
+    const nextVersion = String(
+      Number.isFinite(prevVersion) ? prevVersion + 1 : 1,
+    );
+
+    await this.sequelize.transaction(async (transaction) => {
+      await interaction.update(
+        {
+          interactionClosedAt: nextValue,
+          sourceVersion: nextVersion,
+          etag: resourceEtag(interaction.crmInteractionRef, `v${nextVersion}`),
+        },
+        { transaction },
+      );
+
+      await this.auditService.recordChange({
+        tabla: 'commercial_interaction',
+        registroId: String(interaction.id),
+        accion: AuditAction.UPDATE,
+        campoModificado: 'interaction_closed_at',
+        valorAnterior: previous?.toISOString() ?? null,
+        valorNuevo: nextValue?.toISOString() ?? null,
+        contexto: {
+          crm_interaction_ref: interaction.crmInteractionRef,
+          crm_opportunity_ref: interaction.crmOpportunityRef,
+        },
+      });
+    });
+
+    await interaction.reload({ include: [InteractionRequestedService] });
 
     return this.project(interaction);
   }

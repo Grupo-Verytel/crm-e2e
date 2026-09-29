@@ -238,6 +238,41 @@ describe('proyección de solicitud de preventa — §14 Fase 3', () => {
     ).toBe(true);
   });
 
+  it('projects viabilidad from MEP route and service outcomes', () => {
+    const enRuta = presentPresalesRequest(
+      interactionDouble(),
+      [versionDouble(3)],
+      [],
+    );
+    const tecnicoEnRuta = enRuta.servicios.find(
+      (s) => s.service === ServiceName.TECHNICAL_DESIGN,
+    );
+    expect(tecnicoEnRuta?.viabilidad).toEqual({
+      codigo: 'RUTA_VIABLE',
+      etiqueta: 'Ruta viable',
+    });
+
+    const cerrada = presentPresalesRequest(
+      interactionDouble(),
+      [versionDouble(5)],
+      [],
+    );
+    const tecnico = cerrada.servicios.find(
+      (s) => s.service === ServiceName.TECHNICAL_DESIGN,
+    );
+    const financiero = cerrada.servicios.find(
+      (s) => s.service === ServiceName.FINANCIAL_DESIGN,
+    );
+    expect(tecnico?.viabilidad).toEqual({
+      codigo: 'SERVICIO_VIABLE',
+      etiqueta: 'Resultado de servicio viable',
+    });
+    expect(financiero?.viabilidad).toEqual({
+      codigo: 'SERVICIO_VIABLE',
+      etiqueta: 'Resultado de servicio viable',
+    });
+  });
+
   it('INV-17: ruta/capacidad expone su propio reloj, no la response_version', () => {
     const view = presentPresalesRequest(
       interactionDouble(),
@@ -277,6 +312,24 @@ describe('proyección de solicitud de preventa — §14 Fase 3', () => {
     expect(Array.isArray(view.planner_url)).toBe(false);
   });
 
+  it('fecha_cierre viene del CRM, no del responded_at de MEP', () => {
+    const sinFecha = presentPresalesRequest(
+      interactionDouble(),
+      [versionDouble(5)],
+      [],
+    );
+    const conFechaInteraction = interactionDouble();
+    conFechaInteraction.interactionClosedAt = new Date('2026-08-29T18:30:00Z');
+    const conFecha = presentPresalesRequest(
+      conFechaInteraction,
+      [versionDouble(5)],
+      [],
+    );
+
+    expect(sinFecha.estado.fecha_cierre).toBeNull();
+    expect(conFecha.estado.fecha_cierre).toBe('2026-08-29T18:30:00Z');
+  });
+
   it('INV-20: la clasificación solo aparece cuando la interacción cerró', () => {
     const abierta = presentPresalesRequest(
       interactionDouble(),
@@ -290,7 +343,7 @@ describe('proyección de solicitud de preventa — §14 Fase 3', () => {
     );
 
     expect(abierta.clasificacion_entregada).toBeNull();
-    expect(cerrada.clasificacion_entregada).toBe('DISENO_TECNICO_Y_FINANCIERO');
+    expect(cerrada.clasificacion_entregada).toBe('DISENO_TECNICO_FINANCIERO');
   });
 
   it('INV-25: la vista comercial no expone `semantic_fingerprint`', () => {

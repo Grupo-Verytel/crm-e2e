@@ -1,9 +1,10 @@
 import { ChevronDown, ChevronRight, ExternalLink } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError } from '../../auth/types';
 import { SharePointPreviewModal } from '../../offer-closing/components/SharePointPreviewModal';
 import type { Ouv } from '../api/ouvs-api';
 import {
+  actualizarFechaCierreSolicitudPreventa,
   fetchSolicitudesPreventa,
   type SolicitudNarrativa,
   type SolicitudPreventa,
@@ -19,6 +20,7 @@ import type {
 } from '../lib/preventa-vocab';
 import {
   labelResponseStatus,
+  labelTipoInteraccionPreventa,
   labelViabilidadPreventa,
 } from '../lib/preventa-vocab';
 import {
@@ -28,12 +30,20 @@ import {
 import {
   derivarEstadoServicio,
   derivarMepStatus,
+  esSolicitudEnCurso,
+  solicitudesSyncFingerprint,
   type MepSolicitudStatus,
 } from '../lib/solicitud-preventa-rules';
 import { FloatingToast } from './FloatingToast';
 import { ModalShell } from './ModalShell';
 import { SolicitudPreventaModal } from './SolicitudPreventaModal';
-import { badgeClass, cardClass, ghostButtonClass, labelClass } from './ui';
+import {
+  badgeClass,
+  cardClass,
+  ghostButtonClass,
+  inputClass,
+  labelClass,
+} from './ui';
 
 type Props = {
   ouv: Ouv;
@@ -144,6 +154,30 @@ function formatFieldValue(key: string, value: string): string {
     return formatDateTimeValue(value);
   }
   return value;
+}
+
+function isoToDatetimeLocalValue(iso: string | null | undefined): string {
+  if (!iso) {
+    return '';
+  }
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) {
+    return '';
+  }
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${parsed.getFullYear()}-${pad(parsed.getMonth() + 1)}-${pad(parsed.getDate())}T${pad(parsed.getHours())}:${pad(parsed.getMinutes())}`;
+}
+
+function datetimeLocalToIso(value: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+  const parsed = new Date(trimmed);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+  return parsed.toISOString();
 }
 
 function formatDateTimeValue(value: string | null): string {
@@ -306,13 +340,19 @@ function ServiceCard({
 }
 
 function SolicitudDetailModal({
+  ouvId,
   solicitud,
   service,
+  readOnly,
   onClose,
+  onUpdated,
 }: {
+  ouvId: string;
   solicitud: SolicitudPreventa;
   service: ServiceCardView;
+  readOnly: boolean;
   onClose: () => void;
+  onUpdated: (record: SolicitudPreventa) => void;
 }) {
   const [tab, setTab] = useState<DetailTab>('informacion');
   const [preview, setPreview] = useState<{ title: string; url: string } | null>(
@@ -320,6 +360,45 @@ function SolicitudDetailModal({
   );
   const [pistaOpen, setPistaOpen] = useState(false);
   const [selectedVersion, setSelectedVersion] = useState<number | null>(null);
+  const [fechaCierreLocal, setFechaCierreLocal] = useState(() =>
+    isoToDatetimeLocalValue(solicitud.estado.fecha_cierre),
+  );
+  const [savingCierre, setSavingCierre] = useState(false);
+  const [cierreError, setCierreError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!savingCierre) {
+      setFechaCierreLocal(
+        isoToDatetimeLocalValue(solicitud.estado.fecha_cierre),
+      );
+    }
+  }, [solicitud.crm_interaction_ref, solicitud.estado.fecha_cierre, savingCierre]);
+
+  async function guardarFechaCierre() {
+    setCierreError(null);
+    const iso = datetimeLocalToIso(fechaCierreLocal);
+    if (fechaCierreLocal.trim() && !iso) {
+      setCierreError('Fecha u hora no válida.');
+      return;
+    }
+    setSavingCierre(true);
+    try {
+      const updated = await actualizarFechaCierreSolicitudPreventa(
+        ouvId,
+        solicitud.crm_interaction_ref,
+        iso,
+      );
+      onUpdated(updated);
+    } catch (err: unknown) {
+      setCierreError(
+        err instanceof ApiError
+          ? err.message
+          : 'No fue posible guardar la fecha de cierre.',
+      );
+    } finally {
+      setSavingCierre(false);
+    }
+  }
 
   const values = valoresDeSolicitud(solicitud);
   const resultado = solicitud.servicios.find(
@@ -419,21 +498,63 @@ function SolicitudDetailModal({
                 </p>
               </div>
               <div>
+                <label className={labelClass} htmlFor="preventa-fecha-cierre">
+                  Fecha de cierre
+                </label>
+                {readOnly ? (
+                  <p className={fieldValueClass}>
+                    {formatDateTimeValue(solicitud.estado.fecha_cierre)}
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    <input
+                      id="preventa-fecha-cierre"
+                      type="datetime-local"
+                      className={inputClass}
+                      value={fechaCierreLocal}
+                      onChange={(e) => setFechaCierreLocal(e.target.value)}
+                      disabled={savingCierre}
+                    />
+                    <button
+                      type="button"
+                      className={ghostButtonClass}
+                      disabled={savingCierre}
+                      onClick={() => void guardarFechaCierre()}
+                    >
+                      {savingCierre ? 'Guardando…' : 'Guardar fecha de cierre'}
+                    </button>
+                    {cierreError ? (
+                      <p className="text-xs text-danger">{cierreError}</p>
+                    ) : null}
+                  </div>
+                )}
+              </div>
+              <div>
                 <p className={labelClass}>Preventa asignado</p>
                 <p className={fieldValueClass}>
                   {solicitud.asignacion?.engineer.display_name ?? 'Sin asignar'}
                 </p>
               </div>
+              <div className="sm:col-span-2">
+                <p className={labelClass}>Tipo de interacción Preventa</p>
+                <p className={fieldValueClass}>
+                  {labelTipoInteraccionPreventa(
+                    solicitud.clasificacion_entregada,
+                  )}
+                </p>
+              </div>
               <div>
                 <p className={labelClass}>Viabilidad</p>
                 <p className={fieldValueClass}>
-                  {labelViabilidadPreventa({
-                    service: service.service,
-                    outcome: resultado?.outcome ?? null,
-                    status: resultado?.status ?? null,
-                    entregablesCount: resultado?.entregables.length ?? 0,
-                    routeStatus: solicitud.ruta_capacidad?.route_status ?? null,
-                  })}
+                  {resultado?.viabilidad.etiqueta ??
+                    labelViabilidadPreventa({
+                      service: service.service,
+                      outcome: resultado?.outcome ?? null,
+                      status: resultado?.status ?? null,
+                      entregablesCount: resultado?.entregables.length ?? 0,
+                      routeStatus:
+                        solicitud.ruta_capacidad?.route_status ?? null,
+                    })}
                 </p>
               </div>
               <div>
@@ -715,6 +836,9 @@ function SolicitudListItem({
   );
 }
 
+const PREVENTA_POLL_MS_ACTIVE = 15_000;
+const PREVENTA_POLL_MS_IDLE = 60_000;
+
 /** Listado de Solicitudes Preventa. La creación va en modal por fases. */
 export function PreventaActivityPanel({
   ouv,
@@ -733,32 +857,108 @@ export function PreventaActivityPanel({
   const [toast, setToast] = useState<{ ok: boolean; message: string } | null>(
     null,
   );
+  const syncBaselineRef = useRef<string | null>(null);
 
-  useEffect(() => {
-    let vigente = true;
+  const applyFetchedSolicitudes = useCallback(
+    (
+      data: SolicitudPreventa[],
+      options: { notifyIfChanged: boolean },
+    ) => {
+      const nextFingerprint = solicitudesSyncFingerprint(data);
+      const prevFingerprint = syncBaselineRef.current;
 
-    fetchSolicitudesPreventa(ouv.ouv_id)
-      .then((data) => {
-        if (!vigente) return;
-        setItems(data);
+      if (
+        options.notifyIfChanged &&
+        prevFingerprint !== null &&
+        prevFingerprint !== nextFingerprint
+      ) {
+        setToast({
+          ok: true,
+          message: 'La solicitud ha sido actualizada.',
+        });
+        window.setTimeout(() => setToast(null), 4500);
+      }
+
+      syncBaselineRef.current = nextFingerprint;
+      setItems(data);
+      setDetail((current) => {
+        if (!current) {
+          return null;
+        }
+        const updated = data.find(
+          (s) => s.crm_interaction_ref === current.solicitud.crm_interaction_ref,
+        );
+        return updated
+          ? { solicitud: updated, service: current.service }
+          : current;
+      });
+    },
+    [],
+  );
+
+  const refreshSolicitudes = useCallback(
+    async (options: { notifyIfChanged: boolean; showLoading: boolean }) => {
+      if (options.showLoading) {
+        setLoading(true);
+      }
+      try {
+        const data = await fetchSolicitudesPreventa(ouv.ouv_id);
+        applyFetchedSolicitudes(data, {
+          notifyIfChanged: options.notifyIfChanged,
+        });
         setLoadError(null);
-      })
-      .catch((err: unknown) => {
-        if (!vigente) return;
+      } catch (err: unknown) {
+        if (!options.notifyIfChanged) {
+          return;
+        }
         setLoadError(
           err instanceof ApiError
             ? err.message
             : 'No fue posible cargar las solicitudes de preventa.',
         );
-      })
-      .finally(() => {
-        if (vigente) setLoading(false);
-      });
+      } finally {
+        if (options.showLoading) {
+          setLoading(false);
+        }
+      }
+    },
+    [applyFetchedSolicitudes, ouv.ouv_id],
+  );
 
-    return () => {
-      vigente = false;
-    };
-  }, [ouv.ouv_id, recargas]);
+  useEffect(() => {
+    syncBaselineRef.current = null;
+    void refreshSolicitudes({ notifyIfChanged: false, showLoading: true });
+  }, [ouv.ouv_id, recargas, refreshSolicitudes]);
+
+  useEffect(() => {
+    if (loading) {
+      return;
+    }
+
+    const hasActive = items.some((s) => esSolicitudEnCurso(s));
+    const intervalMs = hasActive
+      ? PREVENTA_POLL_MS_ACTIVE
+      : PREVENTA_POLL_MS_IDLE;
+
+    const timerId = window.setInterval(() => {
+      void refreshSolicitudes({ notifyIfChanged: true, showLoading: false });
+    }, intervalMs);
+
+    return () => window.clearInterval(timerId);
+  }, [items, loading, refreshSolicitudes]);
+
+  useEffect(() => {
+    function onVisibilityChange() {
+      if (document.visibilityState !== 'visible' || loading) {
+        return;
+      }
+      void refreshSolicitudes({ notifyIfChanged: true, showLoading: false });
+    }
+
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () =>
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+  }, [loading, refreshSolicitudes]);
 
   // Al cambiar de OUV se cierran modales y toast. En render, no en efecto.
   const [ouvCargada, setOuvCargada] = useState(ouv.ouv_id);
@@ -775,7 +975,12 @@ export function PreventaActivityPanel({
     record?: SolicitudPreventa;
   }) {
     if (result.ok && result.record) {
-      setItems((prev) => [result.record as SolicitudPreventa, ...prev]);
+      const record = result.record as SolicitudPreventa;
+      setItems((prev) => {
+        const next = [record, ...prev];
+        syncBaselineRef.current = solicitudesSyncFingerprint(next);
+        return next;
+      });
       setModalOpen(false);
     }
     setToast({ ok: result.ok, message: result.message });
@@ -818,7 +1023,6 @@ export function PreventaActivityPanel({
             type="button"
             className={ghostButtonClass}
             onClick={() => {
-              setLoading(true);
               setLoadError(null);
               setRecargas((n) => n + 1);
             }}
@@ -862,9 +1066,27 @@ export function PreventaActivityPanel({
 
       {detail ? (
         <SolicitudDetailModal
+          ouvId={ouv.ouv_id}
           solicitud={detail.solicitud}
           service={detail.service}
+          readOnly={readOnly}
           onClose={() => setDetail(null)}
+          onUpdated={(record) => {
+            setItems((prev) => {
+              const next = prev.map((s) =>
+                s.crm_interaction_ref === record.crm_interaction_ref
+                  ? record
+                  : s,
+              );
+              syncBaselineRef.current = solicitudesSyncFingerprint(next);
+              return next;
+            });
+            setDetail((current) =>
+              current
+                ? { solicitud: record, service: current.service }
+                : null,
+            );
+          }}
         />
       ) : null}
     </section>

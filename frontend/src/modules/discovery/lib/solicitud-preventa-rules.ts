@@ -121,4 +121,25 @@ export function comboTieneSolicitudActiva(
   });
 }
 
+/** Huella ligera para detectar cambios MEP sin diff profundo. */
+export function solicitudesSyncFingerprint(
+  solicitudes: SolicitudPreventa[],
+): string {
+  return solicitudes
+    .map((s) => {
+      const version = s.narrativa[0]?.response_version ?? 0;
+      return [
+        s.crm_interaction_ref,
+        s.etag,
+        s.estado.hito ?? '',
+        s.estado.response_status ?? '',
+        s.estado.fecha_cierre ?? '',
+        version,
+        s.clasificacion_entregada ?? '',
+      ].join('|');
+    })
+    .sort()
+    .join(';');
+}
+
 export { DUPLICATE_COMBO_MESSAGE };

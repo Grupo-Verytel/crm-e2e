@@ -17,6 +17,10 @@ import {
   ProcessingReceipt,
 } from '../models';
 import { SERVICE_LABELS } from './presales-vocabulary';
+import {
+  PresalesViabilidadView,
+  resolvePresalesViabilidad,
+} from './viabilidad-preventa';
 
 /**
  * Proyección de una solicitud de preventa para la UI comercial — §14 Fase 3.
@@ -45,6 +49,8 @@ export interface PresalesServiceView {
     label: string | null;
     published_at: string | null;
   }[];
+  /** Derived from MEP outcome / route_capacity (same rules as Preventa UI). */
+  viabilidad: PresalesViabilidadView;
 }
 
 export interface PresalesNarrativeEntry {
@@ -88,6 +94,8 @@ export interface PresalesRequestView {
     response_status: ResponseStatus | null;
     eta_date: string | null;
     next_milestone: string | null;
+    /** CRM form value (`interaction_closed_at`); not derived from MEP. */
+    fecha_cierre: string | null;
     /** `true` mientras MEP no haya publicado ninguna respuesta. */
     sin_respuesta_mep: boolean;
   };
@@ -113,7 +121,10 @@ export interface PresalesRequestView {
   /** Enlace a la tarea Planner. Una interacción = una sola tarea (P-11). */
   planner_url: string | null;
 
-  /** Clasificación entregada; `null` hasta el cierre (INV-20). */
+  /**
+   * MEP `delivered_interaction_type` (p. ej. `TIPO-MOD-FINANCIERO`).
+   * `null` hasta `INTERACTION_COMPLETED` (INV-20).
+   */
   clasificacion_entregada: string | null;
 
   /** Narrativa MEP de más reciente a más antigua (T-302, TS-VER-08). */
@@ -166,6 +177,7 @@ export function presentPresalesRequest(
       response_status: latest?.responseStatus ?? null,
       eta_date: latest ? toDateOnly(latest.etaDate) : null,
       next_milestone: latest?.nextMilestone ?? null,
+      fecha_cierre: toRfc3339(interaction.interactionClosedAt),
       sin_respuesta_mep: latest === null,
     },
 
@@ -192,22 +204,34 @@ export function presentPresalesRequest(
           }
         : null,
 
-    servicios: results.map((result) => ({
-      service: result.service,
-      label: SERVICE_LABELS[result.service] ?? result.service,
-      status: result.status,
-      outcome: result.outcome ?? null,
-      dependency: result.dependency,
-      summary: result.summary ?? null,
-      reason_code: result.reasonCode ?? null,
-      // C-4: el financiero espera al técnico mientras este no haya cerrado.
-      bloqueado_por_dependencia: isBlockedByDependency(result, results),
-      entregables: [...(result.deliverables ?? [])].map((deliverable) => ({
-        url: deliverable.url,
-        label: deliverable.label ?? null,
-        published_at: toRfc3339(deliverable.publishedAt),
-      })),
-    })),
+    servicios: results.map((result) => {
+      const entregables = [...(result.deliverables ?? [])].map(
+        (deliverable) => ({
+          url: deliverable.url,
+          label: deliverable.label ?? null,
+          published_at: toRfc3339(deliverable.publishedAt),
+        }),
+      );
+      return {
+        service: result.service,
+        label: SERVICE_LABELS[result.service] ?? result.service,
+        status: result.status,
+        outcome: result.outcome ?? null,
+        dependency: result.dependency,
+        summary: result.summary ?? null,
+        reason_code: result.reasonCode ?? null,
+        // C-4: el financiero espera al técnico mientras este no haya cerrado.
+        bloqueado_por_dependencia: isBlockedByDependency(result, results),
+        entregables,
+        viabilidad: resolvePresalesViabilidad({
+          service: result.service,
+          outcome: result.outcome ?? null,
+          status: result.status,
+          entregablesCount: entregables.length,
+          routeStatus: latest?.rcRouteStatus ?? null,
+        }),
+      };
+    }),
 
     planner_url: latest?.plannerInteractionUrl ?? null,
     clasificacion_entregada: latest?.deliveredInteractionType ?? null,
