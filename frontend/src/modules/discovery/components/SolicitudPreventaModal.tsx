@@ -6,6 +6,8 @@ import {
   SERVICE_COMBOS,
   SOLICITUD_PREVENTA_FIELDS,
   buildServiceCards,
+  mockFechaCierreIso,
+  mockTipoInteraccionForCombo,
   mockFechaEntregaIso,
   mockInteractionRef,
   mockPreventaAsignado,
@@ -43,6 +45,9 @@ export type SolicitudPreventaRecord = {
   preventaAsignado: string | null;
   observaciones: string;
   viabilidad: ViabilidadPreventa | null;
+  /** Respuesta MEP — visible en detalle, no en formulario de envío. */
+  tipoInteraccion: string;
+  fechaCierre: string | null;
 };
 
 export type ViabilidadPreventa = 'Viable' | 'No viable';
@@ -152,6 +157,11 @@ export function SolicitudPreventaModal({
         mepStatus === 'Pendiente' ? null : mockPreventaAsignado(id);
       const fechaEntrega =
         mepStatus === 'Pendiente' ? '' : mockFechaEntregaIso(createdAt);
+      const fechaCierre =
+        mepStatus === 'Completado' || mepStatus === 'Rechazado'
+          ? mockFechaCierreIso(createdAt)
+          : null;
+      const tipoInteraccion = mockTipoInteraccionForCombo(priority, combo.id);
       const record: SolicitudPreventaRecord = {
         id,
         priority,
@@ -176,6 +186,8 @@ export function SolicitudPreventaModal({
             : mepStatus === 'Rechazado'
               ? 'No viable'
               : 'Viable',
+        tipoInteraccion,
+        fechaCierre,
       };
       onResult({
         ok: true,

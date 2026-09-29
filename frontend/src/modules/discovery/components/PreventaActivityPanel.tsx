@@ -1,14 +1,18 @@
-import { useEffect, useState } from 'react';
-import { ChevronDown, ChevronRight, ExternalLink } from 'lucide-react';
+import { useEffect, useState, type MouseEvent, type ReactNode } from 'react';
+import { ChevronDown, ChevronRight, Copy, ExternalLink } from 'lucide-react';
 import type { Ouv } from '../api/ouvs-api';
 import {
   SOLICITUD_PREVENTA_FIELDS,
+  mockFechaCierreIso,
   mockFechaEntregaIso,
   mockPreventaAsignado,
+  mockPlannetInteractionUrl,
+  mockRouteCapacityUrl,
+  mockTipoInteraccionForCombo,
+  normalizePreventaTipoInteraccion,
   resolveServiceSharePoint,
   type ServiceCard,
 } from '../lib/opportunity-context-fields';
-import { SharePointPreviewModal } from '../../shared/project/SharePointPreviewModal';
 import { ModalShell } from './ModalShell';
 import {
   SolicitudPreventaModal,
@@ -75,6 +79,13 @@ function loadSolicitudes(ouvId: string): SolicitudPreventaRecord[] {
       preventaAsignado: item.preventaAsignado ?? null,
       observaciones: item.observaciones ?? '',
       viabilidad: item.viabilidad ?? null,
+      tipoInteraccion: normalizePreventaTipoInteraccion(
+        item.tipoInteraccion,
+        item.tipoId && item.priority
+          ? mockTipoInteraccionForCombo(item.priority, item.tipoId)
+          : 'TIPO-POR-ESPECIFICAR',
+      ),
+      fechaCierre: item.fechaCierre ?? null,
     }));
     localStorage.setItem(`${STORAGE_PREFIX}${ouvId}`, JSON.stringify(items));
     return items;
@@ -258,6 +269,24 @@ function resolveFechaEntrega(item: SolicitudPreventaRecord): string {
   return formatDateTimeValue(mockFechaEntregaIso(item.createdAt));
 }
 
+function resolveFechaCierre(item: SolicitudPreventaRecord): string {
+  if (item.fechaCierre) {
+    return formatDateTimeValue(item.fechaCierre);
+  }
+  const status = item.mepStatus ?? 'Pendiente';
+  if (status === 'Completado' || status === 'Rechazado') {
+    return formatDateTimeValue(mockFechaCierreIso(item.createdAt));
+  }
+  return '—';
+}
+
+function resolveTipoInteraccion(item: SolicitudPreventaRecord): string {
+  return normalizePreventaTipoInteraccion(
+    item.tipoInteraccion,
+    mockTipoInteraccionForCombo(item.priority, item.tipoId),
+  );
+}
+
 function resolveObservaciones(
   item: SolicitudPreventaRecord,
   history: PreventaHistoryEntry[],
@@ -278,23 +307,157 @@ function resolveViabilidad(item: SolicitudPreventaRecord): ViabilidadPreventa | 
   return item.mepStatus === 'Rechazado' ? 'No viable' : 'Viable';
 }
 
-const DETAIL_INFO_FIELDS = SOLICITUD_PREVENTA_FIELDS.filter(
-  (field) => field.key !== 'etag',
-);
+const DETAIL_INFO_FIELDS = SOLICITUD_PREVENTA_FIELDS;
 
 const fieldValueClass =
   'min-h-9 rounded border border-border bg-bg px-3 py-2 text-sm text-ink';
 
+function SharePointDocumentField({
+  url,
+  nombre,
+}: {
+  url: string;
+  nombre: string;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopied(false);
+    }
+  }
+
+  return (
+    <div className="group relative w-full max-w-full">
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex min-h-9 w-full max-w-full items-center gap-2 rounded border border-border bg-surface px-3 py-2 text-left text-sm font-bold text-accent hover:underline"
+      >
+        <ExternalLink size={15} aria-hidden />
+        <span className="truncate text-accent">{nombre}</span>
+      </a>
+      <button
+        type="button"
+        className="absolute right-2 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded text-muted opacity-0 transition-opacity hover:text-accent group-hover:opacity-100 focus-visible:opacity-100"
+        aria-label={copied ? 'Enlace copiado' : 'Copiar enlace del documento'}
+        title={copied ? 'Copiado' : 'Copiar enlace'}
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          void handleCopy();
+        }}
+      >
+        <Copy size={15} strokeWidth={2} aria-hidden />
+      </button>
+    </div>
+  );
+}
+
+function truncateUrlForCard(url: string, max = 40): string {
+  try {
+    const parsed = new URL(url);
+    const compact = `${parsed.hostname}${parsed.pathname}${parsed.search}`;
+    return compact.length > max ? `${compact.slice(0, max)}…` : compact;
+  } catch {
+    return url.length > max ? `${url.slice(0, max)}…` : url;
+  }
+}
+
+function CardPlannetLink({
+  url,
+  fieldLabel,
+  linkText,
+}: {
+  url: string;
+  fieldLabel: string;
+  linkText?: string;
+}) {
+  const displayText = linkText ?? truncateUrlForCard(url);
+
+  async function handleCopy(event: MouseEvent<HTMLButtonElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  return (
+    <span className="group/link inline-flex max-w-full items-center gap-1">
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="min-w-0 truncate font-bold text-accent hover:underline"
+        title={url}
+        onClick={(event) => event.stopPropagation()}
+      >
+        {displayText}
+      </a>
+      <button
+        type="button"
+        className="grid h-5 w-5 shrink-0 place-items-center rounded text-muted opacity-0 transition-opacity hover:text-accent group-hover/link:opacity-100"
+        aria-label={`Copiar enlace de ${fieldLabel}`}
+        onClick={(event) => void handleCopy(event)}
+      >
+        <Copy size={11} strokeWidth={2} aria-hidden />
+      </button>
+    </span>
+  );
+}
+
+function CardInfoRow({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="min-w-0">
+      <p className="text-[11px] font-bold leading-snug text-muted">{label}</p>
+      <div className="mt-0.5 min-w-0 text-xs leading-snug text-ink">{children}</div>
+    </div>
+  );
+}
+
 function ServiceCardView({
+  item,
+  consecutivo,
   card,
   mepStatus,
   onOpen,
 }: {
+  item: SolicitudPreventaRecord;
+  consecutivo: string;
   card: ServiceCard;
   mepStatus: MepSolicitudStatus;
   onOpen: () => void;
 }) {
   const active = card.state === 'active';
+  const showResponse = item.status === 'ENVIADA';
+  const interactionRef = item.interactionRef || item.values.crm_interaction_ref;
+  const plannetUrl = mockPlannetInteractionUrl(
+    interactionRef,
+    consecutivo,
+    card.service,
+  );
+  const routeCapacityUrl = mockRouteCapacityUrl(interactionRef, card.service);
+  const tipoInteraccion = resolveTipoInteraccion(item);
+  const documento = resolveServiceSharePoint(consecutivo, card);
+  const viabilidadDocLabel =
+    card.service === 'FINANCIAL_DESIGN'
+      ? 'Viabilidad financiera'
+      : 'Viabilidad técnica';
+
   return (
     <button
       type="button"
@@ -302,35 +465,70 @@ function ServiceCardView({
       className={[
         'w-full rounded border p-3 text-left transition-colors',
         active
-          ? 'border-accent/50 bg-accent/10 hover:border-accent'
+          ? 'border-border bg-surface hover:border-accent/40'
           : 'border-border bg-bg opacity-55 hover:opacity-80',
       ].join(' ')}
     >
-      <div className="mb-1 flex flex-wrap items-center gap-2">
-        <span
-          className={[
-            badgeClass,
-            active ? 'bg-accent text-white' : 'bg-border text-muted',
-          ].join(' ')}
-        >
-          {card.label}
-        </span>
-        <MepStatusBadge status={mepStatus} />
+      <div className="mb-1 flex items-center justify-between gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <span
+            className={[
+              badgeClass,
+              active ? 'bg-accent text-white' : 'bg-border text-muted',
+            ].join(' ')}
+          >
+            {card.label}
+          </span>
+          <MepStatusBadge status={mepStatus} />
+        </div>
         {active ? (
-          <span className="text-xs font-bold text-accent">Activa</span>
+          <span className="shrink-0 text-xs font-bold text-accent">Activa</span>
         ) : (
-          <span className="text-xs font-bold text-muted">Bloqueada</span>
+          <span className="shrink-0 text-xs font-bold text-muted">
+            Bloqueada
+          </span>
         )}
       </div>
-      <p className="text-xs text-muted">
-        {card.service}
-        {card.dependency !== 'NONE' ? ` · depende de ${card.dependency}` : ''}
-      </p>
       {!active ? (
         <p className="mt-2 text-xs text-muted">
           Disponible cuando Preventa retorne el documento de viabilidad
           técnica.
         </p>
+      ) : null}
+
+      {showResponse ? (
+        <div
+          className="mt-2.5 space-y-2.5 border-t border-border/40 pt-2.5"
+          role="group"
+          aria-label="Respuesta Preventa"
+        >
+          <CardInfoRow label="Interaction URL (Plannet)">
+            <CardPlannetLink
+              url={plannetUrl}
+              fieldLabel="Interaction URL (Plannet)"
+            />
+          </CardInfoRow>
+          <CardInfoRow label="Route Capacity URL">
+            <CardPlannetLink
+              url={routeCapacityUrl}
+              fieldLabel="Route Capacity URL"
+            />
+          </CardInfoRow>
+          <CardInfoRow label={viabilidadDocLabel}>
+            {documento ? (
+              <CardPlannetLink
+                url={documento.url}
+                fieldLabel={viabilidadDocLabel}
+                linkText={documento.nombre}
+              />
+            ) : (
+              <span className="text-muted">Sin documento vinculado</span>
+            )}
+          </CardInfoRow>
+          <CardInfoRow label="Tipo de interacción">
+            <span className="font-bold text-ink">{tipoInteraccion}</span>
+          </CardInfoRow>
+        </div>
       ) : null}
     </button>
   );
@@ -348,18 +546,17 @@ function SolicitudDetailModal({
   onClose: () => void;
 }) {
   const [tab, setTab] = useState<DetailTab>('informacion');
-  const [preview, setPreview] = useState<{
-    title: string;
-    url: string;
-  } | null>(null);
   const [pistaOpen, setPistaOpen] = useState(false);
   const [selectedVersion, setSelectedVersion] = useState<string | null>(null);
   const sharepoint = resolveServiceSharePoint(consecutivo, service);
   const preventaAsignado = resolvePreventaAsignado(item);
   const history = buildPreventaHistory(item, service, preventaAsignado);
   const fechaEntrega = resolveFechaEntrega(item);
+  const tipoInteraccion = resolveTipoInteraccion(item);
+  const fechaCierre = resolveFechaCierre(item);
   const observaciones = resolveObservaciones(item, history);
   const viabilidad = resolveViabilidad(item);
+  const showRespuesta = item.status === 'ENVIADA';
   const selectedEntry =
     history.find((entry) => entry.version === selectedVersion) ?? null;
   const showTipoBadge =
@@ -450,43 +647,50 @@ function SolicitudDetailModal({
                   </div>
                 );
               })}
-              <div>
-                <p className={labelClass}>Fecha de entrega</p>
-                <p className={fieldValueClass}>{fechaEntrega}</p>
-              </div>
-              <div>
-                <p className={labelClass}>Preventa asignado</p>
-                <p className={fieldValueClass}>{preventaAsignado}</p>
-              </div>
-              <div>
-                <p className={labelClass}>Viabilidad</p>
-                <p className={fieldValueClass}>{viabilidad ?? '—'}</p>
-              </div>
-              <div>
-                <p className={labelClass}>Documento</p>
-                {sharepoint ? (
-                  <button
-                    type="button"
-                    className="inline-flex min-h-9 w-full max-w-full items-center gap-2 rounded border border-border bg-bg px-3 py-2 text-left text-sm font-bold text-accent hover:underline"
-                    onClick={() =>
-                      setPreview({
-                        title: sharepoint.nombre,
-                        url: sharepoint.url,
-                      })
-                    }
-                  >
-                    <ExternalLink size={15} aria-hidden />
-                    <span className="truncate text-accent">
-                      {sharepoint.nombre}
-                    </span>
-                  </button>
-                ) : (
-                  <p className={`${fieldValueClass} text-muted`}>
-                    Sin documento vinculado
-                  </p>
-                )}
-              </div>
             </div>
+
+            {showRespuesta ? (
+              <div className="mt-4 rounded border border-border bg-bg p-3">
+                <p className="mb-3 text-xs font-bold uppercase tracking-wide text-muted">
+                  Respuesta Preventa
+                </p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <p className={labelClass}>Fecha de entrega</p>
+                    <p className={fieldValueClass}>{fechaEntrega}</p>
+                  </div>
+                  <div>
+                    <p className={labelClass}>Tipo de interacción</p>
+                    <p className={fieldValueClass}>{tipoInteraccion}</p>
+                  </div>
+                  <div>
+                    <p className={labelClass}>Fecha de cierre</p>
+                    <p className={fieldValueClass}>{fechaCierre}</p>
+                  </div>
+                  <div>
+                    <p className={labelClass}>Preventa asignado</p>
+                    <p className={fieldValueClass}>{preventaAsignado}</p>
+                  </div>
+                  <div>
+                    <p className={labelClass}>Viabilidad</p>
+                    <p className={fieldValueClass}>{viabilidad ?? '—'}</p>
+                  </div>
+                  <div>
+                    <p className={labelClass}>Documento</p>
+                    {sharepoint ? (
+                      <SharePointDocumentField
+                        url={sharepoint.url}
+                        nombre={sharepoint.nombre}
+                      />
+                    ) : (
+                      <p className={`${fieldValueClass} text-muted`}>
+                        Sin documento vinculado
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ) : null}
 
             <div className="mt-4 rounded border border-border bg-bg p-3">
               <p className={labelClass}>Observaciones</p>
@@ -600,24 +804,19 @@ function SolicitudDetailModal({
           </div>
         )}
       </ModalShell>
-
-      <SharePointPreviewModal
-        open={Boolean(preview)}
-        title={preview?.title ?? ''}
-        url={preview?.url ?? ''}
-        onClose={() => setPreview(null)}
-      />
     </>
   );
 }
 
 function SolicitudListItem({
   item,
+  consecutivo,
   onDelete,
   onOpenService,
   readOnly,
 }: {
   item: SolicitudPreventaRecord;
+  consecutivo: string;
   onDelete: () => void;
   onOpenService: (service: ServiceCard) => void;
   readOnly?: boolean;
@@ -668,6 +867,8 @@ function SolicitudListItem({
           {services.map((card) => (
             <ServiceCardView
               key={card.service}
+              item={item}
+              consecutivo={consecutivo}
               card={card}
               mepStatus={item.mepStatus ?? 'Pendiente'}
               onOpen={() => onOpenService(card)}
@@ -677,6 +878,8 @@ function SolicitudListItem({
       ) : services[0] ? (
         <div className="max-w-sm">
           <ServiceCardView
+            item={item}
+            consecutivo={consecutivo}
             card={services[0]}
             mepStatus={item.mepStatus ?? 'Pendiente'}
             onOpen={() => onOpenService(services[0])}
@@ -771,6 +974,7 @@ export function PreventaActivityPanel({
             <SolicitudListItem
               key={item.id}
               item={item}
+              consecutivo={ouv.consecutivo}
               readOnly={readOnly}
               onDelete={() => handleDelete(item.id)}
               onOpenService={(service) => setDetail({ item, service })}

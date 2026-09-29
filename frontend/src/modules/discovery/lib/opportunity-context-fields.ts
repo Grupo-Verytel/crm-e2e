@@ -39,11 +39,26 @@ export const SOLICITUD_PREVENTA_FIELDS: RequestField[] = [
     inputType: 'datetime-local',
   },
   { key: 'source_version', label: 'Versión de origen' },
+];
+
+/** Campos de respuesta MEP (no se capturan al crear la solicitud). */
+export const SOLICITUD_PREVENTA_RESPONSE_FIELDS: RequestField[] = [
   {
     key: 'etag',
     label: 'Fecha de entrega',
+    inputType: 'datetime-local',
     locked: true,
-    lockedValue: '',
+  },
+  {
+    key: 'tipo_interaccion',
+    label: 'Tipo de interacción',
+    locked: true,
+  },
+  {
+    key: 'fecha_cierre',
+    label: 'Fecha de cierre',
+    inputType: 'datetime-local',
+    locked: true,
   },
 ];
 
@@ -207,6 +222,25 @@ export function mockInteractionRef(seed: string): string {
   return `int_${(h % 90000) + 10000}`;
 }
 
+/** Mock Plannet interaction deep link for a service card. */
+export function mockPlannetInteractionUrl(
+  interactionRef: string,
+  consecutivo: string,
+  service: string,
+): string {
+  const ouv = encodeURIComponent(consecutivo || 'OUV');
+  const svc = encodeURIComponent(service);
+  return `https://plannet.verytel.com/interactions/${encodeURIComponent(interactionRef)}?ouv=${ouv}&service=${svc}`;
+}
+
+/** Mock Plannet route capacity URL for a service card. */
+export function mockRouteCapacityUrl(
+  interactionRef: string,
+  service: string,
+): string {
+  return `https://plannet.verytel.com/route-capacity/${encodeURIComponent(interactionRef)}/${encodeURIComponent(service)}`;
+}
+
 const PREVENTA_ENGINEERS = [
   'Andrés Gutiérrez',
   'María Fernanda López',
@@ -230,4 +264,77 @@ export function mockFechaEntregaIso(createdAt: string): string {
   }
   d.setDate(d.getDate() + 2);
   return d.toISOString();
+}
+
+/** Closure timestamp when Preventa finishes or rejects (ISO). */
+export function mockFechaCierreIso(createdAt: string): string {
+  const d = new Date(createdAt);
+  if (Number.isNaN(d.getTime())) {
+    return new Date().toISOString();
+  }
+  d.setDate(d.getDate() + 5);
+  return d.toISOString();
+}
+
+/** Catálogo MEP de tipos de interacción (códigos, no traducir). */
+export const PREVENTA_TIPOS_INTERACCION = [
+  'TIPO-ESTRUCTURACION',
+  'TIPO-RFI',
+  'TIPO-PROP-COMERCIAL',
+  'SOMBRA-INTERACCION',
+  'TIPO-COT-PRESUP',
+  'TIPO-LICITACION',
+  'TIPO-MOD-FINANCIERO',
+  'TIPO-ARQUITECTURA',
+  'TIPO-LEVANT-INF',
+  'TIPO-DEMO-POC',
+  'TIPO-SUSTENTACION',
+  'TIPO-VISITA-TECNICA',
+  'TIPO-POR-ESPECIFICAR',
+  'TIPO-AJUST-INTERAC-PREV',
+  'TIPO-VIAB-OPORTUNIDAD',
+  'TIPO-ENT/SOC-PMO',
+  'TIPO-SIN-ENTREGABLE',
+  'TIPO-QA-TECNICO',
+] as const;
+
+export type PreventaTipoInteraccion =
+  (typeof PREVENTA_TIPOS_INTERACCION)[number];
+
+/** Mock MEP: tipo de interacción según prioridad y combo de servicios. */
+export function mockTipoInteraccionForCombo(
+  priority: ActivityPriority,
+  comboId: ServiceComboId,
+): PreventaTipoInteraccion {
+  if (priority === 'SOMBRA') {
+    return 'SOMBRA-INTERACCION';
+  }
+  switch (comboId) {
+    case 'financial':
+      return 'TIPO-MOD-FINANCIERO';
+    case 'technical':
+      return 'TIPO-ARQUITECTURA';
+    case 'technical_and_financial':
+      return 'TIPO-ESTRUCTURACION';
+    case 'technical_then_financial':
+      return 'TIPO-VIAB-OPORTUNIDAD';
+    default:
+      return 'TIPO-POR-ESPECIFICAR';
+  }
+}
+
+export function normalizePreventaTipoInteraccion(
+  value: string | null | undefined,
+  fallback: PreventaTipoInteraccion = 'TIPO-POR-ESPECIFICAR',
+): PreventaTipoInteraccion {
+  if (!value?.trim()) {
+    return fallback;
+  }
+  const trimmed = value.trim();
+  if (
+    (PREVENTA_TIPOS_INTERACCION as readonly string[]).includes(trimmed)
+  ) {
+    return trimmed as PreventaTipoInteraccion;
+  }
+  return fallback;
 }
