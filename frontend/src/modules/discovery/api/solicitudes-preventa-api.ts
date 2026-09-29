@@ -38,6 +38,16 @@ export type SolicitudServicio = {
   /** El servicio espera el resultado de aquel del que depende (caso C-4). */
   bloqueado_por_dependencia: boolean;
   entregables: SolicitudEntregable[];
+  viabilidad: {
+    codigo:
+      | 'RUTA_VIABLE'
+      | 'RUTA_NO_VIABLE'
+      | 'SERVICIO_VIABLE'
+      | 'SERVICIO_NO_VIABLE'
+      | 'SERVICIO_SIN_ENTREGABLE'
+      | null;
+    etiqueta: string | null;
+  };
 };
 
 export type SolicitudNarrativa = {
@@ -82,6 +92,8 @@ export type SolicitudPreventa = {
     response_status: string | null;
     eta_date: string | null;
     next_milestone: string | null;
+    /** Cierre MEP (`INTERACTION_COMPLETED`); null si sigue abierta. */
+    fecha_cierre: string | null;
     sin_respuesta_mep: boolean;
   };
 
@@ -102,6 +114,7 @@ export type SolicitudPreventa = {
 
   servicios: SolicitudServicio[];
   planner_url: string | null;
+  /** MEP `delivered_interaction_type`; null hasta el cierre de la interacción. */
   clasificacion_entregada: string | null;
   narrativa: SolicitudNarrativa[];
   pista_tecnica: SolicitudAcuse[];
@@ -145,5 +158,16 @@ export function crearSolicitudPreventa(
   return apiRequest<SolicitudPreventa>(
     `/discovery/ouvs/${ouvId}/solicitudes-preventa`,
     { method: 'POST', body: payload },
+  );
+}
+
+export function actualizarFechaCierreSolicitudPreventa(
+  ouvId: string,
+  interactionRef: string,
+  interaction_closed_at: string | null,
+): Promise<SolicitudPreventa> {
+  return apiRequest<SolicitudPreventa>(
+    `/discovery/ouvs/${ouvId}/solicitudes-preventa/${encodeURIComponent(interactionRef)}`,
+    { method: 'PATCH', body: { interaction_closed_at } },
   );
 }

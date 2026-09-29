@@ -542,6 +542,12 @@ components:
           description: Contenido humano original, preservado sin alteración (P-07).
           type: string
         source_created_at: { type: string, format: date-time }
+        interaction_closed_at:
+          description: |
+            Fecha y hora de cierre comercial registrada en el CRM (formulario).
+            Autoridad del CRM; `null` si aún no se ha registrado.
+          type: [string, 'null']
+          format: date-time
         source_version: { type: string, maxLength: 32 }
         etag: { type: string, maxLength: 96 }
 

@@ -31,6 +31,7 @@ export interface InteractionContract {
   subject: string | null;
   source_content: string;
   source_created_at: string | null;
+  interaction_closed_at: string | null;
   source_version: string;
   etag: string;
 }
@@ -54,6 +55,7 @@ export function presentInteraction(
     // Sin trim, sin normalización, sin re-encoding (P-07).
     source_content: interaction.sourceContent,
     source_created_at: toRfc3339(interaction.sourceCreatedAt),
+    interaction_closed_at: toRfc3339(interaction.interactionClosedAt),
     source_version: interaction.sourceVersion,
     etag: interaction.etag,
   };

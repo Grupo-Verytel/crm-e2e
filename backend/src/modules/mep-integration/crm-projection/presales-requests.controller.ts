@@ -1,6 +1,7 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
 import { CheckAbility } from '../../auth/casl/check-ability.decorator';
 import { CreatePresalesRequestDto } from './dtos/create-presales-request.dto';
+import { UpdatePresalesRequestDto } from './dtos/update-presales-request.dto';
 import { PresalesRequestView } from './presales-request.presenter';
 import { PresalesRequestsService } from './presales-requests.service';
 
@@ -42,5 +43,15 @@ export class PresalesRequestsController {
     @Body() payload: CreatePresalesRequestDto,
   ): Promise<PresalesRequestView> {
     return this.presalesRequests.create(ouvId, payload);
+  }
+
+  @Patch(':id/solicitudes-preventa/:interactionRef')
+  @CheckAbility({ action: 'update', subject: 'Opportunity' })
+  update(
+    @Param('id') ouvId: string,
+    @Param('interactionRef') interactionRef: string,
+    @Body() payload: UpdatePresalesRequestDto,
+  ): Promise<PresalesRequestView> {
+    return this.presalesRequests.updateClosure(ouvId, interactionRef, payload);
   }
 }

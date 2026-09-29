@@ -106,6 +106,17 @@ export class CommercialInteraction extends Model {
   })
   declare pollingStatus: ProcessingStatus | null;
 
+  /**
+   * Closure date/time captured in CRM UI; MEP reads it via intake GET.
+   * Not derived from MEP `responded_at`.
+   */
+  @Column({
+    type: DataType.DATE(3),
+    field: 'interaction_closed_at',
+    allowNull: true,
+  })
+  declare interactionClosedAt: Date | null;
+
   @HasMany(() => InteractionRequestedService)
   declare requestedServices: InteractionRequestedService[];
 }
