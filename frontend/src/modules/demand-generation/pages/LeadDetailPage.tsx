@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { AppLayout } from '../../../layout/AppLayout';
 import { formatDateTime } from '../../../lib/format';
@@ -83,7 +83,19 @@ function draftFromLead(lead: Lead): LeadEditDraft {
   };
 }
 
-export function LeadDetailPage() {
+export type LeadDetailPageProps = {
+  backTo?: string;
+  backLabel?: string;
+  afterDiscardPath?: string;
+  moduleNav?: ReactNode;
+};
+
+export function LeadDetailPage({
+  backTo = '/demand',
+  backLabel = '← Volver a leads',
+  afterDiscardPath = '/demand',
+  moduleNav = null,
+}: LeadDetailPageProps = {}) {
   const { id = '' } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -270,8 +282,9 @@ export function LeadDetailPage() {
 
   return (
     <AppLayout title={headerTitle}>
-      <Link to="/demand" className="mb-3 inline-block text-sm text-muted hover:text-ink">
-        ← Volver a leads
+      {moduleNav}
+      <Link to={backTo} className="mb-3 inline-block text-sm text-muted hover:text-ink">
+        {backLabel}
       </Link>
 
       <ExpectedRoute
@@ -557,7 +570,7 @@ export function LeadDetailPage() {
           confirmLabel="Eliminar"
           onConfirm={async (motivo) => {
             await discardLead(lead.lead_id, motivo);
-            navigate('/demand');
+            navigate(afterDiscardPath);
           }}
           onClose={() => setShowDiscard(false)}
         />

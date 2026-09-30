@@ -42,6 +42,12 @@ const SupportAssignedSqlsPage = lazy(
 const SqlDetailPage = lazy(
   () => import('../modules/qualification/pages/SqlDetailPageLazy'),
 );
+const QualificationDashboardPage = lazy(
+  () => import('../modules/qualification/pages/QualificationDashboardPageLazy'),
+);
+const QualificationLeadDetailPage = lazy(
+  () => import('../modules/qualification/pages/QualificationLeadDetailPageLazy'),
+);
 const OuvsBoardPage = lazy(
   () => import('../modules/discovery/pages/OuvsBoardPageLazy'),
 );
@@ -216,6 +222,16 @@ export function AppRoutes() {
       ),
     },
     {
+      path: '/qualification/dashboard',
+      element: (
+        <ProtectedRoute>
+          <RoleRoute roles={['SoporteComercial', 'Admin']}>
+            <QualificationDashboardPage />
+          </RoleRoute>
+        </ProtectedRoute>
+      ),
+    },
+    {
       path: '/qualification',
       element: (
         <ProtectedRoute>
@@ -248,6 +264,16 @@ export function AppRoutes() {
       element: (
         <ProtectedRoute>
           <SqlDetailPage />
+        </ProtectedRoute>
+      ),
+    },
+    {
+      path: '/qualification/leads/:id',
+      element: (
+        <ProtectedRoute>
+          <RoleRoute roles={['SoporteComercial', 'Admin']}>
+            <QualificationLeadDetailPage />
+          </RoleRoute>
         </ProtectedRoute>
       ),
     },
