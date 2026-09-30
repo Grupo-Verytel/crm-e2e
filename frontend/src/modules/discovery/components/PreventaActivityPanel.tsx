@@ -1,234 +1,129 @@
-import { ChevronDown, ChevronRight, ExternalLink } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { ApiError } from '../../auth/types';
-import { SharePointPreviewModal } from '../../offer-closing/components/SharePointPreviewModal';
+import { useEffect, useState, type MouseEvent, type ReactNode } from 'react';
+import { ChevronDown, ChevronRight, Copy, ExternalLink } from 'lucide-react';
 import type { Ouv } from '../api/ouvs-api';
 import {
-  actualizarFechaCierreSolicitudPreventa,
-  fetchSolicitudesPreventa,
-  type SolicitudNarrativa,
-  type SolicitudPreventa,
-  type SolicitudServicio,
-} from '../api/solicitudes-preventa-api';
-import {
   SOLICITUD_PREVENTA_FIELDS,
-  SERVICE_LABELS,
+  mockFechaCierreIso,
+  mockFechaEntregaIso,
+  mockPreventaAsignado,
+  mockPlannetInteractionUrl,
+  mockRouteCapacityUrl,
+  mockTipoInteraccionForCombo,
+  normalizePreventaTipoInteraccion,
+  resolveServiceSharePoint,
+  type ServiceCard,
 } from '../lib/opportunity-context-fields';
-import type {
-  BusinessMilestone,
-  ProcessingStatus,
-} from '../lib/preventa-vocab';
-import {
-  labelResponseStatus,
-  labelTipoInteraccionPreventa,
-  labelViabilidadPreventa,
-} from '../lib/preventa-vocab';
-import {
-  deliverableDisplayName,
-  type DeliverableDisplayInput,
-} from '../lib/sharepoint-document';
-import {
-  derivarEstadoServicio,
-  derivarMepStatus,
-  esSolicitudEnCurso,
-  solicitudesSyncFingerprint,
-  type MepSolicitudStatus,
-} from '../lib/solicitud-preventa-rules';
-import { FloatingToast } from './FloatingToast';
+import { externalResourceDisplayName } from '../lib/sharepoint-document';
 import { ModalShell } from './ModalShell';
-import { SolicitudPreventaModal } from './SolicitudPreventaModal';
+import {
+  SolicitudPreventaModal,
+  type MepSolicitudStatus,
+  type SolicitudPreventaRecord,
+  type ViabilidadPreventa,
+} from './SolicitudPreventaModal';
 import {
   badgeClass,
   cardClass,
   ghostButtonClass,
-  inputClass,
   labelClass,
 } from './ui';
+import { FloatingToast } from './FloatingToast';
 
 type Props = {
   ouv: Ouv;
   commercialOwnerName?: string;
-  /** Sin `update Opportunity`: se listan las solicitudes pero no se crean. */
   readOnly?: boolean;
 };
 
-export type { MepSolicitudStatus };
+const STORAGE_PREFIX = 'crm-ouv-solicitudes-preventa-v4-';
 
 const MEP_STATUS_CLASS: Record<MepSolicitudStatus, string> = {
-  Aceptado: 'bg-accent text-white',
-  'En progreso': 'bg-brand text-white',
-  'Parcialmente completo': 'bg-mep-partial text-ink',
+  Aceptado: 'bg-brand text-white',
   Completado: 'bg-success text-white',
-  Cancelado: 'bg-border text-muted',
   Rechazado: 'bg-danger text-white',
   Pendiente: 'bg-border text-muted',
 };
 
+function normalizeMepStatus(
+  status: string | null | undefined,
+): MepSolicitudStatus {
+  if (status === 'Aprobado' || status === 'Completado') {
+    return 'Completado';
+  }
+  if (
+    status === 'Aceptado' ||
+    status === 'Rechazado' ||
+    status === 'Pendiente'
+  ) {
+    return status;
+  }
+  return 'Pendiente';
+}
+
 function MepStatusBadge({ status }: { status: MepSolicitudStatus }) {
+  const normalized = normalizeMepStatus(status);
   return (
-    <span className={`${badgeClass} ${MEP_STATUS_CLASS[status]}`}>
-      {status}
+    <span className={`${badgeClass} ${MEP_STATUS_CLASS[normalized]}`}>
+      {normalized}
     </span>
   );
 }
 
-/** Nombre del combo a partir de los servicios que devolvió el backend. */
-function nombreDelTipo(solicitud: SolicitudPreventa): string {
-  const servicios = solicitud.requested_services;
-  const tieneTecnica = servicios.some((s) => s.service === 'TECHNICAL_DESIGN');
-  const tieneFinanciera = servicios.some(
-    (s) => s.service === 'FINANCIAL_DESIGN',
-  );
-  const dependiente = servicios.some((s) => s.dependency !== 'NONE');
-
-  if (tieneTecnica && tieneFinanciera) {
-    return dependiente ? 'Técnico y luego financiero' : 'Técnico y financiero';
+function loadSolicitudes(ouvId: string): SolicitudPreventaRecord[] {
+  try {
+    const raw = localStorage.getItem(`${STORAGE_PREFIX}${ouvId}`);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as SolicitudPreventaRecord[];
+    const items = parsed.map((item) => ({
+      ...item,
+      mepStatus: normalizeMepStatus(item.mepStatus),
+      preventaAsignado: item.preventaAsignado ?? null,
+      observaciones: item.observaciones ?? '',
+      viabilidad: item.viabilidad ?? null,
+      tipoInteraccion: normalizePreventaTipoInteraccion(
+        item.tipoInteraccion,
+        item.tipoId && item.priority
+          ? mockTipoInteraccionForCombo(item.priority, item.tipoId)
+          : 'TIPO-POR-ESPECIFICAR',
+      ),
+      fechaCierre: item.fechaCierre ?? null,
+    }));
+    localStorage.setItem(`${STORAGE_PREFIX}${ouvId}`, JSON.stringify(items));
+    return items;
+  } catch {
+    return [];
   }
-  return tieneTecnica ? 'Técnica' : 'Financiera';
 }
 
-/** Los dos servicios van en el mismo contenedor cuando son independientes. */
-function esMismoContenedor(solicitud: SolicitudPreventa): boolean {
-  return (
-    solicitud.requested_services.length > 1 &&
-    solicitud.requested_services.every((s) => s.dependency === 'NONE')
-  );
-}
-
-type ServiceCardView = {
-  service: string;
-  label: string;
-  dependency: string;
-  state: 'active' | 'blocked';
-};
-
-/**
- * Tarjetas de servicio. Cuando MEP ya respondió, el bloqueo sale de
- * `bloqueado_por_dependencia`; antes, de la dependencia declarada (caso C-4).
- */
-function tarjetasDeServicio(solicitud: SolicitudPreventa): ServiceCardView[] {
-  const resultados = new Map<string, SolicitudServicio>(
-    solicitud.servicios.map((s) => [s.service, s]),
-  );
-
-  return solicitud.requested_services.map((solicitado) => {
-    const resultado = resultados.get(solicitado.service);
-    const bloqueado = resultado
-      ? resultado.bloqueado_por_dependencia
-      : solicitado.dependency !== 'NONE';
-
-    return {
-      service: solicitado.service,
-      label: SERVICE_LABELS[solicitado.service] ?? solicitado.service,
-      dependency: solicitado.dependency,
-      state: bloqueado ? 'blocked' : 'active',
-    };
-  });
-}
-
-/** Valores que muestra el modal de detalle, con los campos del contrato. */
-function valoresDeSolicitud(
-  solicitud: SolicitudPreventa,
-): Record<string, string> {
-  return {
-    crm_interaction_ref: solicitud.crm_interaction_ref,
-    crm_opportunity_ref: solicitud.crm_opportunity_ref ?? '',
-    activity_type:
-      solicitud.service_horizon === 'IMMEDIATE'
-        ? 'interaccion_asap'
-        : 'interaccion_sombra',
-    service_horizon: solicitud.service_horizon,
-    subject: solicitud.subject ?? '',
-    source_content: solicitud.source_content,
-    source_created_at: solicitud.source_created_at ?? '',
-    source_version: solicitud.source_version,
-    etag: solicitud.etag,
-  };
-}
-
-function formatFieldValue(key: string, value: string): string {
-  if (!value) {
-    return '—';
-  }
-  if (key === 'source_created_at') {
-    return formatDateTimeValue(value);
-  }
-  return value;
-}
-
-function isoToDatetimeLocalValue(iso: string | null | undefined): string {
-  if (!iso) {
-    return '';
-  }
-  const parsed = new Date(iso);
-  if (Number.isNaN(parsed.getTime())) {
-    return '';
-  }
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${parsed.getFullYear()}-${pad(parsed.getMonth() + 1)}-${pad(parsed.getDate())}T${pad(parsed.getHours())}:${pad(parsed.getMinutes())}`;
-}
-
-function datetimeLocalToIso(value: string): string | null {
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return null;
-  }
-  const parsed = new Date(trimmed);
-  if (Number.isNaN(parsed.getTime())) {
-    return null;
-  }
-  return parsed.toISOString();
-}
-
-function formatDateTimeValue(value: string | null): string {
-  if (!value) return '—';
-  const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? value : d.toLocaleString('es-CO');
-}
-
-function formatFechaEntrega(etaDate: string | null): string {
-  if (!etaDate) {
-    return '—';
-  }
-  const parsed = new Date(
-    etaDate.includes('T') ? etaDate : `${etaDate}T00:00:00`,
-  );
-  return Number.isNaN(parsed.getTime())
-    ? etaDate
-    : parsed.toLocaleDateString('es-CO');
-}
-
-/**
- * Link que Preventa publicó para el servicio; si aún no hay respuesta, el de
- * otro servicio o el adjunto de creación. Un servicio bloqueado solo muestra
- * su propio entregable.
- */
-function entregableSharePoint(
-  solicitud: SolicitudPreventa,
-  service: ServiceCardView,
-  resultado: SolicitudServicio | undefined,
-): DeliverableDisplayInput | null {
-  const delServicio = resultado?.entregables[0];
-  if (delServicio?.url) {
-    return delServicio;
-  }
-  if (service.state === 'blocked') {
-    return null;
-  }
-  for (const servicio of solicitud.servicios) {
-    const entregable = servicio.entregables[0];
-    if (entregable?.url) {
-      return entregable;
-    }
-  }
-  const crmUrl = solicitud.sharepoint_document_url;
-  if (crmUrl) {
-    return { url: crmUrl, label: null };
-  }
-  return null;
+function saveSolicitudes(ouvId: string, items: SolicitudPreventaRecord[]): void {
+  localStorage.setItem(`${STORAGE_PREFIX}${ouvId}`, JSON.stringify(items));
 }
 
 type DetailTab = 'informacion' | 'historico';
+
+type PreventaHistoryDetail = {
+  accion: string;
+  resultado: string;
+  origen: string;
+  notas: string;
+  registrado: string;
+};
+
+type PreventaHistoryEntry = {
+  version: string;
+  actor: string;
+  message: string;
+  detail: PreventaHistoryDetail;
+};
+
+function offsetIso(createdAt: string, hours: number): string {
+  const d = new Date(createdAt);
+  if (Number.isNaN(d.getTime())) {
+    return new Date().toISOString();
+  }
+  d.setHours(d.getHours() + hours);
+  return d.toISOString();
+}
 
 const detailTabClass = (active: boolean) =>
   [
@@ -238,66 +133,321 @@ const detailTabClass = (active: boolean) =>
       : 'border-transparent text-muted hover:text-accent',
   ].join(' ');
 
+function buildPreventaHistory(
+  item: SolicitudPreventaRecord,
+  service: ServiceCard,
+  asignado: string,
+): PreventaHistoryEntry[] {
+  const created = item.createdAt;
+  const entries: PreventaHistoryEntry[] = [
+    {
+      version: 'v1',
+      actor: 'MEP-LEAN',
+      message: 'La interacción fue recibida por MEP-LEAN.',
+      detail: {
+        accion: 'Recepción de la solicitud',
+        resultado: 'La interacción quedó en cola de MEP-LEAN.',
+        origen: 'Canal MEP-LEAN',
+        notas: `Acuse automático de ${service.label}. Referencia ${item.interactionRef}.`,
+        registrado: offsetIso(created, 0),
+      },
+    },
+  ];
+  if (item.mepStatus === 'Pendiente') {
+    return entries;
+  }
+
+  entries.push({
+    version: 'v2',
+    actor: 'Ingeniero Preventa',
+    message: 'Se asignó ingeniero de preventa a la interacción.',
+    detail: {
+      accion: 'Asignación de ingeniero',
+      resultado: `Se asignó a ${asignado}.`,
+      origen: 'Mesa de Preventa',
+      notas: 'El ingeniero queda como responsable de la evaluación técnica.',
+      registrado: offsetIso(created, 4),
+    },
+  });
+  if (item.mepStatus === 'Aceptado') {
+    return [...entries].reverse();
+  }
+
+  entries.push({
+    version: 'v3',
+    actor: 'Ingeniero Preventa',
+    message:
+      service.service === 'FINANCIAL_DESIGN'
+        ? 'Ruta financiera y capacidad planificada quedaron registradas.'
+        : 'Ruta viable V1, ETA y capacidad planificada quedaron registradas.',
+    detail: {
+      accion: 'Evaluación de ruta y capacidad',
+      resultado:
+        service.service === 'FINANCIAL_DESIGN'
+          ? 'Quedó registrada la ruta financiera y la capacidad planificada.'
+          : 'Quedaron registradas la ruta viable V1, el ETA y la capacidad planificada.',
+      origen: asignado,
+      notas: 'Se documentó el hallazgo en la pista técnica de la solicitud.',
+      registrado: offsetIso(created, 28),
+    },
+  });
+  if (item.mepStatus === 'Rechazado') {
+    entries.push({
+      version: 'v4',
+      actor: 'Ingeniero Preventa',
+      message: 'La solicitud fue rechazada por Preventa.',
+      detail: {
+        accion: 'Dictamen de viabilidad',
+        resultado: 'No viable. La solicitud fue rechazada por Preventa.',
+        origen: asignado,
+        notas: 'No se emite diseño. Revisa observaciones y el historial de acuses.',
+        registrado: offsetIso(created, 36),
+      },
+    });
+    return [...entries].reverse();
+  }
+
+  entries.push({
+    version: 'v5',
+    actor: 'Ingeniero Preventa',
+    message:
+      item.tipoId === 'technical_and_financial'
+        ? 'Diseño técnico y financiero entregados; interacción cerrada.'
+        : service.service === 'FINANCIAL_DESIGN'
+          ? 'Diseño financiero entregado; interacción cerrada.'
+          : 'Diseño técnico entregado; interacción cerrada.',
+    detail: {
+      accion: 'Entrega de diseño y cierre',
+      resultado:
+        item.tipoId === 'technical_and_financial'
+          ? 'Se entregaron el diseño técnico y el financiero. Interacción cerrada.'
+          : service.service === 'FINANCIAL_DESIGN'
+            ? 'Se entregó el diseño financiero. Interacción cerrada.'
+            : 'Se entregó el diseño técnico. Interacción cerrada.',
+      origen: asignado,
+      notas: 'El documento de Preventa queda vinculado a esta solicitud.',
+      registrado: offsetIso(created, 48),
+    },
+  });
+  return [...entries].reverse();
+}
+
+function formatFieldValue(key: string, value: string): string {
+  if (!value) {
+    return '—';
+  }
+  if (key === 'source_created_at' || key === 'etag') {
+    const d = new Date(value);
+    return Number.isNaN(d.getTime()) ? value : d.toLocaleString('es-CO');
+  }
+  return value;
+}
+
+function formatDateTimeValue(value: string): string {
+  if (!value) return '—';
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? value : d.toLocaleString('es-CO');
+}
+
+function resolvePreventaAsignado(item: SolicitudPreventaRecord): string {
+  if (item.preventaAsignado) {
+    return item.preventaAsignado;
+  }
+  if ((item.mepStatus ?? 'Pendiente') === 'Pendiente') {
+    return 'Sin asignar';
+  }
+  return mockPreventaAsignado(item.id);
+}
+
+function resolveFechaEntrega(item: SolicitudPreventaRecord): string {
+  const raw = item.values?.etag || item.etag || '';
+  if (raw) {
+    return formatDateTimeValue(raw);
+  }
+  if ((item.mepStatus ?? 'Pendiente') === 'Pendiente') {
+    return '—';
+  }
+  return formatDateTimeValue(mockFechaEntregaIso(item.createdAt));
+}
+
+function resolveFechaCierre(item: SolicitudPreventaRecord): string {
+  if (item.fechaCierre) {
+    return formatDateTimeValue(item.fechaCierre);
+  }
+  const status = item.mepStatus ?? 'Pendiente';
+  if (status === 'Completado' || status === 'Rechazado') {
+    return formatDateTimeValue(mockFechaCierreIso(item.createdAt));
+  }
+  return '—';
+}
+
+function resolveTipoInteraccion(item: SolicitudPreventaRecord): string {
+  return normalizePreventaTipoInteraccion(
+    item.tipoInteraccion,
+    mockTipoInteraccionForCombo(item.priority, item.tipoId),
+  );
+}
+
+function resolveObservaciones(
+  item: SolicitudPreventaRecord,
+  history: PreventaHistoryEntry[],
+): string {
+  if (item.observaciones?.trim()) {
+    return item.observaciones;
+  }
+  return history[0]?.message ?? 'Sin observaciones.';
+}
+
+function resolveViabilidad(item: SolicitudPreventaRecord): ViabilidadPreventa | null {
+  if (item.viabilidad) {
+    return item.viabilidad;
+  }
+  if ((item.mepStatus ?? 'Pendiente') === 'Pendiente') {
+    return null;
+  }
+  return item.mepStatus === 'Rechazado' ? 'No viable' : 'Viable';
+}
+
+const DETAIL_INFO_FIELDS = SOLICITUD_PREVENTA_FIELDS;
+
 const fieldValueClass =
   'min-h-9 rounded border border-border bg-bg px-3 py-2 text-sm text-ink';
 
-/** `etag` es control de concurrencia del contrato; no es dato comercial. */
-const DETAIL_INFO_FIELDS = SOLICITUD_PREVENTA_FIELDS.filter(
-  (field) => field.key !== 'etag',
-);
+function SharePointDocumentField({
+  url,
+  nombre,
+}: {
+  url: string;
+  nombre: string;
+}) {
+  const [copied, setCopied] = useState(false);
 
-const MILESTONE_ACCION: Record<BusinessMilestone, string> = {
-  INTERACTION_RECEIVED: 'Recepción de la solicitud',
-  ENGINEER_ASSIGNED: 'Asignación de ingeniero',
-  ROUTE_CAPACITY_REGISTERED: 'Evaluación de ruta y capacidad',
-  INTERACTION_COMPLETED: 'Entrega de diseño y cierre',
-};
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopied(false);
+    }
+  }
 
-const PROCESSING_STATUS_LABEL: Record<ProcessingStatus, string> = {
-  ACCEPTED: 'Aceptado',
-  DUPLICATE: 'Duplicado',
-  QUARANTINED: 'En cuarentena',
-  REJECTED: 'Rechazado',
-};
-
-function narrativaMessage(entrada: SolicitudNarrativa): string {
   return (
-    entrada.narrative_note?.trim() ||
-    MILESTONE_ACCION[entrada.business_milestone] ||
-    entrada.business_milestone
+    <div className="group relative w-full max-w-full">
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex min-h-9 w-full max-w-full items-center gap-2 rounded border border-border bg-surface px-3 py-2 text-left text-sm font-bold text-accent hover:underline"
+      >
+        <ExternalLink size={15} aria-hidden />
+        <span className="truncate text-accent">{nombre}</span>
+      </a>
+      <button
+        type="button"
+        className="absolute right-2 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded text-muted opacity-0 transition-opacity hover:text-accent group-hover:opacity-100 focus-visible:opacity-100"
+        aria-label={copied ? 'Enlace copiado' : 'Copiar enlace del documento'}
+        title={copied ? 'Copiado' : 'Copiar enlace'}
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          void handleCopy();
+        }}
+      >
+        <Copy size={15} strokeWidth={2} aria-hidden />
+      </button>
+    </div>
   );
 }
 
-/** Resumen del servicio; si no hay, la nota de la versión más reciente. */
-function resolveObservaciones(
-  solicitud: SolicitudPreventa,
-  resultado: SolicitudServicio | undefined,
-): string {
-  const summary = resultado?.summary?.trim();
-  if (summary) return summary;
-  const ultima = solicitud.narrativa.find((e) => e.narrative_note?.trim());
-  return ultima?.narrative_note?.trim() || 'Sin observaciones.';
-}
+function CardPlannetLink({
+  url,
+  fieldLabel,
+  linkText,
+}: {
+  url: string;
+  fieldLabel: string;
+  linkText?: string;
+}) {
+  const displayText = externalResourceDisplayName(url, linkText);
 
-function DetailRow({ label, value }: { label: string; value: string }) {
+  async function handleCopy(event: MouseEvent<HTMLButtonElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      /* ignore */
+    }
+  }
+
   return (
-    <p>
-      <span className="font-bold text-ink">{label}: </span>
-      <span className="text-ink">{value}</span>
-    </p>
+    <span className="group/link inline-flex max-w-full items-center gap-1">
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="min-w-0 truncate font-bold text-accent hover:underline"
+        title={url}
+        onClick={(event) => event.stopPropagation()}
+      >
+        {displayText}
+      </a>
+      <button
+        type="button"
+        className="grid h-5 w-5 shrink-0 place-items-center rounded text-muted opacity-0 transition-opacity hover:text-accent group-hover/link:opacity-100"
+        aria-label={`Copiar enlace de ${fieldLabel}`}
+        onClick={(event) => void handleCopy(event)}
+      >
+        <Copy size={11} strokeWidth={2} aria-hidden />
+      </button>
+    </span>
   );
 }
 
-function ServiceCard({
+function CardInfoRow({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="min-w-0">
+      <p className="text-[11px] font-bold leading-snug text-muted">{label}</p>
+      <div className="mt-0.5 min-w-0 text-xs leading-snug text-ink">{children}</div>
+    </div>
+  );
+}
+
+function ServiceCardView({
+  item,
+  consecutivo,
   card,
-  serviceStatus,
+  mepStatus,
   onOpen,
 }: {
-  card: ServiceCardView;
-  serviceStatus: MepSolicitudStatus;
+  item: SolicitudPreventaRecord;
+  consecutivo: string;
+  card: ServiceCard;
+  mepStatus: MepSolicitudStatus;
   onOpen: () => void;
 }) {
   const active = card.state === 'active';
+  const showResponse = item.status === 'ENVIADA';
+  const interactionRef = item.interactionRef || item.values.crm_interaction_ref;
+  const plannetUrl = mockPlannetInteractionUrl(
+    interactionRef,
+    consecutivo,
+    card.service,
+  );
+  const routeCapacityUrl = mockRouteCapacityUrl(interactionRef, card.service);
+  const tipoInteraccion = resolveTipoInteraccion(item);
+  const documento = resolveServiceSharePoint(consecutivo, card);
+  const viabilidadDocLabel =
+    card.service === 'FINANCIAL_DESIGN'
+      ? 'Viabilidad financiera'
+      : 'Viabilidad técnica';
 
   return (
     <button
@@ -306,113 +456,109 @@ function ServiceCard({
       className={[
         'w-full rounded border p-3 text-left transition-colors',
         active
-          ? 'border-accent/50 bg-accent/10 hover:border-accent'
+          ? 'border-border bg-surface hover:border-accent/40'
           : 'border-border bg-bg opacity-55 hover:opacity-80',
       ].join(' ')}
     >
-      <div className="mb-1 flex flex-wrap items-center gap-2">
-        <span
-          className={[
-            badgeClass,
-            active ? 'bg-accent text-white' : 'bg-border text-muted',
-          ].join(' ')}
-        >
-          {card.label}
-        </span>
-        <MepStatusBadge status={serviceStatus} />
+      <div className="mb-1 flex items-center justify-between gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <span
+            className={[
+              badgeClass,
+              active ? 'bg-accent text-white' : 'bg-border text-muted',
+            ].join(' ')}
+          >
+            {card.label}
+          </span>
+          <MepStatusBadge status={mepStatus} />
+        </div>
         {active ? (
-          <span className="text-xs font-bold text-accent">Activa</span>
+          <span className="shrink-0 text-xs font-bold text-accent">Activa</span>
         ) : (
-          <span className="text-xs font-bold text-muted">Bloqueada</span>
+          <span className="shrink-0 text-xs font-bold text-muted">
+            Bloqueada
+          </span>
         )}
       </div>
-      <p className="text-xs text-muted">
-        {card.service}
-        {card.dependency !== 'NONE' ? ` · depende de ${card.dependency}` : ''}
-      </p>
       {!active ? (
         <p className="mt-2 text-xs text-muted">
-          Disponible cuando Preventa retorne el documento de viabilidad técnica.
+          Disponible cuando Preventa retorne el documento de viabilidad
+          técnica.
         </p>
+      ) : null}
+
+      {showResponse ? (
+        <div
+          className="mt-2.5 space-y-2.5 border-t border-border/40 pt-2.5"
+          role="group"
+          aria-label="Respuesta Preventa"
+        >
+          <CardInfoRow label="Interaction URL (Plannet)">
+            <CardPlannetLink
+              url={plannetUrl}
+              fieldLabel="Interaction URL (Plannet)"
+              linkText={`Interacción ${interactionRef}`}
+            />
+          </CardInfoRow>
+          <CardInfoRow label="Route Capacity URL">
+            <CardPlannetLink
+              url={routeCapacityUrl}
+              fieldLabel="Route Capacity URL"
+              linkText={`Registro de ruta · ${card.label}`}
+            />
+          </CardInfoRow>
+          <CardInfoRow label={viabilidadDocLabel}>
+            {documento ? (
+              <CardPlannetLink
+                url={documento.url}
+                fieldLabel={viabilidadDocLabel}
+                linkText={documento.nombre}
+              />
+            ) : (
+              <span className="text-muted">Sin documento vinculado</span>
+            )}
+          </CardInfoRow>
+          <CardInfoRow label="Tipo de interacción">
+            <span className="font-bold text-ink">{tipoInteraccion}</span>
+          </CardInfoRow>
+        </div>
       ) : null}
     </button>
   );
 }
 
 function SolicitudDetailModal({
-  ouvId,
-  solicitud,
+  item,
   service,
-  readOnly,
+  consecutivo,
   onClose,
-  onUpdated,
 }: {
-  ouvId: string;
-  solicitud: SolicitudPreventa;
-  service: ServiceCardView;
-  readOnly: boolean;
+  item: SolicitudPreventaRecord;
+  service: ServiceCard;
+  consecutivo: string;
   onClose: () => void;
-  onUpdated: (record: SolicitudPreventa) => void;
 }) {
   const [tab, setTab] = useState<DetailTab>('informacion');
-  const [preview, setPreview] = useState<{ title: string; url: string } | null>(
-    null,
-  );
   const [pistaOpen, setPistaOpen] = useState(false);
-  const [selectedVersion, setSelectedVersion] = useState<number | null>(null);
-  const [fechaCierreLocal, setFechaCierreLocal] = useState(() =>
-    isoToDatetimeLocalValue(solicitud.estado.fecha_cierre),
-  );
-  const [savingCierre, setSavingCierre] = useState(false);
-  const [cierreError, setCierreError] = useState<string | null>(null);
+  const [selectedVersion, setSelectedVersion] = useState<string | null>(null);
+  const sharepoint = resolveServiceSharePoint(consecutivo, service);
+  const preventaAsignado = resolvePreventaAsignado(item);
+  const history = buildPreventaHistory(item, service, preventaAsignado);
+  const fechaEntrega = resolveFechaEntrega(item);
+  const tipoInteraccion = resolveTipoInteraccion(item);
+  const fechaCierre = resolveFechaCierre(item);
+  const observaciones = resolveObservaciones(item, history);
+  const viabilidad = resolveViabilidad(item);
+  const showRespuesta = item.status === 'ENVIADA';
+  const selectedEntry =
+    history.find((entry) => entry.version === selectedVersion) ?? null;
+  const showTipoBadge =
+    item.tipoNombre.trim().toLowerCase() !== service.label.trim().toLowerCase();
 
-  useEffect(() => {
-    if (!savingCierre) {
-      setFechaCierreLocal(
-        isoToDatetimeLocalValue(solicitud.estado.fecha_cierre),
-      );
-    }
-  }, [solicitud.crm_interaction_ref, solicitud.estado.fecha_cierre, savingCierre]);
-
-  async function guardarFechaCierre() {
-    setCierreError(null);
-    const iso = datetimeLocalToIso(fechaCierreLocal);
-    if (fechaCierreLocal.trim() && !iso) {
-      setCierreError('Fecha u hora no válida.');
-      return;
-    }
-    setSavingCierre(true);
-    try {
-      const updated = await actualizarFechaCierreSolicitudPreventa(
-        ouvId,
-        solicitud.crm_interaction_ref,
-        iso,
-      );
-      onUpdated(updated);
-    } catch (err: unknown) {
-      setCierreError(
-        err instanceof ApiError
-          ? err.message
-          : 'No fue posible guardar la fecha de cierre.',
-      );
-    } finally {
-      setSavingCierre(false);
-    }
+  function handleSelectHistory(version: string) {
+    setSelectedVersion(version);
+    setPistaOpen(true);
   }
-
-  const values = valoresDeSolicitud(solicitud);
-  const resultado = solicitud.servicios.find(
-    (s) => s.service === service.service,
-  );
-  const documentoPrincipal = entregableSharePoint(
-    solicitud,
-    service,
-    resultado,
-  );
-  const entregablesExtra = (resultado?.entregables ?? []).slice(1);
-  const tipoNombre = nombreDelTipo(solicitud);
-  // Narrativa MEP: más reciente primero (T-302).
-  const history = solicitud.narrativa;
 
   return (
     <>
@@ -432,25 +578,25 @@ function SolicitudDetailModal({
             >
               {service.label}
             </span>
-            {tipoNombre !== service.label ? (
+            {showTipoBadge ? (
               <span className={`${badgeClass} bg-border text-ink`}>
-                {tipoNombre}
+                {item.tipoNombre}
               </span>
             ) : null}
             <span className={`${badgeClass} bg-accent/15 text-accent`}>
-              {solicitud.service_horizon === 'IMMEDIATE' ? 'ASAP' : 'Sombra'}
+              {item.priority === 'ASAP' ? 'ASAP' : 'Sombra'}
             </span>
             {service.state === 'blocked' ? (
               <span className={`${badgeClass} bg-border text-muted`}>
                 Bloqueada
               </span>
             ) : null}
-            <MepStatusBadge status={derivarEstadoServicio(resultado)} />
+            <MepStatusBadge status={item.mepStatus ?? 'Pendiente'} />
           </div>
         }
       >
         <nav
-          className="sticky top-0 z-10 mb-4 flex flex-wrap gap-1 border-b border-border bg-surface"
+          className="mb-4 flex flex-wrap gap-1 border-b border-border"
           aria-label="Detalle de solicitud"
         >
           <button
@@ -474,140 +620,75 @@ function SolicitudDetailModal({
         {tab === 'informacion' ? (
           <>
             <div className="grid gap-3 sm:grid-cols-2">
-              {DETAIL_INFO_FIELDS.map((field) => (
-                <div
-                  key={field.key}
-                  className={field.spanFull ? 'sm:col-span-2' : undefined}
-                >
-                  <p className={labelClass}>{field.label}</p>
-                  <p
-                    className={[
-                      fieldValueClass,
-                      'whitespace-pre-wrap',
-                      field.inputType === 'textarea' ? 'min-h-20' : '',
-                    ].join(' ')}
+              {DETAIL_INFO_FIELDS.map((field) => {
+                const raw = item.values[field.key] ?? '';
+                return (
+                  <div
+                    key={field.key}
+                    className={field.spanFull ? 'sm:col-span-2' : undefined}
                   >
-                    {formatFieldValue(field.key, values[field.key] ?? '')}
-                  </p>
-                </div>
-              ))}
-              <div>
-                <p className={labelClass}>Fecha de entrega</p>
-                <p className={fieldValueClass}>
-                  {formatFechaEntrega(solicitud.estado.eta_date)}
-                </p>
-              </div>
-              <div>
-                <label className={labelClass} htmlFor="preventa-fecha-cierre">
-                  Fecha de cierre
-                </label>
-                {readOnly ? (
-                  <p className={fieldValueClass}>
-                    {formatDateTimeValue(solicitud.estado.fecha_cierre)}
-                  </p>
-                ) : (
-                  <div className="space-y-2">
-                    <input
-                      id="preventa-fecha-cierre"
-                      type="datetime-local"
-                      className={inputClass}
-                      value={fechaCierreLocal}
-                      onChange={(e) => setFechaCierreLocal(e.target.value)}
-                      disabled={savingCierre}
-                    />
-                    <button
-                      type="button"
-                      className={ghostButtonClass}
-                      disabled={savingCierre}
-                      onClick={() => void guardarFechaCierre()}
+                    <p className={labelClass}>{field.label}</p>
+                    <p
+                      className={[
+                        fieldValueClass,
+                        'whitespace-pre-wrap',
+                        field.inputType === 'textarea' ? 'min-h-20' : '',
+                      ].join(' ')}
                     >
-                      {savingCierre ? 'Guardando…' : 'Guardar fecha de cierre'}
-                    </button>
-                    {cierreError ? (
-                      <p className="text-xs text-danger">{cierreError}</p>
-                    ) : null}
+                      {formatFieldValue(field.key, raw)}
+                    </p>
                   </div>
-                )}
-              </div>
-              <div>
-                <p className={labelClass}>Preventa asignado</p>
-                <p className={fieldValueClass}>
-                  {solicitud.asignacion?.engineer.display_name ?? 'Sin asignar'}
-                </p>
-              </div>
-              <div className="sm:col-span-2">
-                <p className={labelClass}>Tipo de interacción Preventa</p>
-                <p className={fieldValueClass}>
-                  {labelTipoInteraccionPreventa(
-                    solicitud.clasificacion_entregada,
-                  )}
-                </p>
-              </div>
-              <div>
-                <p className={labelClass}>Viabilidad</p>
-                <p className={fieldValueClass}>
-                  {resultado?.viabilidad.etiqueta ??
-                    labelViabilidadPreventa({
-                      service: service.service,
-                      outcome: resultado?.outcome ?? null,
-                      status: resultado?.status ?? null,
-                      entregablesCount: resultado?.entregables.length ?? 0,
-                      routeStatus:
-                        solicitud.ruta_capacidad?.route_status ?? null,
-                    })}
-                </p>
-              </div>
-              <div>
-                <p className={labelClass}>Documento</p>
-                {documentoPrincipal ? (
-                  <button
-                    type="button"
-                    className="inline-flex min-h-9 w-full max-w-full items-center gap-2 rounded border border-border bg-bg px-3 py-2 text-left text-sm font-bold text-accent hover:underline"
-                    onClick={() =>
-                      setPreview({
-                        title: deliverableDisplayName(documentoPrincipal),
-                        url: documentoPrincipal.url,
-                      })
-                    }
-                  >
-                    <ExternalLink size={15} aria-hidden />
-                    <span className="truncate text-accent">
-                      {deliverableDisplayName(documentoPrincipal)}
-                    </span>
-                  </button>
-                ) : (
-                  <p className={`${fieldValueClass} text-muted`}>
-                    Sin documento vinculado
-                  </p>
-                )}
-                {/* Entregables: SharePoint Documents; el registro de ruta no lo es. */}
-                {entregablesExtra.length > 0 ? (
-                  <ul className="mt-2 space-y-1">
-                    {entregablesExtra.map((entregable) => (
-                      <li key={entregable.url}>
-                        <button
-                          type="button"
-                          className="text-xs font-bold text-accent hover:underline"
-                          onClick={() =>
-                            setPreview({
-                              title: deliverableDisplayName(entregable),
-                              url: entregable.url,
-                            })
-                          }
-                        >
-                          {deliverableDisplayName(entregable)}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
-              </div>
+                );
+              })}
             </div>
+
+            {showRespuesta ? (
+              <div className="mt-4 rounded border border-border bg-bg p-3">
+                <p className="mb-3 text-xs font-bold uppercase tracking-wide text-muted">
+                  Respuesta Preventa
+                </p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <p className={labelClass}>Fecha de entrega</p>
+                    <p className={fieldValueClass}>{fechaEntrega}</p>
+                  </div>
+                  <div>
+                    <p className={labelClass}>Tipo de interacción</p>
+                    <p className={fieldValueClass}>{tipoInteraccion}</p>
+                  </div>
+                  <div>
+                    <p className={labelClass}>Fecha de cierre</p>
+                    <p className={fieldValueClass}>{fechaCierre}</p>
+                  </div>
+                  <div>
+                    <p className={labelClass}>Preventa asignado</p>
+                    <p className={fieldValueClass}>{preventaAsignado}</p>
+                  </div>
+                  <div>
+                    <p className={labelClass}>Viabilidad</p>
+                    <p className={fieldValueClass}>{viabilidad ?? '—'}</p>
+                  </div>
+                  <div>
+                    <p className={labelClass}>Documento</p>
+                    {sharepoint ? (
+                      <SharePointDocumentField
+                        url={sharepoint.url}
+                        nombre={sharepoint.nombre}
+                      />
+                    ) : (
+                      <p className={`${fieldValueClass} text-muted`}>
+                        Sin documento vinculado
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ) : null}
 
             <div className="mt-4 rounded border border-border bg-bg p-3">
               <p className={labelClass}>Observaciones</p>
               <p className="min-h-20 whitespace-pre-wrap text-sm text-ink">
-                {resolveObservaciones(solicitud, resultado)}
+                {observaciones}
               </p>
             </div>
           </>
@@ -616,83 +697,35 @@ function SolicitudDetailModal({
             <p className="mb-3 text-xs font-bold text-muted">
               Historial de Preventa
             </p>
-            {history.length === 0 ? (
-              <p className="rounded border border-dashed border-border bg-bg px-3 py-6 text-center text-sm text-muted">
-                MEP-LEAN aún no ha respondido esta solicitud.
-              </p>
-            ) : (
-              <ul className="space-y-2">
-                {history.map((entrada) => {
-                  const selected = entrada.response_version === selectedVersion;
-                  return (
-                    <li key={entrada.response_version}>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setSelectedVersion(
-                            selected ? null : entrada.response_version,
-                          )
-                        }
-                        className={[
-                          'w-full rounded border-l-2 px-3 py-2 text-left transition-colors',
-                          selected
-                            ? 'border-accent bg-accent/10'
-                            : 'border-accent/40 bg-bg hover:bg-accent/5',
-                        ].join(' ')}
-                        aria-pressed={selected}
-                      >
-                        <p className="text-sm">
-                          <span className="font-bold text-accent">
-                            v{entrada.response_version}
-                          </span>
-                          <span className="text-ink">
-                            {' '}
-                            · {entrada.responded_by.display_name}
-                          </span>
-                        </p>
-                        <p className="text-sm text-muted">
-                          {narrativaMessage(entrada)}
-                        </p>
-                      </button>
-                      {selected ? (
-                        <div className="mt-1 space-y-1 rounded border border-border bg-bg px-3 py-2 text-sm">
-                          <DetailRow
-                            label="Versión"
-                            value={`v${entrada.response_version}`}
-                          />
-                          <DetailRow
-                            label="Actor"
-                            value={entrada.responded_by.display_name}
-                          />
-                          <DetailRow
-                            label="Acción"
-                            value={
-                              MILESTONE_ACCION[entrada.business_milestone] ??
-                              entrada.business_milestone
-                            }
-                          />
-                          <DetailRow
-                            label="Resultado"
-                            value={labelResponseStatus(entrada.response_status)}
-                          />
-                          <DetailRow label="Origen" value="MEP-LEAN" />
-                          <DetailRow
-                            label="Registrado"
-                            value={formatDateTimeValue(entrada.responded_at)}
-                          />
-                          <DetailRow
-                            label="Detalle"
-                            value={entrada.narrative_note?.trim() || '—'}
-                          />
-                        </div>
-                      ) : null}
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
+            <ul className="space-y-2">
+              {history.map((entry) => {
+                const selected = entry.version === selectedVersion;
+                return (
+                  <li key={entry.version}>
+                    <button
+                      type="button"
+                      onClick={() => handleSelectHistory(entry.version)}
+                      className={[
+                        'w-full rounded border-l-2 px-3 py-2 text-left transition-colors',
+                        selected
+                          ? 'border-accent bg-accent/10'
+                          : 'border-accent/40 bg-bg hover:bg-accent/5',
+                      ].join(' ')}
+                      aria-pressed={selected}
+                    >
+                      <p className="text-sm">
+                        <span className="font-bold text-accent">
+                          {entry.version}
+                        </span>
+                        <span className="text-ink"> · {entry.actor}</span>
+                      </p>
+                      <p className="text-sm text-muted">{entry.message}</p>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
 
-            {/* Pista técnica separada de la narrativa comercial (INV-12). */}
             <div className="mt-4 rounded border border-border bg-bg">
               <button
                 type="button"
@@ -705,38 +738,58 @@ function SolicitudDetailModal({
                 ) : (
                   <ChevronRight size={14} aria-hidden />
                 )}
-                Pista técnica · {solicitud.pista_tecnica.length} acuse(s)
+                Pista técnica · {history.length} acuse(s)
               </button>
               {pistaOpen ? (
-                <div className="border-t border-border px-3 py-3 text-sm">
-                  {solicitud.pista_tecnica.length === 0 ? (
-                    <p className="text-muted">
-                      Aún no hay acuses técnicos de MEP-LEAN.
-                    </p>
+                <div className="space-y-2 border-t border-border px-3 py-3 text-sm">
+                  {selectedEntry ? (
+                    <>
+                      <p>
+                        <span className="font-bold text-ink">Versión: </span>
+                        <span className="text-accent">
+                          {selectedEntry.version}
+                        </span>
+                      </p>
+                      <p>
+                        <span className="font-bold text-ink">Actor: </span>
+                        <span className="text-ink">{selectedEntry.actor}</span>
+                      </p>
+                      <p>
+                        <span className="font-bold text-ink">Acción: </span>
+                        <span className="text-ink">
+                          {selectedEntry.detail.accion}
+                        </span>
+                      </p>
+                      <p>
+                        <span className="font-bold text-ink">Resultado: </span>
+                        <span className="text-ink">
+                          {selectedEntry.detail.resultado}
+                        </span>
+                      </p>
+                      <p>
+                        <span className="font-bold text-ink">Origen: </span>
+                        <span className="text-ink">
+                          {selectedEntry.detail.origen}
+                        </span>
+                      </p>
+                      <p>
+                        <span className="font-bold text-ink">Registrado: </span>
+                        <span className="text-ink">
+                          {formatDateTimeValue(selectedEntry.detail.registrado)}
+                        </span>
+                      </p>
+                      <p>
+                        <span className="font-bold text-ink">Detalle: </span>
+                        <span className="text-ink">
+                          {selectedEntry.detail.notas}
+                        </span>
+                      </p>
+                    </>
                   ) : (
-                    <ul className="space-y-2">
-                      {solicitud.pista_tecnica.map((acuse) => (
-                        <li
-                          key={`${acuse.receipt_id}#${acuse.receipt_version}`}
-                          className="space-y-0.5"
-                        >
-                          <DetailRow
-                            label="Acuse"
-                            value={`v${acuse.receipt_version} · ${
-                              PROCESSING_STATUS_LABEL[acuse.processing_status] ??
-                              acuse.processing_status
-                            }`}
-                          />
-                          {acuse.reason_code ? (
-                            <DetailRow label="Motivo" value={acuse.reason_code} />
-                          ) : null}
-                          <DetailRow
-                            label="Registrado"
-                            value={formatDateTimeValue(acuse.observed_at)}
-                          />
-                        </li>
-                      ))}
-                    </ul>
+                    <p className="text-muted">
+                      Elige un evento del historial para ver el detalle de la
+                      acción.
+                    </p>
                   )}
                 </div>
               ) : null}
@@ -744,90 +797,84 @@ function SolicitudDetailModal({
           </div>
         )}
       </ModalShell>
-
-      <SharePointPreviewModal
-        open={Boolean(preview)}
-        title={preview?.title ?? ''}
-        url={preview?.url ?? ''}
-        onClose={() => setPreview(null)}
-      />
     </>
   );
 }
 
 function SolicitudListItem({
-  solicitud,
+  item,
+  consecutivo,
+  onDelete,
   onOpenService,
+  readOnly,
 }: {
-  solicitud: SolicitudPreventa;
-  onOpenService: (service: ServiceCardView) => void;
+  item: SolicitudPreventaRecord;
+  consecutivo: string;
+  onDelete: () => void;
+  onOpenService: (service: ServiceCard) => void;
+  readOnly?: boolean;
 }) {
-  const services = tarjetasDeServicio(solicitud);
+  const services = item.services ?? [];
   const showPair = services.length > 1;
-  const mepStatus = derivarMepStatus(solicitud);
-  const sameContainer = esMismoContenedor(solicitud);
 
   return (
     <li className="rounded border border-border bg-bg p-3">
       <div className="mb-2 flex flex-wrap items-start justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
-          <MepStatusBadge status={mepStatus} />
+          <MepStatusBadge status={item.mepStatus ?? 'Pendiente'} />
           <span className={`${badgeClass} bg-accent/15 text-accent`}>
-            {solicitud.service_horizon === 'IMMEDIATE' ? 'ASAP' : 'Sombra'}
+            {item.priority === 'ASAP' ? 'ASAP' : 'Sombra'}
           </span>
           <span className={`${badgeClass} bg-border text-ink`}>
-            {nombreDelTipo(solicitud)}
+            {item.tipoNombre}
           </span>
           <span className="text-xs text-muted">
-            {solicitud.source_created_at
-              ? new Date(solicitud.source_created_at).toLocaleString('es-CO')
-              : '—'}
+            {new Date(item.createdAt).toLocaleString('es-CO')}
           </span>
         </div>
-        <code className="text-xs text-muted">
-          {solicitud.crm_interaction_ref}
-        </code>
+        {readOnly ? null : (
+          <button type="button" className={ghostButtonClass} onClick={onDelete}>
+            Eliminar
+          </button>
+        )}
       </div>
 
       {showPair ? (
         <div
           className={[
             'grid gap-2 sm:grid-cols-2',
-            sameContainer ? 'rounded border border-accent/30 bg-surface p-2' : '',
+            item.sameContainer
+              ? 'rounded border border-accent/30 bg-surface p-2'
+              : '',
           ].join(' ')}
         >
-          {sameContainer ? (
-            <p className="text-xs font-bold text-muted sm:col-span-2">
+          {item.sameContainer ? (
+            <p className="sm:col-span-2 text-xs font-bold text-muted">
               Misma solicitud — dos servicios
             </p>
           ) : (
-            <p className="text-xs font-bold text-muted sm:col-span-2">
+            <p className="sm:col-span-2 text-xs font-bold text-muted">
               Secuencia: técnica primero, financiera al recibir viabilidad
             </p>
           )}
-          {services.map((card) => {
-            const resultado = solicitud.servicios.find(
-              (s) => s.service === card.service,
-            );
-            return (
-              <ServiceCard
-                key={card.service}
-                card={card}
-                serviceStatus={derivarEstadoServicio(resultado)}
-                onOpen={() => onOpenService(card)}
-              />
-            );
-          })}
+          {services.map((card) => (
+            <ServiceCardView
+              key={card.service}
+              item={item}
+              consecutivo={consecutivo}
+              card={card}
+              mepStatus={item.mepStatus ?? 'Pendiente'}
+              onOpen={() => onOpenService(card)}
+            />
+          ))}
         </div>
       ) : services[0] ? (
         <div className="max-w-sm">
-          <ServiceCard
+          <ServiceCardView
+            item={item}
+            consecutivo={consecutivo}
             card={services[0]}
-            serviceStatus={derivarEstadoServicio(
-              solicitud.servicios.find(
-                (s) => s.service === services[0].service,
-              ),
-            )}
+            mepStatus={item.mepStatus ?? 'Pendiente'}
             onOpen={() => onOpenService(services[0])}
           />
         </div>
@@ -836,155 +883,48 @@ function SolicitudListItem({
   );
 }
 
-const PREVENTA_POLL_MS_ACTIVE = 15_000;
-const PREVENTA_POLL_MS_IDLE = 60_000;
-
-/** Listado de Solicitudes Preventa. La creación va en modal por fases. */
+/** Vista de listado de Solicitudes Preventa. La creación va en modal por fases. */
 export function PreventaActivityPanel({
   ouv,
   commercialOwnerName,
   readOnly = false,
 }: Props) {
-  const [items, setItems] = useState<SolicitudPreventa[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [recargas, setRecargas] = useState(0);
+  const [items, setItems] = useState<SolicitudPreventaRecord[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [detail, setDetail] = useState<{
-    solicitud: SolicitudPreventa;
-    service: ServiceCardView;
+    item: SolicitudPreventaRecord;
+    service: ServiceCard;
   } | null>(null);
   const [toast, setToast] = useState<{ ok: boolean; message: string } | null>(
     null,
   );
-  const syncBaselineRef = useRef<string | null>(null);
-
-  const applyFetchedSolicitudes = useCallback(
-    (
-      data: SolicitudPreventa[],
-      options: { notifyIfChanged: boolean },
-    ) => {
-      const nextFingerprint = solicitudesSyncFingerprint(data);
-      const prevFingerprint = syncBaselineRef.current;
-
-      if (
-        options.notifyIfChanged &&
-        prevFingerprint !== null &&
-        prevFingerprint !== nextFingerprint
-      ) {
-        setToast({
-          ok: true,
-          message: 'La solicitud ha sido actualizada.',
-        });
-        window.setTimeout(() => setToast(null), 4500);
-      }
-
-      syncBaselineRef.current = nextFingerprint;
-      setItems(data);
-      setDetail((current) => {
-        if (!current) {
-          return null;
-        }
-        const updated = data.find(
-          (s) => s.crm_interaction_ref === current.solicitud.crm_interaction_ref,
-        );
-        return updated
-          ? { solicitud: updated, service: current.service }
-          : current;
-      });
-    },
-    [],
-  );
-
-  const refreshSolicitudes = useCallback(
-    async (options: { notifyIfChanged: boolean; showLoading: boolean }) => {
-      if (options.showLoading) {
-        setLoading(true);
-      }
-      try {
-        const data = await fetchSolicitudesPreventa(ouv.ouv_id);
-        applyFetchedSolicitudes(data, {
-          notifyIfChanged: options.notifyIfChanged,
-        });
-        setLoadError(null);
-      } catch (err: unknown) {
-        if (!options.notifyIfChanged) {
-          return;
-        }
-        setLoadError(
-          err instanceof ApiError
-            ? err.message
-            : 'No fue posible cargar las solicitudes de preventa.',
-        );
-      } finally {
-        if (options.showLoading) {
-          setLoading(false);
-        }
-      }
-    },
-    [applyFetchedSolicitudes, ouv.ouv_id],
-  );
 
   useEffect(() => {
-    syncBaselineRef.current = null;
-    void refreshSolicitudes({ notifyIfChanged: false, showLoading: true });
-  }, [ouv.ouv_id, recargas, refreshSolicitudes]);
-
-  useEffect(() => {
-    if (loading) {
-      return;
-    }
-
-    const hasActive = items.some((s) => esSolicitudEnCurso(s));
-    const intervalMs = hasActive
-      ? PREVENTA_POLL_MS_ACTIVE
-      : PREVENTA_POLL_MS_IDLE;
-
-    const timerId = window.setInterval(() => {
-      void refreshSolicitudes({ notifyIfChanged: true, showLoading: false });
-    }, intervalMs);
-
-    return () => window.clearInterval(timerId);
-  }, [items, loading, refreshSolicitudes]);
-
-  useEffect(() => {
-    function onVisibilityChange() {
-      if (document.visibilityState !== 'visible' || loading) {
-        return;
-      }
-      void refreshSolicitudes({ notifyIfChanged: true, showLoading: false });
-    }
-
-    document.addEventListener('visibilitychange', onVisibilityChange);
-    return () =>
-      document.removeEventListener('visibilitychange', onVisibilityChange);
-  }, [loading, refreshSolicitudes]);
-
-  // Al cambiar de OUV se cierran modales y toast. En render, no en efecto.
-  const [ouvCargada, setOuvCargada] = useState(ouv.ouv_id);
-  if (ouvCargada !== ouv.ouv_id) {
-    setOuvCargada(ouv.ouv_id);
+    setItems(loadSolicitudes(ouv.ouv_id));
     setModalOpen(false);
     setDetail(null);
     setToast(null);
-  }
+  }, [ouv.ouv_id]);
 
   function handleResult(result: {
     ok: boolean;
     message: string;
-    record?: SolicitudPreventa;
+    record?: SolicitudPreventaRecord;
   }) {
     if (result.ok && result.record) {
-      const record = result.record as SolicitudPreventa;
-      setItems((prev) => {
-        const next = [record, ...prev];
-        syncBaselineRef.current = solicitudesSyncFingerprint(next);
-        return next;
-      });
+      const list = [result.record, ...items];
+      setItems(list);
+      saveSolicitudes(ouv.ouv_id, list);
       setModalOpen(false);
     }
     setToast({ ok: result.ok, message: result.message });
     window.setTimeout(() => setToast(null), 4500);
+  }
+
+  function handleDelete(id: string) {
+    const list = items.filter((i) => i.id !== id);
+    setItems(list);
+    saveSolicitudes(ouv.ouv_id, list);
   }
 
   return (
@@ -1000,7 +940,6 @@ export function PreventaActivityPanel({
           <button
             type="button"
             className={ghostButtonClass}
-            disabled={loading}
             onClick={() => setModalOpen(true)}
           >
             Nueva solicitud
@@ -1016,27 +955,7 @@ export function PreventaActivityPanel({
         />
       ) : null}
 
-      {loadError ? (
-        <div className="mb-3 flex items-center justify-between rounded border border-danger px-3 py-2">
-          <span className="text-sm text-danger">{loadError}</span>
-          <button
-            type="button"
-            className={ghostButtonClass}
-            onClick={() => {
-              setLoadError(null);
-              setRecargas((n) => n + 1);
-            }}
-          >
-            Reintentar
-          </button>
-        </div>
-      ) : null}
-
-      {loading ? (
-        <p className="rounded border border-dashed border-border bg-bg px-3 py-8 text-center text-sm text-muted">
-          Cargando solicitudes…
-        </p>
-      ) : items.length === 0 ? (
+      {items.length === 0 ? (
         <p className="rounded border border-dashed border-border bg-bg px-3 py-8 text-center text-sm text-muted">
           {readOnly
             ? 'Aún no hay solicitudes de Preventa para esta OUV.'
@@ -1044,11 +963,14 @@ export function PreventaActivityPanel({
         </p>
       ) : (
         <ul className="space-y-3">
-          {items.map((solicitud) => (
+          {items.map((item) => (
             <SolicitudListItem
-              key={solicitud.crm_interaction_ref}
-              solicitud={solicitud}
-              onOpenService={(service) => setDetail({ solicitud, service })}
+              key={item.id}
+              item={item}
+              consecutivo={ouv.consecutivo}
+              readOnly={readOnly}
+              onDelete={() => handleDelete(item.id)}
+              onOpenService={(service) => setDetail({ item, service })}
             />
           ))}
         </ul>
@@ -1058,7 +980,6 @@ export function PreventaActivityPanel({
         <SolicitudPreventaModal
           ouv={ouv}
           commercialOwnerName={commercialOwnerName}
-          existingSolicitudes={items}
           onClose={() => setModalOpen(false)}
           onResult={handleResult}
         />
@@ -1066,27 +987,10 @@ export function PreventaActivityPanel({
 
       {detail ? (
         <SolicitudDetailModal
-          ouvId={ouv.ouv_id}
-          solicitud={detail.solicitud}
+          item={detail.item}
           service={detail.service}
-          readOnly={readOnly}
+          consecutivo={ouv.consecutivo}
           onClose={() => setDetail(null)}
-          onUpdated={(record) => {
-            setItems((prev) => {
-              const next = prev.map((s) =>
-                s.crm_interaction_ref === record.crm_interaction_ref
-                  ? record
-                  : s,
-              );
-              syncBaselineRef.current = solicitudesSyncFingerprint(next);
-              return next;
-            });
-            setDetail((current) =>
-              current
-                ? { solicitud: record, service: current.service }
-                : null,
-            );
-          }}
         />
       ) : null}
     </section>
