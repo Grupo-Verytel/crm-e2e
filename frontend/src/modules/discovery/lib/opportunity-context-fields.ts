@@ -1,9 +1,8 @@
+import { deliverableDisplayName } from './sharepoint-document';
+
 /**
- * Campos y catálogos del envío de interacción CRM → Preventa.
- *
- * Traído de la rama `Design_JD` conservando su estructura. Dos ajustes
- * obligados por el contrato (SPEC-CRM-MEPLEAN-001), documentados en su lugar:
- * el horizonte de `SOMBRA` y la generación de `crm_interaction_ref`.
+ * Campos de envío de interacción CRM → Preventa (payload de request).
+ * Labels en español.
  */
 
 export type RequestField = {
@@ -15,31 +14,20 @@ export type RequestField = {
   spanFull?: boolean;
 };
 
-/**
- * Misma regla que `nextInteractionRef` del backend: `int_<consecutivo>_<n>`.
- * Vista previa de solo lectura en el modal; el POST sigue siendo autoridad.
- */
-export function previewCrmInteractionRef(
-  opportunityRef: string,
-  existingCount: number,
-): string {
-  const slug = opportunityRef.toLowerCase().replace(/[^a-z0-9]+/g, '');
-  return `int_${slug}_${existingCount + 1}`;
-}
-
-/** Primera versión de origen de una solicitud nueva (el backend persiste `'1'`). */
-export const INITIAL_SOURCE_VERSION = '1';
-
-/** Campos visibles del formulario; `requested_services` se deriva del tipo. */
+/** Campos editables/visibles del formulario (requested_services se deriva del tipo). */
 export const SOLICITUD_PREVENTA_FIELDS: RequestField[] = [
+  { key: 'crm_interaction_ref', label: 'Referencia de interacción CRM' },
+  { key: 'crm_opportunity_ref', label: 'Referencia de oportunidad CRM' },
   {
-    key: 'crm_interaction_ref',
-    label: 'Referencia de interacción CRM',
+    key: 'activity_type',
+    label: 'Tipo de actividad',
     locked: true,
   },
-  { key: 'crm_opportunity_ref', label: 'Referencia de oportunidad CRM', locked: true },
-  { key: 'activity_type', label: 'Tipo de actividad', locked: true },
-  { key: 'service_horizon', label: 'Horizonte de servicio', locked: true },
+  {
+    key: 'service_horizon',
+    label: 'Horizonte de servicio',
+    locked: true,
+  },
   { key: 'subject', label: 'Asunto', spanFull: true },
   {
     key: 'source_content',
@@ -51,10 +39,29 @@ export const SOLICITUD_PREVENTA_FIELDS: RequestField[] = [
     key: 'source_created_at',
     label: 'Origen creado en',
     inputType: 'datetime-local',
+  },
+  { key: 'source_version', label: 'Versión de origen' },
+];
+
+/** Campos de respuesta MEP (no se capturan al crear la solicitud). */
+export const SOLICITUD_PREVENTA_RESPONSE_FIELDS: RequestField[] = [
+  {
+    key: 'etag',
+    label: 'Fecha de entrega',
+    inputType: 'datetime-local',
     locked: true,
   },
-  { key: 'source_version', label: 'Versión de origen', locked: true },
-  { key: 'etag', label: 'Versión del recurso (ETag)', locked: true, lockedValue: '' },
+  {
+    key: 'tipo_interaccion',
+    label: 'Tipo de interacción',
+    locked: true,
+  },
+  {
+    key: 'fecha_cierre',
+    label: 'Fecha de cierre',
+    inputType: 'datetime-local',
+    locked: true,
+  },
 ];
 
 export type ActivityPriority = 'ASAP' | 'SOMBRA';
@@ -74,10 +81,7 @@ export const ACTIVITY_PRIORITY_OPTIONS: {
   {
     id: 'SOMBRA',
     name: 'Sombra',
-    // El diseño traía `SHADOW`, que no existe en `ServiceHorizon` (§3.1:
-    // IMMEDIATE | DEFERRED | UNSPECIFIED) y el contrato rechaza con 422.
-    // `DEFERRED` es el horizonte diferido del spec.
-    horizon: 'DEFERRED',
+    horizon: 'SHADOW',
     activityType: 'interaccion_sombra',
   },
 ];
@@ -104,7 +108,6 @@ export const SERVICE_LABELS: Record<string, string> = {
   FINANCIAL_DESIGN: 'Financiera',
 };
 
-/** Los 4 casos de forma válida de `requested_services[]` (§7.6, C-1..C-4). */
 export const SERVICE_COMBOS: ServiceCombo[] = [
   {
     id: 'technical',
@@ -142,14 +145,36 @@ export type ServiceCard = {
   label: string;
   dependency: string;
   state: ServiceCardState;
+  /** Documento retornado por Preventa (mock SharePoint). */
+  sharepointUrl?: string | null;
+  sharepointNombre?: string | null;
 };
+
+function mockPreventaSharePoint(
+  consecutivo: string,
+  service: string,
+): { url: string; nombre: string } {
+  const folder = encodeURIComponent(consecutivo || 'OUV');
+  if (service === 'FINANCIAL_DESIGN') {
+    return {
+      url: `https://verytel.sharepoint.com/sites/preventa/Shared%20Documents/${folder}/Modelo_Financiero.xlsx`,
+      nombre: 'Modelo financiero.xlsx',
+    };
+  }
+  return {
+    url: `https://verytel.sharepoint.com/sites/preventa/Shared%20Documents/${folder}/Diseno_Tecnico.pdf`,
+    nombre: 'Diseño técnico.pdf',
+  };
+}
 
 /**
  * Técnico y financiero → ambas activas, mismo contenedor.
- * Técnico y luego financiero → técnica activa, financiera bloqueada hasta
- * viabilidad Preventa.
+ * Técnico y luego financiero → técnica activa, financiera bloqueada hasta viabilidad Preventa.
  */
-export function buildServiceCards(comboId: ServiceComboId): ServiceCard[] {
+export function buildServiceCards(
+  comboId: ServiceComboId,
+  options?: { consecutivo?: string; includeSharePoint?: boolean },
+): ServiceCard[] {
   const combo = SERVICE_COMBOS.find((c) => c.id === comboId);
   if (!combo) return [];
 
@@ -161,11 +186,160 @@ export function buildServiceCards(comboId: ServiceComboId): ServiceCard[] {
     ) {
       state = 'blocked';
     }
+    const sp =
+      options?.includeSharePoint && state === 'active'
+        ? mockPreventaSharePoint(options.consecutivo ?? 'OUV', svc.service)
+        : null;
     return {
       service: svc.service,
       label: SERVICE_LABELS[svc.service] ?? svc.service,
       dependency: svc.dependency,
       state,
+      sharepointUrl: sp?.url ?? null,
+      sharepointNombre: sp?.nombre ?? null,
     };
   });
+}
+
+/** Resolve SharePoint doc for a service card (legacy records without stored URL). */
+export function resolveServiceSharePoint(
+  consecutivo: string,
+  service: ServiceCard,
+): { url: string; nombre: string } | null {
+  if (service.sharepointUrl) {
+    return {
+      url: service.sharepointUrl,
+      nombre: deliverableDisplayName({
+        url: service.sharepointUrl,
+        label: service.sharepointNombre,
+      }),
+    };
+  }
+  if (service.state === 'blocked') return null;
+  return mockPreventaSharePoint(consecutivo, service.service);
+}
+
+export function mockInteractionRef(seed: string): string {
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) {
+    h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+  }
+  return `int_${(h % 90000) + 10000}`;
+}
+
+/** Mock Plannet interaction deep link for a service card. */
+export function mockPlannetInteractionUrl(
+  interactionRef: string,
+  consecutivo: string,
+  service: string,
+): string {
+  const ouv = encodeURIComponent(consecutivo || 'OUV');
+  const svc = encodeURIComponent(service);
+  return `https://plannet.verytel.com/interactions/${encodeURIComponent(interactionRef)}?ouv=${ouv}&service=${svc}`;
+}
+
+/** Mock Plannet route capacity URL for a service card. */
+export function mockRouteCapacityUrl(
+  interactionRef: string,
+  service: string,
+): string {
+  return `https://plannet.verytel.com/route-capacity/${encodeURIComponent(interactionRef)}/${encodeURIComponent(service)}`;
+}
+
+const PREVENTA_ENGINEERS = [
+  'Andrés Gutiérrez',
+  'María Fernanda López',
+  'Julián Castro',
+];
+
+/** Mock MEP assignee from a stable seed (solicitud id). */
+export function mockPreventaAsignado(seed: string): string {
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) {
+    h = (h + seed.charCodeAt(i)) >>> 0;
+  }
+  return PREVENTA_ENGINEERS[h % PREVENTA_ENGINEERS.length] ?? PREVENTA_ENGINEERS[0];
+}
+
+/** Delivery timestamp two days after creation (ISO). */
+export function mockFechaEntregaIso(createdAt: string): string {
+  const d = new Date(createdAt);
+  if (Number.isNaN(d.getTime())) {
+    return new Date().toISOString();
+  }
+  d.setDate(d.getDate() + 2);
+  return d.toISOString();
+}
+
+/** Closure timestamp when Preventa finishes or rejects (ISO). */
+export function mockFechaCierreIso(createdAt: string): string {
+  const d = new Date(createdAt);
+  if (Number.isNaN(d.getTime())) {
+    return new Date().toISOString();
+  }
+  d.setDate(d.getDate() + 5);
+  return d.toISOString();
+}
+
+/** Catálogo MEP de tipos de interacción (códigos, no traducir). */
+export const PREVENTA_TIPOS_INTERACCION = [
+  'TIPO-ESTRUCTURACION',
+  'TIPO-RFI',
+  'TIPO-PROP-COMERCIAL',
+  'SOMBRA-INTERACCION',
+  'TIPO-COT-PRESUP',
+  'TIPO-LICITACION',
+  'TIPO-MOD-FINANCIERO',
+  'TIPO-ARQUITECTURA',
+  'TIPO-LEVANT-INF',
+  'TIPO-DEMO-POC',
+  'TIPO-SUSTENTACION',
+  'TIPO-VISITA-TECNICA',
+  'TIPO-POR-ESPECIFICAR',
+  'TIPO-AJUST-INTERAC-PREV',
+  'TIPO-VIAB-OPORTUNIDAD',
+  'TIPO-ENT/SOC-PMO',
+  'TIPO-SIN-ENTREGABLE',
+  'TIPO-QA-TECNICO',
+] as const;
+
+export type PreventaTipoInteraccion =
+  (typeof PREVENTA_TIPOS_INTERACCION)[number];
+
+/** Mock MEP: tipo de interacción según prioridad y combo de servicios. */
+export function mockTipoInteraccionForCombo(
+  priority: ActivityPriority,
+  comboId: ServiceComboId,
+): PreventaTipoInteraccion {
+  if (priority === 'SOMBRA') {
+    return 'SOMBRA-INTERACCION';
+  }
+  switch (comboId) {
+    case 'financial':
+      return 'TIPO-MOD-FINANCIERO';
+    case 'technical':
+      return 'TIPO-ARQUITECTURA';
+    case 'technical_and_financial':
+      return 'TIPO-ESTRUCTURACION';
+    case 'technical_then_financial':
+      return 'TIPO-VIAB-OPORTUNIDAD';
+    default:
+      return 'TIPO-POR-ESPECIFICAR';
+  }
+}
+
+export function normalizePreventaTipoInteraccion(
+  value: string | null | undefined,
+  fallback: PreventaTipoInteraccion = 'TIPO-POR-ESPECIFICAR',
+): PreventaTipoInteraccion {
+  if (!value?.trim()) {
+    return fallback;
+  }
+  const trimmed = value.trim();
+  if (
+    (PREVENTA_TIPOS_INTERACCION as readonly string[]).includes(trimmed)
+  ) {
+    return trimmed as PreventaTipoInteraccion;
+  }
+  return fallback;
 }
