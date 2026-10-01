@@ -446,14 +446,6 @@ export function OuvDetailPage() {
       (p) => p.action === 'update' && p.subject === 'Opportunity',
     ),
   );
-  // Misma regla que `OuvInteraccionesService.lockOuvForWrite`: `update
-  // Opportunity`, OUV en curso y ser dueño, Admin o SoporteComercial.
-  const canEscribirInteracciones =
-    canSolicitarPreventa &&
-    ouv.resultado === 'EnCurso' &&
-    (user?.user_id === ouv.comercial_id ||
-      user?.role_name === 'Admin' ||
-      user?.role_name === 'SoporteComercial');
   const backLink = backLinkForResultado(ouv.resultado);
   const influenciaByContacto = new Map<string, string[]>();
   for (const inf of influencias) {
@@ -507,10 +499,7 @@ export function OuvDetailPage() {
           readOnly={!canSolicitarPreventa}
         />
       ) : detailTab === 'interacciones' ? (
-        <InteraccionesPreventaPanel
-          ouv={ouv}
-          readOnly={!canEscribirInteracciones}
-        />
+        <InteraccionesPreventaPanel ouv={ouv} />
       ) : (
         <>
       {ouv.tiene_gap ? (

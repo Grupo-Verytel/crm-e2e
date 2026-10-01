@@ -85,3 +85,49 @@ function fileNameFromSharePointUrl(url: string): string | null {
 function humanizeSegment(segment: string): string {
   return segment.replace(/_/g, ' ');
 }
+
+const SERVICE_LABELS_FOR_URL: Record<string, string> = {
+  TECHNICAL_DESIGN: 'Técnica',
+  FINANCIAL_DESIGN: 'Financiera',
+};
+
+/**
+ * Visible label for card links (SharePoint, Plannet, etc.) — never the raw URL.
+ */
+export function externalResourceDisplayName(
+  url: string,
+  preferredLabel?: string | null,
+): string {
+  const trimmed = preferredLabel?.trim();
+  if (trimmed) {
+    return trimmed;
+  }
+
+  const fromDeliverable = deliverableDisplayName({ url });
+  if (fromDeliverable !== 'Documento SharePoint') {
+    return fromDeliverable;
+  }
+
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.toLowerCase();
+    const parts = parsed.pathname.split('/').filter(Boolean);
+
+    if (host.includes('plannet')) {
+      if (parts[0] === 'interactions' && parts[1]) {
+        return `Interacción ${decodeURIComponent(parts[1])}`;
+      }
+      if (parts[0] === 'route-capacity' && parts[1]) {
+        const ref = decodeURIComponent(parts[1]);
+        const svcKey = parts[2] ? decodeURIComponent(parts[2]) : '';
+        const svcLabel =
+          SERVICE_LABELS_FOR_URL[svcKey] ?? (svcKey || 'Preventa');
+        return `Registro de ruta · ${svcLabel} (${ref})`;
+      }
+    }
+  } catch {
+    /* fall through */
+  }
+
+  return fromDeliverable;
+}
