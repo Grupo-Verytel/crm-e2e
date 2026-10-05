@@ -1,11 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { Ouv } from '../api/ouvs-api';
 import {
-  loadOuvInteracciones,
-  saveOuvInteracciones,
-  type InteraccionEntry,
-  type InteraccionRecord,
-} from '../lib/ouv-interacciones';
+  crearOuvInteraccion,
+  eliminarOuvInteraccion,
+  eliminarOuvInteraccionHilo,
+  fetchOuvInteracciones,
+  responderOuvInteraccion,
+} from '../api/ouv-interacciones-api';
+import { mapOuvInteraccion } from '../lib/ouv-interacciones-mapper';
+import type { InteraccionRecord } from '../lib/ouv-interacciones';
 import { ModalShell } from './ModalShell';
 import { FloatingToast } from './FloatingToast';
 import {
@@ -135,64 +138,78 @@ function Etiquetas({ tags }: { tags?: string[] }) {
 /** Registro de interacciones / actividades realizadas con el proyecto. */
 export function InteraccionesPreventaPanel({ ouv }: Props) {
   const [items, setItems] = useState<InteraccionRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [modal, setModal] = useState<ModalMode | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    setItems(loadOuvInteracciones(ouv.ouv_id));
-    setModal(null);
-    setToast(null);
+  const reload = useCallback(async () => {
+    try {
+      const rows = await fetchOuvInteracciones(ouv.ouv_id);
+      setItems(rows.map(mapOuvInteraccion));
+      setLoadError(null);
+    } catch {
+      setLoadError('No se pudieron cargar las interacciones de esta OUV.');
+    } finally {
+      setLoading(false);
+    }
   }, [ouv.ouv_id]);
 
-  function persist(list: InteraccionRecord[]) {
-    setItems(list);
-    saveOuvInteracciones(ouv.ouv_id, list);
-  }
+  useEffect(() => {
+    setLoading(true);
+    setModal(null);
+    setToast(null);
+    void reload();
+  }, [reload]);
 
   function showToast(message: string) {
     setToast(message);
     window.setTimeout(() => setToast(null), 3000);
   }
 
-  function handleSave(data: { titulo: string; observaciones: string }) {
-    if (!modal) return;
-    const now = new Date().toISOString();
-    const entry: InteraccionEntry = {
-      id: `int-${Date.now()}`,
-      titulo: data.titulo,
-      observaciones: data.observaciones,
-      fechaRegistrada: now,
-      registradoPor: 'Usuario actual',
-    };
-
-    if (modal.kind === 'nueva') {
-      persist([{ ...entry, hilos: [] }, ...items]);
-      showToast('Interacción registrada correctamente.');
-    } else {
-      persist(
-        items.map((item) =>
-          item.id === modal.parentId
-            ? { ...item, hilos: [...item.hilos, entry] }
-            : item,
-        ),
-      );
-      showToast('Respuesta agregada al hilo.');
+  async function handleSave(data: { titulo: string; observaciones: string }) {
+    if (!modal || saving) return;
+    setSaving(true);
+    try {
+      if (modal.kind === 'nueva') {
+        await crearOuvInteraccion(ouv.ouv_id, {
+          titulo: data.titulo,
+          observaciones: data.observaciones || null,
+        });
+        showToast('Interacción registrada correctamente.');
+      } else {
+        await responderOuvInteraccion(ouv.ouv_id, modal.parentId, {
+          titulo: data.titulo,
+          observaciones: data.observaciones || null,
+        });
+        showToast('Respuesta agregada al hilo.');
+      }
+      setModal(null);
+      await reload();
+    } catch {
+      showToast('No se pudo guardar. Revisa permisos e intenta de nuevo.');
+    } finally {
+      setSaving(false);
     }
-    setModal(null);
   }
 
-  function handleDelete(id: string) {
-    persist(items.filter((i) => i.id !== id));
+  async function handleDelete(id: string) {
+    try {
+      await eliminarOuvInteraccion(ouv.ouv_id, id);
+      await reload();
+    } catch {
+      showToast('No se pudo eliminar la interacción.');
+    }
   }
 
-  function handleDeleteHilo(parentId: string, hiloId: string) {
-    persist(
-      items.map((item) =>
-        item.id === parentId
-          ? { ...item, hilos: item.hilos.filter((h) => h.id !== hiloId) }
-          : item,
-      ),
-    );
+  async function handleDeleteHilo(parentId: string, hiloId: string) {
+    try {
+      await eliminarOuvInteraccionHilo(ouv.ouv_id, parentId, hiloId);
+      await reload();
+    } catch {
+      showToast('No se pudo eliminar la respuesta.');
+    }
   }
 
   return (
@@ -214,6 +231,12 @@ export function InteraccionesPreventaPanel({ ouv }: Props) {
         </button>
       </div>
 
+      {loadError ? (
+        <p className="mb-3 text-sm text-danger" role="alert">
+          {loadError}
+        </p>
+      ) : null}
+
       {toast ? (
         <FloatingToast
           message={toast}
@@ -222,7 +245,11 @@ export function InteraccionesPreventaPanel({ ouv }: Props) {
         />
       ) : null}
 
-      {items.length === 0 ? (
+      {loading ? (
+        <p className="rounded border border-dashed border-border bg-bg px-3 py-6 text-center text-sm text-muted">
+          Cargando interacciones…
+        </p>
+      ) : items.length === 0 ? (
         <p className="rounded border border-dashed border-border bg-bg px-3 py-6 text-center text-sm text-muted">
           Aún no hay interacciones registradas para esta OUV.
         </p>
@@ -266,7 +293,7 @@ export function InteraccionesPreventaPanel({ ouv }: Props) {
                 <button
                   type="button"
                   className="text-xs text-muted hover:text-danger"
-                  onClick={() => handleDelete(item.id)}
+                  onClick={() => void handleDelete(item.id)}
                 >
                   Eliminar
                 </button>
@@ -298,7 +325,7 @@ export function InteraccionesPreventaPanel({ ouv }: Props) {
                         <button
                           type="button"
                           className="text-xs text-muted hover:text-danger"
-                          onClick={() => handleDeleteHilo(item.id, hilo.id)}
+                          onClick={() => void handleDeleteHilo(item.id, hilo.id)}
                         >
                           Eliminar
                         </button>
@@ -316,7 +343,7 @@ export function InteraccionesPreventaPanel({ ouv }: Props) {
         <InteraccionFormModal
           mode={modal}
           onClose={() => setModal(null)}
-          onSave={handleSave}
+          onSave={(data) => void handleSave(data)}
         />
       ) : null}
     </section>

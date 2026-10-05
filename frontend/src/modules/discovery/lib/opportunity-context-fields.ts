@@ -81,7 +81,7 @@ export const ACTIVITY_PRIORITY_OPTIONS: {
   {
     id: 'SOMBRA',
     name: 'Sombra',
-    horizon: 'SHADOW',
+    horizon: 'DEFERRED',
     activityType: 'interaccion_sombra',
   },
 ];
