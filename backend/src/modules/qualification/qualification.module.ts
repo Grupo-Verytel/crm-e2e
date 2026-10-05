@@ -7,11 +7,14 @@ import { Lead } from '../demand-generation/models/lead.model';
 import { Mql } from '../demand-generation/models/mql.model';
 import { Sql } from '../demand-generation/models/sql.model';
 import { DiscoveryModule } from '../discovery/discovery.module';
+import { Ouv } from '../discovery/models/ouv.model';
 import { GraphIntegrationModule } from '../graph-integration/graph-integration.module';
 import { WorkflowEngineModule } from '../workflow-engine/workflow-engine.module';
+import { QualificationDashboardController } from './controllers/qualification-dashboard.controller';
 import { SqlsController } from './controllers/sqls.controller';
 import { SqlCita } from './models/sql-cita.model';
 import { SqlAppointmentEvent } from './models/sql-appointment-event.model';
+import { QualificationDashboardService } from './services/qualification-dashboard.service';
 import { SqlsService } from './services/sqls.service';
 
 @Module({
@@ -23,6 +26,7 @@ import { SqlsService } from './services/sqls.service';
       SqlCita,
       SqlAppointmentEvent,
       User,
+      Ouv,
     ]),
     AuthModule,
     DemandGenerationModule,
@@ -30,8 +34,8 @@ import { SqlsService } from './services/sqls.service';
     GraphIntegrationModule,
     WorkflowEngineModule,
   ],
-  controllers: [SqlsController],
-  providers: [SqlsService],
-  exports: [SqlsService],
+  controllers: [SqlsController, QualificationDashboardController],
+  providers: [SqlsService, QualificationDashboardService],
+  exports: [SqlsService, QualificationDashboardService],
 })
 export class QualificationModule {}

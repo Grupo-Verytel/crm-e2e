@@ -34,6 +34,9 @@ export function QualificationNav() {
       <NavLink to="/qualification/assigned" className={linkClass}>
         {seesAllAssigned ? 'SQL asignados' : 'Mis SQL'}
       </NavLink>
+      <NavLink to="/qualification/dashboard" className={linkClass}>
+        Dashboard
+      </NavLink>
     </nav>
   );
 }

@@ -185,8 +185,16 @@ paths:
 
         `mep_interactions.items` es siempre el listado completo de solicitudes
         de esa OUV, de la más reciente a la más antigua. Sin solicitudes, solo
-        trae `items: []`. Solo lectura: no actualiza la OUV, su versión ni su
-        ETag persistido. El header `ETag` es del agregado de esta respuesta.
+        trae `items: []`.
+
+        `ouv_interactions` es la bitácora comercial de la OUV
+        (`ouv_interactions`), de la más reciente a la más antigua. Cada ítem
+        trae sus hilos (`ouv_interaction_replies`) del más antiguo al más
+        reciente. Sin entradas, solo trae `items: []`.
+
+        Solo lectura: no actualiza la OUV, su versión ni su
+        ETag persistido. El header `ETag` es del agregado de esta respuesta
+        e incluye el reloj de la bitácora.
       security:
         - apiKeyAuth: [opportunities:read]
       parameters:
@@ -195,7 +203,7 @@ paths:
         - $ref: '#/components/parameters/IfNoneMatch'
       responses:
         '200':
-          description: Oportunidad y listado completo de interacciones con MEP-LEAN
+          description: Oportunidad, bitácora comercial e historial con MEP-LEAN
           headers:
             ETag: { $ref: '#/components/headers/ETag' }
             X-Correlation-ID: { $ref: '#/components/headers/XCorrelationId' }
@@ -635,12 +643,13 @@ components:
     OuvContext:
       type: object
       additionalProperties: false
-      required: [etag, opportunity, mep_interactions]
+      required: [etag, opportunity, mep_interactions, ouv_interactions]
       properties:
         etag:
           description: |
             ETag del agregado. Idéntico al header `ETag`. No se persiste y
-            no modifica el `etag` de la OUV.
+            no modifica el `etag` de la OUV. Cambia si cambia la bitácora
+            comercial o el historial con MEP-LEAN.
           type: string
         opportunity: { $ref: '#/components/schemas/CommercialOpportunity' }
         mep_interactions:
@@ -652,6 +661,72 @@ components:
               description: Listado completo de solicitudes de la OUV.
               type: array
               items: { $ref: '#/components/schemas/OuvContextInteraction' }
+        ouv_interactions:
+          type: object
+          additionalProperties: false
+          required: [items]
+          properties:
+            items:
+              description: |
+                Bitácora comercial de la OUV (`ouv_interactions`), de la más
+                reciente a la más antigua. No incluye filas con `deleted_at`.
+              type: array
+              items: { $ref: '#/components/schemas/OuvBitacoraInteraction' }
+
+    OuvBitacoraActor:
+      type: object
+      additionalProperties: false
+      required: [ref, display_name]
+      properties:
+        ref: { type: string, maxLength: 64 }
+        display_name: { type: string, maxLength: 160 }
+
+    OuvBitacoraReply:
+      type: object
+      additionalProperties: false
+      required:
+        - ouv_interaction_reply_id
+        - titulo
+        - observaciones
+        - fecha_registrada
+        - registrado_por
+        - created_at
+      properties:
+        ouv_interaction_reply_id: { type: string, maxLength: 36 }
+        titulo: { type: string, maxLength: 200 }
+        observaciones: { type: [string, 'null'] }
+        fecha_registrada: { type: string, format: date-time }
+        registrado_por: { $ref: '#/components/schemas/OuvBitacoraActor' }
+        created_at: { type: string, format: date-time }
+
+    OuvBitacoraInteraction:
+      description: |
+        Entrada de la bitácora comercial de la OUV y sus hilos, del más
+        antiguo al más reciente.
+      type: object
+      additionalProperties: false
+      required:
+        - ouv_interaction_id
+        - titulo
+        - observaciones
+        - etiquetas
+        - fecha_registrada
+        - registrado_por
+        - created_at
+        - hilos
+      properties:
+        ouv_interaction_id: { type: string, maxLength: 36 }
+        titulo: { type: string, maxLength: 200 }
+        observaciones: { type: [string, 'null'] }
+        etiquetas:
+          type: array
+          items: { type: string }
+        fecha_registrada: { type: string, format: date-time }
+        registrado_por: { $ref: '#/components/schemas/OuvBitacoraActor' }
+        created_at: { type: string, format: date-time }
+        hilos:
+          type: array
+          items: { $ref: '#/components/schemas/OuvBitacoraReply' }
 
     OuvContextInteraction:
       description: |
@@ -1166,6 +1241,22 @@ components:
                   reason_code: null
                   observed_at: '2026-09-01T11:00:00.000Z'
               polling_status: ACCEPTED
+        ouv_interactions:
+          items:
+            - ouv_interaction_id: 6f1c2a40-1b2e-4c3d-9a10-0e5b7c8d9e01
+              titulo: Llamada inicial
+              observaciones: Pidió alcance técnico.
+              etiquetas: []
+              fecha_registrada: '2026-08-01T10:00:00.000Z'
+              registrado_por: { ref: user_1, display_name: Carlos Ruiz }
+              created_at: '2026-08-01T10:00:00.000Z'
+              hilos:
+                - ouv_interaction_reply_id: 7a2d3b51-2c3f-4d4e-8b21-1f6c8d9e0f12
+                  titulo: Acuse
+                  observaciones: null
+                  fecha_registrada: '2026-08-01T12:00:00.000Z'
+                  registrado_por: { ref: user_1, display_name: Carlos Ruiz }
+                  created_at: '2026-08-01T12:00:00.000Z'
     OuvContextEmpty:
       summary: OUV sin solicitudes de preventa
       value:
@@ -1184,6 +1275,8 @@ components:
           source_version: '0'
           etag: '"ouv-OUV-0001-v0"'
         mep_interactions:
+          items: []
+        ouv_interactions:
           items: []
     ReceiptAccepted:
       summary: Acuse técnico ACCEPTED
