@@ -1,9 +1,10 @@
-import { BusinessMilestone, ResponseStatus } from './enums';
+import { BusinessMilestone, ResponseStatus, ServiceHorizon } from './enums';
 import {
   isRegression,
   milestoneRank,
   requiredResponseStatus,
   requiresAssignment,
+  requiresCommercialEtaDate,
   requiresRouteCapacity,
 } from './milestone-machine';
 
@@ -69,5 +70,26 @@ describe('máquina de hitos comerciales — §7.1', () => {
     expect(requiresRouteCapacity(ENGINEER_ASSIGNED)).toBe(false);
     expect(requiresRouteCapacity(ROUTE_CAPACITY_REGISTERED)).toBe(true);
     expect(requiresRouteCapacity(INTERACTION_COMPLETED)).toBe(true);
+  });
+
+  it('DEFERRED: ETA comercial no exigido al registrar ruta; sí al cerrar', () => {
+    expect(
+      requiresCommercialEtaDate(
+        ROUTE_CAPACITY_REGISTERED,
+        ServiceHorizon.DEFERRED,
+      ),
+    ).toBe(false);
+    expect(
+      requiresCommercialEtaDate(
+        INTERACTION_COMPLETED,
+        ServiceHorizon.DEFERRED,
+      ),
+    ).toBe(true);
+    expect(
+      requiresCommercialEtaDate(
+        ROUTE_CAPACITY_REGISTERED,
+        ServiceHorizon.IMMEDIATE,
+      ),
+    ).toBe(true);
   });
 });

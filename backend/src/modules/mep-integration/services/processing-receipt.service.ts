@@ -81,7 +81,8 @@ export class ProcessingReceiptService {
     if (reservation.kind === 'replay') {
       await this.auditReplay(context, interactionRef, payload, requestHash);
       return {
-        status: reservation.status,
+        // §6.4: replay idempotente → 200 aunque la creación original fuera 201.
+        status: 200,
         body: reservation.body,
         etag: reservation.etag,
         replay: true,
