@@ -43,6 +43,43 @@ export const SOLICITUD_PREVENTA_FIELDS: RequestField[] = [
   { key: 'source_version', label: 'Versión de origen' },
 ];
 
+/** Paso 3 del modal de creación — sin SharePoint; fechas/referencias son autoridad del CRM. */
+export const SOLICITUD_PREVENTA_CREATE_FORM_FIELDS: RequestField[] = [
+  {
+    key: 'crm_interaction_ref',
+    label: 'Referencia de interacción CRM',
+    locked: true,
+  },
+  {
+    key: 'crm_opportunity_ref',
+    label: 'Referencia de oportunidad CRM',
+    locked: true,
+  },
+  {
+    key: 'activity_type',
+    label: 'Tipo de actividad',
+    locked: true,
+  },
+  {
+    key: 'service_horizon',
+    label: 'Horizonte de servicio',
+    locked: true,
+  },
+  { key: 'subject', label: 'Asunto', spanFull: true },
+  {
+    key: 'source_content',
+    label: 'Contenido de origen',
+    inputType: 'textarea',
+    spanFull: true,
+  },
+  {
+    key: 'source_created_at',
+    label: 'Origen creado en',
+    locked: true,
+  },
+  { key: 'source_version', label: 'Versión de origen', locked: true },
+];
+
 /** Campos de respuesta MEP (no se capturan al crear la solicitud). */
 export const SOLICITUD_PREVENTA_RESPONSE_FIELDS: RequestField[] = [
   {
