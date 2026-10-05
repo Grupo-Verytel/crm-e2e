@@ -87,8 +87,30 @@ function allOf(opportunityRef: string, store: InteractionRow[]) {
   return rows;
 }
 
+interface BitacoraRow {
+  ouvInteractionId: string;
+  ouvId: string;
+  titulo: string;
+  observaciones: string | null;
+  etiquetas: string[] | null;
+  registradoPorId: string;
+  registradoPorNombre: string;
+  fechaRegistrada: Date;
+  createdAt: Date;
+  hilos: {
+    ouvInteractionReplyId: string;
+    titulo: string;
+    observaciones: string | null;
+    fechaRegistrada: Date;
+    registradoPorId: string;
+    registradoPorNombre: string;
+    createdAt: Date;
+  }[];
+}
+
 function ouvFixture() {
   return {
+    ouvId: 'ouv_1',
     consecutivo: REF,
     titulo: 'Enlace norte',
     accountId: 'acc_1',
@@ -138,6 +160,7 @@ describe('OuvContextService', () => {
     responses?: { id: string; interactionId: string }[];
     versions?: Record<string, unknown>[];
     receipts?: Record<string, unknown>[];
+    bitacora?: BitacoraRow[];
   }) {
     const store = options.interactions ?? [];
     const queries: string[] = [];
@@ -178,6 +201,20 @@ describe('OuvContextService', () => {
       update: jest.fn(),
       create: jest.fn(),
     };
+    const ouvInteractionModel = {
+      findAll: jest.fn((query: { where: { ouvId: string } }) =>
+        (options.bitacora ?? [])
+          .filter((row) => row.ouvId === query.where.ouvId)
+          .sort((left, right) => {
+            const byFecha =
+              right.fechaRegistrada.getTime() - left.fechaRegistrada.getTime();
+            if (byFecha !== 0) return byFecha;
+            return right.createdAt.getTime() - left.createdAt.getTime();
+          }),
+      ),
+      update: jest.fn(),
+      create: jest.fn(),
+    };
     const sequelize = {
       query: jest.fn((sql: string) => {
         queries.push(sql);
@@ -195,6 +232,9 @@ describe('OuvContextService', () => {
             receipt_clock: options.receipts?.length
               ? new Date('2026-09-01T11:00:00.000Z')
               : null,
+            ouv_interaction_count: options.bitacora?.length ?? 0,
+            ouv_interaction_clock: options.bitacora?.[0]?.createdAt ?? null,
+            ouv_reply_clock: null,
           },
         ];
       }),
@@ -207,6 +247,7 @@ describe('OuvContextService', () => {
       responseModel as never,
       versionModel as never,
       receiptModel as never,
+      ouvInteractionModel as never,
       sequelize as never,
     );
 
@@ -215,6 +256,7 @@ describe('OuvContextService', () => {
       ouvModel,
       opportunityModel,
       interactionModel,
+      ouvInteractionModel,
       queries,
       persisted,
     };
@@ -227,6 +269,8 @@ describe('OuvContextService', () => {
     expect(harness.opportunityModel.create).not.toHaveBeenCalled();
     expect(harness.interactionModel.update).not.toHaveBeenCalled();
     expect(harness.interactionModel.create).not.toHaveBeenCalled();
+    expect(harness.ouvInteractionModel.update).not.toHaveBeenCalled();
+    expect(harness.ouvInteractionModel.create).not.toHaveBeenCalled();
     expect(harness.persisted.etag).toBe('"persisted-ouv-etag"');
     expect(harness.persisted.sourceVersion).toBe('4');
     for (const sql of harness.queries) {
@@ -338,6 +382,7 @@ describe('OuvContextService', () => {
     expect(body.opportunity.source_version).toBe('0');
     expect(body.mep_interactions).toEqual({ items: [] });
     expect(body.mep_interactions).not.toHaveProperty('next_cursor');
+    expect(body.ouv_interactions).toEqual({ items: [] });
     expect(harness.opportunityModel.create).not.toHaveBeenCalled();
     expect(harness.opportunityModel.update).not.toHaveBeenCalled();
   });
@@ -351,6 +396,7 @@ describe('OuvContextService', () => {
       'NOT_FOUND',
     );
     expect(harness.interactionModel.findAll).not.toHaveBeenCalled();
+    expect(harness.ouvInteractionModel.findAll).not.toHaveBeenCalled();
     expect(harness.opportunityModel.create).not.toHaveBeenCalled();
   });
 
@@ -394,6 +440,88 @@ describe('OuvContextService', () => {
     );
 
     expect(seen).toEqual(['int_3', 'int_2', 'int_1']);
+  });
+
+  it('incluye la bitácora de ouv_interactions de la más reciente a la más antigua', async () => {
+    const harness = serviceFor({
+      bitacora: [
+        {
+          ouvInteractionId: 'bit_1',
+          ouvId: 'ouv_1',
+          titulo: 'Llamada inicial',
+          observaciones: 'Pidió alcance técnico.',
+          etiquetas: null,
+          registradoPorId: 'user_1',
+          registradoPorNombre: 'Carlos Ruiz',
+          fechaRegistrada: new Date('2026-08-01T10:00:00.000Z'),
+          createdAt: new Date('2026-08-01T10:00:00.000Z'),
+          hilos: [
+            {
+              ouvInteractionReplyId: 'reply_2',
+              titulo: 'Seguimiento',
+              observaciones: 'Envié el alcance.',
+              fechaRegistrada: new Date('2026-08-02T10:00:00.000Z'),
+              registradoPorId: 'user_2',
+              registradoPorNombre: 'Ana Pérez',
+              createdAt: new Date('2026-08-02T10:00:01.000Z'),
+            },
+            {
+              ouvInteractionReplyId: 'reply_1',
+              titulo: 'Acuse',
+              observaciones: null,
+              fechaRegistrada: new Date('2026-08-01T12:00:00.000Z'),
+              registradoPorId: 'user_1',
+              registradoPorNombre: 'Carlos Ruiz',
+              createdAt: new Date('2026-08-01T12:00:00.000Z'),
+            },
+          ],
+        },
+        {
+          ouvInteractionId: 'bit_2',
+          ouvId: 'ouv_1',
+          titulo: 'Visita',
+          observaciones: null,
+          etiquetas: ['OUV Perdida', 'Motivo: Precio'],
+          registradoPorId: 'user_1',
+          registradoPorNombre: 'Carlos Ruiz',
+          fechaRegistrada: new Date('2026-09-01T10:00:00.000Z'),
+          createdAt: new Date('2026-09-01T10:00:00.000Z'),
+          hilos: [],
+        },
+        {
+          ouvInteractionId: 'bit_other',
+          ouvId: 'ouv_9',
+          titulo: 'De otra OUV',
+          observaciones: null,
+          etiquetas: [],
+          registradoPorId: 'user_9',
+          registradoPorNombre: 'Otra persona',
+          fechaRegistrada: new Date('2026-09-02T10:00:00.000Z'),
+          createdAt: new Date('2026-09-02T10:00:00.000Z'),
+          hilos: [],
+        },
+      ],
+    });
+
+    const body = await harness.service.read(REF);
+
+    expect(body.ouv_interactions.items.map((item) => item.titulo)).toEqual([
+      'Visita',
+      'Llamada inicial',
+    ]);
+    expect(body.ouv_interactions.items[0]).toMatchObject({
+      ouv_interaction_id: 'bit_2',
+      observaciones: null,
+      etiquetas: ['OUV Perdida', 'Motivo: Precio'],
+      fecha_registrada: '2026-09-01T10:00:00.000Z',
+      registrado_por: { ref: 'user_1', display_name: 'Carlos Ruiz' },
+      hilos: [],
+    });
+    expect(
+      body.ouv_interactions.items[1].hilos.map((reply) => reply.titulo),
+    ).toEqual(['Acuse', 'Seguimiento']);
+    expect(JSON.stringify(body)).not.toContain('De otra OUV');
+    assertReadOnly(harness);
   });
 
   it('la misma lectura produce el mismo ETag y no escribe', async () => {
