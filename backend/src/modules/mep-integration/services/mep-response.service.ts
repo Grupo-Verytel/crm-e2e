@@ -174,6 +174,7 @@ export class MepResponseService {
             existingResponseId: aggregate?.responseId ?? null,
             currentVersion,
             currentMilestone,
+            serviceHorizon: interaction.serviceHorizon,
           });
 
           const beforeState = aggregate

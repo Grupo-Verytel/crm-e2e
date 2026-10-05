@@ -1,18 +1,26 @@
-import { useEffect, useState, type MouseEvent, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useState,
+  type MouseEvent,
+  type ReactNode,
+} from 'react';
 import { ChevronDown, ChevronRight, Copy, ExternalLink } from 'lucide-react';
 import type { Ouv } from '../api/ouvs-api';
+import { fetchSolicitudesPreventa } from '../api/solicitudes-preventa-api';
 import {
   SOLICITUD_PREVENTA_FIELDS,
-  mockFechaCierreIso,
-  mockFechaEntregaIso,
-  mockPreventaAsignado,
   mockPlannetInteractionUrl,
   mockRouteCapacityUrl,
-  mockTipoInteraccionForCombo,
-  normalizePreventaTipoInteraccion,
   resolveServiceSharePoint,
   type ServiceCard,
 } from '../lib/opportunity-context-fields';
+import {
+  buildHistoryFromSolicitud,
+  derivarEstadoServicio,
+  mapSolicitudPreventaToRecord,
+} from '../lib/solicitud-preventa-mapper';
+import { labelTipoInteraccionPreventa } from '../lib/preventa-vocab';
 import { externalResourceDisplayName } from '../lib/sharepoint-document';
 import { ModalShell } from './ModalShell';
 import {
@@ -35,11 +43,12 @@ type Props = {
   readOnly?: boolean;
 };
 
-const STORAGE_PREFIX = 'crm-ouv-solicitudes-preventa-v4-';
-
 const MEP_STATUS_CLASS: Record<MepSolicitudStatus, string> = {
   Aceptado: 'bg-brand text-white',
+  'En progreso': 'bg-accent/80 text-white',
+  'Parcialmente completo': 'bg-warning text-ink',
   Completado: 'bg-success text-white',
+  Cancelado: 'bg-border text-muted',
   Rechazado: 'bg-danger text-white',
   Pendiente: 'bg-border text-muted',
 };
@@ -47,15 +56,11 @@ const MEP_STATUS_CLASS: Record<MepSolicitudStatus, string> = {
 function normalizeMepStatus(
   status: string | null | undefined,
 ): MepSolicitudStatus {
-  if (status === 'Aprobado' || status === 'Completado') {
-    return 'Completado';
+  if (status && status in MEP_STATUS_CLASS) {
+    return status as MepSolicitudStatus;
   }
-  if (
-    status === 'Aceptado' ||
-    status === 'Rechazado' ||
-    status === 'Pendiente'
-  ) {
-    return status;
+  if (status === 'Aprobado') {
+    return 'Completado';
   }
   return 'Pendiente';
 }
@@ -69,61 +74,7 @@ function MepStatusBadge({ status }: { status: MepSolicitudStatus }) {
   );
 }
 
-function loadSolicitudes(ouvId: string): SolicitudPreventaRecord[] {
-  try {
-    const raw = localStorage.getItem(`${STORAGE_PREFIX}${ouvId}`);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as SolicitudPreventaRecord[];
-    const items = parsed.map((item) => ({
-      ...item,
-      mepStatus: normalizeMepStatus(item.mepStatus),
-      preventaAsignado: item.preventaAsignado ?? null,
-      observaciones: item.observaciones ?? '',
-      viabilidad: item.viabilidad ?? null,
-      tipoInteraccion: normalizePreventaTipoInteraccion(
-        item.tipoInteraccion,
-        item.tipoId && item.priority
-          ? mockTipoInteraccionForCombo(item.priority, item.tipoId)
-          : 'TIPO-POR-ESPECIFICAR',
-      ),
-      fechaCierre: item.fechaCierre ?? null,
-    }));
-    localStorage.setItem(`${STORAGE_PREFIX}${ouvId}`, JSON.stringify(items));
-    return items;
-  } catch {
-    return [];
-  }
-}
-
-function saveSolicitudes(ouvId: string, items: SolicitudPreventaRecord[]): void {
-  localStorage.setItem(`${STORAGE_PREFIX}${ouvId}`, JSON.stringify(items));
-}
-
 type DetailTab = 'informacion' | 'historico';
-
-type PreventaHistoryDetail = {
-  accion: string;
-  resultado: string;
-  origen: string;
-  notas: string;
-  registrado: string;
-};
-
-type PreventaHistoryEntry = {
-  version: string;
-  actor: string;
-  message: string;
-  detail: PreventaHistoryDetail;
-};
-
-function offsetIso(createdAt: string, hours: number): string {
-  const d = new Date(createdAt);
-  if (Number.isNaN(d.getTime())) {
-    return new Date().toISOString();
-  }
-  d.setHours(d.getHours() + hours);
-  return d.toISOString();
-}
 
 const detailTabClass = (active: boolean) =>
   [
@@ -132,105 +83,6 @@ const detailTabClass = (active: boolean) =>
       ? 'border-accent font-bold text-accent'
       : 'border-transparent text-muted hover:text-accent',
   ].join(' ');
-
-function buildPreventaHistory(
-  item: SolicitudPreventaRecord,
-  service: ServiceCard,
-  asignado: string,
-): PreventaHistoryEntry[] {
-  const created = item.createdAt;
-  const entries: PreventaHistoryEntry[] = [
-    {
-      version: 'v1',
-      actor: 'MEP-LEAN',
-      message: 'La interacción fue recibida por MEP-LEAN.',
-      detail: {
-        accion: 'Recepción de la solicitud',
-        resultado: 'La interacción quedó en cola de MEP-LEAN.',
-        origen: 'Canal MEP-LEAN',
-        notas: `Acuse automático de ${service.label}. Referencia ${item.interactionRef}.`,
-        registrado: offsetIso(created, 0),
-      },
-    },
-  ];
-  if (item.mepStatus === 'Pendiente') {
-    return entries;
-  }
-
-  entries.push({
-    version: 'v2',
-    actor: 'Ingeniero Preventa',
-    message: 'Se asignó ingeniero de preventa a la interacción.',
-    detail: {
-      accion: 'Asignación de ingeniero',
-      resultado: `Se asignó a ${asignado}.`,
-      origen: 'Mesa de Preventa',
-      notas: 'El ingeniero queda como responsable de la evaluación técnica.',
-      registrado: offsetIso(created, 4),
-    },
-  });
-  if (item.mepStatus === 'Aceptado') {
-    return [...entries].reverse();
-  }
-
-  entries.push({
-    version: 'v3',
-    actor: 'Ingeniero Preventa',
-    message:
-      service.service === 'FINANCIAL_DESIGN'
-        ? 'Ruta financiera y capacidad planificada quedaron registradas.'
-        : 'Ruta viable V1, ETA y capacidad planificada quedaron registradas.',
-    detail: {
-      accion: 'Evaluación de ruta y capacidad',
-      resultado:
-        service.service === 'FINANCIAL_DESIGN'
-          ? 'Quedó registrada la ruta financiera y la capacidad planificada.'
-          : 'Quedaron registradas la ruta viable V1, el ETA y la capacidad planificada.',
-      origen: asignado,
-      notas: 'Se documentó el hallazgo en la pista técnica de la solicitud.',
-      registrado: offsetIso(created, 28),
-    },
-  });
-  if (item.mepStatus === 'Rechazado') {
-    entries.push({
-      version: 'v4',
-      actor: 'Ingeniero Preventa',
-      message: 'La solicitud fue rechazada por Preventa.',
-      detail: {
-        accion: 'Dictamen de viabilidad',
-        resultado: 'No viable. La solicitud fue rechazada por Preventa.',
-        origen: asignado,
-        notas: 'No se emite diseño. Revisa observaciones y el historial de acuses.',
-        registrado: offsetIso(created, 36),
-      },
-    });
-    return [...entries].reverse();
-  }
-
-  entries.push({
-    version: 'v5',
-    actor: 'Ingeniero Preventa',
-    message:
-      item.tipoId === 'technical_and_financial'
-        ? 'Diseño técnico y financiero entregados; interacción cerrada.'
-        : service.service === 'FINANCIAL_DESIGN'
-          ? 'Diseño financiero entregado; interacción cerrada.'
-          : 'Diseño técnico entregado; interacción cerrada.',
-    detail: {
-      accion: 'Entrega de diseño y cierre',
-      resultado:
-        item.tipoId === 'technical_and_financial'
-          ? 'Se entregaron el diseño técnico y el financiero. Interacción cerrada.'
-          : service.service === 'FINANCIAL_DESIGN'
-            ? 'Se entregó el diseño financiero. Interacción cerrada.'
-            : 'Se entregó el diseño técnico. Interacción cerrada.',
-      origen: asignado,
-      notas: 'El documento de Preventa queda vinculado a esta solicitud.',
-      registrado: offsetIso(created, 48),
-    },
-  });
-  return [...entries].reverse();
-}
 
 function formatFieldValue(key: string, value: string): string {
   if (!value) {
@@ -250,62 +102,42 @@ function formatDateTimeValue(value: string): string {
 }
 
 function resolvePreventaAsignado(item: SolicitudPreventaRecord): string {
-  if (item.preventaAsignado) {
-    return item.preventaAsignado;
+  const name = item.api.asignacion?.engineer.display_name?.trim();
+  if (name) {
+    return name;
   }
-  if ((item.mepStatus ?? 'Pendiente') === 'Pendiente') {
-    return 'Sin asignar';
-  }
-  return mockPreventaAsignado(item.id);
+  return 'Sin asignar';
 }
 
 function resolveFechaEntrega(item: SolicitudPreventaRecord): string {
-  const raw = item.values?.etag || item.etag || '';
+  const raw = item.api.estado.eta_date;
   if (raw) {
     return formatDateTimeValue(raw);
   }
-  if ((item.mepStatus ?? 'Pendiente') === 'Pendiente') {
-    return '—';
-  }
-  return formatDateTimeValue(mockFechaEntregaIso(item.createdAt));
+  return '—';
 }
 
 function resolveFechaCierre(item: SolicitudPreventaRecord): string {
-  if (item.fechaCierre) {
-    return formatDateTimeValue(item.fechaCierre);
-  }
-  const status = item.mepStatus ?? 'Pendiente';
-  if (status === 'Completado' || status === 'Rechazado') {
-    return formatDateTimeValue(mockFechaCierreIso(item.createdAt));
+  if (item.api.estado.fecha_cierre) {
+    return formatDateTimeValue(item.api.estado.fecha_cierre);
   }
   return '—';
 }
 
 function resolveTipoInteraccion(item: SolicitudPreventaRecord): string {
-  return normalizePreventaTipoInteraccion(
-    item.tipoInteraccion,
-    mockTipoInteraccionForCombo(item.priority, item.tipoId),
-  );
+  return labelTipoInteraccionPreventa(item.api.clasificacion_entregada);
 }
 
-function resolveObservaciones(
-  item: SolicitudPreventaRecord,
-  history: PreventaHistoryEntry[],
-): string {
-  if (item.observaciones?.trim()) {
-    return item.observaciones;
+function resolveObservaciones(item: SolicitudPreventaRecord): string {
+  const note = item.api.narrativa[0]?.narrative_note?.trim();
+  if (note) {
+    return note;
   }
-  return history[0]?.message ?? 'Sin observaciones.';
+  return item.api.source_content?.trim() || 'Sin observaciones.';
 }
 
 function resolveViabilidad(item: SolicitudPreventaRecord): ViabilidadPreventa | null {
-  if (item.viabilidad) {
-    return item.viabilidad;
-  }
-  if ((item.mepStatus ?? 'Pendiente') === 'Pendiente') {
-    return null;
-  }
-  return item.mepStatus === 'Rechazado' ? 'No viable' : 'Viable';
+  return item.viabilidad;
 }
 
 const DETAIL_INFO_FIELDS = SOLICITUD_PREVENTA_FIELDS;
@@ -436,12 +268,12 @@ function ServiceCardView({
   const active = card.state === 'active';
   const showResponse = item.status === 'ENVIADA';
   const interactionRef = item.interactionRef || item.values.crm_interaction_ref;
-  const plannetUrl = mockPlannetInteractionUrl(
-    interactionRef,
-    consecutivo,
-    card.service,
-  );
-  const routeCapacityUrl = mockRouteCapacityUrl(interactionRef, card.service);
+  const plannetUrl =
+    item.api.planner_url ??
+    mockPlannetInteractionUrl(interactionRef, consecutivo, card.service);
+  const routeCapacityUrl =
+    item.api.ruta_capacidad?.registro_url ??
+    mockRouteCapacityUrl(interactionRef, card.service);
   const tipoInteraccion = resolveTipoInteraccion(item);
   const documento = resolveServiceSharePoint(consecutivo, card);
   const viabilidadDocLabel =
@@ -543,11 +375,11 @@ function SolicitudDetailModal({
   const [selectedVersion, setSelectedVersion] = useState<string | null>(null);
   const sharepoint = resolveServiceSharePoint(consecutivo, service);
   const preventaAsignado = resolvePreventaAsignado(item);
-  const history = buildPreventaHistory(item, service, preventaAsignado);
+  const history = buildHistoryFromSolicitud(item.api);
   const fechaEntrega = resolveFechaEntrega(item);
   const tipoInteraccion = resolveTipoInteraccion(item);
   const fechaCierre = resolveFechaCierre(item);
-  const observaciones = resolveObservaciones(item, history);
+  const observaciones = resolveObservaciones(item);
   const viabilidad = resolveViabilidad(item);
   const showRespuesta = item.status === 'ENVIADA';
   const selectedEntry =
@@ -738,7 +570,7 @@ function SolicitudDetailModal({
                 ) : (
                   <ChevronRight size={14} aria-hidden />
                 )}
-                Pista técnica · {history.length} acuse(s)
+                Pista técnica · {item.api.pista_tecnica.length} acuse(s)
               </button>
               {pistaOpen ? (
                 <div className="space-y-2 border-t border-border px-3 py-3 text-sm">
@@ -804,15 +636,11 @@ function SolicitudDetailModal({
 function SolicitudListItem({
   item,
   consecutivo,
-  onDelete,
   onOpenService,
-  readOnly,
 }: {
   item: SolicitudPreventaRecord;
   consecutivo: string;
-  onDelete: () => void;
   onOpenService: (service: ServiceCard) => void;
-  readOnly?: boolean;
 }) {
   const services = item.services ?? [];
   const showPair = services.length > 1;
@@ -832,11 +660,6 @@ function SolicitudListItem({
             {new Date(item.createdAt).toLocaleString('es-CO')}
           </span>
         </div>
-        {readOnly ? null : (
-          <button type="button" className={ghostButtonClass} onClick={onDelete}>
-            Eliminar
-          </button>
-        )}
       </div>
 
       {showPair ? (
@@ -863,7 +686,9 @@ function SolicitudListItem({
               item={item}
               consecutivo={consecutivo}
               card={card}
-              mepStatus={item.mepStatus ?? 'Pendiente'}
+              mepStatus={derivarEstadoServicio(
+                item.api.servicios.find((s) => s.service === card.service),
+              )}
               onOpen={() => onOpenService(card)}
             />
           ))}
@@ -874,7 +699,9 @@ function SolicitudListItem({
             item={item}
             consecutivo={consecutivo}
             card={services[0]}
-            mepStatus={item.mepStatus ?? 'Pendiente'}
+            mepStatus={derivarEstadoServicio(
+              item.api.servicios.find((s) => s.service === services[0].service),
+            )}
             onOpen={() => onOpenService(services[0])}
           />
         </div>
@@ -890,6 +717,8 @@ export function PreventaActivityPanel({
   readOnly = false,
 }: Props) {
   const [items, setItems] = useState<SolicitudPreventaRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [detail, setDetail] = useState<{
     item: SolicitudPreventaRecord;
@@ -899,32 +728,44 @@ export function PreventaActivityPanel({
     null,
   );
 
+  const reload = useCallback(async () => {
+    try {
+      const data = await fetchSolicitudesPreventa(ouv.ouv_id);
+      setItems(data.map(mapSolicitudPreventaToRecord));
+      setLoadError(null);
+    } catch {
+      setLoadError('No se pudieron cargar las solicitudes de Preventa.');
+    } finally {
+      setLoading(false);
+    }
+  }, [ouv.ouv_id]);
+
   useEffect(() => {
-    setItems(loadSolicitudes(ouv.ouv_id));
+    setLoading(true);
     setModalOpen(false);
     setDetail(null);
     setToast(null);
-  }, [ouv.ouv_id]);
+    void reload();
+  }, [reload]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      void reload();
+    }, 30_000);
+    return () => window.clearInterval(timer);
+  }, [reload]);
 
   function handleResult(result: {
     ok: boolean;
     message: string;
-    record?: SolicitudPreventaRecord;
+    created?: import('../api/solicitudes-preventa-api').SolicitudPreventa;
   }) {
-    if (result.ok && result.record) {
-      const list = [result.record, ...items];
-      setItems(list);
-      saveSolicitudes(ouv.ouv_id, list);
+    if (result.ok) {
       setModalOpen(false);
+      void reload();
     }
     setToast({ ok: result.ok, message: result.message });
     window.setTimeout(() => setToast(null), 4500);
-  }
-
-  function handleDelete(id: string) {
-    const list = items.filter((i) => i.id !== id);
-    setItems(list);
-    saveSolicitudes(ouv.ouv_id, list);
   }
 
   return (
@@ -947,6 +788,12 @@ export function PreventaActivityPanel({
         )}
       </div>
 
+      {loadError ? (
+        <p className="mb-3 text-sm text-danger" role="alert">
+          {loadError}
+        </p>
+      ) : null}
+
       {toast ? (
         <FloatingToast
           message={toast.message}
@@ -955,7 +802,11 @@ export function PreventaActivityPanel({
         />
       ) : null}
 
-      {items.length === 0 ? (
+      {loading ? (
+        <p className="rounded border border-dashed border-border bg-bg px-3 py-8 text-center text-sm text-muted">
+          Cargando solicitudes…
+        </p>
+      ) : items.length === 0 ? (
         <p className="rounded border border-dashed border-border bg-bg px-3 py-8 text-center text-sm text-muted">
           {readOnly
             ? 'Aún no hay solicitudes de Preventa para esta OUV.'
@@ -968,8 +819,6 @@ export function PreventaActivityPanel({
               key={item.id}
               item={item}
               consecutivo={ouv.consecutivo}
-              readOnly={readOnly}
-              onDelete={() => handleDelete(item.id)}
               onOpenService={(service) => setDetail({ item, service })}
             />
           ))}
@@ -980,6 +829,7 @@ export function PreventaActivityPanel({
         <SolicitudPreventaModal
           ouv={ouv}
           commercialOwnerName={commercialOwnerName}
+          existingSolicitudes={items.map((row) => row.api)}
           onClose={() => setModalOpen(false)}
           onResult={handleResult}
         />

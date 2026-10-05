@@ -1,4 +1,8 @@
-import { BusinessMilestone, ResponseStatus } from './enums';
+import {
+  BusinessMilestone,
+  ResponseStatus,
+  ServiceHorizon,
+} from './enums';
 
 /**
  * Máquina de los 4 hitos comerciales — §7.1, INV-16.
@@ -56,12 +60,32 @@ export function requiresAssignment(milestone: BusinessMilestone): boolean {
   );
 }
 
-/** ¿El hito exige `route_capacity`, `eta_date` y su URL de registro? */
+/** ¿El hito exige `route_capacity` y su URL de registro? */
 export function requiresRouteCapacity(milestone: BusinessMilestone): boolean {
   return (
     milestoneRank(milestone) >=
     milestoneRank(BusinessMilestone.ROUTE_CAPACITY_REGISTERED)
   );
+}
+
+/**
+ * ¿Exige `eta_date` comercial comprometido? DEFERRED (SOMBRA) may register
+ * route/capacity at ROUTE_CAPACITY_REGISTERED without a commercial ETA yet.
+ */
+export function requiresCommercialEtaDate(
+  milestone: BusinessMilestone,
+  serviceHorizon: ServiceHorizon,
+): boolean {
+  if (!requiresRouteCapacity(milestone)) {
+    return false;
+  }
+  if (
+    serviceHorizon === ServiceHorizon.DEFERRED &&
+    milestone === BusinessMilestone.ROUTE_CAPACITY_REGISTERED
+  ) {
+    return false;
+  }
+  return true;
 }
 
 export { MILESTONE_ORDER };

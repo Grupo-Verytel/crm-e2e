@@ -957,7 +957,11 @@ components:
         business_milestone: { $ref: '#/components/schemas/BusinessMilestone' }
         response_status: { $ref: '#/components/schemas/ResponseStatus' }
         eta_date:
-          description: Un único ETA global por interacción. Obligatorio desde `ROUTE_CAPACITY_REGISTERED`.
+          description: |
+            ETA comercial global (único por interacción). Obligatorio desde
+            `ROUTE_CAPACITY_REGISTERED` para `IMMEDIATE` y `UNSPECIFIED`. Para
+            `DEFERRED` (SOMBRA) puede ser `null` al registrar ruta/capacidad;
+            obligatorio en hitos posteriores que exijan entrega comprometida.
           type: [string, 'null']
           format: date
         next_milestone: { type: [string, 'null'], maxLength: 512 }
