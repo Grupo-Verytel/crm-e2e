@@ -9,7 +9,7 @@ import { ApiError } from '../../auth/types';
 import {
   ACTIVITY_PRIORITY_OPTIONS,
   SERVICE_COMBOS,
-  SOLICITUD_PREVENTA_FIELDS,
+  SOLICITUD_PREVENTA_CREATE_FORM_FIELDS,
   type ActivityPriority,
   type ServiceCard,
   type ServiceComboId,
@@ -81,6 +81,16 @@ const PRIORITY_ICONS: Record<ActivityPriority, LucideIcon> = {
   SOMBRA: Layers,
 };
 
+function formatSysdateForForm(date: Date): string {
+  return date.toLocaleString('es-CO', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
 function buildValues(
   ouv: Ouv,
   priority: ActivityPriority | null,
@@ -93,10 +103,9 @@ function buildValues(
     service_horizon: meta?.horizon ?? '',
     subject: '',
     source_content: '',
-    source_created_at: '',
+    source_created_at: formatSysdateForForm(new Date()),
     source_version: '1',
     etag: '',
-    sharepoint_document_url: '',
   };
 }
 
@@ -121,7 +130,25 @@ export function SolicitudPreventaModal({
     setSending(false);
   }, [ouv.ouv_id]);
 
+  useEffect(() => {
+    if (step !== 3) {
+      return;
+    }
+    setValues((prev) => ({
+      ...prev,
+      source_created_at: formatSysdateForForm(new Date()),
+    }));
+  }, [step]);
+
   const combo = SERVICE_COMBOS.find((c) => c.id === comboId) ?? null;
+
+  function goToSendStep() {
+    setValues((prev) => ({
+      ...prev,
+      source_created_at: formatSysdateForForm(new Date()),
+    }));
+    setStep(3);
+  }
 
   function patch(key: string, value: string) {
     setValues((prev) => ({ ...prev, [key]: value }));
@@ -159,8 +186,6 @@ export function SolicitudPreventaModal({
         service_combo: combo.id as ServiceCombo,
         subject: values.subject?.trim() || undefined,
         source_content: content,
-        sharepoint_document_url:
-          values.sharepoint_document_url?.trim() || undefined,
       });
       onResult({
         ok: true,
@@ -295,7 +320,7 @@ export function SolicitudPreventaModal({
               type="button"
               className={primaryButtonClass}
               disabled={!comboId}
-              onClick={() => setStep(3)}
+              onClick={goToSendStep}
             >
               Continuar
             </button>
@@ -335,7 +360,7 @@ export function SolicitudPreventaModal({
           ) : null}
 
           <div className="grid gap-3 sm:grid-cols-2">
-            {SOLICITUD_PREVENTA_FIELDS.map((field) => {
+            {SOLICITUD_PREVENTA_CREATE_FORM_FIELDS.map((field) => {
               const locked = Boolean(field.locked);
               const isTextarea = field.inputType === 'textarea';
               return (
@@ -376,19 +401,6 @@ export function SolicitudPreventaModal({
                 </div>
               );
             })}
-            <div className="sm:col-span-2">
-              <label className={labelClass} htmlFor="modal-sol-sharepoint">
-                Documento SharePoint (opcional)
-              </label>
-              <input
-                id="modal-sol-sharepoint"
-                type="url"
-                className={inputClass}
-                value={values.sharepoint_document_url ?? ''}
-                onChange={(e) => patch('sharepoint_document_url', e.target.value)}
-                placeholder="https://…/Documents/…"
-              />
-            </div>
           </div>
 
           <div className="mt-6 flex justify-between gap-2">
