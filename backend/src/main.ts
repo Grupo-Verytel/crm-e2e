@@ -2,16 +2,46 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
-import { RequestMethod } from '@nestjs/common';
+import { Logger, RequestMethod } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { IoAdapter } from '@nestjs/platform-socket.io';
 import { AppModule } from './app.module';
 import { CrmValidationPipe } from './config/crm-validation.pipe';
+import { isDatabaseUnavailableError } from './modules/auth/lib/is-database-unavailable-error';
 import {
   mepBodyParserErrorHandler,
   mepJsonBodyParser,
 } from './modules/mep-integration/middleware/mep-body-limit';
 import { MEP_CONTRACT_ROUTES } from './modules/mep-integration/mep-contract-routes';
+
+const processLogger = new Logger('Process');
+let lastDatabaseWarnAt = 0;
+
+/**
+ * Sequelize rejects the first MySQL connect on a floating promise when the
+ * host cannot be resolved. Without this listener Node exits, and `start:dev`
+ * restarts into the same request. The HTTP call still fails; the process stays up.
+ */
+process.on('unhandledRejection', (reason) => {
+  if (isDatabaseUnavailableError(reason)) {
+    const now = Date.now();
+    if (now - lastDatabaseWarnAt > 15_000) {
+      lastDatabaseWarnAt = now;
+      const message =
+        reason instanceof Error ? reason.message : 'connection failed';
+      processLogger.warn(
+        `Database unreachable (${message}). Check DB_HOST and the VPN.`,
+      );
+    }
+    return;
+  }
+
+  processLogger.error(
+    'Unhandled rejection',
+    reason instanceof Error ? reason.stack : String(reason),
+  );
+  process.exit(1);
+});
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);

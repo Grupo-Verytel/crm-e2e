@@ -44,23 +44,45 @@ async function refreshAccessToken(): Promise<string | null> {
   return tokens.access_token;
 }
 
-async function getValidAccessToken(retry: boolean): Promise<string | null> {
+function isAccessTokenExpired(token: string): boolean {
+  const payload = token.split('.')[1];
+  if (!payload) return true;
+  try {
+    const normalized = payload.replace(/-/g, '+').replace(/_/g, '/');
+    const json = JSON.parse(atob(normalized)) as { exp?: number };
+    if (typeof json.exp !== 'number') return false;
+    return json.exp * 1000 <= Date.now() + 15_000;
+  } catch {
+    return true;
+  }
+}
+
+/** Access token still valid, or a new one from the refresh token. */
+export async function ensureFreshAccessToken(): Promise<string | null> {
   const accessToken = getAccessToken();
-  if (accessToken) {
+  if (accessToken && !isAccessTokenExpired(accessToken)) {
     return accessToken;
   }
-
-  if (!retry) {
+  if (!getRefreshToken()) {
     return null;
   }
-
   if (!refreshPromise) {
     refreshPromise = refreshAccessToken().finally(() => {
       refreshPromise = null;
     });
   }
-
   return refreshPromise;
+}
+
+async function getValidAccessToken(retry: boolean): Promise<string | null> {
+  const accessToken = getAccessToken();
+  if (accessToken && !isAccessTokenExpired(accessToken)) {
+    return accessToken;
+  }
+  if (!retry) {
+    return null;
+  }
+  return ensureFreshAccessToken();
 }
 
 export async function apiRequest<T>(

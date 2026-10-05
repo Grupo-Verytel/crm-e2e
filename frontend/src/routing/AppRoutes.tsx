@@ -42,6 +42,9 @@ const QualificationDashboardPage = lazy(
 const OuvsBoardPage = lazy(
   () => import('../modules/discovery/pages/OuvsBoardPageLazy'),
 );
+const OuvDashboardPage = lazy(
+  () => import('../modules/discovery/pages/OuvDashboardPageLazy'),
+);
 const OuvDetailPage = lazy(
   () => import('../modules/discovery/pages/OuvDetailPageLazy'),
 );
@@ -115,6 +118,14 @@ export function AppRoutes() {
       element: (
         <ProtectedRoute>
           <OuvsBoardPage />
+        </ProtectedRoute>
+      ),
+    },
+    {
+      path: '/opportunities/dashboard',
+      element: (
+        <ProtectedRoute>
+          <OuvDashboardPage />
         </ProtectedRoute>
       ),
     },

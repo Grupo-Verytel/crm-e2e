@@ -59,9 +59,12 @@ export class NotificationsGateway
       await client.join(`user:${userId}`);
       this.logger.debug(`WS connected user:${userId} socket:${client.id}`);
     } catch (error) {
-      this.logger.warn(
-        `WS handshake rejected: ${error instanceof Error ? error.message : 'unknown'}`,
-      );
+      const message = error instanceof Error ? error.message : 'unknown';
+      if (message === 'jwt expired') {
+        this.logger.debug(`WS handshake rejected: ${message}`);
+      } else {
+        this.logger.warn(`WS handshake rejected: ${message}`);
+      }
       client.disconnect(true);
     }
   }
