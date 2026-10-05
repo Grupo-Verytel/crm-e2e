@@ -10,15 +10,14 @@ import type { Ouv } from '../api/ouvs-api';
 import { fetchSolicitudesPreventa } from '../api/solicitudes-preventa-api';
 import {
   SOLICITUD_PREVENTA_FIELDS,
-  mockPlannetInteractionUrl,
-  mockRouteCapacityUrl,
-  resolveServiceSharePoint,
   type ServiceCard,
 } from '../lib/opportunity-context-fields';
 import {
   buildHistoryFromSolicitud,
+  collectDocumentosForService,
   derivarEstadoServicio,
   mapSolicitudPreventaToRecord,
+  type DocumentoLink,
 } from '../lib/solicitud-preventa-mapper';
 import { labelTipoInteraccionPreventa } from '../lib/preventa-vocab';
 import { externalResourceDisplayName } from '../lib/sharepoint-document';
@@ -148,15 +147,33 @@ const fieldValueClass =
 function SharePointDocumentField({
   url,
   nombre,
+  emptyLabel = 'Sin documento vinculado',
 }: {
-  url: string;
-  nombre: string;
+  url: string | null | undefined;
+  nombre?: string;
+  emptyLabel?: string;
 }) {
   const [copied, setCopied] = useState(false);
+  const trimmed = url?.trim();
+  if (!trimmed) {
+    return (
+      <p
+        className={`${fieldValueClass} text-muted`}
+        aria-disabled="true"
+      >
+        {emptyLabel}
+      </p>
+    );
+  }
+  const href: string = trimmed;
+
+  const displayName =
+    nombre?.trim() ||
+    externalResourceDisplayName(href, undefined);
 
   async function handleCopy() {
     try {
-      await navigator.clipboard.writeText(url);
+      await navigator.clipboard.writeText(href);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 2000);
     } catch {
@@ -167,13 +184,13 @@ function SharePointDocumentField({
   return (
     <div className="group relative w-full max-w-full">
       <a
-        href={url}
+        href={href}
         target="_blank"
         rel="noopener noreferrer"
         className="inline-flex min-h-9 w-full max-w-full items-center gap-2 rounded border border-border bg-surface px-3 py-2 text-left text-sm font-bold text-accent hover:underline"
       >
         <ExternalLink size={15} aria-hidden />
-        <span className="truncate text-accent">{nombre}</span>
+        <span className="truncate text-accent">{displayName}</span>
       </a>
       <button
         type="button"
@@ -192,22 +209,101 @@ function SharePointDocumentField({
   );
 }
 
+function DocumentoLinkList({
+  items,
+  emptyLabel = 'Sin documento vinculado',
+}: {
+  items: DocumentoLink[];
+  emptyLabel?: string;
+}) {
+  if (items.length === 0) {
+    return (
+      <p className={`${fieldValueClass} text-muted`} aria-disabled="true">
+        {emptyLabel}
+      </p>
+    );
+  }
+
+  return (
+    <ul className="space-y-2" aria-label="Documentos vinculados">
+      {items.map((doc) => (
+        <li key={doc.url}>
+          <SharePointDocumentField url={doc.url} nombre={doc.label} />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function ViabilidadDocumentoLinks({
+  items,
+  fieldLabel,
+}: {
+  items: DocumentoLink[];
+  fieldLabel: string;
+}) {
+  if (items.length === 0) {
+    return (
+      <span className="text-muted" aria-disabled="true">
+        Sin documento vinculado
+      </span>
+    );
+  }
+
+  if (items.length === 1) {
+    const doc = items[0];
+    return (
+      <CardPlannetLink
+        url={doc.url}
+        fieldLabel={fieldLabel}
+        linkText={doc.label}
+      />
+    );
+  }
+
+  return (
+    <ul className="space-y-1">
+      {items.map((doc) => (
+        <li key={doc.url}>
+          <CardPlannetLink
+            url={doc.url}
+            fieldLabel={fieldLabel}
+            linkText={doc.label}
+          />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function CardPlannetLink({
   url,
   fieldLabel,
   linkText,
+  emptyLabel = '—',
 }: {
-  url: string;
+  url: string | null | undefined;
   fieldLabel: string;
   linkText?: string;
+  emptyLabel?: string;
 }) {
-  const displayText = externalResourceDisplayName(url, linkText);
+  const trimmed = url?.trim();
+  if (!trimmed) {
+    return (
+      <span className="text-muted" aria-disabled="true">
+        {emptyLabel}
+      </span>
+    );
+  }
+  const href: string = trimmed;
+
+  const displayText = externalResourceDisplayName(href, linkText);
 
   async function handleCopy(event: MouseEvent<HTMLButtonElement>) {
     event.preventDefault();
     event.stopPropagation();
     try {
-      await navigator.clipboard.writeText(url);
+      await navigator.clipboard.writeText(href);
     } catch {
       /* ignore */
     }
@@ -216,11 +312,11 @@ function CardPlannetLink({
   return (
     <span className="group/link inline-flex max-w-full items-center gap-1">
       <a
-        href={url}
+        href={href}
         target="_blank"
         rel="noopener noreferrer"
         className="min-w-0 truncate font-bold text-accent hover:underline"
-        title={url}
+        title={href}
         onClick={(event) => event.stopPropagation()}
       >
         {displayText}
@@ -254,13 +350,11 @@ function CardInfoRow({
 
 function ServiceCardView({
   item,
-  consecutivo,
   card,
   mepStatus,
   onOpen,
 }: {
   item: SolicitudPreventaRecord;
-  consecutivo: string;
   card: ServiceCard;
   mepStatus: MepSolicitudStatus;
   onOpen: () => void;
@@ -268,14 +362,10 @@ function ServiceCardView({
   const active = card.state === 'active';
   const showResponse = item.status === 'ENVIADA';
   const interactionRef = item.interactionRef || item.values.crm_interaction_ref;
-  const plannetUrl =
-    item.api.planner_url ??
-    mockPlannetInteractionUrl(interactionRef, consecutivo, card.service);
-  const routeCapacityUrl =
-    item.api.ruta_capacidad?.registro_url ??
-    mockRouteCapacityUrl(interactionRef, card.service);
+  const plannetUrl = item.api.planner_url ?? null;
+  const routeCapacityUrl = item.api.ruta_capacidad?.registro_url ?? null;
   const tipoInteraccion = resolveTipoInteraccion(item);
-  const documento = resolveServiceSharePoint(consecutivo, card);
+  const documentos = collectDocumentosForService(item.api, card.service);
   const viabilidadDocLabel =
     card.service === 'FINANCIAL_DESIGN'
       ? 'Viabilidad financiera'
@@ -340,15 +430,10 @@ function ServiceCardView({
             />
           </CardInfoRow>
           <CardInfoRow label={viabilidadDocLabel}>
-            {documento ? (
-              <CardPlannetLink
-                url={documento.url}
-                fieldLabel={viabilidadDocLabel}
-                linkText={documento.nombre}
-              />
-            ) : (
-              <span className="text-muted">Sin documento vinculado</span>
-            )}
+            <ViabilidadDocumentoLinks
+              items={documentos}
+              fieldLabel={viabilidadDocLabel}
+            />
           </CardInfoRow>
           <CardInfoRow label="Tipo de interacción">
             <span className="font-bold text-ink">{tipoInteraccion}</span>
@@ -362,18 +447,16 @@ function ServiceCardView({
 function SolicitudDetailModal({
   item,
   service,
-  consecutivo,
   onClose,
 }: {
   item: SolicitudPreventaRecord;
   service: ServiceCard;
-  consecutivo: string;
   onClose: () => void;
 }) {
   const [tab, setTab] = useState<DetailTab>('informacion');
   const [pistaOpen, setPistaOpen] = useState(false);
   const [selectedVersion, setSelectedVersion] = useState<string | null>(null);
-  const sharepoint = resolveServiceSharePoint(consecutivo, service);
+  const documentos = collectDocumentosForService(item.api, service.service);
   const preventaAsignado = resolvePreventaAsignado(item);
   const history = buildHistoryFromSolicitud(item.api);
   const fechaEntrega = resolveFechaEntrega(item);
@@ -500,18 +583,9 @@ function SolicitudDetailModal({
                     <p className={labelClass}>Viabilidad</p>
                     <p className={fieldValueClass}>{viabilidad ?? '—'}</p>
                   </div>
-                  <div>
-                    <p className={labelClass}>Documento</p>
-                    {sharepoint ? (
-                      <SharePointDocumentField
-                        url={sharepoint.url}
-                        nombre={sharepoint.nombre}
-                      />
-                    ) : (
-                      <p className={`${fieldValueClass} text-muted`}>
-                        Sin documento vinculado
-                      </p>
-                    )}
+                  <div className="sm:col-span-2">
+                    <p className={labelClass}>Documentos</p>
+                    <DocumentoLinkList items={documentos} />
                   </div>
                 </div>
               </div>
@@ -635,11 +709,9 @@ function SolicitudDetailModal({
 
 function SolicitudListItem({
   item,
-  consecutivo,
   onOpenService,
 }: {
   item: SolicitudPreventaRecord;
-  consecutivo: string;
   onOpenService: (service: ServiceCard) => void;
 }) {
   const services = item.services ?? [];
@@ -684,7 +756,6 @@ function SolicitudListItem({
             <ServiceCardView
               key={card.service}
               item={item}
-              consecutivo={consecutivo}
               card={card}
               mepStatus={derivarEstadoServicio(
                 item.api.servicios.find((s) => s.service === card.service),
@@ -697,7 +768,6 @@ function SolicitudListItem({
         <div className="max-w-sm">
           <ServiceCardView
             item={item}
-            consecutivo={consecutivo}
             card={services[0]}
             mepStatus={derivarEstadoServicio(
               item.api.servicios.find((s) => s.service === services[0].service),
@@ -818,7 +888,6 @@ export function PreventaActivityPanel({
             <SolicitudListItem
               key={item.id}
               item={item}
-              consecutivo={ouv.consecutivo}
               onOpenService={(service) => setDetail({ item, service })}
             />
           ))}
@@ -839,7 +908,6 @@ export function PreventaActivityPanel({
         <SolicitudDetailModal
           item={detail.item}
           service={detail.service}
-          consecutivo={ouv.consecutivo}
           onClose={() => setDetail(null)}
         />
       ) : null}
