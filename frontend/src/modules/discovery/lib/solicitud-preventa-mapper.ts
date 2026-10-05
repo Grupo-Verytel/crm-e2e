@@ -13,6 +13,12 @@ import {
   derivarMepStatus,
   type MepSolicitudStatus,
 } from './solicitud-preventa-rules';
+import { deliverableDisplayName } from './sharepoint-document';
+
+export type DocumentoLink = {
+  url: string;
+  label: string;
+};
 const MILESTONE_LABEL: Record<string, string> = {
   INTERACTION_RECEIVED: 'Interacción recibida',
   ENGINEER_ASSIGNED: 'Ingeniero asignado',
@@ -91,12 +97,11 @@ export function serviceCardsFromSolicitud(
     const state: ServiceCardState = resultado?.bloqueado_por_dependencia
       ? 'blocked'
       : 'active';
-    const deliverable = resultado?.entregables[0];
+    const deliverable = resultado?.entregables.find((d) => d.url?.trim());
     return {
       ...card,
       state,
-      sharepointUrl:
-        deliverable?.url ?? solicitud.sharepoint_document_url ?? null,
+      sharepointUrl: deliverable?.url ?? null,
       sharepointNombre: deliverable?.label ?? null,
     };
   });
@@ -198,6 +203,39 @@ export function buildHistoryFromSolicitud(
     }
     return tb - ta;
   });
+}
+
+/** Entregables MEP del servicio + adjunto comercial de la solicitud (sin duplicar URL). */
+export function collectDocumentosForService(
+  solicitud: SolicitudPreventa,
+  serviceName: string,
+): DocumentoLink[] {
+  const items: DocumentoLink[] = [];
+  const seen = new Set<string>();
+
+  function add(url: string | null | undefined, label: string | null | undefined) {
+    const trimmed = url?.trim();
+    if (!trimmed || seen.has(trimmed)) {
+      return;
+    }
+    seen.add(trimmed);
+    items.push({
+      url: trimmed,
+      label: deliverableDisplayName({ url: trimmed, label: label ?? null }),
+    });
+  }
+
+  const resultado = solicitud.servicios.find((s) => s.service === serviceName);
+  for (const entregable of resultado?.entregables ?? []) {
+    add(entregable.url, entregable.label);
+  }
+
+  add(
+    solicitud.sharepoint_document_url,
+    'Documento comercial adjunto',
+  );
+
+  return items;
 }
 
 export { derivarEstadoServicio };

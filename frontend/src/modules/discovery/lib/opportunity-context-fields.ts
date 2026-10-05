@@ -203,20 +203,19 @@ export function buildServiceCards(
 
 /** Resolve SharePoint doc for a service card (legacy records without stored URL). */
 export function resolveServiceSharePoint(
-  consecutivo: string,
+  _consecutivo: string,
   service: ServiceCard,
 ): { url: string; nombre: string } | null {
-  if (service.sharepointUrl) {
-    return {
-      url: service.sharepointUrl,
-      nombre: deliverableDisplayName({
-        url: service.sharepointUrl,
-        label: service.sharepointNombre,
-      }),
-    };
+  if (!service.sharepointUrl?.trim()) {
+    return null;
   }
-  if (service.state === 'blocked') return null;
-  return mockPreventaSharePoint(consecutivo, service.service);
+  return {
+    url: service.sharepointUrl,
+    nombre: deliverableDisplayName({
+      url: service.sharepointUrl,
+      label: service.sharepointNombre,
+    }),
+  };
 }
 
 export function mockInteractionRef(seed: string): string {
