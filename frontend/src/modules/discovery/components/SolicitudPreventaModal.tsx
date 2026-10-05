@@ -2,19 +2,24 @@ import { Clock3, Layers, type LucideIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type { Ouv } from '../api/ouvs-api';
 import {
+  crearSolicitudPreventa,
+  type SolicitudPreventa,
+} from '../api/solicitudes-preventa-api';
+import { ApiError } from '../../auth/types';
+import {
   ACTIVITY_PRIORITY_OPTIONS,
   SERVICE_COMBOS,
   SOLICITUD_PREVENTA_FIELDS,
-  buildServiceCards,
-  mockFechaCierreIso,
-  mockTipoInteraccionForCombo,
-  mockFechaEntregaIso,
-  mockInteractionRef,
-  mockPreventaAsignado,
   type ActivityPriority,
   type ServiceCard,
   type ServiceComboId,
 } from '../lib/opportunity-context-fields';
+import type { ServiceCombo } from '../lib/preventa-vocab';
+import {
+  comboTieneSolicitudActiva,
+  DUPLICATE_COMBO_MESSAGE,
+  type MepSolicitudStatus,
+} from '../lib/solicitud-preventa-rules';
 import { ModalShell } from './ModalShell';
 import {
   ghostButtonClass,
@@ -48,27 +53,23 @@ export type SolicitudPreventaRecord = {
   /** Respuesta MEP — visible en detalle, no en formulario de envío. */
   tipoInteraccion: string;
   fechaCierre: string | null;
+  /** Proyección API usada para listado y detalle. */
+  api: SolicitudPreventa;
 };
 
 export type ViabilidadPreventa = 'Viable' | 'No viable';
 
-export type MepSolicitudStatus = 'Aceptado' | 'Completado' | 'Rechazado' | 'Pendiente';
-
-const MEP_MOCK_STATUSES: MepSolicitudStatus[] = [
-  'Aceptado',
-  'Completado',
-  'Rechazado',
-  'Pendiente',
-];
+export type { MepSolicitudStatus };
 
 type Props = {
   ouv: Ouv;
   commercialOwnerName?: string;
+  existingSolicitudes: SolicitudPreventa[];
   onClose: () => void;
   onResult: (result: {
     ok: boolean;
     message: string;
-    record?: SolicitudPreventaRecord;
+    created?: SolicitudPreventa;
   }) => void;
 };
 
@@ -85,25 +86,24 @@ function buildValues(
   priority: ActivityPriority | null,
 ): FormValues {
   const meta = ACTIVITY_PRIORITY_OPTIONS.find((o) => o.id === priority);
-  const interactionRef = mockInteractionRef(`${ouv.ouv_id}:${Date.now()}`);
-  const version = '1';
   return {
-    crm_interaction_ref: interactionRef,
-    crm_opportunity_ref: ouv.ouv_id,
+    crm_interaction_ref: 'Se asigna al enviar',
+    crm_opportunity_ref: ouv.consecutivo,
     activity_type: meta?.activityType ?? '',
     service_horizon: meta?.horizon ?? '',
     subject: '',
     source_content: '',
-    source_created_at: new Date().toISOString().slice(0, 16),
-    source_version: version,
-    // MEP envía la fecha de respuesta cuando esté en roadmap; CRM no la edita.
+    source_created_at: '',
+    source_version: '1',
     etag: '',
+    sharepoint_document_url: '',
   };
 }
 
 /** Modal por fases: prioridad → tipo → campos → envío. */
 export function SolicitudPreventaModal({
   ouv,
+  existingSolicitudes,
   onClose,
   onResult,
 }: Props) {
@@ -139,67 +139,41 @@ export function SolicitudPreventaModal({
 
   async function handleSend() {
     if (!priority || !combo) return;
-    setSending(true);
-    await new Promise((r) => setTimeout(r, 900));
-    const ok = Math.random() > 0.15;
-    if (ok) {
-      const services = buildServiceCards(combo.id, {
-        consecutivo: ouv.consecutivo,
-        includeSharePoint: true,
-      });
-      const createdAt = new Date().toISOString();
-      const id = `sol-${Date.now()}`;
-      const mepStatus =
-        MEP_MOCK_STATUSES[
-          Math.floor(Math.random() * MEP_MOCK_STATUSES.length)
-        ]!;
-      const assigned =
-        mepStatus === 'Pendiente' ? null : mockPreventaAsignado(id);
-      const fechaEntrega =
-        mepStatus === 'Pendiente' ? '' : mockFechaEntregaIso(createdAt);
-      const fechaCierre =
-        mepStatus === 'Completado' || mepStatus === 'Rechazado'
-          ? mockFechaCierreIso(createdAt)
-          : null;
-      const tipoInteraccion = mockTipoInteraccionForCombo(priority, combo.id);
-      const record: SolicitudPreventaRecord = {
-        id,
-        priority,
-        tipoId: combo.id,
-        tipoNombre: combo.name,
-        subject: values.subject || '(Sin asunto)',
-        status: 'ENVIADA',
-        mepStatus,
-        interactionRef: values.crm_interaction_ref,
-        sourceVersion: values.source_version,
-        etag: fechaEntrega,
-        services,
-        sameContainer: combo.id === 'technical_and_financial',
-        values: { ...values, etag: fechaEntrega },
-        requestedServices: combo.services.map((s) => ({ ...s })),
-        createdAt,
-        preventaAsignado: assigned,
-        observaciones: '',
-        viabilidad:
-          mepStatus === 'Pendiente'
-            ? null
-            : mepStatus === 'Rechazado'
-              ? 'No viable'
-              : 'Viable',
-        tipoInteraccion,
-        fechaCierre,
-      };
-      onResult({
-        ok: true,
-        message: 'Envío exitoso a Preventa. La solicitud fue recibida por MEP.',
-        record,
-      });
-    } else {
+    const content = values.source_content ?? '';
+    if (!content.trim()) {
       onResult({
         ok: false,
-        message:
-          'Envío fallido. Preventa no pudo recibir la solicitud. Intenta de nuevo.',
+        message: 'El contenido de origen es obligatorio.',
       });
+      return;
+    }
+    if (comboTieneSolicitudActiva(existingSolicitudes, combo.id)) {
+      onResult({ ok: false, message: DUPLICATE_COMBO_MESSAGE });
+      return;
+    }
+
+    setSending(true);
+    try {
+      const created = await crearSolicitudPreventa(ouv.ouv_id, {
+        priority,
+        service_combo: combo.id as ServiceCombo,
+        subject: values.subject?.trim() || undefined,
+        source_content: content,
+        sharepoint_document_url:
+          values.sharepoint_document_url?.trim() || undefined,
+      });
+      onResult({
+        ok: true,
+        message:
+          'Solicitud registrada en el CRM. MEP-LEAN la recogerá en el siguiente ciclo.',
+        created,
+      });
+    } catch (error) {
+      const message =
+        error instanceof ApiError
+          ? error.message
+          : 'No se pudo crear la solicitud. Intenta de nuevo.';
+      onResult({ ok: false, message });
       setSending(false);
     }
   }
@@ -296,11 +270,18 @@ export function SolicitudPreventaModal({
             autoFocus
           >
             <option value="">Seleccionar…</option>
-            {SERVICE_COMBOS.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
+            {SERVICE_COMBOS.map((c) => {
+              const blocked = comboTieneSolicitudActiva(
+                existingSolicitudes,
+                c.id,
+              );
+              return (
+                <option key={c.id} value={c.id} disabled={blocked}>
+                  {c.name}
+                  {blocked ? ' (solicitud en curso)' : ''}
+                </option>
+              );
+            })}
           </select>
           <div className="mt-6 flex justify-between gap-2">
             <button
@@ -395,6 +376,19 @@ export function SolicitudPreventaModal({
                 </div>
               );
             })}
+            <div className="sm:col-span-2">
+              <label className={labelClass} htmlFor="modal-sol-sharepoint">
+                Documento SharePoint (opcional)
+              </label>
+              <input
+                id="modal-sol-sharepoint"
+                type="url"
+                className={inputClass}
+                value={values.sharepoint_document_url ?? ''}
+                onChange={(e) => patch('sharepoint_document_url', e.target.value)}
+                placeholder="https://…/Documents/…"
+              />
+            </div>
           </div>
 
           <div className="mt-6 flex justify-between gap-2">
@@ -409,7 +403,12 @@ export function SolicitudPreventaModal({
             <button
               type="button"
               className={primaryButtonClass}
-              disabled={sending || !priority || !combo}
+              disabled={
+                sending ||
+                !priority ||
+                !combo ||
+                comboTieneSolicitudActiva(existingSolicitudes, combo.id)
+              }
               onClick={() => void handleSend()}
             >
               {sending ? 'Enviando…' : 'Enviar a Preventa'}
