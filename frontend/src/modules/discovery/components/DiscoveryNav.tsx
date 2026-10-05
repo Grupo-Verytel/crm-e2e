@@ -27,6 +27,9 @@ export function DiscoveryNav({ showAdminTabs = true }: DiscoveryNavProps) {
       <NavLink to="/opportunities" end className={linkClass}>
         Bandeja OUV
       </NavLink>
+      <NavLink to="/opportunities/dashboard" end className={linkClass}>
+        Dashboard
+      </NavLink>
       <NavLink to="/opportunities/ganadas" end className={linkClass}>
         Oportunidades ganadas
       </NavLink>

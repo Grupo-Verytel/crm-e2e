@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from 'react';
 import { io, type Socket } from 'socket.io-client';
-import { getAccessToken } from '../../../lib/api/token-storage';
+import { ensureFreshAccessToken } from '../../../lib/api/http-client';
 import { emitInAppNotification } from '../../../lib/notification-events';
 import { useAuth } from '../hooks/useAuth';
 import {
@@ -102,36 +102,50 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const token = getAccessToken();
-    if (!token) {
-      return;
-    }
+    let cancelled = false;
+    let socket: Socket | null = null;
 
-    const socket = io(`${WS_BASE}/notifications`, {
-      auth: { token },
-      transports: ['websocket', 'polling'],
-    });
-    socketRef.current = socket;
+    void ensureFreshAccessToken().then((token) => {
+      if (cancelled || !token) return;
 
-    socket.on('notification', (payload: InAppNotification) => {
-      setItems((current) => {
-        if (current.some((n) => n.notification_id === payload.notification_id)) {
-          return current;
-        }
-        return [payload, ...current];
+      socket = io(`${WS_BASE}/notifications`, {
+        auth: (callback) => {
+          void ensureFreshAccessToken().then((next) => {
+            callback({ token: next ?? '' });
+          });
+        },
+        reconnectionAttempts: 5,
+        transports: ['websocket', 'polling'],
       });
-      setUnread((count) => count + 1);
-      showToast(payload.titulo, payload.mensaje);
-      emitInAppNotification({
-        event_type: payload.event_type,
-        entity_type: payload.entity_type,
-        entity_id: payload.entity_id,
-        titulo: payload.titulo,
+      socketRef.current = socket;
+
+      socket.on('connect_error', (error: Error) => {
+        if (/jwt|unauthorized|expired/i.test(error.message)) {
+          socket?.disconnect();
+        }
+      });
+
+      socket.on('notification', (payload: InAppNotification) => {
+        setItems((current) => {
+          if (current.some((n) => n.notification_id === payload.notification_id)) {
+            return current;
+          }
+          return [payload, ...current];
+        });
+        setUnread((count) => count + 1);
+        showToast(payload.titulo, payload.mensaje);
+        emitInAppNotification({
+          event_type: payload.event_type,
+          entity_type: payload.entity_type,
+          entity_id: payload.entity_id,
+          titulo: payload.titulo,
+        });
       });
     });
 
     return () => {
-      socket.disconnect();
+      cancelled = true;
+      socket?.disconnect();
       socketRef.current = null;
     };
   }, [user, showToast]);

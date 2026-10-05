@@ -11,6 +11,7 @@ import { MotivosDescarteController } from './controllers/motivos-descarte.contro
 import { MotivosPerdidaController } from './controllers/motivos-perdida.controller';
 import { OuvContactosController } from './controllers/ouv-contactos.controller';
 import { OuvInteraccionesController } from './controllers/ouv-interacciones.controller';
+import { OuvDashboardController } from './controllers/ouv-dashboard.controller';
 import { OuvsController } from './controllers/ouvs.controller';
 import { ZonaChecklistTemplatesController } from './controllers/zona-checklist-templates.controller';
 import { MotivoDescarte } from './models/motivo-descarte.model';
@@ -29,6 +30,7 @@ import { OuvChecklistService } from './services/ouv-checklist.service';
 import { OuvContactosService } from './services/ouv-contactos.service';
 import { OuvInfluenciasService } from './services/ouv-influencias.service';
 import { OuvInteraccionesService } from './services/ouv-interacciones.service';
+import { OuvDashboardService } from './services/ouv-dashboard.service';
 import { OuvMarketingMetricsService } from './services/ouv-marketing-metrics.service';
 import { OuvsService } from './services/ouvs.service';
 
@@ -55,6 +57,7 @@ import { OuvsService } from './services/ouvs.service';
   ],
   controllers: [
     OuvsController,
+    OuvDashboardController,
     OuvContactosController,
     OuvInteraccionesController,
     DiscoveryCatalogosController,
@@ -64,6 +67,7 @@ import { OuvsService } from './services/ouvs.service';
   ],
   providers: [
     OuvsService,
+    OuvDashboardService,
     OuvMarketingMetricsService,
     OuvContactosService,
     OuvInfluenciasService,
