@@ -4,6 +4,7 @@ import {
   ArrayMinSize,
   IsArray,
   IsDateString,
+  IsDefined,
   IsEnum,
   IsInt,
   IsNotEmpty,
@@ -167,6 +168,7 @@ export class PublishResponseDto {
   @IsDateString()
   responded_at!: string;
 
+  @IsDefined()
   @ValidateNested()
   @Type(() => ActorRefDto)
   responded_by!: ActorRefDto;

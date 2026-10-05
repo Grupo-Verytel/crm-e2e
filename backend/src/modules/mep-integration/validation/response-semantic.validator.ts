@@ -3,6 +3,7 @@ import { MepErrorCode, ProblemErrorItem } from '../constants/error-catalog';
 import {
   BusinessMilestone,
   ResponseStatus,
+  ServiceHorizon,
   ServiceOutcome,
   ServiceResultStatus,
 } from '../domain/enums';
@@ -12,6 +13,7 @@ import {
   isRegression,
   requiredResponseStatus,
   requiresAssignment,
+  requiresCommercialEtaDate,
   requiresRouteCapacity,
 } from '../domain/milestone-machine';
 import { isDependencyAllowed } from '../domain/service-dependency';
@@ -32,6 +34,8 @@ export interface ResponseValidationContext {
   currentVersion: number | null;
   /** Hito de la última versión persistida, o `null`. */
   currentMilestone: BusinessMilestone | null;
+  /** Horizonte de la interacción (`service_horizon` del intake). */
+  serviceHorizon: ServiceHorizon;
 }
 
 interface Violation {
@@ -85,7 +89,7 @@ export class ResponseSemanticValidator {
     this.checkVersionMonotonicity(payload, context, violations);
     this.checkMilestoneMachine(payload, context, violations);
     this.checkResponseStatus(payload, violations);
-    this.checkMilestoneRequirements(payload, violations);
+    this.checkMilestoneRequirements(payload, context, violations);
     this.checkServiceResults(payload, violations);
     this.checkOperationalLinks(payload, violations);
     this.checkClassification(payload, violations);
@@ -231,6 +235,7 @@ export class ResponseSemanticValidator {
    */
   private checkMilestoneRequirements(
     payload: PublishResponseDto,
+    context: ResponseValidationContext,
     out: Violation[],
   ): void {
     const milestone = payload.business_milestone;
@@ -261,7 +266,10 @@ export class ResponseSemanticValidator {
           detail: `El hito ${milestone} exige \`route_capacity\`.`,
         });
       }
-      if (!payload.eta_date) {
+      if (
+        requiresCommercialEtaDate(milestone, context.serviceHorizon) &&
+        !payload.eta_date
+      ) {
         out.push({
           code: 'MILESTONE_REQUIREMENTS_NOT_MET',
           pointer: '/eta_date',

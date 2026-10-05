@@ -1,6 +1,6 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { BusinessMilestone } from '../domain/enums';
+import { BusinessMilestone, ServiceHorizon } from '../domain/enums';
 import { MepProblemException } from '../domain/mep-problem.exception';
 import { PublishResponseDto } from '../dtos/publish-response.dto';
 import {
@@ -27,6 +27,7 @@ function context(
     existingResponseId: null,
     currentVersion: null,
     currentMilestone: null,
+    serviceHorizon: ServiceHorizon.IMMEDIATE,
     ...overrides,
   };
 }
@@ -274,11 +275,35 @@ describe('validador semántico de respuestas — §7 / §9.3', () => {
     ).toBe('MILESTONE_REQUIREMENTS_NOT_MET');
   });
 
-  it('TS-MIL-04: ROUTE_CAPACITY_REGISTERED sin eta_date → 422', () => {
+  it('TS-MIL-04: ROUTE_CAPACITY_REGISTERED sin eta_date (IMMEDIATE) → 422', () => {
     const payload = { ...fixture(3), eta_date: null };
 
     expect(
       codeOf(() => validator.validate(payload, context({}, payload))),
+    ).toBe('MILESTONE_REQUIREMENTS_NOT_MET');
+  });
+
+  it('DEFERRED (SOMBRA): ROUTE_CAPACITY_REGISTERED con eta_date null → aceptado', () => {
+    const payload = { ...fixture(3), eta_date: null };
+
+    expect(() =>
+      validator.validate(
+        payload,
+        context({ serviceHorizon: ServiceHorizon.DEFERRED }, payload),
+      ),
+    ).not.toThrow();
+  });
+
+  it('DEFERRED: INTERACTION_COMPLETED sin eta_date → 422', () => {
+    const payload = { ...fixture(5), eta_date: null };
+
+    expect(
+      codeOf(() =>
+        validator.validate(
+          payload,
+          context({ serviceHorizon: ServiceHorizon.DEFERRED }, payload),
+        ),
+      ),
     ).toBe('MILESTONE_REQUIREMENTS_NOT_MET');
   });
 
