@@ -71,9 +71,11 @@ function friendlyTransitionError(error: unknown): string {
 
 export function LeadsKanbanView({
   filters,
+  search = '',
   refreshKey = 0,
 }: {
   filters: LeadFilterValues;
+  search?: string;
   refreshKey?: number;
 }) {
   const [columns, setColumns] = useState<Record<KanbanEstado, ColumnState>>(
@@ -86,7 +88,7 @@ export function LeadsKanbanView({
   const [interactionFor, setInteractionFor] = useState<Lead | null>(null);
   const [checklistFor, setChecklistFor] = useState<Lead | null>(null);
 
-  const filtersKey = JSON.stringify(filters);
+  const filtersKey = JSON.stringify({ filters, search });
 
   const buildQuery = useCallback(
     (estado: KanbanEstado, page: number): LeadsQuery => ({
@@ -97,10 +99,11 @@ export function LeadsKanbanView({
       responsable_id: filters.responsable_id || undefined,
       from: filters.from || undefined,
       to: filters.to || undefined,
+      q: search || undefined,
       page,
       limit: PAGE_SIZE,
     }),
-    [filters],
+    [filters, search],
   );
 
   const loadColumn = useCallback(
@@ -308,7 +311,9 @@ export function LeadsKanbanView({
                   </p>
                 ) : state.items.length === 0 ? (
                   <p className="py-6 text-center text-xs text-muted">
-                    Sin leads aquí.
+                    {search
+                      ? `Sin coincidencias para “${search}”.`
+                      : 'Sin leads aquí.'}
                   </p>
                 ) : (
                   <>

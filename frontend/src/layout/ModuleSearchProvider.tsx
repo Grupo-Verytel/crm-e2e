@@ -13,17 +13,44 @@ import {
 } from './module-search-context';
 
 /**
- * Buscador del header, uno por módulo (diseño Design_JD).
- *
- * Solo se habilita en los módulos cuyas páginas ya leen `query`; en el resto el
- * campo queda deshabilitado para no ofrecer una búsqueda que no hace nada.
- * Para sumar un módulo: agregar su placeholder aquí y consumir
- * `useModuleSearch().query` (`./useModuleSearch`) en sus listados.
+ * Header search, one draft per module. Typing applies after a short pause.
+ * Enabled only on the list routes that actually read `query`.
  */
-const PLACEHOLDERS: Record<string, string> = {
-  'offer-closing': 'Buscar OUV, título o cliente…',
-  implementation: 'Buscar SER, proyecto o cliente…',
-};
+const SEARCH_ROUTES: Array<{
+  match: (pathname: string) => boolean;
+  placeholder: string;
+}> = [
+  {
+    match: (pathname) => pathname === '/demand',
+    placeholder: 'Buscar lead, empresa, NIT o contacto…',
+  },
+  {
+    match: (pathname) =>
+      pathname === '/qualification' || pathname === '/qualification/assigned',
+    placeholder: 'Buscar SQL, empresa o contacto…',
+  },
+  {
+    match: (pathname) =>
+      pathname === '/opportunities' ||
+      pathname === '/opportunities/ganadas' ||
+      pathname === '/opportunities/perdidas' ||
+      pathname === '/opportunities/descartadas',
+    placeholder: 'Buscar OUV, título o cliente…',
+  },
+  {
+    match: (pathname) => pathname === '/offers',
+    placeholder: 'Buscar OUV, título o cliente…',
+  },
+  {
+    match: (pathname) =>
+      pathname === '/services' || pathname === '/services/reportes',
+    placeholder: 'Buscar SER, proyecto o cliente…',
+  },
+  {
+    match: (pathname) => pathname === '/after-sales',
+    placeholder: 'Buscar novedad, cliente o servicio…',
+  },
+];
 
 const DISABLED_PLACEHOLDER = 'Usa los filtros de la página para buscar';
 
@@ -37,9 +64,14 @@ function resolveModuleKey(pathname: string): string {
   return match?.key ?? 'unknown';
 }
 
+function resolveSearch(pathname: string) {
+  return SEARCH_ROUTES.find((route) => route.match(pathname));
+}
+
 export function ModuleSearchProvider({ children }: { children: ReactNode }) {
   const { pathname } = useLocation();
   const moduleKey = resolveModuleKey(pathname);
+  const search = resolveSearch(pathname);
   const [draftByModule, setDraftByModule] = useState<Record<string, string>>(
     {},
   );
@@ -56,7 +88,7 @@ export function ModuleSearchProvider({ children }: { children: ReactNode }) {
         if ((current[moduleKey] ?? '') === next) return current;
         return { ...current, [moduleKey]: next };
       });
-    }, 300);
+    }, 280);
     return () => window.clearTimeout(handle);
   }, [draft, moduleKey]);
 
@@ -67,7 +99,7 @@ export function ModuleSearchProvider({ children }: { children: ReactNode }) {
     [moduleKey],
   );
 
-  const enabled = moduleKey in PLACEHOLDERS;
+  const enabled = Boolean(search);
 
   const value = useMemo<ModuleSearchContextValue>(
     () => ({
@@ -75,10 +107,10 @@ export function ModuleSearchProvider({ children }: { children: ReactNode }) {
       draft,
       setDraft,
       query: appliedByModule[moduleKey] ?? '',
-      placeholder: PLACEHOLDERS[moduleKey] ?? DISABLED_PLACEHOLDER,
+      placeholder: search?.placeholder ?? DISABLED_PLACEHOLDER,
       enabled,
     }),
-    [appliedByModule, draft, enabled, moduleKey, setDraft],
+    [appliedByModule, draft, enabled, moduleKey, search?.placeholder, setDraft],
   );
 
   return (

@@ -849,6 +849,9 @@ export class OuvsService {
         { titulo: { [Op.like]: like } },
         { empresaNombre: { [Op.like]: like } },
         { consecutivo: { [Op.like]: like } },
+        { city: { [Op.like]: like } },
+        { vertical: { [Op.like]: like } },
+        { segmento: { [Op.like]: like } },
       ];
     }
     if (query.created_from || query.created_to) {

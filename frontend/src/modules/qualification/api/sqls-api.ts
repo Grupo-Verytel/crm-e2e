@@ -104,6 +104,7 @@ export type AssignSqlPayload = {
 export async function fetchSqlInbox(params: {
   page?: number;
   limit?: number;
+  q?: string;
 }): Promise<PaginatedSqls> {
   return apiRequest(
     `/qualification/sqls/inbox${buildQueryString(params)}`,
@@ -113,6 +114,7 @@ export async function fetchSqlInbox(params: {
 export async function fetchAssignedSqls(params: {
   page?: number;
   limit?: number;
+  q?: string;
 }): Promise<PaginatedSqls> {
   return apiRequest(
     `/qualification/sqls/assigned${buildQueryString(params)}`,

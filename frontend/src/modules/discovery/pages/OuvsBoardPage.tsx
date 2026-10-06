@@ -3,6 +3,7 @@ import { Filter, LayoutGrid, List, Plus } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Pagination } from '../../../components/Pagination';
 import { AppLayout } from '../../../layout/AppLayout';
+import { useModuleSearch } from '../../../layout/useModuleSearch';
 import { formatAmountEsCo, formatDateTime } from '../../../lib/format';
 import {
   IN_APP_NOTIFICATION_EVENT,
@@ -68,6 +69,7 @@ export function OuvsBoardPage() {
 
 function OuvsTray({ bandeja }: { bandeja: OuvBandejaKey }) {
   const { user } = useAuth();
+  const { query, setDraft: setSearch } = useModuleSearch();
   const navigate = useNavigate();
   const isEjecutivo = isRoleName(user?.role_name, 'EjecutivoComercial');
   const isSoporte = isRoleName(user?.role_name, 'SoporteComercial', 'Admin');
@@ -80,6 +82,11 @@ function OuvsTray({ bandeja }: { bandeja: OuvBandejaKey }) {
   const [draft, setDraft] = useState<DraftFilters>(EMPTY_OUV_FILTERS);
   const [applied, setApplied] = useState<DraftFilters>(EMPTY_OUV_FILTERS);
   const [page, setPage] = useState(1);
+  const [lastQuery, setLastQuery] = useState(query);
+  if (query !== lastQuery) {
+    setLastQuery(query);
+    setPage(1);
+  }
   const [items, setItems] = useState<Ouv[]>([]);
   const [total, setTotal] = useState(0);
   const [kanban, setKanban] = useState<Record<OuvZona, Ouv[]>>({
@@ -129,9 +136,10 @@ function OuvsTray({ bandeja }: { bandeja: OuvBandejaKey }) {
           : applied.tiene_gap === 'true',
       created_from: applied.created_from || undefined,
       created_to: applied.created_to || undefined,
+      q: query || undefined,
       all: canListAll || undefined,
     };
-  }, [applied, canListAll, bandeja]);
+  }, [applied, canListAll, bandeja, query]);
 
   const loadLista = useCallback(
     async (opts?: { silent?: boolean }) => {
@@ -236,7 +244,11 @@ function OuvsTray({ bandeja }: { bandeja: OuvBandejaKey }) {
       active ? 'btn-glow text-white' : 'btn-glow-outline',
     ].join(' ');
 
-  const emptyMessage = hasActiveFilters ? ui.emptyFiltered : ui.empty;
+  const emptyMessage = query
+    ? `Ninguna OUV coincide con “${query}”.`
+    : hasActiveFilters
+      ? ui.emptyFiltered
+      : ui.empty;
   const listHint = !canListAll
     ? ''
     : isSoporte
@@ -425,7 +437,15 @@ function OuvsTray({ bandeja }: { bandeja: OuvBandejaKey }) {
             ) : items.length === 0 ? (
               <div className="p-6">
                 <p className="text-sm text-muted">{emptyMessage}</p>
-                {hasActiveFilters ? (
+                {query ? (
+                  <button
+                    type="button"
+                    className={`${ghostButtonClass} mt-3`}
+                    onClick={() => setSearch('')}
+                  >
+                    Limpiar búsqueda
+                  </button>
+                ) : hasActiveFilters ? (
                   <button
                     type="button"
                     className={`${ghostButtonClass} mt-3`}
