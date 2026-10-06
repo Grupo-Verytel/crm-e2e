@@ -44,6 +44,7 @@ type Props = {
   onPageChange: (page: number) => void;
   onReload: () => void | Promise<void>;
   readOnly?: boolean;
+  searchQuery?: string;
 };
 
 export function LeadsTableView({
@@ -56,6 +57,7 @@ export function LeadsTableView({
   onPageChange,
   onReload,
   readOnly = false,
+  searchQuery = '',
 }: Props) {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -181,7 +183,9 @@ export function LeadsTableView({
           <StateMessage>{error}</StateMessage>
         ) : sortedLeads.length === 0 ? (
           <StateMessage>
-            No hay leads con los filtros actuales. Crea el primero con “Nuevo lead”.
+            {searchQuery
+              ? `Ningún lead coincide con “${searchQuery}”.`
+              : 'No hay leads con los filtros actuales. Crea el primero con “Nuevo lead”.'}
           </StateMessage>
         ) : (
           <div className="overflow-x-auto">

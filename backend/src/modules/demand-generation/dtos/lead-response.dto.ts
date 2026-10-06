@@ -4,8 +4,10 @@ import {
   IsEnum,
   IsInt,
   IsOptional,
+  IsString,
   IsUUID,
   Max,
+  MaxLength,
   Min,
 } from 'class-validator';
 import { CanalOrigen, LeadEstado } from '../models/enums/lead.enums';
@@ -40,6 +42,12 @@ export class LeadsQueryDto {
   @IsOptional()
   @IsDateString()
   to?: string;
+
+  /** Free text: título, empresa, NIT, ciudad, contacto. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  q?: string;
 
   @IsOptional()
   @Type(() => Number)

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Pagination } from '../../../components/Pagination';
 import { AppLayout } from '../../../layout/AppLayout';
+import { useModuleSearch } from '../../../layout/useModuleSearch';
 import { formatDateTime } from '../../../lib/format';
 import {
   IN_APP_NOTIFICATION_EVENT,
@@ -28,9 +29,15 @@ const PAGE_SIZE = 20;
 
 export function RoutingInboxPage() {
   const { user } = useAuth();
+  const { query, setDraft } = useModuleSearch();
   const canAssign = isRoleName(user?.role_name, 'SoporteComercial', 'Admin');
   const [items, setItems] = useState<SqlDetail[]>([]);
   const [page, setPage] = useState(1);
+  const [lastQuery, setLastQuery] = useState(query);
+  if (query !== lastQuery) {
+    setLastQuery(query);
+    setPage(1);
+  }
   const [total, setTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -42,7 +49,11 @@ export function RoutingInboxPage() {
     }
     setError(null);
     try {
-      const data = await fetchSqlInbox({ page, limit: PAGE_SIZE });
+      const data = await fetchSqlInbox({
+        page,
+        limit: PAGE_SIZE,
+        q: query || undefined,
+      });
       setItems(data.items);
       setTotal(data.total);
     } catch (err) {
@@ -58,7 +69,7 @@ export function RoutingInboxPage() {
         setIsLoading(false);
       }
     }
-  }, [page]);
+  }, [page, query]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetch on page change
@@ -97,9 +108,22 @@ export function RoutingInboxPage() {
             Reintenta cargar la bandeja o verifica tus permisos.
           </p>
         ) : items.length === 0 ? (
-          <p className="p-6 text-sm text-muted">
-            No hay SQL pendientes de asignación.
-          </p>
+          <div className="p-6">
+            <p className="text-sm text-muted">
+              {query
+                ? `Ningún SQL coincide con “${query}”.`
+                : 'No hay SQL pendientes de asignación.'}
+            </p>
+            {query ? (
+              <button
+                type="button"
+                className="mt-3 text-sm font-bold text-accent hover:underline"
+                onClick={() => setDraft('')}
+              >
+                Limpiar búsqueda
+              </button>
+            ) : null}
+          </div>
         ) : (
           <table className="w-full text-left text-sm">
             <thead className="border-b border-border text-xs text-muted">

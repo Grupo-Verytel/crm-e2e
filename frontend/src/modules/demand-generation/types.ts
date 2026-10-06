@@ -325,6 +325,7 @@ export type LeadsQuery = {
   responsable_id?: string;
   from?: string;
   to?: string;
+  q?: string;
   page?: number;
   limit?: number;
 };

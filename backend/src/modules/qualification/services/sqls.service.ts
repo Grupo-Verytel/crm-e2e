@@ -84,23 +84,16 @@ export class SqlsService {
     const offset = (page - 1) * limit;
 
     const where = { estado: SqlEstado.PendienteAsignacion };
+    const include = [this.sqlLeadInclude(query.q)];
 
-    const [rows, count] = await Promise.all([
-      this.sqlModel.findAll({
-        where,
-        include: [
-          {
-            model: Mql,
-            required: true,
-            include: [{ model: Lead, required: true }],
-          },
-        ],
-        order: [['fecha_creacion', 'ASC']],
-        limit,
-        offset,
-      }),
-      this.sqlModel.count({ where }),
-    ]);
+    const { rows, count } = await this.sqlModel.findAndCountAll({
+      where,
+      include,
+      distinct: true,
+      order: [['fecha_creacion', 'ASC']],
+      limit,
+      offset,
+    });
 
     const items = await this.toListItems(rows);
 
@@ -124,16 +117,14 @@ export class SqlsService {
         : { comercialAsignadoId: comercialUserId }),
     };
 
-    const [rows, count] = await Promise.all([
-      this.sqlModel.findAll({
-        where,
-        include: [{ model: Mql, required: true }],
-        order: [['fechaAsignacion', 'DESC']],
-        limit,
-        offset,
-      }),
-      this.sqlModel.count({ where }),
-    ]);
+    const { rows, count } = await this.sqlModel.findAndCountAll({
+      where,
+      include: [this.sqlLeadInclude(query.q)],
+      distinct: true,
+      order: [['fechaAsignacion', 'DESC']],
+      limit,
+      offset,
+    });
 
     const items = await this.toListItems(rows);
 
@@ -1169,6 +1160,54 @@ export class SqlsService {
       code: QUALIFICATION_ERROR_CODES.FORBIDDEN,
       message: 'Not allowed to access the routing inbox',
     });
+  }
+
+  /** Lead fields plus the company and people behind the SQL. */
+  private sqlLeadInclude(raw: string | undefined) {
+    const term = raw?.trim();
+    const include: {
+      model: typeof Mql;
+      required: boolean;
+      include: Array<{
+        model: typeof Lead;
+        required: boolean;
+        where?: WhereOptions<Lead>;
+      }>;
+    } = {
+      model: Mql,
+      required: true,
+      include: [{ model: Lead, required: true }],
+    };
+    if (!term) return include;
+
+    const like = `%${term}%`;
+    const escaped = this.sequelize.escape(like);
+    include.include[0].where = {
+      [Op.or]: [
+        { name: { [Op.like]: like } },
+        { nit: { [Op.like]: like } },
+        { city: { [Op.like]: like } },
+        { industria: { [Op.like]: like } },
+        { citaContactoNombre: { [Op.like]: like } },
+        { citaContactoEmail: { [Op.like]: like } },
+        { citaContactoTelefono: { [Op.like]: like } },
+        {
+          accountId: {
+            [Op.in]: Sequelize.literal(
+              `(SELECT account_id FROM accounts WHERE deleted_at IS NULL AND (name LIKE ${escaped} OR tax_id LIKE ${escaped}))`,
+            ),
+          },
+        },
+        {
+          leadId: {
+            [Op.in]: Sequelize.literal(
+              `(SELECT lc.lead_id FROM lead_contacts lc INNER JOIN people p ON p.person_id = lc.person_id AND p.deleted_at IS NULL WHERE lc.deleted_at IS NULL AND (p.name LIKE ${escaped} OR p.email LIKE ${escaped} OR p.phone LIKE ${escaped}))`,
+            ),
+          },
+        },
+      ],
+    };
+    return include;
   }
 
   private canViewAllAssignedSqls(roleName?: string): boolean {

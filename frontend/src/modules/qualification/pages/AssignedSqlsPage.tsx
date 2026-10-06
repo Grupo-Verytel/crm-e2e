@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Pagination } from '../../../components/Pagination';
 import { AppLayout } from '../../../layout/AppLayout';
+import { useModuleSearch } from '../../../layout/useModuleSearch';
 import { formatDateTime } from '../../../lib/format';
 import {
   IN_APP_NOTIFICATION_EVENT,
@@ -27,6 +28,7 @@ const PAGE_SIZE = 20;
 
 export function AssignedSqlsPage() {
   const { user } = useAuth();
+  const { query, setDraft } = useModuleSearch();
   const isDirector = isRoleName(
     user?.role_name,
     'DirectorMercadeo',
@@ -36,6 +38,11 @@ export function AssignedSqlsPage() {
   );
   const [items, setItems] = useState<SqlDetail[]>([]);
   const [page, setPage] = useState(1);
+  const [lastQuery, setLastQuery] = useState(query);
+  if (query !== lastQuery) {
+    setLastQuery(query);
+    setPage(1);
+  }
   const [total, setTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -50,7 +57,11 @@ export function AssignedSqlsPage() {
     }
     setError(null);
     try {
-      const data = await fetchAssignedSqls({ page, limit: PAGE_SIZE });
+      const data = await fetchAssignedSqls({
+        page,
+        limit: PAGE_SIZE,
+        q: query || undefined,
+      });
       setItems(data.items);
       setTotal(data.total);
     } catch {
@@ -60,7 +71,7 @@ export function AssignedSqlsPage() {
         setIsLoading(false);
       }
     }
-  }, [page]);
+  }, [page, query]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetch on page change
@@ -128,11 +139,24 @@ export function AssignedSqlsPage() {
         {isLoading ? (
           <p className="p-6 text-sm text-muted">Cargando…</p>
         ) : items.length === 0 ? (
-          <p className="p-6 text-sm text-muted">
-            {isDirector
-              ? 'No hay SQL asignados.'
-              : 'No tienes SQL asignados.'}
-          </p>
+          <div className="p-6">
+            <p className="text-sm text-muted">
+              {query
+                ? `Ningún SQL coincide con “${query}”.`
+                : isDirector
+                  ? 'No hay SQL asignados.'
+                  : 'No tienes SQL asignados.'}
+            </p>
+            {query ? (
+              <button
+                type="button"
+                className="mt-3 text-sm font-bold text-accent hover:underline"
+                onClick={() => setDraft('')}
+              >
+                Limpiar búsqueda
+              </button>
+            ) : null}
+          </div>
         ) : (
           <table className="w-full text-left text-sm">
             <thead className="border-b border-border text-xs text-muted">

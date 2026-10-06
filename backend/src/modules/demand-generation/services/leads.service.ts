@@ -240,6 +240,44 @@ export class LeadsService {
     }
   }
 
+  /**
+   * One box matches the lead title, city, NIT, appointment contact and the
+   * linked company or person. Company and person live in accounts, so the
+   * match is a subquery instead of a cross-module model include.
+   */
+  private leadTextMatch(raw: string | undefined): WhereOptions<Lead> | null {
+    const term = raw?.trim();
+    if (!term) return null;
+    const like = `%${term}%`;
+    const escaped = this.sequelize.escape(like);
+    return {
+      [Op.or]: [
+        { name: { [Op.like]: like } },
+        { nit: { [Op.like]: like } },
+        { city: { [Op.like]: like } },
+        { industria: { [Op.like]: like } },
+        { referrerName: { [Op.like]: like } },
+        { citaContactoNombre: { [Op.like]: like } },
+        { citaContactoEmail: { [Op.like]: like } },
+        { citaContactoTelefono: { [Op.like]: like } },
+        {
+          accountId: {
+            [Op.in]: Sequelize.literal(
+              `(SELECT account_id FROM accounts WHERE deleted_at IS NULL AND (name LIKE ${escaped} OR tax_id LIKE ${escaped}))`,
+            ),
+          },
+        },
+        {
+          leadId: {
+            [Op.in]: Sequelize.literal(
+              `(SELECT lc.lead_id FROM lead_contacts lc INNER JOIN people p ON p.person_id = lc.person_id AND p.deleted_at IS NULL WHERE lc.deleted_at IS NULL AND (p.name LIKE ${escaped} OR p.email LIKE ${escaped} OR p.phone LIKE ${escaped} OR p.job_title LIKE ${escaped}))`,
+            ),
+          },
+        },
+      ],
+    };
+  }
+
   async findAll(
     query: LeadsQueryDto,
     actorUserId?: string,
@@ -279,6 +317,11 @@ export class LeadsService {
         ...(query.from ? { [Op.gte]: new Date(query.from) } : {}),
         ...(query.to ? { [Op.lte]: new Date(query.to) } : {}),
       };
+    }
+
+    const textMatch = this.leadTextMatch(query.q);
+    if (textMatch) {
+      Object.assign(where, textMatch);
     }
 
     const { rows, count } = await this.leadModel.findAndCountAll({

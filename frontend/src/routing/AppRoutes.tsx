@@ -39,6 +39,9 @@ const SqlDetailPage = lazy(
 const QualificationDashboardPage = lazy(
   () => import('../modules/qualification/pages/QualificationDashboardPageLazy'),
 );
+const AfterSalesPage = lazy(
+  () => import('../modules/post-sales/pages/AfterSalesPageLazy'),
+);
 const OuvsBoardPage = lazy(
   () => import('../modules/discovery/pages/OuvsBoardPageLazy'),
 );
@@ -331,9 +334,10 @@ export function AppRoutes() {
     },
     {
       path: '/after-sales',
-      element: protectedElement(
-        'Posventa',
-        'Renovaciones y ChurnRate — módulo post-sales (próximamente).',
+      element: (
+        <ProtectedRoute>
+          <AfterSalesPage />
+        </ProtectedRoute>
       ),
     },
     {

@@ -20,9 +20,11 @@ const SUB_FILTERS: { value: ExceptionFilter; label: string }[] = [
 
 export function LeadsExceptionsView({
   filters,
+  search = '',
   onChanged,
 }: {
   filters: LeadFilterValues;
+  search?: string;
   onChanged: () => void;
 }) {
   const { user } = useAuth();
@@ -42,10 +44,11 @@ export function LeadsExceptionsView({
       responsable_id: filters.responsable_id || undefined,
       from: filters.from || undefined,
       to: filters.to || undefined,
+      q: search || undefined,
       page: 1,
       limit: PAGE_LIMIT,
     }),
-    [filters],
+    [filters, search],
   );
 
   const load = useCallback(async () => {
@@ -126,7 +129,11 @@ export function LeadsExceptionsView({
       ) : error ? (
         <StateMessage>{error}</StateMessage>
       ) : items.length === 0 ? (
-        <StateMessage>No hay leads en reciclaje ni descartados.</StateMessage>
+        <StateMessage>
+          {search
+            ? `Ningún lead coincide con “${search}”.`
+            : 'No hay leads en reciclaje ni descartados.'}
+        </StateMessage>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[880px] text-left text-sm">
