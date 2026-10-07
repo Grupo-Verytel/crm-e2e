@@ -294,17 +294,38 @@ describe('validador semántico de respuestas — §7 / §9.3', () => {
     ).not.toThrow();
   });
 
-  it('DEFERRED: INTERACTION_COMPLETED sin eta_date → 422', () => {
+  it('DEFERRED (SOMBRA): INTERACTION_COMPLETED sin eta_date → aceptado', () => {
     const payload = { ...fixture(5), eta_date: null };
 
-    expect(
-      codeOf(() =>
-        validator.validate(
-          payload,
-          context({ serviceHorizon: ServiceHorizon.DEFERRED }, payload),
-        ),
+    expect(() =>
+      validator.validate(
+        payload,
+        context({ serviceHorizon: ServiceHorizon.DEFERRED }, payload),
       ),
-    ).toBe('MILESTONE_REQUIREMENTS_NOT_MET');
+    ).not.toThrow();
+  });
+
+  it('desistimiento: INTERACTION_COMPLETED con todos CANCELLED sin route_capacity', () => {
+    const base = fixture(5);
+    const payload = {
+      ...base,
+      route_capacity: null,
+      operational_links: {
+        planner_interaction_url:
+          base.operational_links?.planner_interaction_url,
+      },
+      service_results: base.service_results.map((result) => ({
+        ...result,
+        status: 'CANCELLED',
+        outcome: null,
+        deliverables: [],
+        reason_code: 'CLIENT_WITHDRAWAL',
+      })),
+    } as unknown as PublishResponseDto;
+
+    expect(() =>
+      validator.validate(payload, context({}, payload)),
+    ).not.toThrow();
   });
 
   it('TS-MIL-05: ROUTE_CAPACITY_REGISTERED sin route_capacity_register_url → 422', () => {
@@ -355,6 +376,26 @@ describe('validador semántico de respuestas — §7 / §9.3', () => {
   });
 
   // ------------------------------------------------------ service_results
+
+  it('TS-SVC-08 / C-4: financiero IN_PROGRESS mientras técnico RECEIVED → 422', () => {
+    const base = fixture(3);
+    const payload = {
+      ...base,
+      service_results: [
+        { ...base.service_results[0], status: 'RECEIVED', outcome: null },
+        {
+          ...base.service_results[1],
+          status: 'IN_PROGRESS',
+          outcome: 'VIABLE',
+          dependency: 'TECHNICAL_DESIGN',
+        },
+      ],
+    } as unknown as PublishResponseDto;
+
+    expect(
+      codeOf(() => validator.validate(payload, context({}, payload))),
+    ).toBe('MILESTONE_REQUIREMENTS_NOT_MET');
+  });
 
   it('TS-SVC-05 / INV-01: técnico dependiente de financiero → INVERTED_SERVICE_DEPENDENCY', () => {
     const base = fixture(1);

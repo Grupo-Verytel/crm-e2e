@@ -51,8 +51,14 @@ paths:
         (la página siguiente no repite el último elemento) y su retención
         declarada es de 7 días. Se prohíbe `OFFSET`.
 
-        INV-05: releer con el mismo cursor devuelve exactamente los mismos
-        ítems, en el mismo orden. No se filtra por "ya entregado".
+        **Elegibilidad del pull:** interacciones con `eligible_for_mep = true`.
+        No se filtra por acuse (`polling_status`), respuesta comercial versionada
+        ni cierre en CRM («ya entregado»). El acuse (§6.4) confirma admisión
+        técnica al adaptador; **no** creación en Planner ni cierre comercial.
+
+        INV-05: releer con el mismo `cursor` y el mismo `service_horizon`
+        devuelve exactamente los mismos ítems, en el mismo orden.
+
         INV-06: la respuesta nunca incluye `interaction_type`.
       security:
         - apiKeyAuth: [interactions:read]
@@ -232,8 +238,10 @@ paths:
         INV-12: el acuse es un hecho de transporte. **No** sustituye al hito
         comercial `INTERACTION_RECEIVED`; el CRM no los trata como el mismo
         estado ni duplica notas por ambos hechos.
-        INV-13: no muta ninguna columna de la interacción comercial. Solo
-        escribe en `processing_receipt` y en la bitácora.
+        INV-13: no muta campos comerciales de la interacción (`source_content`,
+        `etag`, horizonte, subject). Actualiza `polling_status` como caché CRM
+        del último acuse (proyección interna; **no** afecta el pull §6.1).
+        Persiste en `processing_receipt` y en la bitácora.
       security:
         - apiKeyAuth: [receipts:write]
       parameters:
@@ -1035,8 +1043,9 @@ components:
           description: |
             ETA comercial global (único por interacción). Obligatorio desde
             `ROUTE_CAPACITY_REGISTERED` para `IMMEDIATE` y `UNSPECIFIED`. Para
-            `DEFERRED` (SOMBRA) puede ser `null` al registrar ruta/capacidad;
-            obligatorio en hitos posteriores que exijan entrega comprometida.
+            `DEFERRED` (SOMBRA) puede permanecer `null` en ruta/capacidad y al
+            cierre. Desistimiento (`INTERACTION_COMPLETED` con todos los
+            servicios `CANCELLED`) no exige `route_capacity` ni URL de registro.
           type: [string, 'null']
           format: date
         next_milestone: { type: [string, 'null'], maxLength: 512 }

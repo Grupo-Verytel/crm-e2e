@@ -14,9 +14,13 @@ import {
   requiredResponseStatus,
   requiresAssignment,
   requiresCommercialEtaDate,
-  requiresRouteCapacity,
+  requiresRouteCapacityFields,
 } from '../domain/milestone-machine';
-import { isDependencyAllowed } from '../domain/service-dependency';
+import {
+  dependencyTargetService,
+  isDependencyAllowed,
+  isServicePrecedenceSatisfied,
+} from '../domain/service-dependency';
 import { PublishResponseDto } from '../dtos/publish-response.dto';
 import { findForbiddenProperties } from './forbidden-properties';
 
@@ -258,7 +262,7 @@ export class ResponseSemanticValidator {
       }
     }
 
-    if (requiresRouteCapacity(milestone)) {
+    if (requiresRouteCapacityFields(milestone, payload.service_results)) {
       if (!payload.route_capacity) {
         out.push({
           code: 'MILESTONE_REQUIREMENTS_NOT_MET',
@@ -343,6 +347,18 @@ export class ResponseSemanticValidator {
           code: 'INVERTED_SERVICE_DEPENDENCY',
           pointer: `${base}/dependency`,
           detail: `${result.service} no admite dependency = ${result.dependency}.`,
+        });
+      }
+
+      if (!isServicePrecedenceSatisfied(result, payload.service_results)) {
+        const blocker = dependencyTargetService(result.dependency);
+        out.push({
+          code: 'MILESTONE_REQUIREMENTS_NOT_MET',
+          pointer: `${base}/status`,
+          detail:
+            blocker === null
+              ? `${result.service} no puede avanzar a ${result.status} sin cumplir la precedencia de dependencia.`
+              : `${result.service} no puede estar en ${result.status} hasta que ${blocker} complete su ciclo (COMPLETED).`,
         });
       }
 
