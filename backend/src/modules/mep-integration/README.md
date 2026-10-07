@@ -140,14 +140,15 @@ Se implementó esa lectura:
 
 **Requiere confirmación del arquitecto** junto con OPEN-01.
 
-### 4.3 `INTERACTION_COMPLETED` y servicios cancelados
+### 4.3 `INTERACTION_COMPLETED`, SOMBRA y desistimiento
 
-El §7.1 exige «`service_results` completos con `deliverables`». Se implementó
-como: todo servicio debe estar en estado terminal (`COMPLETED` o `CANCELLED`), y
-todo servicio `COMPLETED` debe traer al menos un entregable de SharePoint
-Documents. Un servicio `CANCELLED` cierra sin entregable pero con `reason_code`
-obligatorio — de lo contrario, una interacción con un servicio cancelado no
-podría cerrarse nunca.
+Todo servicio debe estar terminal (`COMPLETED` o `CANCELLED`). `COMPLETED` exige
+entregable SharePoint Documents; `CANCELLED` exige `reason_code` y no exige
+entregable. **Desistimiento:** si **todos** los servicios van `CANCELLED`, el
+cierre no exige `route_capacity` ni URL de registro (sin ruta ficticia).
+**SOMBRA (`DEFERRED`):** `eta_date` puede ser `null` en ruta/capacidad y al
+cierre; `IMMEDIATE`/`UNSPECIFIED` siguen exigiendo ETA desde
+`ROUTE_CAPACITY_REGISTERED`.
 
 ### 4.4 `response_version` monotónica, no consecutiva (OPEN-02)
 
@@ -157,9 +158,10 @@ OPEN-02 hacia «consecutiva» solo exige endurecer una comparación en
 
 ### 4.5 Elegibilidad del intake (OPEN-10)
 
-Hoy el criterio es la bandera explícita `commercial_interaction.eligible_for_mep`.
-Cuando se cierre OPEN-10 con la regla de negocio real, el cambio se localiza en
-`IntakeService.buildWhere`.
+Hoy el pull exige `eligible_for_mep = true` (`IntakeService.buildWhere`). No
+filtra por `polling_status` (acuse), respuesta MEP ni cierre comercial (INV-05).
+El acuse actualiza `polling_status` solo para proyección CRM. Cuando se cierre
+OPEN-10 con reglas adicionales, el cambio se localiza en `buildWhere`.
 
 ---
 

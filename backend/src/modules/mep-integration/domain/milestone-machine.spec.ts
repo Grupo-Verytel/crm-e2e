@@ -1,11 +1,18 @@
-import { BusinessMilestone, ResponseStatus, ServiceHorizon } from './enums';
+import {
+  BusinessMilestone,
+  ResponseStatus,
+  ServiceHorizon,
+  ServiceResultStatus,
+} from './enums';
 import {
   isRegression,
+  isWithdrawalClosure,
   milestoneRank,
   requiredResponseStatus,
   requiresAssignment,
   requiresCommercialEtaDate,
   requiresRouteCapacity,
+  requiresRouteCapacityFields,
 } from './milestone-machine';
 
 const {
@@ -72,7 +79,7 @@ describe('máquina de hitos comerciales — §7.1', () => {
     expect(requiresRouteCapacity(INTERACTION_COMPLETED)).toBe(true);
   });
 
-  it('DEFERRED: ETA comercial no exigido al registrar ruta; sí al cerrar', () => {
+  it('DEFERRED (SOMBRA): ETA comercial no exigido en ruta ni al cerrar', () => {
     expect(
       requiresCommercialEtaDate(
         ROUTE_CAPACITY_REGISTERED,
@@ -84,12 +91,29 @@ describe('máquina de hitos comerciales — §7.1', () => {
         INTERACTION_COMPLETED,
         ServiceHorizon.DEFERRED,
       ),
-    ).toBe(true);
+    ).toBe(false);
     expect(
       requiresCommercialEtaDate(
         ROUTE_CAPACITY_REGISTERED,
         ServiceHorizon.IMMEDIATE,
       ),
+    ).toBe(true);
+  });
+
+  it('desistimiento: cierre con todos CANCELLED no exige route_capacity', () => {
+    const cancelled = [
+      { status: ServiceResultStatus.CANCELLED },
+      { status: ServiceResultStatus.CANCELLED },
+    ];
+    expect(isWithdrawalClosure(cancelled)).toBe(true);
+    expect(
+      requiresRouteCapacityFields(INTERACTION_COMPLETED, cancelled),
+    ).toBe(false);
+    expect(
+      requiresRouteCapacityFields(INTERACTION_COMPLETED, [
+        { status: ServiceResultStatus.COMPLETED },
+        { status: ServiceResultStatus.CANCELLED },
+      ]),
     ).toBe(true);
   });
 });
