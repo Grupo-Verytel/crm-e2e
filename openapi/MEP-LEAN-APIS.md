@@ -88,7 +88,7 @@ Query:
 | `limit` | int 1–200 | 50 | Sin `OFFSET` |
 | `service_horizon` | `IMMEDIATE` \| `DEFERRED` \| `UNSPECIFIED` | — | Filtro opcional |
 
-Orden estable: `source_created_at ASC, id ASC`. Solo salen filas con `eligible_for_mep = true` **y** `polling_status IS NULL`. En cuanto MEP acusa por `POST .../processing-receipts` (`ACCEPTED`, `DUPLICATE`, `QUARANTINED` o `REJECTED`), esa interacción **deja de salir** del pull. No es solo `ACCEPTED`. El GET por `{ref}` sigue devolviendo la fila para reconciliar. La respuesta **nunca** incluye `interaction_type`.
+Orden estable: `source_created_at ASC, id ASC`. Solo salen filas con `eligible_for_mep = true`. **No** se filtra por acuse (`polling_status`), respuesta comercial ni cierre CRM («ya entregado»). Tras acusar, la interacción **sigue apareciendo** en el pull; el adaptador deduplica por `crm_interaction_ref` si hace falta. El GET por `{ref}` sirve para reconciliar una ref puntual. La respuesta **nunca** incluye `interaction_type`.
 
 ### Cómo funciona el cursor (polling)
 
@@ -163,9 +163,9 @@ Ahí termina el barrido de esta ronda: no hay más páginas **ahora**.
 
 **Ciclo siguiente del job (p. ej. 5 min después)**
 
-Las que ya acusaste (`polling_status` no nulo) **no vuelven** al GET. Podés arrancar **sin** cursor: solo salen las pendientes. Si entre ciclos nació `int_20005` y no tiene receipt, esa es la que viene.
+Las interacciones acusadas **siguen** en el listado. Entre ciclos podés arrancar sin cursor o retomar el último `next_cursor` guardado; INV-05 garantiza la misma página con el mismo cursor.
 
-Sigue paginando con `next_cursor` mientras `has_more: true`. No hace falta un checkpoint de refs ya procesados para no re-verlas; el acuse es ese checkpoint.
+Sigue paginando con `next_cursor` mientras `has_more: true`. El adaptador debe evitar reprocesar refs ya acusadas (estado local / idempotencia del acuse), no confiar en que el CRM las oculte.
 
 `high_watermark` es informativo (`source_created_at` máximo de **esa** página). No se manda de vuelta. `page_observed_at` es el instante en que el CRM armó la página.
 
@@ -174,10 +174,19 @@ Si usás `service_horizon`, el cursor queda atado a ese filtro. Reenviarlo con o
 #### Qué hay que evitar
 
 - Fabricar un cursor (con `source_created_at`, un `int_…`, etc.). Siempre el `next_cursor` literal.
-- Perder el checkpoint: si el proceso cae, se retoma el último `next_cursor` **no nulo** guardado + el set de refs ya procesados; no “desde cero” sin más.
+- Perder el checkpoint: si el proceso cae, retomá el último `next_cursor` **no nulo** guardado (INV-05) y el set de refs ya acusadas en el adaptador.
 - Mezclar `limit` está bien; mezclar `service_horizon` con un cursor viejo, no.
-- Acusar y seguir esperando esa misma fila en el pull: ya no sale.
-- Tratar `next_cursor: null` como error. Es “no hay más pendientes ahora”; el próximo ciclo, sin cursor, trae solo lo nuevo.
+- Tratar `next_cursor: null` como “no hay más páginas en este barrido”, no como error.
+
+#### Recuperación tras interrupción (OUV-0388 / adaptador)
+
+El acuse no quita la fila del pull. Si el job se interrumpe:
+
+1. Reenviar el último `next_cursor` válido, **o** volver a barrer desde el inicio (verás también refs ya acusadas).
+2. `GET /v1/commercial-interactions/{interaction_ref}` para reconciliar `etag` y contenido de una ref concreta.
+3. Continuar respuestas y acuses idempotentes sobre esa ref.
+
+El acuse (INV-12) es admisión técnica de transporte; no es tarea en Planner ni cierre comercial. `polling_status` en CRM es caché interna, no filtro del listado.
 
 ### Response `200`
 

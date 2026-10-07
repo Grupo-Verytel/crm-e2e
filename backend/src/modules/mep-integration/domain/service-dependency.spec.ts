@@ -1,7 +1,14 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { ServiceDependency, ServiceName } from './enums';
-import { isDependencyAllowed } from './service-dependency';
+import {
+  ServiceDependency,
+  ServiceName,
+  ServiceResultStatus,
+} from './enums';
+import {
+  isDependencyAllowed,
+  isServicePrecedenceSatisfied,
+} from './service-dependency';
 
 const FIXTURES = join(__dirname, '../../../../test/fixtures/intake');
 
@@ -71,5 +78,71 @@ describe('dependencia entre servicios — §4 / §7.6', () => {
         ServiceDependency.FINANCIAL_DESIGN,
       ),
     ).toBe(false);
+  });
+});
+
+describe('precedencia efectiva C-4 — técnico seguido de financiero', () => {
+  const sequential = (
+    technicalStatus: ServiceResultStatus,
+    financialStatus: ServiceResultStatus,
+  ) => [
+    {
+      service: ServiceName.TECHNICAL_DESIGN,
+      status: technicalStatus,
+      dependency: ServiceDependency.NONE,
+    },
+    {
+      service: ServiceName.FINANCIAL_DESIGN,
+      status: financialStatus,
+      dependency: ServiceDependency.TECHNICAL_DESIGN,
+    },
+  ];
+
+  it('rechaza financiero IN_PROGRESS mientras técnico sigue en RECEIVED', () => {
+    const results = sequential(
+      ServiceResultStatus.RECEIVED,
+      ServiceResultStatus.IN_PROGRESS,
+    );
+    expect(isServicePrecedenceSatisfied(results[1], results)).toBe(false);
+  });
+
+  it('permite financiero RECEIVED mientras técnico está en RECEIVED', () => {
+    const results = sequential(
+      ServiceResultStatus.RECEIVED,
+      ServiceResultStatus.RECEIVED,
+    );
+    expect(isServicePrecedenceSatisfied(results[1], results)).toBe(true);
+  });
+
+  it('rechaza financiero IN_PROGRESS mientras técnico sigue en IN_PROGRESS', () => {
+    const results = sequential(
+      ServiceResultStatus.IN_PROGRESS,
+      ServiceResultStatus.IN_PROGRESS,
+    );
+    expect(isServicePrecedenceSatisfied(results[1], results)).toBe(false);
+  });
+
+  it('permite financiero IN_PROGRESS cuando técnico ya cerró (COMPLETED)', () => {
+    const results = sequential(
+      ServiceResultStatus.COMPLETED,
+      ServiceResultStatus.IN_PROGRESS,
+    );
+    expect(isServicePrecedenceSatisfied(results[1], results)).toBe(true);
+  });
+
+  it('C-3 independiente: financiero IN_PROGRESS con dependency NONE aunque técnico RECEIVED', () => {
+    const results = [
+      {
+        service: ServiceName.TECHNICAL_DESIGN,
+        status: ServiceResultStatus.RECEIVED,
+        dependency: ServiceDependency.NONE,
+      },
+      {
+        service: ServiceName.FINANCIAL_DESIGN,
+        status: ServiceResultStatus.IN_PROGRESS,
+        dependency: ServiceDependency.NONE,
+      },
+    ];
+    expect(isServicePrecedenceSatisfied(results[1], results)).toBe(true);
   });
 });

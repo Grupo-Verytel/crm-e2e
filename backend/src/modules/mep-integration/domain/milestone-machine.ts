@@ -2,6 +2,7 @@ import {
   BusinessMilestone,
   ResponseStatus,
   ServiceHorizon,
+  ServiceResultStatus,
 } from './enums';
 
 /**
@@ -69,8 +70,9 @@ export function requiresRouteCapacity(milestone: BusinessMilestone): boolean {
 }
 
 /**
- * ¿Exige `eta_date` comercial comprometido? DEFERRED (SOMBRA) may register
- * route/capacity at ROUTE_CAPACITY_REGISTERED without a commercial ETA yet.
+ * ¿Exige `eta_date` comercial comprometido? DEFERRED (SOMBRA) puede recorrer
+ * ruta/capacidad y cierre sin ETA definitivo; IMMEDIATE/UNSPECIFIED sí lo exigen
+ * desde ROUTE_CAPACITY_REGISTERED.
  */
 export function requiresCommercialEtaDate(
   milestone: BusinessMilestone,
@@ -79,9 +81,35 @@ export function requiresCommercialEtaDate(
   if (!requiresRouteCapacity(milestone)) {
     return false;
   }
+  if (serviceHorizon === ServiceHorizon.DEFERRED) {
+    return false;
+  }
+  return true;
+}
+
+/** Desistimiento: cierre con todos los servicios CANCELLED, sin ruta ficticia. */
+export function isWithdrawalClosure(
+  serviceResults: { status: ServiceResultStatus }[],
+): boolean {
+  return (
+    serviceResults.length > 0 &&
+    serviceResults.every(
+      (result) => result.status === ServiceResultStatus.CANCELLED,
+    )
+  );
+}
+
+/** `route_capacity` y URL de registro exigidos salvo desistimiento total al cierre. */
+export function requiresRouteCapacityFields(
+  milestone: BusinessMilestone,
+  serviceResults: { status: ServiceResultStatus }[],
+): boolean {
+  if (!requiresRouteCapacity(milestone)) {
+    return false;
+  }
   if (
-    serviceHorizon === ServiceHorizon.DEFERRED &&
-    milestone === BusinessMilestone.ROUTE_CAPACITY_REGISTERED
+    milestone === BusinessMilestone.INTERACTION_COMPLETED &&
+    isWithdrawalClosure(serviceResults)
   ) {
     return false;
   }

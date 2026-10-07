@@ -35,9 +35,9 @@ export interface IntakePage {
  * INV-03: orden total `source_created_at ASC, id ASC`; el cursor codifica esa
  * clave y va firmado. Se prohíbe `OFFSET`: la página siguiente se resuelve por
  * comparación de la clave, lo que la hace inmune a inserciones concurrentes.
- * INV-05: releer el mismo cursor + filtro devuelve los mismos ítems *pendientes*.
- * El acuse (`polling_status`) es el checkpoint de entrega: cualquier
- * processing_status saca la fila del pull. GET por ref sigue devolviendo.
+ * INV-05: releer el mismo cursor + filtro devuelve los mismos ítems, en el
+ * mismo orden. El pull no filtra por acuse (`polling_status`) ni por cierre
+ * comercial; solo por `eligible_for_mep` (OPEN-10) y cursor/horizonte.
  */
 @Injectable()
 export class IntakeService {
@@ -108,9 +108,6 @@ export class IntakeService {
     const clauses: WhereOptions[] = [
       // OPEN-10: criterio de elegibilidad; hoy es la bandera explícita del CRM.
       { eligibleForMep: true },
-      // Sin acuse todavía. ACCEPTED / DUPLICATE / QUARANTINED / REJECTED
-      // salen del pull; no solo ACCEPTED.
-      { pollingStatus: { [Op.is]: null } },
     ];
 
     if (horizon !== null) {
