@@ -6,8 +6,28 @@ type Props = {
   onChange: (hhMm: string) => void;
   className?: string;
   stepMinutes?: number;
+  /** Free-typed HH:MM instead of the 15-minute select. */
+  editable?: boolean;
   'aria-label'?: string;
 };
+
+const TIME_INPUT_CLASS =
+  'h-9 w-full appearance-none rounded border border-border bg-bg py-0 pl-9 pr-3 text-sm text-ink outline-none focus:border-accent focus:bg-surface';
+
+function normalizeTimeInput(raw: string): string {
+  const digits = raw.replace(/\D/g, '').slice(0, 4);
+  if (digits.length <= 2) return digits;
+  return `${digits.slice(0, 2)}:${digits.slice(2)}`;
+}
+
+function completeTimeInput(raw: string): string {
+  const match = raw.trim().match(/^(\d{1,2})(?::(\d{0,2}))?$/);
+  if (!match) return raw;
+  const hours = Number(match[1]);
+  const minutes = match[2] === undefined || match[2] === '' ? 0 : Number(match[2]);
+  if (hours > 23 || minutes > 59) return raw;
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+}
 
 function buildOptions(stepMinutes: number): string[] {
   const options: string[] = [];
@@ -28,6 +48,7 @@ export function TimePickerField({
   onChange,
   className = '',
   stepMinutes = 15,
+  editable = false,
   'aria-label': ariaLabel,
 }: Props) {
   const options = buildOptions(stepMinutes);
@@ -43,10 +64,27 @@ export function TimePickerField({
         strokeWidth={2}
         aria-hidden
       />
+      {editable ? (
+        <input
+          id={id}
+          type="text"
+          inputMode="numeric"
+          autoComplete="off"
+          placeholder="HH:MM"
+          aria-label={ariaLabel ?? 'Hora'}
+          className={TIME_INPUT_CLASS}
+          value={value}
+          onChange={(e) => onChange(normalizeTimeInput(e.target.value))}
+          onBlur={() => {
+            if (!value.trim()) return;
+            onChange(completeTimeInput(value));
+          }}
+        />
+      ) : (
       <select
         id={id}
         aria-label={ariaLabel ?? 'Hora'}
-        className="h-9 w-full appearance-none rounded border border-border bg-bg py-0 pl-9 pr-3 text-sm text-ink outline-none focus:border-accent focus:bg-surface"
+        className={TIME_INPUT_CLASS}
         value={value}
         onChange={(e) => onChange(e.target.value)}
       >
@@ -57,6 +95,7 @@ export function TimePickerField({
           </option>
         ))}
       </select>
+      )}
     </div>
   );
 }

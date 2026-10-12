@@ -14,6 +14,7 @@ export type Ouv = {
   origen: string | null;
   canal_origen: string | null;
   comercial_id: string;
+  comercial_nombre?: string | null;
   account_id: string | null;
   titulo: string;
   empresa_nombre: string;
@@ -63,6 +64,7 @@ export type OuvsQuery = {
   created_from?: string;
   created_to?: string;
   all?: boolean;
+  comercial_id?: string;
 };
 
 export type OuvContacto = {

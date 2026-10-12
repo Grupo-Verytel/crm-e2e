@@ -66,9 +66,18 @@ export class SqlsService {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
     const offset = (page - 1) * limit;
-    const leadWhere = this.leadSearchWhere(query.q);
+    const leadWhere = this.mergeWhere(
+      this.leadSearchWhere(query.q),
+      this.inboxLeadCitaWhere(query.cita_estado),
+      query.comercial_asignado_id
+        ? { comercialAsignadoId: query.comercial_asignado_id }
+        : undefined,
+    );
 
-    const where = { estado: SqlEstado.PendienteAsignacion };
+    const where: WhereOptions<Sql> = {
+      estado: SqlEstado.PendienteAsignacion,
+      ...this.createdRangeWhere(query.created_from, query.created_to),
+    };
 
     const include = [
       {
@@ -133,7 +142,11 @@ export class SqlsService {
     const leadWhere = this.leadSearchWhere(query.q);
     const { rows, count } = await this.sqlModel.findAndCountAll({
       where: {
-        ...(orgWideAssigned ? {} : { comercialAsignadoId: comercialUserId }),
+        ...(orgWideAssigned
+          ? query.comercial_asignado_id
+            ? { comercialAsignadoId: query.comercial_asignado_id }
+            : {}
+          : { comercialAsignadoId: comercialUserId }),
         estado: estadoFilter,
       },
       include: [
@@ -749,6 +762,66 @@ export class SqlsService {
 
   private leadSearchWhere(q?: string): WhereOptions<Lead> | undefined {
     return leadTextSearchWhere(this.sequelize, q);
+  }
+
+  private mergeWhere(
+    ...parts: Array<WhereOptions<Lead> | undefined>
+  ): WhereOptions<Lead> | undefined {
+    const defined = parts.filter((part): part is WhereOptions<Lead> =>
+      Boolean(part),
+    );
+    if (defined.length === 0) return undefined;
+    if (defined.length === 1) return defined[0];
+    return { [Op.and]: defined };
+  }
+
+  private inboxLeadCitaWhere(
+    citaEstado?: SqlsQueryDto['cita_estado'],
+  ): WhereOptions<Lead> | undefined {
+    if (!citaEstado) return undefined;
+    if (citaEstado === 'sin_agendar') {
+      return {
+        [Op.and]: [
+          { citaEstado: { [Op.is]: null } },
+          { fechaCita: { [Op.is]: null } },
+        ],
+      };
+    }
+    if (citaEstado === SqlCitaEstado.Agendada) {
+      return {
+        [Op.or]: [
+          { citaEstado: SqlCitaEstado.Agendada },
+          {
+            [Op.and]: [
+              { citaEstado: { [Op.is]: null } },
+              { fechaCita: { [Op.ne]: null } },
+            ],
+          },
+        ],
+      };
+    }
+    return { citaEstado };
+  }
+
+  private createdRangeWhere(
+    createdFrom?: string,
+    createdTo?: string,
+  ): WhereOptions<Sql> {
+    if (!createdFrom && !createdTo) return {};
+    return {
+      fechaCreacion: {
+        ...(createdFrom ? { [Op.gte]: new Date(createdFrom) } : {}),
+        ...(createdTo
+          ? {
+              [Op.lte]: new Date(
+                createdTo.length === 10
+                  ? `${createdTo}T23:59:59.999`
+                  : createdTo,
+              ),
+            }
+          : {}),
+      },
+    };
   }
 
   private async assertActiveEjecutivo(userId: string): Promise<void> {

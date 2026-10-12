@@ -200,3 +200,40 @@ body {
 *::-webkit-scrollbar-corner {
   background: transparent;
 }
+
+@keyframes bell-reminder-ring {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  15% {
+    transform: rotate(14deg);
+  }
+  30% {
+    transform: rotate(-12deg);
+  }
+  45% {
+    transform: rotate(8deg);
+  }
+  60% {
+    transform: rotate(-6deg);
+  }
+  75% {
+    transform: rotate(2deg);
+  }
+}
+
+.bell-reminder-active {
+  color: var(--accent);
+}
+
+.bell-reminder-active .bell-reminder-icon {
+  transform-origin: top center;
+  animation: bell-reminder-ring 1.15s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bell-reminder-active .bell-reminder-icon {
+    animation: none;
+  }
+}

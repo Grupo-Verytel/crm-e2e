@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { AppLayout } from '../../../layout/AppLayout';
 import { SqlInteractionTimeline } from '../components/SqlInteractionTimeline';
 import { useAuth } from '../../auth/hooks/useAuth';
@@ -14,6 +14,7 @@ import {
 } from '../components/SqlAgendaPanel';
 import { SqlDetailInfoModule } from '../components/SqlDetailInfoModule';
 import { SqlDetailNav, type SqlDetailTab } from '../components/SqlDetailNav';
+import { SqlRecordatoriosPanel } from '../components/SqlRecordatoriosPanel';
 import { cardClass, primaryButtonClass } from '../components/ui';
 import { hasScheduledCita } from '../lib/sql-appointments';
 
@@ -26,14 +27,26 @@ function sqlLeadLabel(sql: SqlDetail): string {
   return String(sql.lead.empresa_nombre ?? sql.lead.contacto_nombre ?? 'SQL');
 }
 
+function tabFromSearch(value: string | null): SqlDetailTab {
+  if (value === 'interacciones' || value === 'recordatorios') return value;
+  return 'detalle';
+}
+
 export function SqlDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { user } = useAuth();
   const [sql, setSql] = useState<SqlDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [detailTab, setDetailTab] = useState<SqlDetailTab>('detalle');
+  const [detailTab, setDetailTab] = useState<SqlDetailTab>(() =>
+    tabFromSearch(searchParams.get('tab')),
+  );
+
+  useEffect(() => {
+    setDetailTab(tabFromSearch(searchParams.get('tab')));
+  }, [searchParams]);
   const [showConvertModal, setShowConvertModal] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
 
@@ -105,8 +118,11 @@ export function SqlDetailPage() {
             <SqlInteractionTimeline
               sqlId={sql.sql_id}
               sqlLabel={headerTitle}
+              sqlConsecutivo={sqlAccentId(sql)}
               onRegistered={() => void loadSql()}
             />
+          ) : detailTab === 'recordatorios' ? (
+            <SqlRecordatoriosPanel sqlId={sql.sql_id} />
           ) : (
             <>
               <div className="grid gap-4 lg:grid-cols-2">

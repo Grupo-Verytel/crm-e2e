@@ -30,6 +30,7 @@
   /** Influencia Verde — aquamarine shifted toward green (not pure success green). */
   --semaphore-verde: color-mix(in srgb, var(--brand-turquoise) 32%, var(--success) 68%);
   --warning: #E0A100;
+  --semaphore-amarillo: color-mix(in srgb, var(--warning) 58%, white 42%);
   --danger: #C2362F;
 
   /* Shape & rhythm */

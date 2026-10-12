@@ -71,6 +71,10 @@ export function buildOuvMetaFields(
       value: formatOuvSourceChannel(ouv.canal_origen),
     },
     { label: 'Organización', value: ouv.empresa_nombre },
+    {
+      label: 'Comercial asignado',
+      value: ouv.comercial_nombre?.trim() || '—',
+    },
     { label: 'Segmento', value: segmento },
     { label: 'Vertical', value: ouv.vertical || '—' },
     { label: 'Proyecto', value: extensions.proyecto ?? '—' },

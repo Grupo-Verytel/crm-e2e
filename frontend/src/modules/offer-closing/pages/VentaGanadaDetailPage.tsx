@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ExternalLink } from 'lucide-react';
 import { AppLayout } from '../../../layout/AppLayout';
+import { SharePointDocumentField } from '../../shared/project/SharePointDocumentField';
 import { fetchOuv, type Ouv } from '../../discovery/api/ouvs-api';
 import { OuvReadonlyHeaderCard } from '../../discovery/components/OuvReadonlyHeaderCard';
 import { loadOuvExtensions } from '../../discovery/lib/ouv-detail-extensions';
@@ -23,7 +23,6 @@ import {
 import { FormularioDatosProyecto } from '../components/FormularioDatosProyecto';
 import { KickoffCard } from '../components/KickoffCard';
 import { ResumenEnvioPmoModal } from '../components/ResumenEnvioPmoModal';
-import { SharePointPreviewModal } from '../components/SharePointPreviewModal';
 import {
   badgeClass,
   cardClass,
@@ -85,10 +84,6 @@ export function VentaGanadaDetailPage() {
   const [tab, setTab] = useState<Tab>('validaciones');
   const [showResumen, setShowResumen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
-  const [preview, setPreview] = useState<{
-    title: string;
-    url: string;
-  } | null>(null);
 
   useEffect(() => {
     setRecord(getVentaGanada(ouvId));
@@ -277,21 +272,10 @@ export function VentaGanadaDetailPage() {
                       Documento SharePoint
                     </p>
                     {v.sharepointUrl ? (
-                      <button
-                        type="button"
-                        className="inline-flex max-w-full items-center gap-2 text-left text-sm font-bold text-accent hover:underline"
-                        onClick={() =>
-                          setPreview({
-                            title: v.sharepointNombre ?? 'Documento',
-                            url: v.sharepointUrl!,
-                          })
-                        }
-                      >
-                        <ExternalLink size={15} aria-hidden />
-                        <span className="truncate">
-                          {v.sharepointNombre ?? v.sharepointUrl}
-                        </span>
-                      </button>
+                      <SharePointDocumentField
+                        url={v.sharepointUrl}
+                        nombre={v.sharepointNombre ?? 'Documento'}
+                      />
                     ) : (
                       <p className="text-xs text-muted">Sin documento vinculado.</p>
                     )}
@@ -339,12 +323,6 @@ export function VentaGanadaDetailPage() {
         }}
       />
 
-      <SharePointPreviewModal
-        open={Boolean(preview)}
-        title={preview?.title ?? ''}
-        url={preview?.url ?? ''}
-        onClose={() => setPreview(null)}
-      />
     </AppLayout>
   );
 }

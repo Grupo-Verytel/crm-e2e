@@ -3,10 +3,12 @@ import { SqlInteractionResponseDto } from './sql-interaction-response.dto';
 
 export { SqlInteractionResponseDto };
 import {
+  IsDateString,
   IsIn,
   IsInt,
   IsOptional,
   IsString,
+  IsUUID,
   Max,
   MaxLength,
   Min,
@@ -14,6 +16,16 @@ import {
 
 export const SQL_ASSIGNED_TRAY_ESTADOS = ['Asignado', 'ConvertidoOUV'] as const;
 export type SqlAssignedTrayEstado = (typeof SQL_ASSIGNED_TRAY_ESTADOS)[number];
+
+export const SQL_INBOX_CITA_ESTADOS = [
+  'sin_agendar',
+  'Agendada',
+  'Reagendada',
+  'Realizada',
+  'Cancelada',
+  'NoAsistio',
+] as const;
+export type SqlInboxCitaEstado = (typeof SQL_INBOX_CITA_ESTADOS)[number];
 
 export class SqlsQueryDto {
   @IsOptional()
@@ -39,6 +51,21 @@ export class SqlsQueryDto {
   @MaxLength(200)
   q?: string;
 
+  @IsOptional()
+  @IsIn(SQL_INBOX_CITA_ESTADOS)
+  cita_estado?: SqlInboxCitaEstado;
+
+  @IsOptional()
+  @IsUUID()
+  comercial_asignado_id?: string;
+
+  @IsOptional()
+  @IsDateString()
+  created_from?: string;
+
+  @IsOptional()
+  @IsDateString()
+  created_to?: string;
 }
 
 export class SqlCitaResponseDto {

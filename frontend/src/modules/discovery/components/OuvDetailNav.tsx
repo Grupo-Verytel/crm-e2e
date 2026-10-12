@@ -1,4 +1,8 @@
-export type OuvDetailTab = 'detalle' | 'preventa' | 'interacciones';
+export type OuvDetailTab =
+  | 'detalle'
+  | 'preventa'
+  | 'interacciones'
+  | 'recordatorios';
 
 const tabClass = (active: boolean) =>
   [
@@ -43,6 +47,14 @@ export function OuvDetailNav({ active, onChange }: Props) {
         aria-current={active === 'interacciones' ? 'page' : undefined}
       >
         Interacciones
+      </button>
+      <button
+        type="button"
+        className={tabClass(active === 'recordatorios')}
+        onClick={() => onChange('recordatorios')}
+        aria-current={active === 'recordatorios' ? 'page' : undefined}
+      >
+        Recordatorios
       </button>
     </nav>
   );

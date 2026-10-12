@@ -5,6 +5,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  IsUUID,
   MaxLength,
   Min,
 } from 'class-validator';
@@ -79,4 +80,8 @@ export class ListarOuvsQueryDto {
   @Type(() => Boolean)
   @IsBoolean()
   all?: boolean;
+
+  @IsOptional()
+  @IsUUID()
+  comercial_id?: string;
 }

@@ -2,17 +2,18 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Search, X } from 'lucide-react';
 import { DatePickerField } from '../../../components/DatePickerField';
 import { TimePickerField } from '../../../components/TimePickerField';
-import { fetchPeople } from '../../accounts/api/accounts-api';
-import { fetchOuvContactos } from '../../discovery/api/ouvs-api';
 import type {
   KickoffInvitee,
-  KickoffInviteeTipo,
   KickoffRecord,
   KickoffSalaVerytel,
   KickoffUbicacionTipo,
 } from '../../shared/project/types';
 import {
-  KICKOFF_COMPANY_USERS,
+  kickoffInviteeTipoLabel,
+  loadKickoffInviteCandidates,
+  type KickoffInviteCandidate,
+} from '../lib/kickoff-invite-candidates';
+import {
   KICKOFF_SALAS_VERYTEL,
   mockTeamsMeetingLink,
   validateKickoffSlot,
@@ -25,14 +26,6 @@ import {
   labelClass,
   primaryButtonClass,
 } from './ui';
-
-type InviteCandidate = {
-  id: string;
-  nombre: string;
-  email: string;
-  tipo: KickoffInviteeTipo;
-  origenLabel: string;
-};
 
 type ScheduleTab = 'datos' | 'disponibilidad' | 'confirmacion';
 
@@ -87,12 +80,6 @@ function timeFromIso(iso: string | undefined): string {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-function inviteeTipoLabel(tipo: KickoffInviteeTipo): string {
-  if (tipo === 'Interno') return 'Verytel / Frisson';
-  if (tipo === 'ContactoOuv') return 'Empresa OUV';
-  return 'Empresa OUV';
-}
-
 const TAB_CLASS =
   'rounded px-3 py-2 text-sm font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-40';
 
@@ -118,7 +105,7 @@ export function KickoffScheduleModal({
   const [ubicacionDetalle, setUbicacionDetalle] = useState('');
   const [observaciones, setObservaciones] = useState('');
   const [invitados, setInvitados] = useState<KickoffInvitee[]>([]);
-  const [candidates, setCandidates] = useState<InviteCandidate[]>([]);
+  const [candidates, setCandidates] = useState<KickoffInviteCandidate[]>([]);
   const [inviteQuery, setInviteQuery] = useState('');
   const [inviteOpen, setInviteOpen] = useState(false);
   const [validation, setValidation] = useState<SlotValidation | null>(null);
@@ -160,59 +147,12 @@ export function KickoffScheduleModal({
     let cancelled = false;
 
     async function loadCandidates() {
-      const map = new Map<string, InviteCandidate>();
-      for (const u of KICKOFF_COMPANY_USERS) {
-        map.set(u.email.toLowerCase(), {
-          id: u.id,
-          nombre: u.nombre,
-          email: u.email,
-          tipo: 'Interno',
-          origenLabel: u.empresa,
-        });
-      }
-      try {
-        if (accountId) {
-          const people = await fetchPeople({
-            account_id: accountId,
-            page: 1,
-            limit: 100,
-          });
-          for (const p of people.items) {
-            const email =
-              p.email?.trim().toLowerCase() ||
-              `${p.person_id}@cuenta.local`;
-            if (map.has(email)) continue;
-            map.set(email, {
-              id: p.person_id,
-              nombre: p.name,
-              email: p.email ?? email,
-              tipo: 'Externo',
-              origenLabel: p.account_name ?? empresaNombre ?? 'Empresa OUV',
-            });
-          }
-        }
-      } catch {
-        /* optional */
-      }
-      try {
-        const contactos = await fetchOuvContactos(ouvId);
-        for (const c of contactos) {
-          const email =
-            c.email?.trim().toLowerCase() ||
-            `${c.contacto_ouv_id}@contacto.local`;
-          if (map.has(email)) continue;
-          map.set(email, {
-            id: c.contacto_ouv_id,
-            nombre: c.name,
-            email: c.email ?? email,
-            tipo: 'ContactoOuv',
-            origenLabel: empresaNombre ?? 'Contacto OUV',
-          });
-        }
-      } catch {
-        /* optional */
-      }
-      if (!cancelled) setCandidates([...map.values()]);
+      const rows = await loadKickoffInviteCandidates({
+        ouvId,
+        accountId,
+        empresaNombre,
+      });
+      if (!cancelled) setCandidates(rows);
     }
 
     void loadCandidates();
@@ -261,7 +201,7 @@ export function KickoffScheduleModal({
     if (tab === 'disponibilidad') setTab('datos');
   }
 
-  function addInvitee(candidate: InviteCandidate) {
+  function addInvitee(candidate: KickoffInviteCandidate) {
     setInvitados((prev) => {
       if (prev.some((i) => i.id === candidate.id || i.email === candidate.email)) {
         return prev;
@@ -547,7 +487,7 @@ export function KickoffScheduleModal({
                       >
                         <span className="font-bold text-ink">{inv.nombre}</span>
                         <span className="text-muted">
-                          · {inviteeTipoLabel(inv.tipo)}
+                          · {kickoffInviteeTipoLabel(inv.tipo)}
                         </span>
                         <button
                           type="button"

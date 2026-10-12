@@ -36,8 +36,3 @@ export function isOuvFollowUpViewer(roleName: string | undefined): boolean {
 export function canManageOuvCatalogs(roleName: string | undefined): boolean {
   return roleName === 'Admin' || isSoporteComercialRole(roleName);
 }
-
-/** Same roles that manage catalogs; the trays perdidas/descartadas are Opportunity, not these pages. */
-export function canViewOuvCatalogs(roleName: string | undefined): boolean {
-  return canManageOuvCatalogs(roleName);
-}

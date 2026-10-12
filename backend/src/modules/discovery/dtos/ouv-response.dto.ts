@@ -6,6 +6,7 @@ export class OuvResponseDto {
   origen!: string | null;
   canal_origen!: string | null;
   comercial_id!: string;
+  comercial_nombre!: string | null;
   account_id!: string | null;
   titulo!: string;
   empresa_nombre!: string;

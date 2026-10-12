@@ -4,6 +4,7 @@ import { LoadingScreen } from './components/LoadingScreen';
 import { AuthProvider } from './modules/auth/context/AuthProvider';
 import { NotificationsProvider } from './modules/auth/context/NotificationsProvider';
 import { NotificationToast } from './modules/auth/components/NotificationToast';
+import { RemindersProvider } from './modules/shared/reminders/RemindersProvider';
 import { AppRoutes } from './routing/AppRoutes';
 import { ModuleSearchProvider } from './layout/module-search';
 import { PointerGlow } from './theme/PointerGlow';
@@ -16,12 +17,14 @@ export default function App() {
         <PointerGlow />
         <AuthProvider>
           <NotificationsProvider>
-            <ModuleSearchProvider>
-              <Suspense fallback={<LoadingScreen />}>
-                <AppRoutes />
-              </Suspense>
-            </ModuleSearchProvider>
-            <NotificationToast />
+            <RemindersProvider>
+              <ModuleSearchProvider>
+                <Suspense fallback={<LoadingScreen />}>
+                  <AppRoutes />
+                </Suspense>
+              </ModuleSearchProvider>
+              <NotificationToast />
+            </RemindersProvider>
           </NotificationsProvider>
         </AuthProvider>
       </ThemeProvider>

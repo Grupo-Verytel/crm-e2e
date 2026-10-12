@@ -289,6 +289,14 @@ export function OuvDetailHeaderCard({
               />
             </div>
             <div>
+              <dt className="text-xs font-bold text-muted">
+                Comercial asignado
+              </dt>
+              <dd className="mt-0.5 break-words font-medium text-ink">
+                {ouv.comercial_nombre?.trim() || '—'}
+              </dd>
+            </div>
+            <div>
               <dt className="text-xs font-bold text-muted">Origen</dt>
               <dd className="mt-0.5 font-medium text-ink">
                 {ouv.origen ?? '—'}

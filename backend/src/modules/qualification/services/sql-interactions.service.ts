@@ -59,6 +59,20 @@ export class SqlInteractionsService {
     return interactions.map((row) => this.toResponseDto(row));
   }
 
+  async remove(sqlId: string, interactionId: string): Promise<void> {
+    await this.findSqlOrFail(sqlId);
+    const interaction = await this.sqlInteractionModel.findOne({
+      where: { sqlId, sqlInteractionId: interactionId },
+    });
+    if (!interaction) {
+      throw new NotFoundException({
+        code: QUALIFICATION_ERROR_CODES.NOT_FOUND,
+        message: `SQL interaction ${interactionId} not found`,
+      });
+    }
+    await interaction.destroy();
+  }
+
   private async findSqlOrFail(sqlId: string): Promise<Sql> {
     const sql = await this.sqlModel.findByPk(sqlId);
     if (!sql) {

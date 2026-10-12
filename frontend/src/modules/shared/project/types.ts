@@ -6,7 +6,7 @@ export type ValidacionEstado = 'Pendiente' | 'Aprobado' | 'Rechazado';
 
 export type ValidacionTipo = 'Tecnica' | 'Financiera';
 
-export type EmpresaEjecutora = 'Frisson' | 'Verytel' | 'UT';
+export type EmpresaEjecutora = 'Frisson' | 'Verytel' | 'UT' | 'Aliado';
 
 export type AlertaEstado = 'Pendiente' | 'Activa' | 'Resuelta';
 
@@ -30,7 +30,13 @@ export type DatosBaseProyecto = {
   costoEstimado: number;
   recurrente: boolean;
   empresasEjecutoras: EmpresaEjecutora[];
-  unionesTemporales: { nombre: string; participacionPct: number }[];
+  unionesTemporales: {
+    nombre: string;
+    participacionPct: number;
+    kind?: EmpresaEjecutora;
+    unionTemporalId?: string;
+    aliadoId?: string;
+  }[];
   directorProyectoId: string | null;
   directorProyectoNombre: string | null;
   tipoVenta: TipoVenta;

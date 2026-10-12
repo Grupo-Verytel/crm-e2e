@@ -40,6 +40,9 @@ export function QualificationNav() {
           <NavLink to="/qualification/assigned-sqls" className={navLinkClass}>
             SQL asignados
           </NavLink>
+          <NavLink to="/qualification/assigned-ouvs" className={navLinkClass}>
+            OUV asignadas
+          </NavLink>
           <NavLink to="/qualification/dashboard" className={navLinkClass}>
             Dashboard
           </NavLink>

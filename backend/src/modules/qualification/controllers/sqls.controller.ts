@@ -78,6 +78,16 @@ export class SqlsController {
     return this.sqlInteractionsService.create(id, dto, user.userId);
   }
 
+  @Delete(':id/interactions/:interactionId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @CheckAbility({ action: 'update', subject: 'Sql' })
+  async deleteInteraction(
+    @Param('id') id: string,
+    @Param('interactionId') interactionId: string,
+  ): Promise<void> {
+    await this.sqlInteractionsService.remove(id, interactionId);
+  }
+
   @Get(':id')
   @CheckAbility({ action: 'read', subject: 'Sql' })
   findOne(

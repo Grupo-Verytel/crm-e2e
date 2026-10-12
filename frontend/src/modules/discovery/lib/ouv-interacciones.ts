@@ -7,6 +7,7 @@ export type InteraccionEntry = {
   fechaRegistrada: string;
   registradoPor: string;
   etiquetas?: string[];
+  recordatorioAt?: string | null;
 };
 
 export type InteraccionRecord = InteraccionEntry & {

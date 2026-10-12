@@ -215,8 +215,8 @@ export function LeadsPage() {
 
   const viewToggleClass = (active: boolean) =>
     [
-      'grid h-9 w-9 place-items-center rounded',
-      active ? 'btn-glow text-white' : 'btn-glow-outline',
+      'grid h-9 w-9 place-items-center',
+      active ? 'btn-glow text-white' : 'btn-glow-outline !border-0',
     ].join(' ');
 
   return (
@@ -239,89 +239,91 @@ export function LeadsPage() {
               : 'Bandeja Leads'}
         </h1>
 
-        <div className="flex flex-wrap items-center gap-2">
-          {isTraductor ? null : (
-            <>
-              <button
-                type="button"
-                className={viewToggleClass(!showExceptions && view === 'kanban')}
-                onClick={() => handleSelectView('kanban')}
-                aria-label="Vista Kanban"
-                aria-pressed={!showExceptions && view === 'kanban'}
-                title="Kanban"
-              >
-                <LayoutGrid size={18} strokeWidth={2} />
-              </button>
-              <button
-                type="button"
-                className={viewToggleClass(!showExceptions && view === 'list')}
-                onClick={() => handleSelectView('list')}
-                aria-label="Vista Lista"
-                aria-pressed={!showExceptions && view === 'list'}
-                title="Lista"
-              >
-                <List size={18} strokeWidth={2} />
-              </button>
-              <button
-                type="button"
-                className={[viewToggleClass(filtersOpen), 'relative'].join(' ')}
-                onClick={() => setFiltersOpen((open) => !open)}
-                aria-label="Mostrar filtros"
-                aria-expanded={filtersOpen}
-                aria-controls="leads-filters-panel"
-                title="Filtros"
-              >
-                <Filter size={18} strokeWidth={2} />
-                {activeFilterCount > 0 ? (
-                  <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-accent px-0.5 text-[10px] font-bold text-white">
-                    {activeFilterCount}
-                  </span>
-                ) : null}
-              </button>
-              <button
-                type="button"
-                className={[viewToggleClass(showExceptions), 'relative'].join(' ')}
-                onClick={handleToggleDevueltas}
-                aria-label="OUV devueltas: reciclaje y descartados"
-                aria-pressed={showExceptions}
-                title="OUV devueltas"
-              >
-                <Recycle size={18} strokeWidth={2} />
-                {exceptionsCount != null && exceptionsCount > 0 ? (
-                  <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-accent px-0.5 text-[10px] font-bold text-white">
-                    {exceptionsCount}
-                  </span>
-                ) : null}
-              </button>
-              {!showExceptions ? (
-                <button
-                  type="button"
-                  className={viewToggleClass(false)}
-                  onClick={() => setShowBulkImport(true)}
-                  aria-label="Carga masiva de leads"
-                  title="Carga masiva"
-                >
-                  <Upload size={18} strokeWidth={2} />
-                </button>
+        {isTraductor ? null : (
+          <div
+            className="inline-flex items-center bg-transparent p-0"
+            role="toolbar"
+            aria-label="Acciones de bandeja"
+          >
+            <button
+              type="button"
+              className={viewToggleClass(!showExceptions && view === 'kanban')}
+              onClick={() => handleSelectView('kanban')}
+              aria-label="Vista Kanban"
+              aria-pressed={!showExceptions && view === 'kanban'}
+              title="Kanban"
+            >
+              <LayoutGrid size={20} strokeWidth={2} />
+            </button>
+            <button
+              type="button"
+              className={viewToggleClass(!showExceptions && view === 'list')}
+              onClick={() => handleSelectView('list')}
+              aria-label="Vista Lista"
+              aria-pressed={!showExceptions && view === 'list'}
+              title="Lista"
+            >
+              <List size={20} strokeWidth={2} />
+            </button>
+            <button
+              type="button"
+              className={[viewToggleClass(filtersOpen), 'relative'].join(' ')}
+              onClick={() => setFiltersOpen((open) => !open)}
+              aria-label="Mostrar filtros"
+              aria-expanded={filtersOpen}
+              aria-controls="leads-filters-panel"
+              title="Filtros"
+            >
+              <Filter size={20} strokeWidth={2} />
+              {activeFilterCount > 0 ? (
+                <span className="pointer-events-none absolute -right-1 -top-1 z-10 grid h-4 min-w-4 place-items-center rounded-full bg-accent px-0.5 text-[10px] font-bold text-white">
+                  {activeFilterCount}
+                </span>
               ) : null}
-              {showCreateButton && user ? (
-                <button
-                  type="button"
-                  className={viewToggleClass(false)}
-                  onClick={() => setShowCreate(true)}
-                  aria-label={
-                    formMode === 'ejecutivo' ? 'Nuevo lead directo' : 'Nuevo lead'
-                  }
-                  title={
-                    formMode === 'ejecutivo' ? 'Nuevo lead directo' : 'Nuevo lead'
-                  }
-                >
-                  <Plus size={18} strokeWidth={2} />
-                </button>
+            </button>
+            <button
+              type="button"
+              className={[viewToggleClass(showExceptions), 'relative'].join(' ')}
+              onClick={handleToggleDevueltas}
+              aria-label="OUV devueltas: reciclaje y descartados"
+              aria-pressed={showExceptions}
+              title="OUV devueltas"
+            >
+              <Recycle size={20} strokeWidth={2} />
+              {exceptionsCount != null && exceptionsCount > 0 ? (
+                <span className="pointer-events-none absolute -right-1 -top-1 z-10 grid h-4 min-w-4 place-items-center rounded-full bg-accent px-0.5 text-[10px] font-bold text-white">
+                  {exceptionsCount}
+                </span>
               ) : null}
-            </>
-          )}
-        </div>
+            </button>
+            {!showExceptions ? (
+              <button
+                type="button"
+                className={viewToggleClass(false)}
+                onClick={() => setShowBulkImport(true)}
+                aria-label="Carga masiva de leads"
+                title="Carga masiva"
+              >
+                <Upload size={20} strokeWidth={2} />
+              </button>
+            ) : null}
+            {showCreateButton && user ? (
+              <button
+                type="button"
+                className={viewToggleClass(false)}
+                onClick={() => setShowCreate(true)}
+                aria-label={
+                  formMode === 'ejecutivo' ? 'Nuevo lead directo' : 'Nuevo lead'
+                }
+                title={
+                  formMode === 'ejecutivo' ? 'Nuevo lead directo' : 'Nuevo lead'
+                }
+              >
+                <Plus size={20} strokeWidth={2} />
+              </button>
+            ) : null}
+          </div>
+        )}
       </div>
 
       {!showExceptions ? <DemandNav /> : null}

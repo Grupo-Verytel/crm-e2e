@@ -24,3 +24,13 @@ export async function registerSqlInteraction(
     },
   );
 }
+
+export async function deleteSqlInteraction(
+  sqlId: string,
+  interactionId: string,
+): Promise<void> {
+  await apiRequest(
+    `/qualification/sqls/${sqlId}/interactions/${interactionId}`,
+    { method: 'DELETE' },
+  );
+}

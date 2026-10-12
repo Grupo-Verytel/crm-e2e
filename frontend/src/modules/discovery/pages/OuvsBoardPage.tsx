@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Filter, LayoutGrid, List, Plus, Upload } from 'lucide-react';
+import { Download, Filter, LayoutGrid, List, Plus, Upload } from 'lucide-react';
 import { Pagination } from '../../../components/Pagination';
 import { AppLayout } from '../../../layout/AppLayout';
 import { useModuleSearch } from '../../../layout/module-search';
@@ -28,6 +28,10 @@ import {
   EMPTY_OUV_FILTERS,
   type DraftFilters,
 } from '../lib/ouv-filters';
+import {
+  downloadOuvsCsv,
+  fetchAllOuvsForExport,
+} from '../lib/ouv-export';
 import {
   isOuvNotificationEvent,
   OUV_ZONA_LABEL,
@@ -66,6 +70,7 @@ export function OuvsBoardPage() {
   const [error, setError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [showBulkImport, setShowBulkImport] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   const activeFilterCount = countActiveOuvFilters(applied);
 
@@ -194,12 +199,29 @@ export function OuvsBoardPage() {
     setPage(1);
   }
 
+  const handleExportCsv = useCallback(async () => {
+    if (isExporting) return;
+    setIsExporting(true);
+    setError(null);
+    try {
+      const ouvs = await fetchAllOuvsForExport(canListAll);
+      downloadOuvsCsv(
+        ouvs,
+        user
+          ? { user_id: user.user_id, full_name: user.full_name }
+          : null,
+      );
+    } catch {
+      setError('No se pudo descargar el CSV de OUVs.');
+    } finally {
+      setIsExporting(false);
+    }
+  }, [canListAll, isExporting, user]);
+
   const viewToggleClass = (active: boolean) =>
     [
-      'grid h-9 w-9 place-items-center rounded',
-      active
-        ? 'btn-glow text-white'
-        : 'btn-glow-outline',
+      'grid h-9 w-9 place-items-center',
+      active ? 'btn-glow text-white' : 'btn-glow-outline !border-0',
     ].join(' ');
 
   return (
@@ -215,8 +237,11 @@ export function OuvsBoardPage() {
         <h1 className="text-lg font-bold text-ink">
           {isFollowUpViewer ? 'Bandeja OUV (seguimiento)' : 'Bandeja OUV'}
         </h1>
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Kanban first — primary view */}
+        <div
+          className="inline-flex items-center overflow-hidden bg-transparent p-0"
+          role="toolbar"
+          aria-label="Acciones de bandeja"
+        >
           <button
             type="button"
             className={viewToggleClass(view === 'kanban')}
@@ -225,7 +250,7 @@ export function OuvsBoardPage() {
             aria-pressed={view === 'kanban'}
             title="Kanban"
           >
-            <LayoutGrid size={18} strokeWidth={2} />
+            <LayoutGrid size={20} strokeWidth={2} />
           </button>
           <button
             type="button"
@@ -235,21 +260,18 @@ export function OuvsBoardPage() {
             aria-pressed={view === 'lista'}
             title="Lista"
           >
-            <List size={18} strokeWidth={2} />
+            <List size={20} strokeWidth={2} />
           </button>
           <button
             type="button"
-            className={[
-              viewToggleClass(filtersOpen),
-              'relative',
-            ].join(' ')}
+            className={[viewToggleClass(filtersOpen), 'relative'].join(' ')}
             onClick={() => setFiltersOpen((open) => !open)}
             aria-label="Mostrar filtros"
             aria-expanded={filtersOpen}
             aria-controls="ouv-filters-panel"
             title="Filtros"
           >
-            <Filter size={18} strokeWidth={2} />
+            <Filter size={20} strokeWidth={2} />
             {activeFilterCount > 0 ? (
               <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-accent px-0.5 text-[10px] font-bold text-white">
                 {activeFilterCount}
@@ -264,9 +286,24 @@ export function OuvsBoardPage() {
               aria-label="Carga masiva de OUV"
               title="Carga masiva"
             >
-              <Upload size={18} strokeWidth={2} />
+              <Upload size={20} strokeWidth={2} />
             </button>
           ) : null}
+          <button
+            type="button"
+            className={[
+              viewToggleClass(false),
+              isExporting ? 'cursor-wait opacity-60' : '',
+            ].join(' ')}
+            onClick={() => {
+              void handleExportCsv();
+            }}
+            disabled={isExporting}
+            aria-label="Descargar OUVs en CSV"
+            title={isExporting ? 'Descargando…' : 'Descargar CSV'}
+          >
+            <Download size={20} strokeWidth={2} />
+          </button>
           {isEjecutivo ? (
             <button
               type="button"
@@ -275,7 +312,7 @@ export function OuvsBoardPage() {
               aria-label="Crear OUV"
               title="Crear OUV"
             >
-              <Plus size={18} strokeWidth={2} />
+              <Plus size={20} strokeWidth={2} />
             </button>
           ) : null}
         </div>

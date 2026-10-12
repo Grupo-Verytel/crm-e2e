@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { AppLayout } from '../../../layout/AppLayout';
 import { formatDateTime } from '../../../lib/format';
 import {
@@ -37,6 +37,7 @@ import {
 } from '../components/OuvDetailNav';
 import { PreventaActivityPanel } from '../components/PreventaActivityPanel';
 import { InteraccionesPreventaPanel } from '../components/InteraccionesPreventaPanel';
+import { OuvRecordatoriosPanel } from '../components/OuvRecordatoriosPanel';
 import { RetrocesoZonaModal } from '../components/RetrocesoZonaModal';
 import { isPreventaRole } from '../../auth/lib/permission-catalog';
 import { isOuvFollowUpViewer } from '../lib/ouv-access';
@@ -79,8 +80,20 @@ function mergeInfluenciasPreferringNewerLocal(
   });
 }
 
+function tabFromSearch(value: string | null): OuvDetailTab {
+  if (
+    value === 'preventa' ||
+    value === 'interacciones' ||
+    value === 'recordatorios'
+  ) {
+    return value;
+  }
+  return 'detalle';
+}
+
 export function OuvDetailPage() {
   const { id = '' } = useParams();
+  const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -119,7 +132,13 @@ export function OuvDetailPage() {
     'Ganada' | 'Perdida' | 'Descartada'
   >('Ganada');
   const [ouvEditMode, setOuvEditMode] = useState(false);
-  const [detailTab, setDetailTab] = useState<OuvDetailTab>('detalle');
+  const [detailTab, setDetailTab] = useState<OuvDetailTab>(() =>
+    tabFromSearch(searchParams.get('tab')),
+  );
+
+  useEffect(() => {
+    setDetailTab(tabFromSearch(searchParams.get('tab')));
+  }, [searchParams]);
   const [ouvExtensions, setOuvExtensions] = useState<OuvDetailExtensions>({});
 
   const [presupuestoConfirmado, setPresupuestoConfirmado] = useState(false);
@@ -512,6 +531,8 @@ export function OuvDetailPage() {
         />
       ) : detailTab === 'interacciones' ? (
         <InteraccionesPreventaPanel ouv={ouv} />
+      ) : detailTab === 'recordatorios' ? (
+        <OuvRecordatoriosPanel ouv={ouv} />
       ) : (
         <>
       {ouv.tiene_gap ? (

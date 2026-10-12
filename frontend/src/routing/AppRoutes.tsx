@@ -39,6 +39,9 @@ const AssignedSqlsPage = lazy(
 const SupportAssignedSqlsPage = lazy(
   () => import('../modules/qualification/pages/SupportAssignedSqlsPageLazy'),
 );
+const SupportAssignedOuvsPage = lazy(
+  () => import('../modules/qualification/pages/SupportAssignedOuvsPageLazy'),
+);
 const SqlDetailPage = lazy(
   () => import('../modules/qualification/pages/SqlDetailPageLazy'),
 );
@@ -59,9 +62,6 @@ const OportunidadesDescartadasPage = lazy(
 );
 const OuvDetailPage = lazy(
   () => import('../modules/discovery/pages/OuvDetailPageLazy'),
-);
-const ZonaChecklistAdminPage = lazy(
-  () => import('../modules/discovery/pages/ZonaChecklistAdminPageLazy'),
 );
 const AccountsListPage = lazy(
   () => import('../modules/accounts/pages/AccountsListPageLazy'),
@@ -140,16 +140,6 @@ export function AppRoutes() {
       element: (
         <ProtectedRoute>
           <OportunidadesDescartadasPage />
-        </ProtectedRoute>
-      ),
-    },
-    {
-      path: '/opportunities/admin/zona-checklist-templates',
-      element: (
-        <ProtectedRoute>
-          <RoleRoute roles={['SoporteComercial', 'Admin']}>
-            <ZonaChecklistAdminPage />
-          </RoleRoute>
         </ProtectedRoute>
       ),
     },
@@ -255,6 +245,16 @@ export function AppRoutes() {
         <ProtectedRoute>
           <RoleRoute roles={['SoporteComercial', 'Admin']}>
             <SupportAssignedSqlsPage />
+          </RoleRoute>
+        </ProtectedRoute>
+      ),
+    },
+    {
+      path: '/qualification/assigned-ouvs',
+      element: (
+        <ProtectedRoute>
+          <RoleRoute roles={['SoporteComercial', 'Admin']}>
+            <SupportAssignedOuvsPage />
           </RoleRoute>
         </ProtectedRoute>
       ),

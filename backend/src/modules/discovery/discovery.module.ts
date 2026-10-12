@@ -1,5 +1,6 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { SequelizeModule } from '@nestjs/sequelize';
+import { User } from '../auth/models/user.model';
 import { AccountsModule } from '../accounts/accounts.module';
 import { DemandGenerationModule } from '../demand-generation/demand-generation.module';
 import { WorkflowEngineModule } from '../workflow-engine/workflow-engine.module';
@@ -33,6 +34,7 @@ import { OuvsService } from './services/ouvs.service';
       MotivoPerdida,
       MotivoDescarte,
       ZonaChecklistTemplate,
+      User,
     ]),
     AccountsModule,
     forwardRef(() => DemandGenerationModule),

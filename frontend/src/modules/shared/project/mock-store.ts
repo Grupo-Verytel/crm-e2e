@@ -138,6 +138,30 @@ export function validateDatosBase(d: DatosBaseProyecto): string[] {
   if (!d.valorFacturar || d.valorFacturar <= 0) missing.push('Valor a facturar');
   if (!d.costoEstimado || d.costoEstimado <= 0) missing.push('Costo estimado');
   if (d.empresasEjecutoras.length === 0) missing.push('Empresa ejecutora');
+  if (d.empresasEjecutoras.includes('UT')) {
+    const utRow = d.unionesTemporales.find(
+      (row) =>
+        row.kind === 'UT' ||
+        Boolean(row.unionTemporalId) ||
+        (row.nombre.trim() !== '' &&
+          row.nombre !== 'Unión temporal' &&
+          row.nombre !== 'Aliado' &&
+          row.nombre !== 'Frisson' &&
+          row.nombre !== 'Frisson S.A.S.' &&
+          row.nombre !== 'Verytel S.A.'),
+    );
+    if (!utRow?.nombre.trim() || utRow.nombre === 'Unión temporal') {
+      missing.push('Unión temporal');
+    }
+  }
+  if (d.empresasEjecutoras.includes('Aliado')) {
+    const aliadoRow = d.unionesTemporales.find(
+      (row) => row.kind === 'Aliado' || Boolean(row.aliadoId),
+    );
+    if (!aliadoRow?.nombre.trim() || aliadoRow.nombre === 'Aliado') {
+      missing.push('Aliado');
+    }
+  }
   const pctSum = d.unionesTemporales.reduce((s, u) => s + u.participacionPct, 0);
   if (pctSum !== 100) missing.push('% participación (debe sumar 100%)');
   return missing;

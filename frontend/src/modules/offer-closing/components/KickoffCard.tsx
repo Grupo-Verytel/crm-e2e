@@ -3,6 +3,7 @@ import { CalendarPlus } from 'lucide-react';
 import type { KickoffRecord } from '../../shared/project/types';
 import { createEmptyKickoff } from '../../shared/project/mock-data';
 import { formatKickoffRange } from '../lib/kickoff-scheduling';
+import { KickoffForwardModal } from './KickoffForwardModal';
 import { KickoffProgramacionPanel } from './KickoffProgramacionPanel';
 import { KickoffScheduleModal } from './KickoffScheduleModal';
 import {
@@ -39,9 +40,11 @@ export function KickoffCard({
   onChange,
 }: Props) {
   const [modalOpen, setModalOpen] = useState(false);
+  const [forwardOpen, setForwardOpen] = useState(false);
   const hasAgenda = Boolean(
     kickoff.agendamientoConfirmado && kickoff.agenda,
   );
+  const canForward = hasAgenda && kickoff.estado === 'Programado';
 
   function openSchedule() {
     setModalOpen(true);
@@ -98,6 +101,15 @@ export function KickoffCard({
               ) : null}
             </div>
             <div className="flex flex-wrap gap-2">
+              {canForward ? (
+                <button
+                  type="button"
+                  className={ghostButtonClass}
+                  onClick={() => setForwardOpen(true)}
+                >
+                  Reenviar a
+                </button>
+              ) : null}
               <button
                 type="button"
                 className={ghostButtonClass}
@@ -149,6 +161,17 @@ export function KickoffCard({
         kickoff={kickoff}
         onChange={onChange}
       />
+      {canForward ? (
+        <KickoffForwardModal
+          open={forwardOpen}
+          onClose={() => setForwardOpen(false)}
+          ouvId={ouvId}
+          accountId={accountId}
+          empresaNombre={empresaNombre}
+          kickoff={kickoff}
+          onChange={onChange}
+        />
+      ) : null}
     </>
   );
 }

@@ -1,4 +1,4 @@
-export type SqlDetailTab = 'detalle' | 'interacciones';
+export type SqlDetailTab = 'detalle' | 'interacciones' | 'recordatorios';
 
 const tabClass = (active: boolean) =>
   [
@@ -35,6 +35,14 @@ export function SqlDetailNav({ active, onChange }: Props) {
         aria-current={active === 'interacciones' ? 'page' : undefined}
       >
         Interacciones
+      </button>
+      <button
+        type="button"
+        className={tabClass(active === 'recordatorios')}
+        onClick={() => onChange('recordatorios')}
+        aria-current={active === 'recordatorios' ? 'page' : undefined}
+      >
+        Recordatorios
       </button>
     </nav>
   );

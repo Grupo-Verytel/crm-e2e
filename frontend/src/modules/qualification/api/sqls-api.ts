@@ -83,6 +83,10 @@ export async function fetchSqlInbox(params: {
   page?: number;
   limit?: number;
   q?: string;
+  cita_estado?: string;
+  comercial_asignado_id?: string;
+  created_from?: string;
+  created_to?: string;
 }): Promise<PaginatedSqls> {
   return apiRequest(
     `/qualification/sqls/inbox${buildQueryString(params)}`,
@@ -94,6 +98,7 @@ export async function fetchAssignedSqls(params: {
   limit?: number;
   estado?: 'Asignado' | 'ConvertidoOUV';
   q?: string;
+  comercial_asignado_id?: string;
 }): Promise<PaginatedSqls> {
   return apiRequest(
     `/qualification/sqls/assigned${buildQueryString(params)}`,
