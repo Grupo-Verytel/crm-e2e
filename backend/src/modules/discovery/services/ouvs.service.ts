@@ -8,6 +8,7 @@ import {
 import { InjectConnection, InjectModel } from '@nestjs/sequelize';
 import { Op, QueryTypes, Sequelize, type Transaction } from 'sequelize';
 import { AccountsService } from '../../accounts/services/accounts.service';
+import { User } from '../../auth/models/user.model';
 import { UsersService } from '../../auth/services/users.service';
 import { DemandGenerationService } from '../../demand-generation/services/demand-generation.service';
 import { EntityType } from '../../workflow-engine/enums/entity-type.enum';
@@ -865,6 +866,15 @@ export class OuvsService {
 
     const { rows, count } = await this.ouvModel.findAndCountAll({
       where,
+      include: [
+        {
+          model: User,
+          as: 'comercial',
+          attributes: ['userId', 'fullName'],
+          required: false,
+        },
+      ],
+      distinct: true,
       order: [['updatedAt', 'DESC']],
       limit,
       offset: (page - 1) * limit,
@@ -896,7 +906,16 @@ export class OuvsService {
     actorUserId: string,
     roleName: string,
   ): Promise<Ouv> {
-    const ouv = await this.ouvModel.findByPk(ouvId);
+    const ouv = await this.ouvModel.findByPk(ouvId, {
+      include: [
+        {
+          model: User,
+          as: 'comercial',
+          attributes: ['userId', 'fullName'],
+          required: false,
+        },
+      ],
+    });
     if (!ouv) {
       throw new NotFoundException(`OUV ${ouvId} not found`);
     }
@@ -995,6 +1014,7 @@ export class OuvsService {
       origin: ouv.origin ?? null,
       source_channel: ouv.sourceChannel ?? null,
       comercial_id: ouv.comercialId,
+      comercial_nombre: ouv.comercial?.fullName ?? null,
       account_id: ouv.accountId ?? null,
       titulo: ouv.titulo,
       empresa_nombre: ouv.empresaNombre,

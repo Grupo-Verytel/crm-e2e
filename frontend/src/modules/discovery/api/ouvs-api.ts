@@ -14,6 +14,7 @@ export type Ouv = {
   origin: string | null;
   source_channel: string | null;
   comercial_id: string;
+  comercial_nombre?: string | null;
   account_id: string | null;
   titulo: string;
   empresa_nombre: string;

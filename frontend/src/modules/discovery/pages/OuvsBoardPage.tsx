@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Filter, LayoutGrid, List, Plus } from 'lucide-react';
+import { Download, Filter, LayoutGrid, List, Plus } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Pagination } from '../../../components/Pagination';
 import { AppLayout } from '../../../layout/AppLayout';
@@ -38,6 +38,7 @@ import {
   EMPTY_OUV_FILTERS,
   type DraftFilters,
 } from '../lib/ouv-filters';
+import { downloadOuvsCsv, fetchAllOuvsForExport } from '../lib/ouv-export';
 import {
   isOuvNotificationEvent,
   OUV_ZONA_LABEL,
@@ -98,6 +99,7 @@ function OuvsTray({ bandeja }: { bandeja: OuvBandejaKey }) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [ejecutivos, setEjecutivos] = useState<EjecutivoComercialOption[]>(
     [],
   );
@@ -238,6 +240,27 @@ function OuvsTray({ bandeja }: { bandeja: OuvBandejaKey }) {
     setPage(1);
   }
 
+  const handleExportCsv = useCallback(async () => {
+    if (isExporting) return;
+    setIsExporting(true);
+    setError(null);
+    try {
+      const ouvs = await fetchAllOuvsForExport(canListAll);
+      downloadOuvsCsv(
+        ouvs,
+        user ? { user_id: user.user_id, full_name: user.full_name } : null,
+      );
+    } catch (err) {
+      const message =
+        err instanceof ApiError && err.message
+          ? err.message
+          : 'No se pudo descargar el CSV de OUVs.';
+      setError(message);
+    } finally {
+      setIsExporting(false);
+    }
+  }, [canListAll, isExporting, user]);
+
   const toolbarIconClass = (active: boolean) =>
     [
       'grid h-9 w-9 place-items-center rounded',
@@ -299,6 +322,21 @@ function OuvsTray({ bandeja }: { bandeja: OuvBandejaKey }) {
             title="Filtros"
           >
             <Filter size={18} strokeWidth={2} />
+          </button>
+          <button
+            type="button"
+            className={[
+              toolbarIconClass(false),
+              isExporting ? 'cursor-wait opacity-60' : '',
+            ].join(' ')}
+            onClick={() => {
+              void handleExportCsv();
+            }}
+            disabled={isExporting}
+            aria-label="Descargar OUVs en CSV"
+            title={isExporting ? 'Descargando…' : 'Descargar CSV'}
+          >
+            <Download size={18} strokeWidth={2} />
           </button>
           {isEjecutivo && bandeja === 'EnCurso' ? (
             <button
