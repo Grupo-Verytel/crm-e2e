@@ -271,18 +271,10 @@ export function OuvDetailHeaderCard({
         {editMode ? (
           <>
             <div>
-              <label className={labelClass} htmlFor="ouv-org">
-                Organización
-              </label>
-              <input
-                id="ouv-org"
-                className={inputClass}
-                value={draft.empresa_nombre}
-                onChange={(e) =>
-                  patchDraft({ empresa_nombre: e.target.value })
-                }
-                maxLength={200}
-              />
+              <dt className="text-xs font-bold text-muted">Organización</dt>
+              <dd className="mt-0.5 wrap-break-word font-medium text-ink">
+                {ouv.empresa_nombre || '—'}
+              </dd>
             </div>
             <div>
               <label className={labelClass} htmlFor="ouv-segmento">
