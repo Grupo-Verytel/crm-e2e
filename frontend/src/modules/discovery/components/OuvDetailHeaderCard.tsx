@@ -80,18 +80,21 @@ export function OuvDetailHeaderCard({
   const saveSeq = useRef(0);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const draftRef = useRef(draft);
-  draftRef.current = draft;
+  const onPersistRef = useRef(onPersist);
+  onPersistRef.current = onPersist;
+  const persistChain = useRef<Promise<void>>(Promise.resolve());
+  const editingRef = useRef(false);
 
+  // Hydrate only when edit mode starts. Autosave updates `ouv` / `extensions`
+  // while the user is still typing; copying those props back into the draft
+  // snaps combos to the previous value and drops fast keystrokes.
   useEffect(() => {
-    if (!editMode) {
-      setDraft(draftFromOuv(ouv, extensions));
-    }
-  }, [ouv, extensions, editMode]);
-
-  useEffect(() => {
-    if (editMode) {
-      setDraft(draftFromOuv(ouv, extensions));
-    }
+    const entered = editMode && !editingRef.current;
+    editingRef.current = editMode;
+    if (!entered) return;
+    const next = draftFromOuv(ouv, extensions);
+    draftRef.current = next;
+    setDraft(next);
   }, [editMode, ouv, extensions]);
 
   useEffect(() => {
@@ -100,28 +103,39 @@ export function OuvDetailHeaderCard({
     };
   }, []);
 
-  useEffect(() => {
-    if (!editMode && debounceTimer.current) {
-      clearTimeout(debounceTimer.current);
-      debounceTimer.current = null;
-      void persistNow();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- flush pending save when leaving edit mode
-  }, [editMode]);
-
   function flashSaved() {
     setSavedFlash(true);
     const t = setTimeout(() => setSavedFlash(false), 1400);
     return () => clearTimeout(t);
   }
 
-  async function persistNow() {
+  function commitDraft(next: OuvHeaderDraft) {
+    draftRef.current = next;
+    setDraft(next);
+  }
+
+  function enqueuePersist() {
+    persistChain.current = persistChain.current.then(flushPersist, flushPersist);
+  }
+
+  useEffect(() => {
+    if (!editMode && debounceTimer.current) {
+      clearTimeout(debounceTimer.current);
+      debounceTimer.current = null;
+      enqueuePersist();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- flush pending save when leaving edit mode
+  }, [editMode]);
+
+  async function flushPersist() {
+    const snapshot = draftRef.current;
     const seq = ++saveSeq.current;
     setSaving(true);
     try {
-      await onPersist(draftRef.current);
-      if (saveSeq.current !== seq) return;
-      flashSaved();
+      await onPersistRef.current(snapshot);
+      if (saveSeq.current === seq) flashSaved();
+    } catch {
+      // Parent already reports the error.
     } finally {
       if (saveSeq.current === seq) setSaving(false);
     }
@@ -130,50 +144,38 @@ export function OuvDetailHeaderCard({
   function schedulePersist() {
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
     debounceTimer.current = setTimeout(() => {
-      void persistNow();
+      debounceTimer.current = null;
+      enqueuePersist();
     }, 500);
   }
 
   function patchDraft(patch: Partial<OuvHeaderDraft>) {
-    setDraft((prev) => {
-      const next = { ...prev, ...patch };
-      draftRef.current = next;
-      return next;
-    });
+    commitDraft({ ...draftRef.current, ...patch });
     schedulePersist();
   }
 
   function patchExtension(patch: Partial<OuvDetailExtensions>) {
-    setDraft((prev) => {
-      const next = {
-        ...prev,
-        extensions: { ...prev.extensions, ...patch },
-      };
-      draftRef.current = next;
-      return next;
+    commitDraft({
+      ...draftRef.current,
+      extensions: { ...draftRef.current.extensions, ...patch },
     });
     schedulePersist();
   }
 
   function patchSelect(field: 'segmento' | 'vertical', value: string) {
-    setDraft((prev) => {
-      const next = { ...prev, [field]: value };
-      draftRef.current = next;
-      return next;
-    });
-    void persistNow();
+    commitDraft({ ...draftRef.current, [field]: value });
+    enqueuePersist();
   }
 
   function patchProyecto(value: '' | 'Recurrente' | 'No recurrente') {
-    setDraft((prev) => {
-      const next = {
-        ...prev,
-        extensions: { ...prev.extensions, proyecto: value || undefined },
-      };
-      draftRef.current = next;
-      return next;
+    commitDraft({
+      ...draftRef.current,
+      extensions: {
+        ...draftRef.current.extensions,
+        proyecto: value || undefined,
+      },
     });
-    void persistNow();
+    enqueuePersist();
   }
 
   const readFields = buildOuvMetaFields(ouv, extensions);
@@ -256,7 +258,7 @@ export function OuvDetailHeaderCard({
               if (debounceTimer.current) {
                 clearTimeout(debounceTimer.current);
                 debounceTimer.current = null;
-                void persistNow();
+                enqueuePersist();
               }
             }}
           />
