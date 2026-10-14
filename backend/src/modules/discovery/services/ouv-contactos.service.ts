@@ -126,6 +126,16 @@ export class OuvContactosService {
         throw new NotFoundException(`Person ${personId} not found`);
       }
 
+      const alreadyLinked = await this.contactoModel.findOne({
+        where: { ouvId: ouv.ouvId, personId },
+        transaction,
+      });
+      if (alreadyLinked) {
+        throw new BadRequestException(
+          'Ese contacto ya está asociado a esta OUV.',
+        );
+      }
+
       await this.applyAccountConstraint(ouv, person.account_id, transaction);
 
       const contacto = await this.contactoModel.create(
