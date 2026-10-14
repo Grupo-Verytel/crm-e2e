@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ExternalLink } from 'lucide-react';
+import { Check, Copy } from 'lucide-react';
 import { AppLayout } from '../../../layout/AppLayout';
 import { useAuth } from '../../auth/hooks/useAuth';
 import { ApiError } from '../../auth/types';
@@ -28,7 +28,6 @@ import { applyWonSale, fetchWonSale, saveWonSale } from '../api/won-sale-api';
 import { FormularioDatosProyecto } from '../components/FormularioDatosProyecto';
 import { KickoffCard } from '../components/KickoffCard';
 import { ResumenEnvioPmoModal } from '../components/ResumenEnvioPmoModal';
-import { SharePointPreviewModal } from '../components/SharePointPreviewModal';
 import { useKickoffAttendance } from '../lib/use-kickoff-attendance';
 import type { GraphAttendance } from '../api/graph-api';
 import {
@@ -140,10 +139,20 @@ export function VentaGanadaDetailPage() {
   const pendienteRef = useRef<VentaGanadaRecord | null>(null);
   const guardandoRef = useRef(false);
   const guardadoTimer = useRef<number | null>(null);
-  const [preview, setPreview] = useState<{
-    title: string;
-    url: string;
-  } | null>(null);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  async function copyLink(key: string, url: string) {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedKey(key);
+      window.setTimeout(
+        () => setCopiedKey((current) => (current === key ? null : current)),
+        2000,
+      );
+    } catch {
+      setCopiedKey(null);
+    }
+  }
 
   /**
    * Envía el último estado pendiente. Si ya hay un `PUT` en vuelo no arranca
@@ -568,21 +577,32 @@ export function VentaGanadaDetailPage() {
                       Documento SharePoint
                     </p>
                     {v.sharepointUrl ? (
-                      <button
-                        type="button"
-                        className="inline-flex max-w-full items-center gap-2 text-left text-sm font-bold text-accent hover:underline"
-                        onClick={() =>
-                          setPreview({
-                            title: v.sharepointNombre ?? 'Documento',
-                            url: v.sharepointUrl!,
-                          })
-                        }
-                      >
-                        <ExternalLink size={15} aria-hidden />
-                        <span className="truncate">
+                      <div className="inline-flex max-w-full items-center gap-2 text-sm font-bold text-accent">
+                        <span className="truncate" title={v.sharepointUrl}>
                           {v.sharepointNombre ?? v.sharepointUrl}
                         </span>
-                      </button>
+                        <button
+                          type="button"
+                          className="grid h-6 w-6 shrink-0 place-items-center rounded text-muted hover:text-accent"
+                          aria-label={
+                            copiedKey === tipo
+                              ? 'Enlace copiado'
+                              : 'Copiar enlace del documento'
+                          }
+                          title={
+                            copiedKey === tipo
+                              ? 'Copiado'
+                              : 'Copiar enlace'
+                          }
+                          onClick={() => void copyLink(tipo, v.sharepointUrl!)}
+                        >
+                          {copiedKey === tipo ? (
+                            <Check size={15} aria-hidden />
+                          ) : (
+                            <Copy size={15} aria-hidden />
+                          )}
+                        </button>
+                      </div>
                     ) : (
                       <p className="text-xs text-muted">Sin documento vinculado.</p>
                     )}
@@ -651,12 +671,6 @@ export function VentaGanadaDetailPage() {
         }}
       />
 
-      <SharePointPreviewModal
-        open={Boolean(preview)}
-        title={preview?.title ?? ''}
-        url={preview?.url ?? ''}
-        onClose={() => setPreview(null)}
-      />
     </AppLayout>
   );
 }

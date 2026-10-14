@@ -1070,17 +1070,24 @@ export function KickoffScheduleModal({
 
               {validation ? (
                 <div className="rounded border border-border bg-bg p-3 text-sm">
-                  {validation.ok ? (
-                    <p className="text-positive">
-                      Horario disponible para confirmar.
-                    </p>
-                  ) : (
+                  {!validation.ok ? (
                     <ul className="list-disc pl-4 text-danger">
                       {validation.conflicts.map((c) => (
                         <li key={c}>{c}</li>
                       ))}
                     </ul>
-                  )}
+                  ) : validation.warnings.length === 0 ? (
+                    <p className="text-positive">
+                      Horario disponible para confirmar.
+                    </p>
+                  ) : null}
+                  {validation.warnings.length > 0 ? (
+                    <ul className="mt-1 list-disc pl-4 text-estado-amarillo-fg">
+                      {validation.warnings.map((w) => (
+                        <li key={w}>{w}</li>
+                      ))}
+                    </ul>
+                  ) : null}
                   {validation.skipped.map((s) => (
                     <p key={s} className="mt-1 text-xs text-muted">
                       {s}

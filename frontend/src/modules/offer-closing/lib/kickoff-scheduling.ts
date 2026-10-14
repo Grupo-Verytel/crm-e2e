@@ -208,7 +208,10 @@ export function buildAvailabilityBlocks(params: {
 
 export type SlotValidation = {
   ok: boolean;
+  /** Bloquean la confirmación (sala ocupada, sin ubicación). */
   conflicts: string[];
+  /** Invitados con otra reunión: no bloquean, el usuario decide. */
+  warnings: string[];
   skipped: string[];
 };
 
@@ -224,12 +227,14 @@ export function validateKickoffSlot(params: {
   schedules: GraphSchedule[];
 }): SlotValidation {
   const conflicts: string[] = [];
+  const warnings: string[] = [];
   const skipped: string[] = [];
 
   if (params.ubicaciones.length === 0) {
     return {
       ok: false,
       conflicts: ['Seleccione al menos una ubicación (Teams y/o Presencial).'],
+      warnings,
       skipped,
     };
   }
@@ -261,7 +266,7 @@ export function validateKickoffSlot(params: {
       const end = parseGraphDateTime(item.end);
       if (!start || !end) continue;
       if (overlaps(params.inicio, params.fin, start, end)) {
-        conflicts.push(
+        warnings.push(
           `${inv.nombre} ocupado ${padTime(start)}–${padTime(end)}`,
         );
       }
@@ -298,7 +303,7 @@ export function validateKickoffSlot(params: {
     }
   }
 
-  return { ok: conflicts.length === 0, conflicts, skipped };
+  return { ok: conflicts.length === 0, conflicts, warnings, skipped };
 }
 
 export function formatKickoffRange(inicio: string, fin: string): string {

@@ -136,7 +136,7 @@ export function TimePickerField({
       setPanelStyle({
         position: 'fixed',
         left: Math.min(rect.left, window.innerWidth - width - 8),
-        width,
+        minWidth: width,
         top: openUp ? undefined : rect.bottom + gap,
         bottom: openUp ? window.innerHeight - rect.top + gap : undefined,
         zIndex: 80,
@@ -200,7 +200,7 @@ export function TimePickerField({
                   role="option"
                   aria-selected={isSelected}
                   className={[
-                    'flex w-full px-3 py-1.5 text-left text-sm',
+                    'flex w-full whitespace-nowrap px-3 py-1.5 text-left text-sm',
                     isSelected
                       ? 'bg-accent font-bold text-white'
                       : 'text-ink hover:bg-bg',
@@ -228,11 +228,16 @@ export function TimePickerField({
         aria-label={ariaLabel ?? 'Hora'}
         aria-expanded={open}
         aria-haspopup="listbox"
-        className="flex h-9 w-full items-center gap-2 rounded border border-border bg-bg px-3 text-left text-sm text-ink outline-none hover:border-accent focus:border-accent focus:bg-surface"
+        className="flex h-9 w-full min-w-0 items-center gap-2 rounded border border-border bg-bg px-3 text-left text-sm text-ink outline-none hover:border-accent focus:border-accent focus:bg-surface"
         onClick={() => setOpen((current) => !current)}
       >
         <Clock size={15} className="shrink-0 text-accent" strokeWidth={2} />
-        <span className={value ? 'flex-1 text-ink' : 'flex-1 text-muted'}>
+        <span
+          className={[
+            'min-w-0 flex-1 truncate whitespace-nowrap',
+            value ? 'text-ink' : 'text-muted',
+          ].join(' ')}
+        >
           {value ? formatOutlookTime(value) : '--:--'}
         </span>
         <ChevronDown size={14} className="shrink-0 text-muted" strokeWidth={2} aria-hidden />
