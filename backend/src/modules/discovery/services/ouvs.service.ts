@@ -23,6 +23,7 @@ import type {
 } from '../dtos/cierre-ouv.dto';
 import type { CrearOuvDirectaDto } from '../dtos/crear-ouv-directa.dto';
 import { InfluenciaProblemException } from '../exceptions/influencia-problem.exception';
+import { evaluateGanadaClose } from '../lib/evaluate-ganada-close';
 import { influenceFilterBlockDetail } from '../lib/evaluate-influence-filter';
 import type { CrearOuvDto } from '../dtos/crear-ouv.dto';
 import type { ListarOuvsQueryDto } from '../dtos/listar-ouvs-query.dto';
@@ -389,9 +390,18 @@ export class OuvsService {
         transaction,
       );
 
-      if (ouv.zonaActual !== OuvZona.MayorProbabilidad) {
+      const influences = await this.influenciasService.listRows(
+        ouv.ouvId,
+        transaction,
+      );
+      const cierre = evaluateGanadaClose({
+        presupuestoConfirmado: ouv.presupuestoConfirmado,
+        presupuestoMonto: ouv.presupuestoMonto,
+        influences,
+      });
+      if (!cierre.passed) {
         throw new BadRequestException(
-          `Ganada requires zona MAYOR_PROBABILIDAD (current: ${ouv.zonaActual})`,
+          cierre.detalle ?? 'No se puede cerrar la OUV como Ganada.',
         );
       }
 
@@ -438,6 +448,9 @@ export class OuvsService {
             monto_final: dto.monto_final,
             moneda_final: dto.moneda_final,
             resultado_anterior: estadoAnteriorResultado,
+            presupuesto_confirmado: ouv.presupuestoConfirmado,
+            presupuesto_monto: Number(ouv.presupuestoMonto),
+            influencias_verde_count: cierre.greenTypes.length,
           },
           entity: { estado: zonaAlCerrar },
         },

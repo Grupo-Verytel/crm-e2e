@@ -1,5 +1,9 @@
 import { guardPresupuestoConfirmado } from './guard-presupuesto-confirmado';
 import { guard2InfluenciasEnVerde } from './guard-2-influencias-en-verde';
+import {
+  guardInfluenciasGanada,
+  guardPresupuestoGanada,
+} from './guard-cierre-ganada';
 import { guardUsuarioEsComercialDelOUV } from './guard-usuario-es-comercial-del-ouv';
 import { EntityType } from '../enums/entity-type.enum';
 import type { WorkflowGuardContext } from '../types/workflow.types';
@@ -91,6 +95,50 @@ describe('guard2InfluenciasEnVerde', () => {
     if (!result.ok) {
       expect(result.detalle).toMatch(/tipos en Verde/);
     }
+  });
+});
+
+describe('guardCierreGanada', () => {
+  it('rejects an unconfirmed budget', async () => {
+    const result = await guardPresupuestoGanada(
+      baseCtx({
+        payload: { presupuesto_confirmado: false, presupuesto_monto: 100 },
+      }),
+    );
+    expect(result.ok).toBe(false);
+  });
+
+  it('rejects a confirmed budget of 0', async () => {
+    const result = await guardPresupuestoGanada(
+      baseCtx({
+        payload: { presupuesto_confirmado: true, presupuesto_monto: 0 },
+      }),
+    );
+    expect(result.ok).toBe(false);
+  });
+
+  it('allows a confirmed budget above 0 from Universo', async () => {
+    const result = await guardPresupuestoGanada(
+      baseCtx({
+        estadoAnterior: 'UNIVERSO',
+        payload: { presupuesto_confirmado: true, presupuesto_monto: 1 },
+      }),
+    );
+    expect(result.ok).toBe(true);
+  });
+
+  it('rejects fewer than 2 green influence types', async () => {
+    const result = await guardInfluenciasGanada(
+      baseCtx({ payload: { influencias_verde_count: 1 } }),
+    );
+    expect(result.ok).toBe(false);
+  });
+
+  it('allows 2 green influence types', async () => {
+    const result = await guardInfluenciasGanada(
+      baseCtx({ payload: { influencias_verde_count: 2 } }),
+    );
+    expect(result.ok).toBe(true);
   });
 });
 

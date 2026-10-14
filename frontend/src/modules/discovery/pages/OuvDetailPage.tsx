@@ -747,6 +747,7 @@ export function OuvDetailPage() {
       {showCierre ? (
         <CierreOuvModal
           ouv={ouv}
+          influencias={influencias}
           onClose={() => setShowCierre(false)}
           onClosed={handleOuvClosed}
         />
