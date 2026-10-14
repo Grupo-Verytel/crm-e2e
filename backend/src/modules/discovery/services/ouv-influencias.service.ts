@@ -63,11 +63,18 @@ export class OuvInfluenciasService {
     ouvId: string,
     transaction?: Transaction,
   ): Promise<InfluenceFilterResult> {
-    const rows = await this.influenciaModel.findAll({
+    const rows = await this.listRows(ouvId, transaction);
+    return evaluateInfluenceFilter(rows);
+  }
+
+  async listRows(
+    ouvId: string,
+    transaction?: Transaction,
+  ): Promise<OuvInfluencia[]> {
+    return this.influenciaModel.findAll({
       where: { ouvId },
       transaction,
     });
-    return evaluateInfluenceFilter(rows);
   }
 
   async agregarContacto(

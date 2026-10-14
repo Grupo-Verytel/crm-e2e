@@ -1,5 +1,9 @@
 import { EntityType } from './enums/entity-type.enum';
 import { guard2InfluenciasEnVerde } from './guards/guard-2-influencias-en-verde';
+import {
+  guardInfluenciasGanada,
+  guardPresupuestoGanada,
+} from './guards/guard-cierre-ganada';
 import { guardEntidadEnEstado } from './guards/guard-entidad-en-estado';
 import { guardPresupuestoConfirmado } from './guards/guard-presupuesto-confirmado';
 import { guardUsuarioEsComercialDelOUV } from './guards/guard-usuario-es-comercial-del-ouv';
@@ -229,7 +233,8 @@ export const workflowRules: WorkflowRule[] = [
     eventType: 'ouv.ganada',
     guards: [
       guardUsuarioEsComercialDelOUV,
-      guardEntidadEnEstado(EntityType.OUV, 'MAYOR_PROBABILIDAD'),
+      guardPresupuestoGanada,
+      guardInfluenciasGanada,
     ],
     destinatarios: [
       { tipo: 'rol', resolver: () => 'SoporteComercial' },

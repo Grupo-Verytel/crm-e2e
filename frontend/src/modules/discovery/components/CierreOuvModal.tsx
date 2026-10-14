@@ -10,6 +10,7 @@ import {
   ganarOuv,
   perderOuv,
   type Ouv,
+  type OuvInfluencia,
 } from '../api/ouvs-api';
 import {
   fetchMotivosDescarte,
@@ -18,6 +19,8 @@ import {
   type MotivoCatalogo,
   type ProcessTypeOption,
 } from '../api/catalogos-api';
+import { ganadaCloseBlockers } from '../lib/ganada-close';
+import { OUV_ZONA_LABEL } from '../lib/ouv-vocab';
 import { ModalShell } from './ModalShell';
 import {
   ghostButtonClass,
@@ -35,6 +38,7 @@ export type OuvClosedEvent = {
 
 type Props = {
   ouv: Ouv;
+  influencias: OuvInfluencia[];
   onClose: () => void;
   onClosed: (event: OuvClosedEvent) => void;
 };
@@ -55,7 +59,12 @@ function presupuestoAmount(ouv: Ouv): string {
   return formatAmountEsCo(ouv.presupuesto_monto) || '';
 }
 
-export function CierreOuvModal({ ouv, onClose, onClosed }: Props) {
+export function CierreOuvModal({
+  ouv,
+  influencias,
+  onClose,
+  onClosed,
+}: Props) {
   const [resultado, setResultado] = useState<ResultadoCierre>('Ganada');
   const [motivosPerdida, setMotivosPerdida] = useState<MotivoCatalogo[]>([]);
   const [processTypes, setProcessTypes] = useState<ProcessTypeOption[]>([]);
@@ -115,6 +124,7 @@ export function CierreOuvModal({ ouv, onClose, onClosed }: Props) {
     resultado !== 'Perdida' &&
     (Boolean(selected?.requiere_detalle) ||
       (resultado === 'Ganada' && Boolean(motivoId)));
+  const ganadaBlockers = ganadaCloseBlockers(ouv, influencias);
 
   async function confirm(e: FormEvent) {
     e.preventDefault();
@@ -123,10 +133,8 @@ export function CierreOuvModal({ ouv, onClose, onClosed }: Props) {
     try {
       let closed: Ouv;
       if (resultado === 'Ganada') {
-        if (ouv.zona_actual !== 'MAYOR_PROBABILIDAD') {
-          throw new Error(
-            'Ganada solo desde zona Mayor Probabilidad (Wave 1).',
-          );
+        if (ganadaBlockers.length > 0) {
+          throw new Error(ganadaBlockers.join(' '));
         }
         const monto = requireAmount(montoFinal, 'Monto final inválido.');
         closed = await ganarOuv(ouv.ouv_id, {
@@ -213,8 +221,18 @@ export function CierreOuvModal({ ouv, onClose, onClosed }: Props) {
         {resultado === 'Ganada' ? (
           <div className="space-y-3">
             <p className="text-xs text-muted">
-              Requiere zona Mayor Probabilidad (actual: {ouv.zona_actual}).
+              Zona actual: {OUV_ZONA_LABEL[ouv.zona_actual]}. Puedes cerrarla
+              como Ganada desde cualquier zona si el presupuesto está
+              confirmado y es mayor a 0, y hay al menos 2 tipos de influencia
+              en Verde (Económica, Técnica, Fábrica, Usuario, Coach).
             </p>
+            {ganadaBlockers.length > 0 ? (
+              <ul className="space-y-1 text-sm text-danger">
+                {ganadaBlockers.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            ) : null}
             <div>
               <label className={labelClass}>Tipo de proceso</label>
               <select
@@ -392,7 +410,9 @@ export function CierreOuvModal({ ouv, onClose, onClosed }: Props) {
           <button
             type="submit"
             className={primaryButtonClass}
-            disabled={saving}
+            disabled={
+              saving || (resultado === 'Ganada' && ganadaBlockers.length > 0)
+            }
           >
             {saving ? 'Cerrando…' : 'Confirmar cierre'}
           </button>
