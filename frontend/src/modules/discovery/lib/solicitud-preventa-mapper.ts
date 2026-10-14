@@ -94,9 +94,16 @@ export function serviceCardsFromSolicitud(
 
   return base.map((card) => {
     const resultado = solicitud.servicios.find((s) => s.service === card.service);
-    const state: ServiceCardState = resultado?.bloqueado_por_dependencia
-      ? 'blocked'
-      : 'active';
+    // Sin resultado MEP para este servicio (p. ej. solicitud recién enviada),
+    // se conserva el bloqueo del combo (financiera en gris tras la técnica)
+    // hasta que el técnico llegue COMPLETED.
+    const tecnicoCompletado = solicitud.servicios.some(
+      (s) => s.service === 'TECHNICAL_DESIGN' && s.status === 'COMPLETED',
+    );
+    const blocked = resultado
+      ? resultado.bloqueado_por_dependencia
+      : card.state === 'blocked' && !tecnicoCompletado;
+    const state: ServiceCardState = blocked ? 'blocked' : 'active';
     const deliverable = resultado?.entregables.find((d) => d.url?.trim());
     return {
       ...card,
