@@ -174,7 +174,7 @@ export function ContactosSidePanel({
                           </p>
                         ) : null}
                       </div>
-                      {editable ? (
+                      {editable && !c.contacto_ouv_id.startsWith('person:') ? (
                         <div className="flex shrink-0 gap-0.5">
                           <button
                             type="button"

@@ -13,6 +13,8 @@ import {
 } from '../../../lib/notification-events';
 import { ApiError } from '../../auth/types';
 import { useAuth } from '../../auth/hooks/useAuth';
+import { fetchAccounts, fetchPeople } from '../../accounts/api/accounts-api';
+import type { Person } from '../../accounts/types';
 import {
   createOuvContacto,
   deleteOuvContacto,
@@ -76,12 +78,43 @@ import {
   type OuvDetailExtensions,
 } from '../lib/ouv-detail-extensions';
 
+const PENDING_PERSON_PREFIX = 'person:';
+
+async function peopleForOuv(detail: Ouv): Promise<Person[]> {
+  try {
+    let accountId = detail.account_id;
+    const companyName = detail.empresa_nombre.trim();
+    if (!accountId && companyName) {
+      const found = await fetchAccounts({ q: companyName, page: 1, limit: 10 });
+      const needle = companyName.toLowerCase();
+      accountId =
+        found.items.find(
+          (account) => account.name.trim().toLowerCase() === needle,
+        )?.account_id ?? null;
+    }
+    if (!accountId) return [];
+    const limit = 100;
+    const first = await fetchPeople({ account_id: accountId, page: 1, limit });
+    if (first.total <= first.items.length) return first.items;
+    const items = [...first.items];
+    const pages = Math.ceil(first.total / limit);
+    for (let page = 2; page <= pages; page += 1) {
+      const next = await fetchPeople({ account_id: accountId, page, limit });
+      items.push(...next.items);
+    }
+    return items;
+  } catch {
+    return [];
+  }
+}
+
 export function OuvDetailPage() {
   const { id = '' } = useParams();
   const { user } = useAuth();
 
   const [ouv, setOuv] = useState<Ouv | null>(null);
   const [contactos, setContactos] = useState<OuvContacto[]>([]);
+  const [accountPeople, setAccountPeople] = useState<Person[]>([]);
   const [influencias, setInfluencias] = useState<OuvInfluencia[]>([]);
   const [filtro, setFiltro] = useState<OuvInfluenciaFiltro>(EMPTY_INFLUENCIA_FILTRO);
   const [savingInfluenciaId, setSavingInfluenciaId] = useState<string | null>(null);
@@ -131,11 +164,13 @@ export function OuvDetailPage() {
         setPresupuestoMoneda(detail.presupuesto_moneda ?? 'COP');
         setPresupuestoFuente(detail.presupuesto_fuente ?? 'cliente_declaro');
 
-        const [c, i] = await Promise.all([
+        const [c, i, people] = await Promise.all([
           fetchOuvContactos(id),
           fetchOuvInfluencias(id),
+          peopleForOuv(detail),
         ]);
         setContactos(c);
+        setAccountPeople(people);
         setInfluencias(i.influencias);
         setFiltro(i.filtro);
       } catch {
@@ -186,13 +221,31 @@ export function OuvDetailPage() {
   async function handleAddInfluencia(tipo: InfluenciaTipo, contactoOuvId: string) {
     if (!id) return;
     setActionError(null);
+    const personId = contactoOuvId.startsWith(PENDING_PERSON_PREFIX)
+      ? contactoOuvId.slice(PENDING_PERSON_PREFIX.length)
+      : null;
     try {
-      await agregarInfluenciaContacto(id, tipo, contactoOuvId);
+      let targetId = contactoOuvId;
+      if (personId) {
+        const already = contactos.find((c) => c.person_id === personId);
+        targetId = already
+          ? already.contacto_ouv_id
+          : (await createOuvContacto(id, { person_id: personId })).contacto_ouv_id;
+      }
+      await agregarInfluenciaContacto(id, tipo, targetId);
       await refreshInfluencias();
     } catch (err) {
       setActionError(
         err instanceof ApiError ? err.message : 'No se pudo agregar el contacto.',
       );
+    } finally {
+      if (personId) {
+        try {
+          setContactos(await fetchOuvContactos(id));
+        } catch {
+          /* the list stays as loaded; the next visit reconciles it */
+        }
+      }
     }
   }
 
@@ -300,7 +353,7 @@ export function OuvDetailPage() {
   }
 
   async function handleDeleteContacto(contacto: OuvContacto) {
-    if (!id) return;
+    if (!id || contacto.contacto_ouv_id.startsWith(PENDING_PERSON_PREFIX)) return;
     const confirmed = window.confirm(
       `¿Eliminar el contacto ${contacto.name}? Esta acción no se puede deshacer.`,
     );
@@ -447,6 +500,26 @@ export function OuvDetailPage() {
     ),
   );
   const backLink = backLinkForResultado(ouv.resultado);
+  const linkedPersonIds = new Set(contactos.map((c) => c.person_id));
+  const contactosVisibles: OuvContacto[] = [
+    ...contactos,
+    ...accountPeople
+      .filter((person) => !linkedPersonIds.has(person.person_id))
+      .map((person) => ({
+        contacto_ouv_id: `${PENDING_PERSON_PREFIX}${person.person_id}`,
+        ouv_id: ouv.ouv_id,
+        person_id: person.person_id,
+        name: person.name,
+        job_title: person.job_title,
+        email: person.email,
+        phone: person.phone,
+        account_id: person.account_id,
+        account_name: person.account_name ?? '',
+        notas: null,
+        created_at: person.created_at,
+        updated_at: person.updated_at,
+      })),
+  ];
   const influenciaByContacto = new Map<string, string[]>();
   for (const inf of influencias) {
     if (!inf.contacto_ouv_id) continue;
@@ -479,7 +552,7 @@ export function OuvDetailPage() {
             onRetroceder={() => setShowRetroceso(true)}
             onCerrar={() => setShowCierre(true)}
             onPersist={persistOuvHeader}
-            contactosCount={contactos.length}
+            contactosCount={contactosVisibles.length}
             onOpenContactos={() => setShowContactos(true)}
           />
         </>
@@ -524,7 +597,7 @@ export function OuvDetailPage() {
       <InfluenciasSection
         influencias={influencias}
         filtro={filtro}
-        contactos={contactos}
+        contactos={contactosVisibles}
         editable={editable}
         savingId={savingInfluenciaId}
         onAddExisting={(tipo, contactoOuvId) =>
@@ -721,7 +794,7 @@ export function OuvDetailPage() {
       ) : null}
       <ContactosSidePanel
         open={showContactos}
-        contactos={contactos}
+        contactos={contactosVisibles}
         influenciaByContacto={influenciaByContacto}
         editable={editable}
         onClose={() => setShowContactos(false)}
