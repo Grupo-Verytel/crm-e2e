@@ -33,6 +33,21 @@ body {
   color: var(--ink);
   font-family: var(--font-ui);
   -webkit-font-smoothing: antialiased;
+  /* Sin selección de texto en la interfaz; solo disuade, no protege datos. */
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/*
+ * Los campos editables siguen permitiendo seleccionar, copiar y pegar. Para
+ * dejar copiable un dato puntual (NIT, consecutivo) se usa `select-text`.
+ */
+input,
+textarea,
+[contenteditable='true'],
+.select-text {
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 @property --glow-opacity {
@@ -164,6 +179,20 @@ body {
   animation: fadeSlideIn 280ms ease-out;
 }
 
+/** Entrada suave del contenido de una página cuando termina de cargar. */
+.page-fade-in {
+  animation: fadeSlideIn 450ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 /**
  * Global scrollbars (additive only).
  * Transparent track so the thumb sits over the surface; no layout/color changes
@@ -223,113 +252,63 @@ body {
 }
 
 /**
- * Loader «three-body» (Uiverse.io, dovatgabriel), con los colores de marca:
- * dos esferas naranja (café y acento del tema) y una gris clara.
+ * Loader de barras (Uiverse.io, satyamchaudharydev) con los colores de marca:
+ * café, acento del tema y gris claro, en espejo. `--bars-size` controla la
+ * altura de las barras; el ancho y el espacio escalan con ella.
  */
-.three-body {
-  --uib-size: 35px;
-  --uib-speed: 0.8s;
-  position: relative;
-  display: inline-block;
-  height: var(--uib-size);
-  width: var(--uib-size);
-  animation: three-body-spin calc(var(--uib-speed) * 2.5) infinite linear;
+.bars-loader {
+  --bars-speed: 0.9s;
+  --bars-size: 50px;
+  --bars-brown: rgb(165 93 26);
+  --bars-accent: var(--accent);
+  --bars-light: rgb(242 242 242);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: calc(var(--bars-size) * 0.12);
+  height: calc(var(--bars-size) * 2);
 }
 
-.three-body__dot {
-  position: absolute;
-  height: 100%;
-  width: 30%;
+.bars-loader span {
+  width: calc(var(--bars-size) * 0.08);
+  height: var(--bars-size);
+  border-radius: 9999px;
+  background: var(--bars-brown);
+  animation: bars-loader-scale var(--bars-speed) ease-in-out infinite;
 }
 
-.three-body__dot::after {
-  content: '';
-  position: absolute;
-  height: 0%;
-  width: 100%;
-  padding-bottom: 100%;
-  border-radius: 50%;
+.bars-loader span:nth-child(2) {
+  background: var(--bars-accent);
+  animation-delay: -0.8s;
 }
 
-.three-body__dot:nth-child(1) {
-  bottom: 5%;
-  left: 0;
-  transform: rotate(60deg);
-  transform-origin: 50% 85%;
+.bars-loader span:nth-child(3) {
+  background: var(--bars-light);
+  animation-delay: -0.7s;
 }
 
-.three-body__dot:nth-child(1)::after {
-  bottom: 0;
-  left: 0;
-  background-color: rgb(165 93 26);
-  animation: three-body-wobble1 var(--uib-speed) infinite ease-in-out;
-  animation-delay: calc(var(--uib-speed) * -0.3);
+.bars-loader span:nth-child(4) {
+  background: var(--bars-accent);
+  animation-delay: -0.6s;
 }
 
-.three-body__dot:nth-child(2) {
-  bottom: 5%;
-  right: 0;
-  transform: rotate(-60deg);
-  transform-origin: 50% 85%;
+.bars-loader span:nth-child(5) {
+  background: var(--bars-brown);
+  animation-delay: -0.5s;
 }
 
-.three-body__dot:nth-child(2)::after {
-  bottom: 0;
-  left: 0;
-  background-color: rgb(242 242 242);
-  animation: three-body-wobble1 var(--uib-speed) infinite
-    calc(var(--uib-speed) * -0.15) ease-in-out;
-}
-
-.three-body__dot:nth-child(3) {
-  bottom: -5%;
-  left: 0;
-  transform: translateX(116.666%);
-}
-
-.three-body__dot:nth-child(3)::after {
-  top: 0;
-  left: 0;
-  background-color: var(--accent);
-  animation: three-body-wobble2 var(--uib-speed) infinite ease-in-out;
-}
-
-@keyframes three-body-spin {
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(360deg);
-  }
-}
-
-@keyframes three-body-wobble1 {
+@keyframes bars-loader-scale {
   0%,
+  40%,
   100% {
-    transform: translateY(0%) scale(1);
-    opacity: 1;
+    transform: scaleY(0.05);
   }
-  50% {
-    transform: translateY(-66%) scale(0.65);
-    opacity: 0.8;
+  20% {
+    transform: scaleY(1);
   }
 }
 
-@keyframes three-body-wobble2 {
-  0%,
-  100% {
-    transform: translateY(0%) scale(1);
-    opacity: 1;
-  }
-  50% {
-    transform: translateY(66%) scale(0.65);
-    opacity: 0.8;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .three-body,
-  .three-body__dot::after {
-    animation-duration: calc(var(--uib-speed) * 6);
-  }
+/* El contenedor del loader aparece con fundido para no "saltar" en pantalla. */
+.loader-fade-in {
+  animation: fadeIn 250ms ease-out both;
 }

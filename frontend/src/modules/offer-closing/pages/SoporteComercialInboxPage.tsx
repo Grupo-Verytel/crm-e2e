@@ -104,7 +104,7 @@ export function SoporteComercialInboxPage() {
         <div>
           <h1 className="text-xl font-bold text-ink">Bandeja soporte comercial</h1>
           <p className="text-sm text-muted">
-            Ventas ganadas pendientes de validación antes de Control de Proyectos (mock).
+            Ventas ganadas pendientes de validación antes de Control de Proyectos.
           </p>
         </div>
       </div>

@@ -319,17 +319,23 @@ export function VentaGanadaDetailPage() {
   if (!record) {
     return (
       <AppLayout title="Oferta & Cierre">
+        {/* Mientras carga solo se ve el loader; el enlace de regreso queda
+            para cuando la venta no se pudo cargar. */}
         {loadError ? (
-          <p className="text-sm text-muted">{loadError}</p>
+          <>
+            <p className="text-sm text-muted">{loadError}</p>
+            <Link
+              to="/offers"
+              className="mt-3 inline-block text-sm text-accent hover:underline"
+            >
+              ← Bandeja soporte comercial
+            </Link>
+          </>
         ) : (
-          <Loader label="Cargando la venta…" className="py-16" />
+          // `h-full` ocupa todo el `<main>` del layout: el loader queda
+          // centrado en el área de contenido, no pegado arriba.
+          <Loader label="Cargando la venta…" className="h-full" />
         )}
-        <Link
-          to="/offers"
-          className="mt-3 inline-block text-sm text-accent hover:underline"
-        >
-          ← Bandeja soporte comercial
-        </Link>
       </AppLayout>
     );
   }
@@ -497,194 +503,195 @@ export function VentaGanadaDetailPage() {
 
   return (
     <AppLayout title={record.consecutivo}>
-      <div className="mb-3">
-        <Link to="/offers" className="text-sm text-accent hover:underline">
-          ← Bandeja soporte comercial
-        </Link>
-      </div>
+      <div className="page-fade-in">
+        <div className="mb-3">
+          <Link to="/offers" className="text-sm text-accent hover:underline">
+            ← Bandeja soporte comercial
+          </Link>
+        </div>
 
-      {toast ? (
-        <p className="mb-3 rounded border border-positive/30 bg-positive/10 px-3 py-2 text-sm text-positive">
-          {toast}
-        </p>
-      ) : null}
+        {toast ? (
+          <p className="mb-3 rounded border border-positive/30 bg-positive/10 px-3 py-2 text-sm text-positive">
+            {toast}
+          </p>
+        ) : null}
 
-      <OuvReadonlyHeaderCard
-        ouv={headerOuv}
-        extensions={ouvExtensions}
-        footer={
-          record.envioPmo.estado === 'Enviado' ? (
-            <div className={`${badgeClass} bg-positive/15 text-positive`}>
-              Enviado · {record.envioPmo.consecutivoControlProyectos}
-              {record.envioPmo.serConsecutivo
-                ? ` · ${record.envioPmo.serConsecutivo}`
-                : ''}
+        <OuvReadonlyHeaderCard
+          ouv={headerOuv}
+          extensions={ouvExtensions}
+          footer={
+            record.envioPmo.estado === 'Enviado' ? (
+              <div className={`${badgeClass} bg-positive/15 text-positive`}>
+                Enviado · {record.envioPmo.consecutivoControlProyectos}
+                {record.envioPmo.serConsecutivo
+                  ? ` · ${record.envioPmo.serConsecutivo}`
+                  : ''}
+              </div>
+            ) : null
+          }
+        />
+
+        <nav
+          className="mb-4 flex flex-wrap items-center gap-1 border-b border-border"
+          aria-label="Detalle venta ganada"
+        >
+          {tabBtn('validaciones', 'Viabilidad')}
+          {tabBtn('kickoff', 'Kickoff', motivoBloqueo)}
+          {tabBtn('datos', 'Datos proyecto', motivoBloqueoDatos)}
+          {tabActivo === 'datos' ? (
+            <div className="ml-auto flex items-center pb-1">
+              <button
+                type="button"
+                className={primaryButtonClass}
+                disabled={!pmo.ok}
+                title={pmo.reason ?? 'Crear proyecto en Control de Proyectos'}
+                onClick={() => setShowResumen(true)}
+              >
+                Crear Proyecto
+              </button>
             </div>
-          ) : null
-        }
-      />
+          ) : null}
+        </nav>
 
-      <nav
-        className="mb-4 flex flex-wrap items-center gap-1 border-b border-border"
-        aria-label="Detalle venta ganada"
-      >
-        {tabBtn('validaciones', 'Viabilidad')}
-        {tabBtn('kickoff', 'Kickoff', motivoBloqueo)}
-        {tabBtn('datos', 'Datos proyecto', motivoBloqueoDatos)}
-        {tabActivo === 'datos' ? (
-          <div className="ml-auto flex items-center pb-1">
-            <button
-              type="button"
-              className={primaryButtonClass}
-              disabled={!pmo.ok}
-              title={pmo.reason ?? 'Crear proyecto en Control de Proyectos'}
-              onClick={() => setShowResumen(true)}
-            >
-              Crear Proyecto
-            </button>
+        {tabActivo === 'validaciones' ? (
+          <div className="space-y-4">
+            <div className="grid gap-4 lg:grid-cols-2">
+              {VALIDACION_TIPOS.map((tipo) => {
+                const v = record.validaciones[tipo];
+                return (
+                  <div key={tipo} className={`${cardClass} flex h-full flex-col p-4`}>
+                    <div className="mb-2 flex items-center justify-between">
+                      <span className="text-sm font-bold text-ink">{tipo}</span>
+                      <span className="text-xs text-muted">
+                        {VALIDACION_ESTADO_LABEL[v.estado]}
+                      </span>
+                    </div>
+                    <select
+                      className={`${selectClass} ${disabledClass}`}
+                      disabled={!puedeEditar}
+                      value={v.estado}
+                      onChange={(e) =>
+                        setValidacion(
+                          tipo,
+                          e.target.value as typeof v.estado,
+                          v.observacion,
+                        )
+                      }
+                    >
+                      <option value="Pendiente">Pendiente</option>
+                      <option value="Aprobado">Aprobado</option>
+                      <option value="Rechazado">Rechazado</option>
+                    </select>
+                    <label className={`${labelClass} mt-2`}>Observación</label>
+                    <textarea
+                      className={`${inputClass} min-h-16 flex-1 py-2 ${disabledClass}`}
+                      disabled={!puedeEditar}
+                      value={v.observacion}
+                      onChange={(e) =>
+                        setValidacion(tipo, v.estado, e.target.value)
+                      }
+                    />
+
+                    <div className="mt-3 rounded border border-border bg-bg p-3">
+                      <p className="mb-1 text-xs font-bold text-muted">
+                        Documento SharePoint
+                      </p>
+                      {v.sharepointUrl ? (
+                        <div className="inline-flex max-w-full items-center gap-2 text-sm font-bold text-accent">
+                          <span className="truncate" title={v.sharepointUrl}>
+                            {v.sharepointNombre ?? v.sharepointUrl}
+                          </span>
+                          <button
+                            type="button"
+                            className="grid h-6 w-6 shrink-0 place-items-center rounded text-muted hover:text-accent"
+                            aria-label={
+                              copiedKey === tipo
+                                ? 'Enlace copiado'
+                                : 'Copiar enlace del documento'
+                            }
+                            title={
+                              copiedKey === tipo
+                                ? 'Copiado'
+                                : 'Copiar enlace'
+                            }
+                            onClick={() => void copyLink(tipo, v.sharepointUrl!)}
+                          >
+                            {copiedKey === tipo ? (
+                              <Check size={15} aria-hidden />
+                            ) : (
+                              <Copy size={15} aria-hidden />
+                            )}
+                          </button>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted">Sin documento vinculado.</p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         ) : null}
-      </nav>
 
-      {tabActivo === 'validaciones' ? (
-        <div className="space-y-4">
-          <div className="grid gap-4 lg:grid-cols-2">
-            {VALIDACION_TIPOS.map((tipo) => {
-              const v = record.validaciones[tipo];
-              return (
-                <div key={tipo} className={`${cardClass} flex h-full flex-col p-4`}>
-                  <div className="mb-2 flex items-center justify-between">
-                    <span className="text-sm font-bold text-ink">{tipo}</span>
-                    <span className="text-xs text-muted">
-                      {VALIDACION_ESTADO_LABEL[v.estado]}
-                    </span>
-                  </div>
-                  <select
-                    className={`${selectClass} ${disabledClass}`}
-                    disabled={!puedeEditar}
-                    value={v.estado}
-                    onChange={(e) =>
-                      setValidacion(
-                        tipo,
-                        e.target.value as typeof v.estado,
-                        v.observacion,
-                      )
-                    }
-                  >
-                    <option value="Pendiente">Pendiente</option>
-                    <option value="Aprobado">Aprobado</option>
-                    <option value="Rechazado">Rechazado</option>
-                  </select>
-                  <label className={`${labelClass} mt-2`}>Observación</label>
-                  <textarea
-                    className={`${inputClass} min-h-16 flex-1 py-2 ${disabledClass}`}
-                    disabled={!puedeEditar}
-                    value={v.observacion}
-                    onChange={(e) =>
-                      setValidacion(tipo, v.estado, e.target.value)
-                    }
-                  />
+        {tabActivo === 'kickoff' ? (
+          <KickoffCard
+            ouvId={record.ouvId}
+            accountId={headerOuv.account_id}
+            empresaNombre={headerOuv.empresa_nombre || record.empresaNombre}
+            kickoff={record.kickoff}
+            onChange={(kickoff) => void saveKickoffRecord(kickoff)}
+            attendance={attendance}
+            invitationContext={{
+              consecutivo: record.consecutivo,
+              proyecto: record.datosBase.nombreProyecto || record.titulo,
+              cliente: headerOuv.empresa_nombre || record.empresaNombre,
+            }}
+          />
+        ) : null}
 
-                  <div className="mt-3 rounded border border-border bg-bg p-3">
-                    <p className="mb-1 text-xs font-bold text-muted">
-                      Documento SharePoint
-                    </p>
-                    {v.sharepointUrl ? (
-                      <div className="inline-flex max-w-full items-center gap-2 text-sm font-bold text-accent">
-                        <span className="truncate" title={v.sharepointUrl}>
-                          {v.sharepointNombre ?? v.sharepointUrl}
-                        </span>
-                        <button
-                          type="button"
-                          className="grid h-6 w-6 shrink-0 place-items-center rounded text-muted hover:text-accent"
-                          aria-label={
-                            copiedKey === tipo
-                              ? 'Enlace copiado'
-                              : 'Copiar enlace del documento'
-                          }
-                          title={
-                            copiedKey === tipo
-                              ? 'Copiado'
-                              : 'Copiar enlace'
-                          }
-                          onClick={() => void copyLink(tipo, v.sharepointUrl!)}
-                        >
-                          {copiedKey === tipo ? (
-                            <Check size={15} aria-hidden />
-                          ) : (
-                            <Copy size={15} aria-hidden />
-                          )}
-                        </button>
-                      </div>
-                    ) : (
-                      <p className="text-xs text-muted">Sin documento vinculado.</p>
-                    )}
-                  </div>
-                </div>
+        {tabActivo === 'datos' ? (
+          <>
+            <FormularioDatosProyecto
+              datos={recordEfectivo.datosBase}
+              modo="crear"
+              onChange={(datosBase) => save({ ...record, datosBase })}
+              recurrenteBloqueado={recurrenteOuv !== null}
+              puedeCrearEmpresas={puedeCrearEmpresas}
+            />
+            {!pmo.ok && pmo.reason ? (
+              <p className="mt-2 text-xs text-muted">{pmo.reason}</p>
+            ) : null}
+          </>
+        ) : null}
+
+        <ResumenEnvioPmoModal
+          record={recordEfectivo}
+          open={showResumen}
+          onClose={() => setShowResumen(false)}
+          onSent={async (updated) => {
+            // El envío se guarda de inmediato, sin el rebote de `save`: /services
+            // filtra por `envio_pmo_estado = 'Enviado'`, así que navegar antes de
+            // que el backend lo tenga dejaría la OUV fuera de la lista.
+            if (guardadoTimer.current !== null) {
+              window.clearTimeout(guardadoTimer.current);
+              guardadoTimer.current = null;
+            }
+            pendienteRef.current = null;
+            setRecord(updated);
+            try {
+              setRecord(applyWonSale(updated, await saveWonSale(updated)));
+              navigate('/services', { state: { celebrar: true } });
+            } catch (error) {
+              // El proyecto ya existe en el PMO; al reintentar, el 409 se
+              // recupera y se vuelve a guardar el envío.
+              setToast(
+                `Proyecto ${updated.envioPmo.consecutivoControlProyectos} creado en el PMO, pero no se guardó el envío: ${mensajeDeGuardado(error)}`,
               );
-            })}
-          </div>
-        </div>
-      ) : null}
-
-      {tabActivo === 'kickoff' ? (
-        <KickoffCard
-          ouvId={record.ouvId}
-          accountId={headerOuv.account_id}
-          empresaNombre={headerOuv.empresa_nombre || record.empresaNombre}
-          kickoff={record.kickoff}
-          onChange={(kickoff) => void saveKickoffRecord(kickoff)}
-          attendance={attendance}
-          invitationContext={{
-            consecutivo: record.consecutivo,
-            proyecto: record.datosBase.nombreProyecto || record.titulo,
-            cliente: headerOuv.empresa_nombre || record.empresaNombre,
+            }
           }}
         />
-      ) : null}
-
-      {tabActivo === 'datos' ? (
-        <>
-          <FormularioDatosProyecto
-            datos={recordEfectivo.datosBase}
-            modo="crear"
-            onChange={(datosBase) => save({ ...record, datosBase })}
-            recurrenteBloqueado={recurrenteOuv !== null}
-            puedeCrearEmpresas={puedeCrearEmpresas}
-          />
-          {!pmo.ok && pmo.reason ? (
-            <p className="mt-2 text-xs text-muted">{pmo.reason}</p>
-          ) : null}
-        </>
-      ) : null}
-
-      <ResumenEnvioPmoModal
-        record={recordEfectivo}
-        open={showResumen}
-        onClose={() => setShowResumen(false)}
-        onSent={async (updated) => {
-          // El envío se guarda de inmediato, sin el rebote de `save`: /services
-          // filtra por `envio_pmo_estado = 'Enviado'`, así que navegar antes de
-          // que el backend lo tenga dejaría la OUV fuera de la lista.
-          if (guardadoTimer.current !== null) {
-            window.clearTimeout(guardadoTimer.current);
-            guardadoTimer.current = null;
-          }
-          pendienteRef.current = null;
-          setRecord(updated);
-          try {
-            setRecord(applyWonSale(updated, await saveWonSale(updated)));
-            navigate('/services', { state: { celebrar: true } });
-          } catch (error) {
-            // El proyecto ya existe en el PMO; al reintentar, el 409 se
-            // recupera y se vuelve a guardar el envío.
-            setToast(
-              `Proyecto ${updated.envioPmo.consecutivoControlProyectos} creado en el PMO, pero no se guardó el envío: ${mensajeDeGuardado(error)}`,
-            );
-          }
-        }}
-      />
-
+      </div>
     </AppLayout>
   );
 }
