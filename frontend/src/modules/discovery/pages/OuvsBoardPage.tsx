@@ -637,6 +637,9 @@ function OuvsTray({ bandeja }: { bandeja: OuvBandejaKey }) {
                             <GapBadge />
                           </span>
                         ) : null}
+                        <p className="mt-1 text-xs text-muted">
+                          Comercial: {ouv.comercial_nombre?.trim() || '—'}
+                        </p>
                       </Link>
                     </li>
                   ))}
