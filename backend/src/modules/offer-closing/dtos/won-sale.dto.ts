@@ -5,10 +5,10 @@ import {
   IsBoolean,
   IsIn,
   IsISO8601,
-  IsInt,
   IsNumber,
   IsOptional,
   IsString,
+  IsUUID,
   Matches,
   Max,
   MaxLength,
@@ -44,7 +44,7 @@ const VALIDACION_ESTADOS: ValidacionEstado[] = [
   'Aprobado',
   'Rechazado',
 ];
-const EMPRESAS: EmpresaEjecutora[] = ['Frisson', 'Verytel', 'UT'];
+const EMPRESAS: EmpresaEjecutora[] = ['Frisson', 'Verytel', 'UT', 'Aliado'];
 const ALERTA_ESTADOS: AlertaEstado[] = ['Pendiente', 'Activa', 'Resuelta'];
 
 /** `YYYY-MM-DD` — el formulario no maneja horas para las fechas del proyecto. */
@@ -103,8 +103,9 @@ export class WonSaleMiembroDto {
   @MaxLength(255)
   nombre: string;
 
+  /** Un decimal como máximo (33.3). */
   @Type(() => Number)
-  @IsInt()
+  @IsNumber({ maxDecimalPlaces: 1 })
   @Min(0)
   @Max(100)
   participacionPct: number;
@@ -112,6 +113,16 @@ export class WonSaleMiembroDto {
   @IsOptional()
   @IsIn(EMPRESAS)
   empresa?: EmpresaEjecutora | null;
+
+  /** Unión temporal del catálogo; solo en filas `UT`. */
+  @IsOptional()
+  @IsUUID()
+  jointVentureId?: string | null;
+
+  /** Aliado del catálogo; solo en filas `Aliado`. */
+  @IsOptional()
+  @IsUUID()
+  partnerId?: string | null;
 }
 
 export class WonSaleAlertaDto {
@@ -208,7 +219,7 @@ export class SaveWonSaleDto {
   participacion?: string | null;
 
   @Type(() => Number)
-  @IsInt()
+  @IsNumber({ maxDecimalPlaces: 1 })
   @Min(0)
   @Max(100)
   participacionPct: number;
@@ -277,6 +288,8 @@ export class WonSaleValidacionResponseDto extends WonSaleValidacionDto {
 
 export class WonSaleMiembroResponseDto extends WonSaleMiembroDto {
   wonSaleMemberId: string;
+  /** NIT (`base-DV`) de la UT o el aliado; `null` en Frisson/Verytel. */
+  nit: string | null;
 }
 
 export class WonSaleAlertaResponseDto extends WonSaleAlertaDto {

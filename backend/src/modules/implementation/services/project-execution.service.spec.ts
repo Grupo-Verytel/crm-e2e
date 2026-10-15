@@ -3,6 +3,7 @@ import { Sequelize } from 'sequelize';
 import { OuvResultado } from '../../discovery/models/enums/ouv.enums';
 import { Ouv } from '../../discovery/models/ouv.model';
 import { OuvsService } from '../../discovery/services/ouvs.service';
+import { WonSaleService } from '../../offer-closing/services/won-sale.service';
 import { WorkflowEngineService } from '../../workflow-engine/workflow-engine.service';
 import { StatusChangeDto } from '../dtos/status-change.dto';
 import { ProjectStatusEvent } from '../models/project-status-event.model';
@@ -46,6 +47,7 @@ describe('ProjectExecutionService — PMO status-change ingestion', () => {
     transition?: jest.Mock;
     create?: jest.Mock;
     pmoApi?: Partial<PmoApiClient>;
+    assertEmpresasEjecutorasListas?: jest.Mock;
   }) {
     const transition =
       overrides?.transition ?? jest.fn().mockResolvedValue(undefined);
@@ -74,6 +76,11 @@ describe('ProjectExecutionService — PMO status-change ingestion', () => {
       } as unknown as OuvsService,
       { transition } as unknown as WorkflowEngineService,
       (overrides?.pmoApi ?? {}) as PmoApiClient,
+      {
+        assertEmpresasEjecutorasListas:
+          overrides?.assertEmpresasEjecutorasListas ??
+          jest.fn().mockResolvedValue(undefined),
+      } as unknown as WonSaleService,
     );
 
     return { service, transition, create, findOne };
@@ -265,6 +272,23 @@ describe('ProjectExecutionService — PMO status-change ingestion', () => {
           fechaFin: '2026-09-01T00:00:00.000Z',
         }),
       ).rejects.toBeInstanceOf(BadRequestException);
+      expect(createProject).not.toHaveBeenCalled();
+    });
+
+    it('EARS-PMO-13: if the executing companies are incomplete, then the PMO is not called', async () => {
+      const createProject = jest.fn();
+      const assertEmpresasEjecutorasListas = jest
+        .fn()
+        .mockRejectedValue(new BadRequestException('incompletas'));
+      const { service } = createService({
+        pmoApi: { createProject },
+        assertEmpresasEjecutorasListas,
+      });
+
+      await expect(
+        service.createPmoProject(OUV_ID, fechas),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(assertEmpresasEjecutorasListas).toHaveBeenCalledWith(OUV_ID);
       expect(createProject).not.toHaveBeenCalled();
     });
 

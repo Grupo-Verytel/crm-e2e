@@ -9,6 +9,7 @@ import { SYSTEM_USER_ID } from '../../audit/constants/system-user.constants';
 import { Ouv } from '../../discovery/models/ouv.model';
 import { OuvResultado } from '../../discovery/models/enums/ouv.enums';
 import { OuvsService } from '../../discovery/services/ouvs.service';
+import { WonSaleService } from '../../offer-closing/services/won-sale.service';
 import { EntityType } from '../../workflow-engine/enums/entity-type.enum';
 import { WorkflowEngineService } from '../../workflow-engine/workflow-engine.service';
 import {
@@ -47,6 +48,7 @@ export class ProjectExecutionService {
     private readonly ouvsService: OuvsService,
     private readonly workflowEngine: WorkflowEngineService,
     private readonly pmoApi: PmoApiClient,
+    private readonly wonSaleService: WonSaleService,
   ) {}
 
   /**
@@ -73,6 +75,10 @@ export class ProjectExecutionService {
         message: 'fechaFin cannot be earlier than fechaInicio',
       });
     }
+
+    // Executing companies and their % live in the won-sale file; the PMO
+    // project must not open with an incomplete split.
+    await this.wonSaleService.assertEmpresasEjecutorasListas(ouvId);
 
     const { PRO_NCODE } = await this.pmoApi.createProject(
       this.toPmoPayload(ouv, dto),

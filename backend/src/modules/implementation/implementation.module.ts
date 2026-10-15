@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { SequelizeModule } from '@nestjs/sequelize';
 import { DiscoveryModule } from '../discovery/discovery.module';
+import { OfferClosingModule } from '../offer-closing/offer-closing.module';
 import { WorkflowEngineModule } from '../workflow-engine/workflow-engine.module';
 import { ExecutionStatusController } from './controllers/execution-status.controller';
 import { ProjectExecutionController } from './controllers/project-execution.controller';
@@ -13,6 +14,7 @@ import { ProjectExecutionService } from './services/project-execution.service';
   imports: [
     SequelizeModule.forFeature([ProjectStatusEvent]),
     DiscoveryModule,
+    OfferClosingModule,
     WorkflowEngineModule,
   ],
   controllers: [ProjectExecutionController, ExecutionStatusController],

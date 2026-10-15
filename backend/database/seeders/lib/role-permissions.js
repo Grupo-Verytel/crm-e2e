@@ -12,17 +12,15 @@ const SUBJECTS = {
   'leads/campaigns': ['Lead', 'Campaign'],
   opportunities: ['Opportunity'],
   accounts: ['Account', 'Person'],
-  'ouv-catalogs': [
-    'MotivoPerdida',
-    'MotivoDescarte',
-    'ZonaChecklistTemplate',
-  ],
+  'ouv-catalogs': ['MotivoPerdida', 'MotivoDescarte', 'ZonaChecklistTemplate'],
   'ouv-motivos': ['MotivoPerdida', 'MotivoDescarte'],
   presales: ['Presale'],
   pricing: ['Pricing'],
   'proposals/contracts': ['Proposal', 'Contract'],
   kickoffs: ['Kickoff'],
   'won-sales': ['WonSale'],
+  // Catálogos de UT y aliados del expediente (DR 2026-10 UT y aliados).
+  'executing-companies': ['JointVenture', 'Partner'],
   services: ['Service'],
   billing: ['Billing'],
   'post-sales': ['PostSale'],
@@ -47,6 +45,7 @@ const MATRIX = {
     'post-sales': 'R',
     kickoffs: 'CRUD',
     'won-sales': 'CRUD',
+    'executing-companies': 'CR',
     'audit-log': 'R',
   },
   DirectorMercadeo: {
@@ -54,6 +53,7 @@ const MATRIX = {
     opportunities: 'R',
     kickoffs: 'R',
     'won-sales': 'R',
+    'executing-companies': 'R',
     accounts: 'CRU',
   },
   GestorMercadeo: {
@@ -72,6 +72,7 @@ const MATRIX = {
     services: 'CR',
     kickoffs: 'CRU',
     'won-sales': 'CRU',
+    'executing-companies': 'R',
     'post-sales': 'R',
   },
   ProductManager: {
@@ -94,6 +95,7 @@ const MATRIX = {
     billing: 'R',
     kickoffs: 'CRUD',
     'won-sales': 'CRUD',
+    'executing-companies': 'CR',
     'post-sales': 'CRU',
   },
   Preventa: {
@@ -107,6 +109,7 @@ const MATRIX = {
     pricing: 'CRUA',
     kickoffs: 'R',
     'won-sales': 'R',
+    'executing-companies': 'R',
     'proposals/contracts': 'R',
   },
   PMO: {
@@ -114,6 +117,7 @@ const MATRIX = {
     services: 'CRUAX',
     kickoffs: 'R',
     'won-sales': 'R',
+    'executing-companies': 'R',
     billing: 'R',
     'post-sales': 'R',
   },

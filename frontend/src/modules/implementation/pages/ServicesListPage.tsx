@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Loader } from '../../../components/Loader';
 import { Pagination } from '../../../components/Pagination';
 import { AppLayout } from '../../../layout/AppLayout';
 import { useModuleSearch } from '../../../layout/useModuleSearch';
@@ -128,8 +129,8 @@ export function ServicesListPage() {
           <tbody>
             {isLoading ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-muted">
-                  Cargando…
+                <td colSpan={6} className="px-4 py-8">
+                  <Loader />
                 </td>
               </tr>
             ) : items.length === 0 ? (

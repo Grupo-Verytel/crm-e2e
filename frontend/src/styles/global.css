@@ -33,6 +33,21 @@ body {
   color: var(--ink);
   font-family: var(--font-ui);
   -webkit-font-smoothing: antialiased;
+  /* Sin selección de texto en la interfaz; solo disuade, no protege datos. */
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/*
+ * Los campos editables siguen permitiendo seleccionar, copiar y pegar. Para
+ * dejar copiable un dato puntual (NIT, consecutivo) se usa `select-text`.
+ */
+input,
+textarea,
+[contenteditable='true'],
+.select-text {
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 @property --glow-opacity {
@@ -164,6 +179,20 @@ body {
   animation: fadeSlideIn 280ms ease-out;
 }
 
+/** Entrada suave del contenido de una página cuando termina de cargar. */
+.page-fade-in {
+  animation: fadeSlideIn 450ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 /**
  * Global scrollbars (additive only).
  * Transparent track so the thumb sits over the surface; no layout/color changes
@@ -220,4 +249,66 @@ body {
   animation-name: won-confetti-fall;
   animation-timing-function: cubic-bezier(0.22, 0.61, 0.36, 1);
   animation-fill-mode: forwards;
+}
+
+/**
+ * Loader de barras (Uiverse.io, satyamchaudharydev) con los colores de marca:
+ * café, acento del tema y gris claro, en espejo. `--bars-size` controla la
+ * altura de las barras; el ancho y el espacio escalan con ella.
+ */
+.bars-loader {
+  --bars-speed: 0.9s;
+  --bars-size: 50px;
+  --bars-brown: rgb(165 93 26);
+  --bars-accent: var(--accent);
+  --bars-light: rgb(242 242 242);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: calc(var(--bars-size) * 0.12);
+  height: calc(var(--bars-size) * 2);
+}
+
+.bars-loader span {
+  width: calc(var(--bars-size) * 0.08);
+  height: var(--bars-size);
+  border-radius: 9999px;
+  background: var(--bars-brown);
+  animation: bars-loader-scale var(--bars-speed) ease-in-out infinite;
+}
+
+.bars-loader span:nth-child(2) {
+  background: var(--bars-accent);
+  animation-delay: -0.8s;
+}
+
+.bars-loader span:nth-child(3) {
+  background: var(--bars-light);
+  animation-delay: -0.7s;
+}
+
+.bars-loader span:nth-child(4) {
+  background: var(--bars-accent);
+  animation-delay: -0.6s;
+}
+
+.bars-loader span:nth-child(5) {
+  background: var(--bars-brown);
+  animation-delay: -0.5s;
+}
+
+@keyframes bars-loader-scale {
+  0%,
+  40%,
+  100% {
+    transform: scaleY(0.05);
+  }
+  20% {
+    transform: scaleY(1);
+  }
+}
+
+/* El contenedor del loader aparece con fundido para no "saltar" en pantalla. */
+.loader-fade-in {
+  animation: fadeIn 250ms ease-out both;
 }
