@@ -92,6 +92,7 @@ function ouvFromVentaRecord(record: VentaGanadaRecord): Ouv {
     moneda_final: null,
     monto_estimado_perdido: null,
     fecha_cierre: null,
+    expected_close_date: null,
     created_at: now,
     updated_at: now,
   };

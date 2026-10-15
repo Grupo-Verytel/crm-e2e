@@ -1,11 +1,13 @@
 import {
   IsBoolean,
+  IsDateString,
   IsEnum,
   IsIn,
   IsInt,
   IsOptional,
   IsString,
   IsUUID,
+  Matches,
   Max,
   MaxLength,
   Min,
@@ -102,4 +104,11 @@ export class ActualizarOuvDto {
   @Min(1)
   @Max(360)
   plazo_ejecucion_meses?: number | null;
+
+  /** Calendar day (YYYY-MM-DD). null clears the expected close date. */
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null)
+  @IsDateString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  expected_close_date?: string | null;
 }

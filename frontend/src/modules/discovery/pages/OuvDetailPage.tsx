@@ -420,6 +420,7 @@ export function OuvDetailPage() {
         city: draft.city.trim() || null,
         region: draft.region.trim() || null,
         is_recurring: isRecurringDeProyecto(draft.extensions.proyecto),
+        expected_close_date: draft.expected_close_date || null,
       });
       saveOuvExtensions(id, draft.extensions);
       setOuvExtensions(draft.extensions);
@@ -435,6 +436,7 @@ export function OuvDetailPage() {
               city: draft.city.trim() || null,
               region: draft.region.trim() || null,
               is_recurring: isRecurringDeProyecto(draft.extensions.proyecto),
+              expected_close_date: draft.expected_close_date || null,
               updated_at: new Date().toISOString(),
             }
           : prev,
