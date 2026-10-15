@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Check, Copy } from 'lucide-react';
+import { BackLink } from '../../../components/BackLink';
 import { Loader } from '../../../components/Loader';
 import { AppLayout } from '../../../layout/AppLayout';
 import { useAuth } from '../../auth/hooks/useAuth';
@@ -324,12 +325,9 @@ export function VentaGanadaDetailPage() {
         {loadError ? (
           <>
             <p className="text-sm text-muted">{loadError}</p>
-            <Link
-              to="/offers"
-              className="mt-3 inline-block text-sm text-accent hover:underline"
-            >
-              ← Bandeja soporte comercial
-            </Link>
+            <BackLink to="/offers" className="mt-3">
+              Bandeja soporte comercial
+            </BackLink>
           </>
         ) : (
           // `h-full` ocupa todo el `<main>` del layout: el loader queda
@@ -505,9 +503,7 @@ export function VentaGanadaDetailPage() {
     <AppLayout title={record.consecutivo}>
       <div className="page-fade-in">
         <div className="mb-3">
-          <Link to="/offers" className="text-sm text-accent hover:underline">
-            ← Bandeja soporte comercial
-          </Link>
+          <BackLink to="/offers">Bandeja soporte comercial</BackLink>
         </div>
 
         {toast ? (

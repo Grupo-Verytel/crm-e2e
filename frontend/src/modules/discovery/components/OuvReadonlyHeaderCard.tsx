@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import type { Ouv } from '../api/ouvs-api';
 import type { OuvDetailExtensions } from '../lib/ouv-detail-extensions';
 import { buildOuvMetaFields } from '../lib/ouv-detail-meta';
@@ -28,7 +28,7 @@ export function OuvReadonlyHeaderCard({
     <header className={`${cardClass} mb-4 overflow-hidden`}>
       <button
         type="button"
-        className="flex w-full items-start gap-3 p-4 text-left transition-colors hover:bg-bg/40"
+        className="flex w-full cursor-pointer items-start gap-3 p-4 text-left transition-colors duration-200 ease-out hover:bg-bg/40"
         aria-expanded={expanded}
         aria-controls="ouv-header-details"
         onClick={() => setExpanded((v) => !v)}
@@ -48,32 +48,45 @@ export function OuvReadonlyHeaderCard({
           className="icon-btn mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded"
           aria-hidden
         >
-          {expanded ? (
-            <ChevronUp size={20} strokeWidth={2} />
-          ) : (
-            <ChevronDown size={20} strokeWidth={2} />
-          )}
+          <ChevronDown
+            size={20}
+            strokeWidth={2}
+            className={`transition-transform duration-300 ease-out ${expanded ? 'rotate-180' : ''}`}
+          />
         </span>
         <span className="sr-only">
           {expanded ? 'Comprimir información OUV' : 'Desplegar información OUV'}
         </span>
       </button>
 
-      {expanded ? (
-        <div id="ouv-header-details" className="border-t border-border px-4 pb-4 pt-4">
-          <dl className="grid gap-x-4 gap-y-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
-            {readFields.map((field) => (
-              <div key={field.label}>
-                <dt className="text-xs font-bold text-muted">{field.label}</dt>
-                <dd className="mt-0.5 break-words font-medium text-ink">
-                  {field.value}
-                </dd>
-              </div>
-            ))}
-          </dl>
-          {footer ? <div className="mt-3">{footer}</div> : null}
+      {/*
+        Siempre montado para poder animar: la fila del grid pasa de 0fr a 1fr
+        (altura real del contenido, sin medirla) mientras el contenido aparece
+        con fundido. Cerrado queda `inert`, fuera del foco y del lector.
+      */}
+      <div
+        id="ouv-header-details"
+        className={`grid transition-[grid-template-rows] duration-300 ease-out ${expanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}
+        inert={!expanded}
+      >
+        <div className="min-h-0 overflow-hidden">
+          <div
+            className={`border-t border-border px-4 pb-4 pt-4 transition-[opacity,transform] duration-300 ease-out ${expanded ? 'translate-y-0 opacity-100' : '-translate-y-1 opacity-0'}`}
+          >
+            <dl className="grid gap-x-4 gap-y-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
+              {readFields.map((field) => (
+                <div key={field.label}>
+                  <dt className="text-xs font-bold text-muted">{field.label}</dt>
+                  <dd className="mt-0.5 break-words font-medium text-ink">
+                    {field.value}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+            {footer ? <div className="mt-3">{footer}</div> : null}
+          </div>
         </div>
-      ) : null}
+      </div>
     </header>
   );
 }
