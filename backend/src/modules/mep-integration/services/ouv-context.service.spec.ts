@@ -124,7 +124,6 @@ function ouvFixture() {
     resultado: OuvResultado.EnCurso,
     createdAt: new Date('2026-01-15T00:00:00.000Z'),
     plazoEjecucionMeses: 6,
-    expectedCloseDate: '2026-10-25',
     updatedAt: new Date('2026-09-01T00:00:00.000Z'),
     comercial: { fullName: 'Carlos Ruiz' },
     update: jest.fn(),

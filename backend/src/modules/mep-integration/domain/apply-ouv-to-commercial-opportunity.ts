@@ -1,11 +1,15 @@
 import type { Ouv } from '../../discovery/models/ouv.model';
 import { OuvResultado } from '../../discovery/models/enums/ouv.enums';
 import type { CommercialOpportunity } from '../models';
-import { opportunityEtagFromOuv } from './ouv-opportunity-projection';
+import {
+  computeExpectedCloseDateFromOuv,
+  opportunityEtagFromOuv,
+} from './ouv-opportunity-projection';
 
 export interface OuvOpportunityProjectionInput {
   resultado: OuvResultado;
-  expectedCloseDate: string | null;
+  createdAt: Date;
+  plazoEjecucionMeses: number | null;
   updatedAt: Date;
   comercialId: string;
   commercialOwnerDisplayName: string | null;
@@ -17,7 +21,8 @@ export function ouvToOpportunityProjection(
   const name = ouv.comercial?.fullName?.trim();
   return {
     resultado: ouv.resultado,
-    expectedCloseDate: ouv.expectedCloseDate ?? null,
+    createdAt: ouv.createdAt,
+    plazoEjecucionMeses: ouv.plazoEjecucionMeses ?? null,
     updatedAt: ouv.updatedAt,
     comercialId: ouv.comercialId,
     commercialOwnerDisplayName: name ? name : null,
@@ -30,7 +35,10 @@ export function applyOuvFieldsToCommercialOpportunity(
   ouv: OuvOpportunityProjectionInput,
 ): void {
   opportunity.status = ouv.resultado;
-  opportunity.expectedCloseDate = ouv.expectedCloseDate ?? null;
+  opportunity.expectedCloseDate = computeExpectedCloseDateFromOuv(
+    ouv.createdAt,
+    ouv.plazoEjecucionMeses,
+  );
   opportunity.commercialOwnerRef = ouv.comercialId;
   opportunity.commercialOwnerName = ouv.commercialOwnerDisplayName;
   opportunity.etag = opportunityEtagFromOuv(
