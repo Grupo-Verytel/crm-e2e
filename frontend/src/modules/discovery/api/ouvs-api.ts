@@ -43,6 +43,8 @@ export type Ouv = {
   moneda_final: string | null;
   monto_estimado_perdido: string | null;
   fecha_cierre: string | null;
+  /** YYYY-MM-DD, or null when unset. */
+  expected_close_date: string | null;
   created_at: string;
   updated_at: string;
   dias_por_zona?: Record<OuvZona, number>;
@@ -175,6 +177,8 @@ export type UpdateOuvPayload = {
   city?: string | null;
   region?: string | null;
   is_recurring?: boolean | null;
+  /** YYYY-MM-DD. null clears the expected close date. */
+  expected_close_date?: string | null;
 };
 
 export async function updateOuv(

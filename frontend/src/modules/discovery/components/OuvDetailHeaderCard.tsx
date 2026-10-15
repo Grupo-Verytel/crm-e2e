@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Users } from 'lucide-react';
+import { Calendar, Users } from 'lucide-react';
+import { DatePickerField } from '../../../components/DatePickerField';
 import { formatDateTime } from '../../../lib/format';
 import type { Ouv } from '../api/ouvs-api';
 import {
@@ -8,6 +9,8 @@ import {
 } from '../lib/ouv-detail-extensions';
 import {
   buildOuvMetaFields,
+  EXPECTED_CLOSE_DATE_LABEL,
+  formatExpectedCloseDate,
   formatOuvOrigin,
   formatOuvSourceChannel,
   SEGMENTO_LABEL,
@@ -26,8 +29,19 @@ export type OuvHeaderDraft = {
   descripcion: string;
   city: string;
   region: string;
+  expected_close_date: string;
   extensions: OuvDetailExtensions;
 };
+
+function ExpectedCloseDateValue({ value }: { value: string }) {
+  const empty = value === '—';
+  return (
+    <span className="inline-flex h-9 max-w-full items-center gap-2 rounded border border-border bg-bg px-3 text-sm">
+      <Calendar size={15} className="shrink-0 text-accent" strokeWidth={2} />
+      <span className={empty ? 'text-muted' : 'text-ink'}>{value}</span>
+    </span>
+  );
+}
 
 type Props = {
   ouv: Ouv;
@@ -52,6 +66,7 @@ function draftFromOuv(ouv: Ouv, extensions: OuvDetailExtensions): OuvHeaderDraft
     descripcion: ouv.descripcion ?? '',
     city: ouv.city?.trim() || extensions.ciudad?.trim() || '',
     region: ouv.region?.trim() || extensions.region?.trim() || '',
+    expected_close_date: ouv.expected_close_date?.slice(0, 10) ?? '',
     extensions: {
       ...extensions,
       proyecto: proyectoDeOuv(ouv.is_recurring, extensions),
@@ -410,6 +425,28 @@ export function OuvDetailHeaderCard({
               />
             </div>
             <div>
+              <label className={labelClass} htmlFor="ouv-expected-close">
+                {EXPECTED_CLOSE_DATE_LABEL}
+              </label>
+              <DatePickerField
+                id="ouv-expected-close"
+                aria-label={EXPECTED_CLOSE_DATE_LABEL}
+                value={draft.expected_close_date}
+                displayValue={
+                  draft.expected_close_date
+                    ? formatExpectedCloseDate(draft.expected_close_date)
+                    : undefined
+                }
+                onChange={(ymd) => {
+                  commitDraft({
+                    ...draftRef.current,
+                    expected_close_date: ymd,
+                  });
+                  enqueuePersist();
+                }}
+              />
+            </div>
+            <div>
               <dt className="text-xs font-bold text-muted">Etapa</dt>
               <dd className="mt-0.5 font-medium text-ink">Comercial</dd>
             </div>
@@ -433,7 +470,11 @@ export function OuvDetailHeaderCard({
             <div key={field.label}>
               <dt className="text-xs font-bold text-muted">{field.label}</dt>
               <dd className="mt-0.5 break-words font-medium text-ink">
-                {field.value}
+                {field.label === EXPECTED_CLOSE_DATE_LABEL ? (
+                  <ExpectedCloseDateValue value={field.value} />
+                ) : (
+                  field.value
+                )}
               </dd>
             </div>
           ))
