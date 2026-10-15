@@ -277,6 +277,12 @@ export function OuvDetailHeaderCard({
               </dd>
             </div>
             <div>
+              <dt className="text-xs font-bold text-muted">Comercial</dt>
+              <dd className="mt-0.5 wrap-break-word font-medium text-ink">
+                {ouv.comercial_nombre?.trim() || '—'}
+              </dd>
+            </div>
+            <div>
               <label className={labelClass} htmlFor="ouv-segmento">
                 Segmento
               </label>

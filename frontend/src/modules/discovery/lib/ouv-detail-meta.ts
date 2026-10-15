@@ -68,6 +68,7 @@ export function buildOuvMetaFields(
 
   return [
     { label: 'Organización', value: ouv.empresa_nombre },
+    { label: 'Comercial', value: ouv.comercial_nombre?.trim() || '—' },
     { label: 'Segmento', value: segmento },
     { label: 'Vertical', value: ouv.vertical || '—' },
     { label: 'Origen', value: formatOuvOrigin(ouv.origin) },
