@@ -1,5 +1,11 @@
 export type OuvDetailTab = 'detalle' | 'preventa' | 'interacciones';
 
+/** Reads `?tab=` on `/opportunities/:id`. Unknown values fall back to detalle. */
+export function parseOuvDetailTab(value: string | null): OuvDetailTab {
+  if (value === 'preventa' || value === 'interacciones') return value;
+  return 'detalle';
+}
+
 const tabClass = (active: boolean) =>
   [
     '-mb-px inline-flex items-center gap-2 border-b-2 px-4 py-2 text-sm transition-colors',
