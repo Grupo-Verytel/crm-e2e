@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Loader } from '../../../components/Loader';
 import { AppLayout } from '../../../layout/AppLayout';
 import { useModuleSearch } from '../../../layout/useModuleSearch';
 import { formatDateTime } from '../../../lib/format';
@@ -171,8 +172,8 @@ export function SoporteComercialInboxPage() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-muted">
-                  Cargando…
+                <td colSpan={7} className="px-4 py-8">
+                  <Loader />
                 </td>
               </tr>
             ) : error ? (

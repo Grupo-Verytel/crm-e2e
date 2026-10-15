@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { Loader } from '../../../components/Loader';
 import { AppLayout } from '../../../layout/AppLayout';
 import { useAuth } from '../../auth/hooks/useAuth';
 import { ApiError } from '../../auth/types';
@@ -169,7 +170,7 @@ export function ProjectExecutionPage() {
       <ImplementationNav />
 
       {isLoading ? (
-        <p className="text-sm text-muted">Cargando…</p>
+        <Loader className="py-16" />
       ) : (
         <div className="space-y-4">
           <header className="flex flex-wrap items-start justify-between gap-3">

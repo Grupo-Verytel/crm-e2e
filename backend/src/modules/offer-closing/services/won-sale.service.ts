@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { Op, type Transaction } from 'sequelize';
 import {
@@ -11,15 +15,21 @@ import {
   SaveWonSaleDto,
   WonSaleEnvelopeDto,
   WonSaleListDto,
+  WonSaleMiembroDto,
   WonSaleResponseDto,
 } from '../dtos/won-sale.dto';
+import { formatNit } from '../lib/nit';
 import {
+  JointVenture,
+  Partner,
   WonSale,
   WonSaleAlert,
   WonSaleHistoryEntry,
   WonSaleMember,
   WonSaleValidation,
 } from '../models';
+import type { EmpresaEjecutora } from '../models';
+import { ExecutingCompanyService } from './executing-company.service';
 
 /** Quien hace la petición; el expediente comprueba su acceso a la OUV. */
 export type OuvActor = { userId: string; roleName: string };
@@ -39,6 +49,27 @@ function toNumber(value: string | number | null | undefined): number {
   const parsed = Number(value ?? 0);
   return Number.isFinite(parsed) ? parsed : 0;
 }
+
+/** Décimas de punto: 33.3 → 333. Evita sumar flotantes al validar el 100%. */
+function toDecimas(pct: number | string): number {
+  return Math.round(toNumber(pct) * 10);
+}
+
+/** Filas de empresa ejecutora con el nombre ya resuelto desde su catálogo. */
+type MiembroValidado = WonSaleMiembroDto & {
+  jointVentureId: string | null;
+  partnerId: string | null;
+};
+
+/** El miembro con su UT o aliado, para validar y para responder. */
+const MEMBER_INCLUDE = {
+  model: WonSaleMember,
+  required: false,
+  include: [
+    { model: JointVenture, required: false, paranoid: false },
+    { model: Partner, required: false, paranoid: false },
+  ],
+};
 
 /**
  * Expediente de cierre de una venta ganada, persistido en MySQL.
@@ -60,6 +91,7 @@ export class WonSaleService {
     @InjectModel(WonSaleHistoryEntry)
     private readonly historyModel: typeof WonSaleHistoryEntry,
     private readonly ouvsService: OuvsService,
+    private readonly executingCompanies: ExecutingCompanyService,
   ) {}
 
   /**
@@ -114,7 +146,7 @@ export class WonSaleService {
       where: { ouvId: { [Op.in]: ids } },
       include: [
         { model: WonSaleValidation, required: false },
-        { model: WonSaleMember, required: false },
+        MEMBER_INCLUDE,
         { model: WonSaleAlert, required: false },
         { model: WonSaleHistoryEntry, required: false },
       ],
@@ -130,6 +162,7 @@ export class WonSaleService {
   ): Promise<WonSaleResponseDto> {
     await this.assertPuedeVerOuv(ouvId, actor);
     const userId = actor.userId;
+    const miembros = await this.validarMiembros(dto.miembros);
 
     await conReintentoPorDeadlock(() =>
       this.wonSaleModel.sequelize!.transaction(async (transaction) => {
@@ -172,7 +205,12 @@ export class WonSaleService {
               { transaction },
             );
 
-        await this.replaceChildren(wonSale.wonSaleId, dto, transaction);
+        await this.replaceChildren(
+          wonSale.wonSaleId,
+          dto,
+          miembros,
+          transaction,
+        );
       }),
     );
 
@@ -204,6 +242,7 @@ export class WonSaleService {
   private async replaceChildren(
     wonSaleId: string,
     dto: SaveWonSaleDto,
+    miembros: MiembroValidado[],
     transaction: Transaction,
   ): Promise<void> {
     // `force: true`: validaciones, miembros y alertas son una foto del estado
@@ -229,14 +268,16 @@ export class WonSaleService {
       );
     }
 
-    if (dto.miembros.length > 0) {
+    if (miembros.length > 0) {
       await this.memberModel.bulkCreate(
-        dto.miembros.map((m) => ({
+        miembros.map((m) => ({
           wonSaleId,
           refId: m.refId,
           nombre: m.nombre,
-          participacionPct: m.participacionPct,
+          participacionPct: String(m.participacionPct),
           empresa: m.empresa ?? null,
+          jointVentureId: m.jointVentureId,
+          partnerId: m.partnerId,
         })),
         { transaction },
       );
@@ -289,12 +330,132 @@ export class WonSaleService {
     }
   }
 
+  /**
+   * Reglas de las filas de empresa ejecutora que valen también para un
+   * borrador (el `PUT` se dispara en cada edición):
+   * - una fila por empresa (DR 2026-10: por ahora un solo aliado y una UT);
+   * - la UT y el aliado, si vienen, existen y están activos en su catálogo;
+   * - una fila no apunta al catálogo que no le corresponde.
+   *
+   * La suma del 100% y que la UT/aliado estén elegidos se exigen al abrir el
+   * proyecto en el PMO (`assertEmpresasEjecutorasListas`), no mientras se
+   * diligencia.
+   */
+  private async validarMiembros(
+    miembros: WonSaleMiembroDto[],
+  ): Promise<MiembroValidado[]> {
+    const vistos = new Set<EmpresaEjecutora>();
+    for (const m of miembros) {
+      if (!m.empresa) continue;
+      if (vistos.has(m.empresa)) {
+        throw new BadRequestException({
+          code: 'DUPLICATE_EXECUTING_COMPANY',
+          message: `Solo se admite una fila ${m.empresa} por proyecto`,
+        });
+      }
+      vistos.add(m.empresa);
+      if (m.jointVentureId && m.empresa !== 'UT') {
+        throw new BadRequestException({
+          code: 'INVALID_EXECUTING_COMPANY',
+          message: `La fila ${m.empresa} no puede llevar una unión temporal`,
+        });
+      }
+      if (m.partnerId && m.empresa !== 'Aliado') {
+        throw new BadRequestException({
+          code: 'INVALID_EXECUTING_COMPANY',
+          message: `La fila ${m.empresa} no puede llevar un aliado`,
+        });
+      }
+    }
+
+    const utIds = miembros.flatMap((m) =>
+      m.jointVentureId ? [m.jointVentureId] : [],
+    );
+    const aliadoIds = miembros.flatMap((m) =>
+      m.partnerId ? [m.partnerId] : [],
+    );
+    const [uts, aliados] = await Promise.all([
+      this.executingCompanies.namesById('UT', utIds),
+      this.executingCompanies.namesById('Aliado', aliadoIds),
+    ]);
+
+    return miembros.map((m) => {
+      const jointVentureId = m.jointVentureId ?? null;
+      const partnerId = m.partnerId ?? null;
+      let nombre = m.nombre;
+      if (jointVentureId) {
+        const encontrado = uts.get(jointVentureId);
+        if (!encontrado) {
+          throw new BadRequestException({
+            code: 'JOINT_VENTURE_NOT_FOUND',
+            message: 'La unión temporal elegida no existe o está inactiva',
+          });
+        }
+        nombre = encontrado;
+      }
+      if (partnerId) {
+        const encontrado = aliados.get(partnerId);
+        if (!encontrado) {
+          throw new BadRequestException({
+            code: 'PARTNER_NOT_FOUND',
+            message: 'El aliado elegido no existe o está inactivo',
+          });
+        }
+        nombre = encontrado;
+      }
+      return { ...m, nombre, jointVentureId, partnerId };
+    });
+  }
+
+  /**
+   * Empresas ejecutoras completas para abrir el proyecto en el PMO: al menos
+   * una fila, la UT y el aliado elegidos de su catálogo y la suma exacta de
+   * 100.0%. El frontend aplica la misma regla; esta es la que no se salta.
+   */
+  async assertEmpresasEjecutorasListas(ouvId: string): Promise<void> {
+    const wonSale = await this.wonSaleModel.findOne({
+      where: { ouvId },
+      include: [MEMBER_INCLUDE],
+    });
+    const miembros = wonSale?.miembros ?? [];
+    const faltantes: string[] = [];
+
+    if (miembros.length === 0) faltantes.push('Empresa ejecutora');
+    if (miembros.some((m) => m.empresa === 'UT' && !m.jointVentureId)) {
+      faltantes.push('Unión temporal');
+    }
+    if (miembros.some((m) => m.empresa === 'Aliado' && !m.partnerId)) {
+      faltantes.push('Aliado');
+    }
+    const suma = miembros.reduce(
+      (acc, m) => acc + toDecimas(m.participacionPct),
+      0,
+    );
+    if (miembros.length > 0 && suma !== 1000) {
+      faltantes.push(`% participación (suma ${suma / 10}%, debe ser 100%)`);
+    }
+
+    if (faltantes.length > 0) {
+      throw new BadRequestException({
+        code: 'EXECUTING_COMPANIES_INCOMPLETE',
+        message: `Empresas ejecutoras incompletas: ${faltantes.join(', ')}`,
+      });
+    }
+  }
+
+  private nitDe(m: WonSaleMember): string | null {
+    const catalogo = m.jointVenture ?? m.partner;
+    return catalogo
+      ? formatNit(catalogo.taxId, catalogo.verificationDigit)
+      : null;
+  }
+
   private findWithChildren(ouvId: string): Promise<WonSale | null> {
     return this.wonSaleModel.findOne({
       where: { ouvId },
       include: [
         { model: WonSaleValidation, required: false },
-        { model: WonSaleMember, required: false },
+        MEMBER_INCLUDE,
         { model: WonSaleAlert, required: false },
         { model: WonSaleHistoryEntry, required: false },
       ],
@@ -321,7 +482,7 @@ export class WonSaleService {
       centroCostos: wonSale.centroCostos,
       ubv: wonSale.ubv,
       participacion: wonSale.participacion,
-      participacionPct: wonSale.participacionPct,
+      participacionPct: toNumber(wonSale.participacionPct),
       envioPmoEstado: wonSale.envioPmoEstado,
       envioPmoConsecutivo: wonSale.envioPmoConsecutivo,
       envioPmoSer: wonSale.envioPmoSer,
@@ -343,8 +504,11 @@ export class WonSaleService {
         wonSaleMemberId: m.wonSaleMemberId,
         refId: m.refId,
         nombre: m.nombre,
-        participacionPct: m.participacionPct,
+        participacionPct: toNumber(m.participacionPct),
         empresa: m.empresa,
+        jointVentureId: m.jointVentureId,
+        partnerId: m.partnerId,
+        nit: this.nitDe(m),
       })),
       alertas: (wonSale.alertas ?? []).map((a) => ({
         wonSaleAlertId: a.wonSaleAlertId,

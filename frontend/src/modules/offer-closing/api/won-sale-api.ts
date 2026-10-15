@@ -39,6 +39,10 @@ type MiembroDto = {
   nombre: string;
   participacionPct: number;
   empresa?: EmpresaEjecutora | null;
+  jointVentureId?: string | null;
+  partnerId?: string | null;
+  /** Solo en la respuesta. */
+  nit?: string | null;
 };
 
 type AlertaDto = {
@@ -109,7 +113,7 @@ function validacionVacia(): ValidacionRecord {
 
 /** Los botones de empresa se encienden según las filas que existen. */
 function empresasDe(miembros: MiembroEjecutor[]): EmpresaEjecutora[] {
-  const empresas: EmpresaEjecutora[] = ['Frisson', 'Verytel', 'UT'];
+  const empresas: EmpresaEjecutora[] = ['Frisson', 'Verytel', 'UT', 'Aliado'];
   return empresas.filter((e) => miembros.some((m) => m.empresa === e));
 }
 
@@ -128,6 +132,9 @@ export function applyWonSale(
     nombre: m.nombre,
     participacionPct: m.participacionPct,
     empresa: m.empresa ?? null,
+    jointVentureId: m.jointVentureId ?? null,
+    partnerId: m.partnerId ?? null,
+    nit: m.nit ?? null,
   }));
 
   const validaciones = { ...base.validaciones };
@@ -240,6 +247,8 @@ function toPayload(record: VentaGanadaRecord): SaveWonSalePayload {
       nombre: m.nombre,
       participacionPct: m.participacionPct,
       empresa: m.empresa,
+      jointVentureId: m.empresa === 'UT' ? (m.jointVentureId ?? null) : null,
+      partnerId: m.empresa === 'Aliado' ? (m.partnerId ?? null) : null,
     })),
     alertas: record.alertas.map((a) => ({
       refId: a.id,

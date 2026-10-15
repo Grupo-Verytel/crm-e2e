@@ -132,13 +132,14 @@ export class WonSale extends Model {
   @Column({ type: DataType.STRING(120), allowNull: true })
   declare participacion: string | null;
 
+  /** Un decimal (33.3). MySQL devuelve DECIMAL como cadena. */
   @Default(0)
   @Column({
-    type: DataType.SMALLINT,
+    type: DataType.DECIMAL(4, 1),
     field: 'participacion_pct',
     allowNull: false,
   })
-  declare participacionPct: number;
+  declare participacionPct: string;
 
   // --- Envío a Control de Proyectos ---
 

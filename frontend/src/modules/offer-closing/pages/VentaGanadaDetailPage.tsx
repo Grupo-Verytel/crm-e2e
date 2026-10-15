@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Check, Copy } from 'lucide-react';
+import { Loader } from '../../../components/Loader';
 import { AppLayout } from '../../../layout/AppLayout';
 import { useAuth } from '../../auth/hooks/useAuth';
 import { ApiError } from '../../auth/types';
@@ -24,6 +25,7 @@ import {
   VALIDACION_TIPOS,
 } from '../../shared/project/types';
 import { deleteKickoff, fetchKickoff, saveKickoff } from '../api/kickoff-api';
+import { EMPRESA_EXTERNA_SUBJECT } from '../api/executing-companies-api';
 import { applyWonSale, fetchWonSale, saveWonSale } from '../api/won-sale-api';
 import { FormularioDatosProyecto } from '../components/FormularioDatosProyecto';
 import { KickoffCard } from '../components/KickoffCard';
@@ -206,6 +208,16 @@ export function VentaGanadaDetailPage() {
     async function cargar(): Promise<void> {
       let base = getVentaGanada(ouvId);
       const persisted = isPersistedOuvId(ouvId);
+      // El kickoff vive en su propia tabla porque apunta a un evento de
+      // Microsoft 365. Se pide desde ya, pero se aplica solo cuando el registro
+      // base existe: si llegaba antes (base aún sin resolver), se perdía y la
+      // pantalla mostraba «sin kickoff» aunque estuviera realizado.
+      const kickoffPromise = persisted
+        ? fetchKickoff(ouvId).catch(() => {
+            if (!cancelled) setToast('No se pudo cargar el kickoff.');
+            return null;
+          })
+        : Promise.resolve(null);
       if (!base) {
         if (!persisted) {
           throw new Error('OUV de demostración sin expediente en el CRM');
@@ -219,20 +231,24 @@ export function VentaGanadaDetailPage() {
       setRecord(base);
 
       if (!persisted) return;
-      const [wonSale, documentos] = await Promise.all([
+      const [wonSale, documentos, kickoff] = await Promise.all([
         // Sin `read WonSale` responde 403: no debe ocultar los documentos.
         fetchWonSale(ouvId).catch(() => null),
         fetchSolicitudesPreventa(ouvId)
           .then(documentosPreventa)
           .catch(() => null),
+        kickoffPromise,
       ]);
       if (cancelled) return;
       setRecord((prev) => {
         if (!prev) return prev;
         const conExpediente = wonSale ? applyWonSale(prev, wonSale) : prev;
-        return documentos
-          ? applyDocumentosPreventa(conExpediente, documentos)
+        const conKickoff = kickoff
+          ? { ...conExpediente, kickoff }
           : conExpediente;
+        return documentos
+          ? applyDocumentosPreventa(conKickoff, documentos)
+          : conKickoff;
       });
     }
 
@@ -248,24 +264,6 @@ export function VentaGanadaDetailPage() {
       cancelled = true;
     };
   }, [ouvId, user]);
-
-  // El kickoff vive en su propia tabla porque apunta a un evento de Microsoft
-  // 365; se carga aparte del resto del expediente.
-  useEffect(() => {
-    if (!ouvId || !isPersistedOuvId(ouvId)) return;
-    let cancelled = false;
-    fetchKickoff(ouvId)
-      .then((kickoff) => {
-        if (cancelled || !kickoff) return;
-        setRecord((prev) => (prev ? { ...prev, kickoff } : prev));
-      })
-      .catch(() => {
-        if (!cancelled) setToast('No se pudo cargar el kickoff.');
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [ouvId]);
 
   useEffect(() => {
     if (!record) {
@@ -321,9 +319,11 @@ export function VentaGanadaDetailPage() {
   if (!record) {
     return (
       <AppLayout title="Oferta & Cierre">
-        <p className="text-sm text-muted">
-          {loadError ?? 'Cargando la venta…'}
-        </p>
+        {loadError ? (
+          <p className="text-sm text-muted">{loadError}</p>
+        ) : (
+          <Loader label="Cargando la venta…" className="py-16" />
+        )}
         <Link
           to="/offers"
           className="mt-3 inline-block text-sm text-accent hover:underline"
@@ -480,6 +480,19 @@ export function VentaGanadaDetailPage() {
     ) &&
     (user?.role_name !== 'EjecutivoComercial' ||
       headerOuv.comercial_id === user.user_id);
+  // Crear UT y aliados: solo SoporteComercial (y Admin) — DR 2026-10.
+  const puedeCrear = (subject: string) =>
+    Boolean(
+      user?.permissions?.some(
+        (p) =>
+          (p.action === 'create' || p.action === 'manage') &&
+          (p.subject === subject || p.subject === 'all'),
+      ),
+    );
+  const puedeCrearEmpresas = {
+    UT: puedeEditar && puedeCrear(EMPRESA_EXTERNA_SUBJECT.UT),
+    Aliado: puedeEditar && puedeCrear(EMPRESA_EXTERNA_SUBJECT.Aliado),
+  };
   const disabledClass = 'disabled:cursor-not-allowed disabled:opacity-60';
 
   return (
@@ -637,6 +650,7 @@ export function VentaGanadaDetailPage() {
             modo="crear"
             onChange={(datosBase) => save({ ...record, datosBase })}
             recurrenteBloqueado={recurrenteOuv !== null}
+            puedeCrearEmpresas={puedeCrearEmpresas}
           />
           {!pmo.ok && pmo.reason ? (
             <p className="mt-2 text-xs text-muted">{pmo.reason}</p>

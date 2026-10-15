@@ -11,13 +11,19 @@ import {
   Table,
   UpdatedAt,
 } from 'sequelize-typescript';
+import { JointVenture } from './joint-venture.model';
+import { Partner } from './partner.model';
 import { WonSale } from './won-sale.model';
 
-export type EmpresaEjecutora = 'Frisson' | 'Verytel' | 'UT';
+export type EmpresaEjecutora = 'Frisson' | 'Verytel' | 'UT' | 'Aliado';
 
 /**
- * Miembro de la unión temporal que ejecuta el proyecto. La suma de
- * `participacion_pct` de todas las filas de una venta debe dar 100.
+ * Empresa que ejecuta el proyecto y su % de ingresos. La suma de
+ * `participacion_pct` de todas las filas de una venta debe dar 100.0 para
+ * enviar el proyecto al PMO; mientras se diligencia puede no cuadrar.
+ *
+ * Las filas UT y Aliado apuntan a su catálogo; `nombre` es la foto del nombre
+ * al momento de asignarla.
  */
 @Table({
   tableName: 'won_sale_members',
@@ -45,20 +51,41 @@ export class WonSaleMember extends Model {
   @Column({ type: DataType.STRING(255), allowNull: false })
   declare nombre: string;
 
+  /** Un decimal (33.3). MySQL devuelve DECIMAL como cadena. */
   @Default(0)
   @Column({
-    type: DataType.SMALLINT,
+    type: DataType.DECIMAL(4, 1),
     field: 'participacion_pct',
     allowNull: false,
   })
-  declare participacionPct: number;
+  declare participacionPct: string;
 
   /** Botón que creó la fila; `null` si es un socio externo escrito a mano. */
   @Column({
-    type: DataType.ENUM('Frisson', 'Verytel', 'UT'),
+    type: DataType.ENUM('Frisson', 'Verytel', 'UT', 'Aliado'),
     allowNull: true,
   })
   declare empresa: EmpresaEjecutora | null;
+
+  /** Solo en filas `UT`. */
+  @ForeignKey(() => JointVenture)
+  @Column({
+    type: DataType.CHAR(36),
+    field: 'joint_venture_id',
+    allowNull: true,
+  })
+  declare jointVentureId: string | null;
+
+  @BelongsTo(() => JointVenture)
+  declare jointVenture: JointVenture | null;
+
+  /** Solo en filas `Aliado`. */
+  @ForeignKey(() => Partner)
+  @Column({ type: DataType.CHAR(36), field: 'partner_id', allowNull: true })
+  declare partnerId: string | null;
+
+  @BelongsTo(() => Partner)
+  declare partner: Partner | null;
 
   @CreatedAt
   @Column({ type: DataType.DATE, field: 'created_at' })

@@ -30,9 +30,8 @@ function normalizeMiembros(record: VentaGanadaRecord): VentaGanadaRecord {
     datosBase: {
       ...record.datosBase,
       unionesTemporales: miembros.map((m, i) => ({
+        ...m,
         id: m.id ?? `me-legacy-${record.ouvId}-${i}`,
-        nombre: m.nombre,
-        participacionPct: m.participacionPct,
         empresa: m.empresa ?? inferirEmpresa(m.nombre),
       })) as MiembroEjecutor[],
     },
@@ -198,9 +197,27 @@ export function validateDatosBase(d: DatosBaseProyecto): string[] {
   if (!d.valorFacturar || d.valorFacturar <= 0) missing.push('Valor a facturar');
   if (!d.costoEstimado || d.costoEstimado <= 0) missing.push('Costo estimado');
   if (d.empresasEjecutoras.length === 0) missing.push('Empresa ejecutora');
-  const pctSum = d.unionesTemporales.reduce((s, u) => s + u.participacionPct, 0);
-  if (pctSum !== 100) missing.push('% participación (debe sumar 100%)');
+  // Misma regla que el backend al abrir el proyecto en el PMO.
+  if (d.unionesTemporales.some((m) => m.empresa === 'UT' && !m.jointVentureId)) {
+    missing.push('Unión temporal');
+  }
+  if (d.unionesTemporales.some((m) => m.empresa === 'Aliado' && !m.partnerId)) {
+    missing.push('Aliado');
+  }
+  if (sumaParticipacionDecimas(d.unionesTemporales) !== 1000) {
+    missing.push('% participación (debe sumar 100%)');
+  }
   return missing;
+}
+
+/**
+ * Suma de % en décimas (33.3 → 333): el % admite un decimal y sumar
+ * flotantes (33.3 + 33.3 + 33.4) no da exactamente 100.
+ */
+export function sumaParticipacionDecimas(
+  miembros: { participacionPct: number }[],
+): number {
+  return miembros.reduce((s, m) => s + Math.round(m.participacionPct * 10), 0);
 }
 
 export function allValidacionesAprobadas(record: VentaGanadaRecord): boolean {

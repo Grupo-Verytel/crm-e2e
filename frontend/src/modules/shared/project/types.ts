@@ -6,10 +6,10 @@ export type ValidacionEstado = 'Pendiente' | 'Aprobado' | 'Rechazado';
 
 export type ValidacionTipo = 'Tecnica' | 'Financiera';
 
-export type EmpresaEjecutora = 'Frisson' | 'Verytel' | 'UT';
+export type EmpresaEjecutora = 'Frisson' | 'Verytel' | 'UT' | 'Aliado';
 
 /**
- * Miembro de la unión temporal que ejecuta el proyecto. La suma de
+ * Empresa que ejecuta el proyecto y su % de ingresos (un decimal). La suma de
  * `participacionPct` de todos los miembros debe dar 100%.
  */
 export type MiembroEjecutor = {
@@ -19,6 +19,12 @@ export type MiembroEjecutor = {
   participacionPct: number;
   /** Botón que creó la fila; `null` si se agregó a mano (socio externo). */
   empresa: EmpresaEjecutora | null;
+  /** Unión temporal del catálogo; solo en filas `UT`. */
+  jointVentureId?: string | null;
+  /** Aliado del catálogo; solo en filas `Aliado`. */
+  partnerId?: string | null;
+  /** NIT (`base-DV`) de la UT o el aliado, tal como lo devuelve el backend. */
+  nit?: string | null;
 };
 
 export type AlertaEstado = 'Pendiente' | 'Activa' | 'Resuelta';
