@@ -925,16 +925,20 @@ export class OuvsService {
     actorUserId: string,
     roleName: string,
   ): Promise<Ouv> {
-    const ouv = await this.ouvModel.findByPk(ouvId, {
-      include: [
-        {
-          model: User,
-          as: 'comercial',
-          attributes: ['userId', 'fullName'],
-          required: false,
-        },
-      ],
-    });
+    const include = [
+      {
+        model: User,
+        as: 'comercial' as const,
+        attributes: ['userId', 'fullName'],
+        required: false,
+      },
+    ];
+    const ouv = isOuvConsecutivo(ouvId)
+      ? await this.ouvModel.findOne({
+          where: { consecutivo: ouvId.toUpperCase() },
+          include,
+        })
+      : await this.ouvModel.findByPk(ouvId, { include });
     if (!ouv) {
       throw new NotFoundException(`OUV ${ouvId} not found`);
     }
@@ -1162,6 +1166,11 @@ export class OuvsService {
     const siguiente = Number(rows[0]?.siguiente ?? 1);
     return `OUV-${String(siguiente).padStart(4, '0')}`;
   }
+}
+
+/** Public consecutive (`OUV-0318`). The detail route also accepts the internal id. */
+function isOuvConsecutivo(value: string): boolean {
+  return /^OUV-\d+$/i.test(value);
 }
 
 /** Rejects impossible calendar days such as 2026-02-31. */
