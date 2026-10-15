@@ -17,7 +17,7 @@ import {
  * este contrato (TS-OUV-04 verifica que el verbo de escritura no existe).
  *
  * `status` y `expected_close_date` se proyectan en tiempo de lectura desde
- * `ouvs.resultado` y `ouvs.created_at` + `ouvs.plazo_ejecucion_meses`.
+ * `ouvs.resultado` y `ouvs.expected_close_date` (`null` si no hay fecha).
  */
 @Injectable()
 export class OpportunityService {

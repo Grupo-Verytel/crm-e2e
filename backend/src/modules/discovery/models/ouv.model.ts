@@ -252,7 +252,7 @@ export class Ouv extends Model {
   @Column({ type: DataType.DATE, field: 'fecha_cierre', allowNull: true })
   declare fechaCierre: Date | null;
 
-  /** Execution term in whole months; drives MEP `expected_close_date`. */
+  /** Execution term in whole months. */
   @Column({
     type: DataType.SMALLINT.UNSIGNED,
     field: 'plazo_ejecucion_meses',
