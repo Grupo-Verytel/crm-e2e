@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { AppLayout } from '../../../layout/AppLayout';
 import {
   formatAmountEsCo,
@@ -111,7 +111,10 @@ async function peopleForOuv(detail: Ouv): Promise<Person[]> {
 
 export function OuvDetailPage() {
   const { id = '' } = useParams();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const searchRef = useRef(searchParams);
+  searchRef.current = searchParams;
   const { user } = useAuth();
   const detailTab = parseOuvDetailTab(searchParams.get('tab'));
 
@@ -170,8 +173,20 @@ export function OuvDetailPage() {
       if (!id) return;
       if (!opts?.silent) setLoading(true);
       setError(null);
+      let redirecting = false;
       try {
         const detail = await fetchOuv(id);
+        if (detail.ouv_id !== id) {
+          redirecting = true;
+          navigate(
+            {
+              pathname: `/opportunities/${detail.ouv_id}`,
+              search: searchRef.current.toString(),
+            },
+            { replace: true },
+          );
+          return;
+        }
         setOuv(detail);
         setPresupuestoConfirmado(detail.presupuesto_confirmado);
         setPresupuestoMonto(formatAmountEsCo(detail.presupuesto_monto));
@@ -191,10 +206,10 @@ export function OuvDetailPage() {
         setError('No se pudo cargar la OUV.');
         setOuv(null);
       } finally {
-        if (!opts?.silent) setLoading(false);
+        if (!opts?.silent && !redirecting) setLoading(false);
       }
     },
-    [id],
+    [id, navigate],
   );
 
   useEffect(() => {
