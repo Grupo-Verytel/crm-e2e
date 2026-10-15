@@ -681,6 +681,12 @@ export class OuvsService {
       if (dto.plazo_ejecucion_meses !== undefined) {
         patch.plazoEjecucionMeses = dto.plazo_ejecucion_meses;
       }
+      if (dto.expected_close_date !== undefined) {
+        patch.expectedCloseDate =
+          dto.expected_close_date === null
+            ? null
+            : assertCalendarDate(dto.expected_close_date);
+      }
 
       // Vincular / desvincular la account. Si vincula, alinea empresa_nombre
       // al snapshot de accounts.name — a menos que el DTO ya haya mandado
@@ -1057,6 +1063,7 @@ export class OuvsService {
       monto_estimado_perdido: ouv.montoEstimadoPerdido,
       fecha_cierre: ouv.fechaCierre,
       plazo_ejecucion_meses: ouv.plazoEjecucionMeses ?? null,
+      expected_close_date: toDateOnlyString(ouv.expectedCloseDate),
       created_at: ouv.createdAt,
       updated_at: ouv.updatedAt,
       ...(diasPorZona ? { dias_por_zona: diasPorZona } : {}),
@@ -1155,4 +1162,37 @@ export class OuvsService {
     const siguiente = Number(rows[0]?.siguiente ?? 1);
     return `OUV-${String(siguiente).padStart(4, '0')}`;
   }
+}
+
+/** Rejects impossible calendar days such as 2026-02-31. */
+function assertCalendarDate(value: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) {
+    throw new BadRequestException(
+      'expected_close_date must be a YYYY-MM-DD date',
+    );
+  }
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
+    throw new BadRequestException('expected_close_date is not a valid date');
+  }
+  return value;
+}
+
+function toDateOnlyString(
+  value: string | Date | null | undefined,
+): string | null {
+  if (!value) return null;
+  if (typeof value === 'string') return value.slice(0, 10);
+  const year = value.getUTCFullYear();
+  const month = String(value.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(value.getUTCDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }

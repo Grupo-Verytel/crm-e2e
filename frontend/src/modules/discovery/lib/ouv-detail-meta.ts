@@ -31,6 +31,36 @@ export type OuvMetaField = {
   value: string;
 };
 
+export const EXPECTED_CLOSE_DATE_LABEL = 'Fecha esperada de cierre';
+
+const MONTHS_ES = [
+  'enero',
+  'febrero',
+  'marzo',
+  'abril',
+  'mayo',
+  'junio',
+  'julio',
+  'agosto',
+  'septiembre',
+  'octubre',
+  'noviembre',
+  'diciembre',
+];
+
+/** "25 de octubre de 2026", or "—" when the date is missing. */
+export function formatExpectedCloseDate(
+  value: string | null | undefined,
+): string {
+  const ymd = value?.slice(0, 10) ?? '';
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd);
+  if (!match) return '—';
+  const month = MONTHS_ES[Number(match[2]) - 1];
+  const day = Number(match[3]);
+  if (!month || day < 1 || day > 31) return '—';
+  return `${day} de ${month} de ${match[1]}`;
+}
+
 function displayLoc(
   persisted: string | null | undefined,
   fallback?: string,
@@ -94,6 +124,10 @@ export function buildOuvMetaFields(
     {
       label: 'Región',
       value: displayLoc(ouv.region, extensions.region),
+    },
+    {
+      label: EXPECTED_CLOSE_DATE_LABEL,
+      value: formatExpectedCloseDate(ouv.expected_close_date),
     },
     { label: 'Etapa', value: 'Comercial' },
     { label: 'Fecha creación', value: formatDateTime(ouv.created_at) },

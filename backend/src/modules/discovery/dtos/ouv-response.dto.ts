@@ -36,6 +36,8 @@ export class OuvResponseDto {
   monto_estimado_perdido!: string | null;
   fecha_cierre!: Date | null;
   plazo_ejecucion_meses!: number | null;
+  /** YYYY-MM-DD, or null when the commercial has not set a close date. */
+  expected_close_date!: string | null;
   created_at!: Date;
   updated_at!: Date;
   dias_por_zona?: {

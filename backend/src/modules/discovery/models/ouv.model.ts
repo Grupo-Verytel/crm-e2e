@@ -260,6 +260,14 @@ export class Ouv extends Model {
   })
   declare plazoEjecucionMeses: number | null;
 
+  /** Calendar day the commercial expects to close this OUV. */
+  @Column({
+    type: DataType.DATEONLY,
+    field: 'expected_close_date',
+    allowNull: true,
+  })
+  declare expectedCloseDate: string | null;
+
   @HasMany(() => OuvContacto, { foreignKey: 'ouvId', as: 'contactos' })
   declare contactos: OuvContacto[];
 

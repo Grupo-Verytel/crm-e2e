@@ -1,8 +1,11 @@
 import { useState, type ReactNode } from 'react';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { Calendar, ChevronDown, ChevronUp } from 'lucide-react';
 import type { Ouv } from '../api/ouvs-api';
 import type { OuvDetailExtensions } from '../lib/ouv-detail-extensions';
-import { buildOuvMetaFields } from '../lib/ouv-detail-meta';
+import {
+  buildOuvMetaFields,
+  EXPECTED_CLOSE_DATE_LABEL,
+} from '../lib/ouv-detail-meta';
 import { GapBadge } from './OuvBadges';
 import { cardClass } from './ui';
 
@@ -66,7 +69,24 @@ export function OuvReadonlyHeaderCard({
               <div key={field.label}>
                 <dt className="text-xs font-bold text-muted">{field.label}</dt>
                 <dd className="mt-0.5 break-words font-medium text-ink">
-                  {field.value}
+                  {field.label === EXPECTED_CLOSE_DATE_LABEL ? (
+                    <span className="inline-flex h-9 max-w-full items-center gap-2 rounded border border-border bg-bg px-3 text-sm">
+                      <Calendar
+                        size={15}
+                        className="shrink-0 text-accent"
+                        strokeWidth={2}
+                      />
+                      <span
+                        className={
+                          field.value === '—' ? 'text-muted' : 'text-ink'
+                        }
+                      >
+                        {field.value}
+                      </span>
+                    </span>
+                  ) : (
+                    field.value
+                  )}
                 </dd>
               </div>
             ))}
