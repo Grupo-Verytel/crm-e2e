@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { AppLayout } from '../../../layout/AppLayout';
 import {
   formatAmountEsCo,
@@ -53,6 +53,7 @@ import { WonCelebration } from '../components/WonCelebration';
 import { OuvFunnelRibbon } from '../components/OuvFunnelRibbon';
 import {
   OuvDetailNav,
+  parseOuvDetailTab,
   type OuvDetailTab,
 } from '../components/OuvDetailNav';
 import { PreventaActivityPanel } from '../components/PreventaActivityPanel';
@@ -110,7 +111,21 @@ async function peopleForOuv(detail: Ouv): Promise<Person[]> {
 
 export function OuvDetailPage() {
   const { id = '' } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
+  const detailTab = parseOuvDetailTab(searchParams.get('tab'));
+
+  function selectDetailTab(tab: OuvDetailTab) {
+    setSearchParams(
+      (current) => {
+        const next = new URLSearchParams(current);
+        if (tab === 'detalle') next.delete('tab');
+        else next.set('tab', tab);
+        return next;
+      },
+      { replace: true },
+    );
+  }
 
   const [ouv, setOuv] = useState<Ouv | null>(null);
   const [contactos, setContactos] = useState<OuvContacto[]>([]);
@@ -137,7 +152,6 @@ export function OuvDetailPage() {
   const [showRetroceso, setShowRetroceso] = useState(false);
   const [showCierre, setShowCierre] = useState(false);
   const [ouvEditMode, setOuvEditMode] = useState(false);
-  const [detailTab, setDetailTab] = useState<OuvDetailTab>('detalle');
   const [ouvExtensions, setOuvExtensions] = useState<OuvDetailExtensions>({});
   const [closeToast, setCloseToast] = useState<string | null>(null);
   const [celebrateWin, setCelebrateWin] = useState(false);
@@ -540,7 +554,7 @@ export function OuvDetailPage() {
         </Link>
       </div>
       <OuvFunnelRibbon ouv={ouv} />
-      <OuvDetailNav active={detailTab} onChange={setDetailTab} />
+      <OuvDetailNav active={detailTab} onChange={selectDetailTab} />
 
       {detailTab === 'detalle' ? (
         <>

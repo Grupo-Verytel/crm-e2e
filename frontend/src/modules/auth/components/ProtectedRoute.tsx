@@ -12,7 +12,8 @@ export function ProtectedRoute({ children }: { children: ReactNode }) {
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+    const returnTo = `${location.pathname}${location.search}${location.hash}`;
+    return <Navigate to="/login" replace state={{ from: returnTo }} />;
   }
 
   return children;
