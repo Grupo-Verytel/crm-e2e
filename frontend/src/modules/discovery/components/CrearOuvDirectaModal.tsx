@@ -1,16 +1,15 @@
 import { useState, type FormEvent } from 'react';
-import { fetchAccounts } from '../../accounts/api/accounts-api';
 import type { Account } from '../../accounts/types';
+import { useAuth } from '../../auth/hooks/useAuth';
 import { ApiError } from '../../auth/types';
 import { crearOuvDirecta } from '../api/ouvs-api';
 import {
-  OUV_ORIGEN_OPTIONS,
   saveOuvExtensions,
   type OuvDetailExtensions,
-  type OuvOrigenLabel,
 } from '../lib/ouv-detail-extensions';
 import { SEGMENTO_LABEL } from '../lib/ouv-detail-meta';
 import { SEGMENTOS, VERTICALES } from '../lib/ouv-vocab';
+import { AccountSearchField } from './AccountSearchField';
 import { ColombiaCitySearchField } from './ColombiaCitySearchField';
 import { ModalShell } from './ModalShell';
 import {
@@ -26,10 +25,12 @@ type Props = {
 };
 
 export function CrearOuvDirectaModal({ onClose, onCreated }: Props) {
-  const [organizacion, setOrganizacion] = useState('');
-  const [origenOuv, setOrigenOuv] = useState<OuvOrigenLabel>('Desde OUV');
-  const [segmento, setSegmento] = useState<string>(SEGMENTOS[0]);
-  const [vertical, setVertical] = useState<string>(VERTICALES[0]);
+  const { user } = useAuth();
+  const [titulo, setTitulo] = useState('');
+  const [descripcion, setDescripcion] = useState('');
+  const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
+  const [segmento, setSegmento] = useState('');
+  const [vertical, setVertical] = useState('');
   const [proyecto, setProyecto] = useState<'' | 'Recurrente' | 'No recurrente'>(
     '',
   );
@@ -37,55 +38,53 @@ export function CrearOuvDirectaModal({ onClose, onCreated }: Props) {
   const [probabilidadCierre, setProbabilidadCierre] = useState('');
   const [ciudad, setCiudad] = useState('');
   const [region, setRegion] = useState('');
-  const [accountQuery, setAccountQuery] = useState('');
-  const [accountHits, setAccountHits] = useState<Account[]>([]);
-  const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
+  const [fechaEsperadaCierre, setFechaEsperadaCierre] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [searching, setSearching] = useState(false);
 
-  const nowLabel = new Date().toLocaleString('es-CO');
-
-  async function searchAccounts() {
-    const q = accountQuery.trim();
-    if (!q) return;
-    setSearching(true);
-    setError(null);
-    try {
-      const data = await fetchAccounts({ q, limit: 10 });
-      setAccountHits(data.items);
-    } catch (err) {
-      setError(
-        err instanceof ApiError ? err.message : 'No se pudo buscar empresas.',
-      );
-    } finally {
-      setSearching(false);
-    }
-  }
+  const comercialNombre = user?.full_name?.trim() || '—';
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    const empresa = selectedAccount?.name.trim() || organizacion.trim();
-    if (!empresa) {
-      setError('Indica la organización.');
+    const tituloTrim = titulo.trim();
+    if (!tituloTrim) {
+      setError('Indica el título de la OUV.');
       return;
     }
+    if (!selectedAccount) {
+      setError('Selecciona una empresa.');
+      return;
+    }
+    if (!segmento) {
+      setError('Selecciona el segmento.');
+      return;
+    }
+    if (!vertical) {
+      setError('Selecciona la vertical.');
+      return;
+    }
+    if (!ciudad.trim() || !region.trim()) {
+      setError('Selecciona la ciudad.');
+      return;
+    }
+
     setSaving(true);
     setError(null);
     try {
+      const descripcionTrim = descripcion.trim();
       const ouv = await crearOuvDirecta({
-        titulo: empresa,
-        empresa_nombre: empresa,
+        titulo: tituloTrim,
+        empresa_nombre: selectedAccount.name,
+        account_id: selectedAccount.account_id,
         segmento,
         vertical,
-        descripcion: `OUV directa · ${empresa}`,
-        ...(selectedAccount
-          ? { account_id: selectedAccount.account_id }
-          : {}),
+        ...(descripcionTrim ? { descripcion: descripcionTrim } : {}),
       });
 
       const extensions: OuvDetailExtensions = {
-        origen_ouv: origenOuv,
+        origen_ouv: 'Desde OUV',
+        ciudad: ciudad.trim(),
+        region: region.trim(),
         ...(proyecto ? { proyecto } : {}),
         ...(plazoEjecucion.trim()
           ? { plazo_ejecucion: plazoEjecucion.trim() }
@@ -93,8 +92,9 @@ export function CrearOuvDirectaModal({ onClose, onCreated }: Props) {
         ...(probabilidadCierre.trim()
           ? { probabilidad_cierre: probabilidadCierre.trim() }
           : {}),
-        ...(ciudad.trim() ? { ciudad: ciudad.trim() } : {}),
-        ...(region.trim() ? { region: region.trim() } : {}),
+        ...(fechaEsperadaCierre.trim()
+          ? { fecha_esperada_cierre: fechaEsperadaCierre.trim() }
+          : {}),
       };
       saveOuvExtensions(ouv.ouv_id, extensions);
 
@@ -113,86 +113,55 @@ export function CrearOuvDirectaModal({ onClose, onCreated }: Props) {
   return (
     <ModalShell title="Nueva OUV" onClose={onClose} size="wide">
       <form className="space-y-4" onSubmit={(e) => void onSubmit(e)}>
+        <div>
+          <label className={labelClass} htmlFor="create-ouv-titulo">
+            Título de la OUV
+          </label>
+          <input
+            id="create-ouv-titulo"
+            className={inputClass}
+            value={titulo}
+            onChange={(e) => setTitulo(e.target.value)}
+            required
+            maxLength={200}
+          />
+        </div>
+
+        <div>
+          <label className={labelClass} htmlFor="create-ouv-descripcion">
+            Descripción
+          </label>
+          <input
+            id="create-ouv-descripcion"
+            className={inputClass}
+            value={descripcion}
+            onChange={(e) => setDescripcion(e.target.value)}
+          />
+        </div>
+
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <div className="sm:col-span-2 lg:col-span-3">
-            <label className={labelClass} htmlFor="create-ouv-org-q">
-              Organización
+          <div>
+            <label className={labelClass} htmlFor="create-ouv-empresa">
+              Empresa
             </label>
-            <div className="flex gap-2">
-              <input
-                id="create-ouv-org-q"
-                className={inputClass}
-                value={accountQuery}
-                onChange={(e) => setAccountQuery(e.target.value)}
-                placeholder="Buscar empresa o escribir nombre"
-              />
-              <button
-                type="button"
-                className={ghostButtonClass}
-                onClick={() => void searchAccounts()}
-                disabled={searching}
-              >
-                Buscar
-              </button>
-            </div>
-            {accountHits.length > 0 ? (
-              <ul className="mt-2 max-h-28 overflow-y-auto rounded border border-border">
-                {accountHits.map((account) => (
-                  <li key={account.account_id}>
-                    <button
-                      type="button"
-                      className="w-full px-3 py-2 text-left text-sm hover:bg-bg"
-                      onClick={() => {
-                        setSelectedAccount(account);
-                        setOrganizacion(account.name);
-                        setAccountQuery(account.name);
-                        setAccountHits([]);
-                      }}
-                    >
-                      <span className="font-bold text-ink">{account.name}</span>
-                      {account.tax_id ? (
-                        <span className="block text-xs text-muted">
-                          NIT: {account.tax_id}
-                        </span>
-                      ) : null}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-            <input
-              className={`${inputClass} mt-2`}
-              value={organizacion}
-              onChange={(e) => {
-                setOrganizacion(e.target.value);
-                if (selectedAccount && e.target.value !== selectedAccount.name) {
-                  setSelectedAccount(null);
-                }
-              }}
-              placeholder="Nombre de la organización"
-              required
-              maxLength={200}
+            <AccountSearchField
+              id="create-ouv-empresa"
+              selected={selectedAccount}
+              onSelect={setSelectedAccount}
+              onClear={() => setSelectedAccount(null)}
             />
           </div>
 
           <div>
-            <label className={labelClass} htmlFor="create-ouv-origen">
-              Origen OUV
+            <label className={labelClass} htmlFor="create-ouv-comercial">
+              Comercial
             </label>
-            <select
-              id="create-ouv-origen"
-              className={inputClass}
-              value={origenOuv}
-              onChange={(e) =>
-                setOrigenOuv(e.target.value as OuvOrigenLabel)
-              }
-            >
-              {OUV_ORIGEN_OPTIONS.map((opt) => (
-                <option key={opt} value={opt}>
-                  {opt}
-                </option>
-              ))}
-            </select>
+            <input
+              id="create-ouv-comercial"
+              className={`${inputClass} cursor-default opacity-90`}
+              value={comercialNombre}
+              readOnly
+            />
           </div>
 
           <div>
@@ -204,7 +173,9 @@ export function CrearOuvDirectaModal({ onClose, onCreated }: Props) {
               className={inputClass}
               value={segmento}
               onChange={(e) => setSegmento(e.target.value)}
+              required
             >
+              <option value="">Selecciona…</option>
               {SEGMENTOS.map((s) => (
                 <option key={s} value={s}>
                   {SEGMENTO_LABEL[s] ?? s}
@@ -222,13 +193,39 @@ export function CrearOuvDirectaModal({ onClose, onCreated }: Props) {
               className={inputClass}
               value={vertical}
               onChange={(e) => setVertical(e.target.value)}
+              required
             >
+              <option value="">Selecciona…</option>
               {VERTICALES.map((v) => (
                 <option key={v} value={v}>
                   {v}
                 </option>
               ))}
             </select>
+          </div>
+
+          <div>
+            <label className={labelClass} htmlFor="create-ouv-origen">
+              Origen
+            </label>
+            <input
+              id="create-ouv-origen"
+              className={`${inputClass} cursor-default opacity-90`}
+              value="OUV Directa"
+              readOnly
+            />
+          </div>
+
+          <div>
+            <label className={labelClass} htmlFor="create-ouv-canal">
+              Canal de origen
+            </label>
+            <input
+              id="create-ouv-canal"
+              className={`${inputClass} cursor-default opacity-90`}
+              value="—"
+              readOnly
+            />
           </div>
 
           <div>
@@ -253,7 +250,7 @@ export function CrearOuvDirectaModal({ onClose, onCreated }: Props) {
 
           <div>
             <label className={labelClass} htmlFor="create-ouv-plazo">
-              Plazo ejecución
+              Plazo
             </label>
             <input
               id="create-ouv-plazo"
@@ -262,13 +259,12 @@ export function CrearOuvDirectaModal({ onClose, onCreated }: Props) {
               className={inputClass}
               value={plazoEjecucion}
               onChange={(e) => setPlazoEjecucion(e.target.value)}
-              placeholder="Meses"
             />
           </div>
 
           <div>
             <label className={labelClass} htmlFor="create-ouv-prob">
-              Probabilidad de cierre
+              Probabilidad de cierre %
             </label>
             <input
               id="create-ouv-prob"
@@ -278,7 +274,6 @@ export function CrearOuvDirectaModal({ onClose, onCreated }: Props) {
               className={inputClass}
               value={probabilidadCierre}
               onChange={(e) => setProbabilidadCierre(e.target.value)}
-              placeholder="%"
             />
           </div>
 
@@ -310,42 +305,31 @@ export function CrearOuvDirectaModal({ onClose, onCreated }: Props) {
               className={`${inputClass} cursor-default opacity-90`}
               value={region}
               readOnly
-              placeholder="Se completa al elegir la ciudad"
+              required
             />
           </div>
 
           <div>
-            <label className={labelClass}>Etapa</label>
+            <label className={labelClass} htmlFor="create-ouv-fecha-esperada">
+              Fecha esperada de cierre
+            </label>
             <input
+              id="create-ouv-fecha-esperada"
+              type="date"
+              className={inputClass}
+              value={fechaEsperadaCierre}
+              onChange={(e) => setFechaEsperadaCierre(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className={labelClass} htmlFor="create-ouv-etapa">
+              Etapa
+            </label>
+            <input
+              id="create-ouv-etapa"
               className={`${inputClass} cursor-default opacity-90`}
               value="Comercial"
-              readOnly
-            />
-          </div>
-
-          <div>
-            <label className={labelClass}>Estado OUV</label>
-            <input
-              className={`${inputClass} cursor-default opacity-90`}
-              value="En curso"
-              readOnly
-            />
-          </div>
-
-          <div>
-            <label className={labelClass}>Fecha creación</label>
-            <input
-              className={`${inputClass} cursor-default opacity-90`}
-              value={nowLabel}
-              readOnly
-            />
-          </div>
-
-          <div>
-            <label className={labelClass}>Fecha actualización</label>
-            <input
-              className={`${inputClass} cursor-default opacity-90`}
-              value={nowLabel}
               readOnly
             />
           </div>

@@ -8,6 +8,7 @@ import {
 } from '../lib/ouv-detail-extensions';
 import {
   buildOuvMetaFields,
+  formatOuvOrigen,
   formatOuvSourceChannel,
   SEGMENTO_LABEL,
 } from '../lib/ouv-detail-meta';
@@ -289,9 +290,7 @@ export function OuvDetailHeaderCard({
               />
             </div>
             <div>
-              <dt className="text-xs font-bold text-muted">
-                Comercial asignado
-              </dt>
+              <dt className="text-xs font-bold text-muted">Comercial</dt>
               <dd className="mt-0.5 break-words font-medium text-ink">
                 {ouv.comercial_nombre?.trim() || '—'}
               </dd>
@@ -299,7 +298,7 @@ export function OuvDetailHeaderCard({
             <div>
               <dt className="text-xs font-bold text-muted">Origen</dt>
               <dd className="mt-0.5 font-medium text-ink">
-                {ouv.origen ?? '—'}
+                {formatOuvOrigen(ouv.origen, ouv.origen_via)}
               </dd>
             </div>
             <div>
@@ -418,14 +417,29 @@ export function OuvDetailHeaderCard({
             </div>
             <div>
               <label className={labelClass} htmlFor="ouv-region">
-                Región (departamento)
+                Región
               </label>
               <input
                 id="ouv-region"
                 className={`${inputClass} cursor-default opacity-90`}
                 value={draft.extensions.region ?? ''}
                 readOnly
-                placeholder="Se completa al elegir la ciudad"
+              />
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="ouv-fecha-esperada">
+                Fecha esperada de cierre
+              </label>
+              <input
+                id="ouv-fecha-esperada"
+                type="date"
+                className={inputClass}
+                value={draft.extensions.fecha_esperada_cierre ?? ''}
+                onChange={(e) =>
+                  patchExtension({
+                    fecha_esperada_cierre: e.target.value || undefined,
+                  })
+                }
               />
             </div>
             <div>

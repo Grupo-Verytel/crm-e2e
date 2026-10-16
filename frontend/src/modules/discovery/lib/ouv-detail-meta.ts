@@ -39,6 +39,22 @@ export function formatOuvSourceChannel(channel: string | null): string {
   return SOURCE_CHANNEL_LABEL[channel] ?? channel;
 }
 
+export function formatOuvOrigen(
+  origen: string | null,
+  origenVia?: string,
+): string {
+  if (origen?.trim()) return origen;
+  if (origenVia === 'directa') return 'OUV Directa';
+  return '—';
+}
+
+export function formatExpectedCloseDate(value: string | undefined): string {
+  if (!value?.trim()) return '—';
+  const parsed = new Date(`${value.trim()}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return new Intl.DateTimeFormat('es-CO', { dateStyle: 'long' }).format(parsed);
+}
+
 export type OuvMetaField = {
   label: string;
   value: string;
@@ -65,14 +81,14 @@ export function buildOuvMetaFields(
       label: 'Origen OUV',
       value: resolveOuvOrigenLabel(ouv.origen_via, extensions),
     },
-    { label: 'Origen', value: ouv.origen ?? '—' },
+    { label: 'Origen', value: formatOuvOrigen(ouv.origen, ouv.origen_via) },
     {
       label: 'Canal de origen',
       value: formatOuvSourceChannel(ouv.canal_origen),
     },
     { label: 'Organización', value: ouv.empresa_nombre },
     {
-      label: 'Comercial asignado',
+      label: 'Comercial',
       value: ouv.comercial_nombre?.trim() || '—',
     },
     { label: 'Segmento', value: segmento },
@@ -87,6 +103,10 @@ export function buildOuvMetaFields(
     { label: 'Probabilidad de cierre', value: probDisplay },
     { label: 'Ciudad', value: extensions.ciudad ?? '—' },
     { label: 'Región', value: extensions.region ?? '—' },
+    {
+      label: 'Fecha esperada de cierre',
+      value: formatExpectedCloseDate(extensions.fecha_esperada_cierre),
+    },
     { label: 'Etapa', value: 'Comercial' },
     {
       label: 'Estado OUV',

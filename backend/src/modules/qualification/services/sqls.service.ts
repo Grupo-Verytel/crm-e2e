@@ -414,7 +414,6 @@ export class SqlsService {
       await lead.update(
         {
           fechaCita: new Date(dto.fecha_cita),
-          citaEstado: SqlCitaEstado.Reagendada,
           citaAgendada: true,
           ...(dto.comercial_asignado_id
             ? { comercialAsignadoId: dto.comercial_asignado_id }
@@ -468,7 +467,6 @@ export class SqlsService {
       await lead.update(
         {
           fechaCita: null,
-          citaEstado: SqlCitaEstado.Cancelada,
           citaAgendada: false,
         },
         { transaction },
@@ -513,26 +511,22 @@ export class SqlsService {
         await cita.update({ estado: nextEstado }, { transaction });
       }
 
-      const lead = await this.leadModel.findByPk(sql.mql.leadId, {
-        transaction,
-        lock: transaction.LOCK.UPDATE,
-      });
-      if (!lead) {
-        throw new NotFoundException({
-          code: QUALIFICATION_ERROR_CODES.NOT_FOUND,
-          message: `Lead for SQL ${sqlId} not found`,
+      if (nextEstado === SqlCitaEstado.Cancelada) {
+        const lead = await this.leadModel.findByPk(sql.mql.leadId, {
+          transaction,
+          lock: transaction.LOCK.UPDATE,
         });
+        if (!lead) {
+          throw new NotFoundException({
+            code: QUALIFICATION_ERROR_CODES.NOT_FOUND,
+            message: `Lead for SQL ${sqlId} not found`,
+          });
+        }
+        await lead.update(
+          { fechaCita: null, citaAgendada: false },
+          { transaction },
+        );
       }
-
-      await lead.update(
-        {
-          citaEstado: nextEstado,
-          ...(nextEstado === SqlCitaEstado.Cancelada
-            ? { fechaCita: null, citaAgendada: false }
-            : {}),
-        },
-        { transaction },
-      );
 
       const leadDto = await this.demandGenerationService.findLeadById(
         sql.mql.leadId,
@@ -780,27 +774,12 @@ export class SqlsService {
   ): WhereOptions<Lead> | undefined {
     if (!citaEstado) return undefined;
     if (citaEstado === 'sin_agendar') {
-      return {
-        [Op.and]: [
-          { citaEstado: { [Op.is]: null } },
-          { fechaCita: { [Op.is]: null } },
-        ],
-      };
+      return { fechaCita: { [Op.is]: null } };
     }
     if (citaEstado === SqlCitaEstado.Agendada) {
-      return {
-        [Op.or]: [
-          { citaEstado: SqlCitaEstado.Agendada },
-          {
-            [Op.and]: [
-              { citaEstado: { [Op.is]: null } },
-              { fechaCita: { [Op.ne]: null } },
-            ],
-          },
-        ],
-      };
+      return { fechaCita: { [Op.ne]: null } };
     }
-    return { citaEstado };
+    return undefined;
   }
 
   private createdRangeWhere(

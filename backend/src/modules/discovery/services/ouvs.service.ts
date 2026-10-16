@@ -181,7 +181,7 @@ export class OuvsService {
           accountId,
           titulo: dto.titulo.trim(),
           empresaNombre,
-          descripcion: dto.descripcion.trim(),
+          descripcion: dto.descripcion?.trim() || null,
           segmento: dto.segmento,
           segmentId: dto.segment_id ?? null,
           subsegmentId: dto.subsegment_id ?? null,

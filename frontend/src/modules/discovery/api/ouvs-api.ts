@@ -111,7 +111,7 @@ export type CrearOuvDirectaPayload = {
   empresa_nombre: string;
   segmento: string;
   vertical: string;
-  descripcion: string;
+  descripcion?: string;
   account_id?: string;
   segment_id?: string;
   subsegment_id?: string;

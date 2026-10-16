@@ -4,6 +4,7 @@ export type OuvDetailExtensions = {
   probabilidad_cierre?: string;
   ciudad?: string;
   region?: string;
+  fecha_esperada_cierre?: string;
   /** UI label for OUV origin (maps loosely to origen_via). */
   origen_ouv?: 'Desde SQL' | 'Desde OUV';
 };

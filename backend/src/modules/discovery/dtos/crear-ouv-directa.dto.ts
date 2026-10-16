@@ -33,9 +33,9 @@ export class CrearOuvDirectaDto {
   @IsIn(Object.values(OuvVertical))
   vertical!: string;
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  descripcion!: string;
+  descripcion?: string;
 
   @IsOptional()
   @IsUUID('4')
