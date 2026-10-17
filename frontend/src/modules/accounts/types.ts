@@ -17,6 +17,7 @@ export type Person = {
   phone: string | null;
   account_id: string;
   account_name?: string | null;
+  has_active_influence?: boolean;
   created_at: string;
   updated_at: string;
 };

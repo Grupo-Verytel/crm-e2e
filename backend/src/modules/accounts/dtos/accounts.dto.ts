@@ -175,6 +175,11 @@ export class UpdatePersonDto {
   phone?: string | null;
 }
 
+export class MovePersonAccountDto {
+  @IsUUID()
+  account_id!: string;
+}
+
 export class PersonResponseDto {
   person_id!: string;
   name!: string;
@@ -183,6 +188,7 @@ export class PersonResponseDto {
   phone!: string | null;
   account_id!: string;
   account_name?: string | null;
+  has_active_influence!: boolean;
   created_at!: Date;
   updated_at!: Date;
 }

@@ -74,3 +74,13 @@ export async function updatePerson(
 export async function deletePerson(personId: string): Promise<void> {
   await apiRequest<void>(`/accounts/people/${personId}`, { method: 'DELETE' });
 }
+
+export async function movePersonToAccount(
+  personId: string,
+  accountId: string,
+): Promise<Person> {
+  return apiRequest<Person>(`/accounts/people/${personId}/account`, {
+    method: 'PATCH',
+    body: { account_id: accountId },
+  });
+}

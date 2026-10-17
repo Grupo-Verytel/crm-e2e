@@ -14,6 +14,7 @@ import {
 import { CheckAbility } from '../../auth/casl/check-ability.decorator';
 import {
   CreatePersonDto,
+  MovePersonAccountDto,
   PaginatedPeopleResponseDto,
   PeopleQueryDto,
   PersonResponseDto,
@@ -55,9 +56,18 @@ export class PeopleController {
     return this.accountsService.updatePerson(personId, dto);
   }
 
+  @Patch(':personId/account')
+  @CheckAbility({ action: 'update', subject: 'Person' })
+  moveToAccount(
+    @Param('personId', ParseUUIDPipe) personId: string,
+    @Body() dto: MovePersonAccountDto,
+  ): Promise<PersonResponseDto> {
+    return this.accountsService.movePersonToAccount(personId, dto.account_id);
+  }
+
   @Delete(':personId')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @CheckAbility({ action: 'delete', subject: 'Person' })
+  @CheckAbility({ action: 'update', subject: 'Person' })
   async remove(
     @Param('personId', ParseUUIDPipe) personId: string,
   ): Promise<void> {
