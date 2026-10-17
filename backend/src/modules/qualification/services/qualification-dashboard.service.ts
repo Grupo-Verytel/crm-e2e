@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { col, fn, literal, Op, where, WhereOptions } from 'sequelize';
+import type { AuthenticatedUser } from '../../auth/interfaces/authenticated-user.interface';
 import { Lead } from '../../demand-generation/models/lead.model';
 import { Mql } from '../../demand-generation/models/mql.model';
 import { MqlEstado } from '../../demand-generation/models/enums/mql.enums';
@@ -37,6 +38,20 @@ type ResolvedRanges = {
 
 const EMPTY_VALUE: QualificationOuvValueMetricDto = { amount: 0, count: 0 };
 
+function compactRoleName(roleName: string): string {
+  return roleName.replace(/[\s_-]/g, '').toLowerCase();
+}
+
+/**
+ * EjecutivoComercial only sees OUVs they own (`comercial_id`).
+ * Other roles that already passed CASL `read Opportunity` keep the full cut.
+ */
+function ownedOuvComercialId(user: AuthenticatedUser): string | undefined {
+  return compactRoleName(user.roleName) === 'ejecutivocomercial'
+    ? user.userId
+    : undefined;
+}
+
 /** Closed-negative OUVs: lost amount, else last budgeted amount. */
 const CLOSED_NEGATIVE_AMOUNT_SQL =
   'COALESCE(monto_estimado_perdido, presupuesto_monto)';
@@ -52,7 +67,9 @@ export class QualificationDashboardService {
 
   async getDashboard(
     query: QualificationDashboardQueryDto,
+    user: AuthenticatedUser,
   ): Promise<QualificationDashboardResponseDto> {
+    const comercialId = ownedOuvComercialId(user);
     const ranges = this.resolveRanges(
       query.quarter,
       query.period_from,
@@ -108,16 +125,17 @@ export class QualificationDashboardService {
             activeRange!.end,
           )
         : Promise.resolve(0),
-      this.sumOuvsOpenInZona(OuvZona.Universo),
-      this.sumOuvsOpenInZona(OuvZona.EncimaFunnel),
-      this.sumOuvsOpenInZona(OuvZona.EnFunnel),
-      this.sumOuvsOpenInZona(OuvZona.MayorProbabilidad),
+      this.sumOuvsOpenInZona(OuvZona.Universo, comercialId),
+      this.sumOuvsOpenInZona(OuvZona.EncimaFunnel, comercialId),
+      this.sumOuvsOpenInZona(OuvZona.EnFunnel, comercialId),
+      this.sumOuvsOpenInZona(OuvZona.MayorProbabilidad, comercialId),
       periodActive
         ? this.sumClosedOuvsInRange(
             OuvResultado.Ganada,
             'monto_final',
             activeRange!.start,
             activeRange!.end,
+            comercialId,
           )
         : Promise.resolve(EMPTY_VALUE),
       periodActive
@@ -126,6 +144,7 @@ export class QualificationDashboardService {
             CLOSED_NEGATIVE_AMOUNT_SQL,
             activeRange!.start,
             activeRange!.end,
+            comercialId,
           )
         : Promise.resolve(EMPTY_VALUE),
       periodActive
@@ -134,6 +153,7 @@ export class QualificationDashboardService {
             CLOSED_NEGATIVE_AMOUNT_SQL,
             activeRange!.start,
             activeRange!.end,
+            comercialId,
           )
         : Promise.resolve(EMPTY_VALUE),
     ]);
@@ -181,10 +201,12 @@ export class QualificationDashboardService {
 
   async getDashboardDetails(
     query: QualificationDashboardDetailsQueryDto,
+    user: AuthenticatedUser,
   ): Promise<QualificationDashboardDetailsResponseDto> {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
     const offset = (page - 1) * limit;
+    const comercialId = ownedOuvComercialId(user);
     const ranges = this.resolveRanges(
       query.quarter,
       query.period_from,
@@ -241,7 +263,13 @@ export class QualificationDashboardService {
       case 'ouvs_encima_funnel':
       case 'ouvs_en_funnel':
       case 'ouvs_mayor_probabilidad':
-        return this.listOuvOpenZonaDetails(query.kind, page, limit, offset);
+        return this.listOuvOpenZonaDetails(
+          query.kind,
+          page,
+          limit,
+          offset,
+          comercialId,
+        );
       case 'ouvs_won':
         if (!activeRange) {
           return this.emptyDetails(query.kind, page, limit);
@@ -254,6 +282,7 @@ export class QualificationDashboardService {
           page,
           limit,
           offset,
+          comercialId,
         );
       case 'ouvs_lost':
         if (!activeRange) {
@@ -267,6 +296,7 @@ export class QualificationDashboardService {
           page,
           limit,
           offset,
+          comercialId,
         );
       case 'ouvs_discarded':
         if (!activeRange) {
@@ -280,6 +310,7 @@ export class QualificationDashboardService {
           page,
           limit,
           offset,
+          comercialId,
         );
       default:
         return this.emptyDetails(query.kind, page, limit);
@@ -491,13 +522,14 @@ export class QualificationDashboardService {
     page: number,
     limit: number,
     offset: number,
+    comercialId?: string,
   ): Promise<QualificationDashboardDetailsResponseDto> {
     const zona = this.zonaFromOpenKind(kind);
     if (!zona) {
       return this.emptyDetails(kind, page, limit);
     }
     const { rows, count } = await this.ouvModel.findAndCountAll({
-      where: this.openZonaWhere(zona),
+      where: this.openZonaWhere(zona, comercialId),
       order: [['updated_at', 'DESC']],
       offset,
       limit,
@@ -530,9 +562,10 @@ export class QualificationDashboardService {
     page: number,
     limit: number,
     offset: number,
+    comercialId?: string,
   ): Promise<QualificationDashboardDetailsResponseDto> {
     const { rows, count } = await this.ouvModel.findAndCountAll({
-      where: this.closedOuvWhere(resultado, start, end),
+      where: this.closedOuvWhere(resultado, start, end, comercialId),
       order: [
         ['fecha_cierre', 'DESC'],
         ['updated_at', 'DESC'],
@@ -626,10 +659,11 @@ export class QualificationDashboardService {
     });
   }
 
-  private openZonaWhere(zona: OuvZona): WhereOptions {
+  private openZonaWhere(zona: OuvZona, comercialId?: string): WhereOptions {
     return {
       zonaActual: zona,
       resultado: OuvResultado.EnCurso,
+      ...(comercialId ? { comercialId } : {}),
     };
   }
 
@@ -654,9 +688,11 @@ export class QualificationDashboardService {
     resultado: OuvResultado,
     start: Date,
     end: Date,
+    comercialId?: string,
   ): WhereOptions {
     return {
       resultado,
+      ...(comercialId ? { comercialId } : {}),
       [Op.and]: where(fn('COALESCE', col('fecha_cierre'), col('updated_at')), {
         [Op.gte]: start,
         [Op.lt]: end,
@@ -666,9 +702,10 @@ export class QualificationDashboardService {
 
   private async sumOuvsOpenInZona(
     zona: OuvZona,
+    comercialId?: string,
   ): Promise<QualificationOuvValueMetricDto> {
     return this.aggregateOuvAmount(
-      this.openZonaWhere(zona),
+      this.openZonaWhere(zona, comercialId),
       'presupuesto_monto',
     );
   }
@@ -678,9 +715,10 @@ export class QualificationDashboardService {
     amountSql: string,
     start: Date,
     end: Date,
+    comercialId?: string,
   ): Promise<QualificationOuvValueMetricDto> {
     return this.aggregateOuvAmount(
-      this.closedOuvWhere(resultado, start, end),
+      this.closedOuvWhere(resultado, start, end, comercialId),
       amountSql,
     );
   }
