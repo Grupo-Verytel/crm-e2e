@@ -103,6 +103,10 @@ export class GraphClientService {
     }
 
     if (!response.ok) {
+      const retryAfter =
+        response.status === 429
+          ? (response.headers.get('retry-after') ?? undefined)
+          : undefined;
       const body = (await safeJson(response)) as GraphErrorBody | null;
       const graphError = body?.error;
       this.logger.error(
@@ -116,6 +120,7 @@ export class GraphClientService {
             graphError?.message ??
             `Microsoft Graph respondió ${response.status}`,
           code: graphError?.code ?? 'GRAPH_ERROR',
+          ...(retryAfter ? { retryAfter } : {}),
         },
         response.status,
       );

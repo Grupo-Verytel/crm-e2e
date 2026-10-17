@@ -6,6 +6,7 @@ export class ReminderResponseDto {
   remind_at: Date;
   note: string | null;
   status: string;
+  completed_at: Date | null;
 }
 
 /** Body of PATCH complete / cancel. Both sources share this shape. */

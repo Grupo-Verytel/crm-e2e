@@ -160,9 +160,13 @@ export class RemindersService implements OnModuleInit, OnModuleDestroy {
           continue;
         }
         const interaction = reminder.interaction;
-        const entityId = interaction?.sqlId ?? interaction?.leadId ?? reminder.reminderId;
-        const entityType = interaction?.sqlId ? EntityType.SQL : EntityType.LEAD;
-        const note = reminder.note?.trim() || 'Tienes un recordatorio pendiente.';
+        const entityId =
+          interaction?.sqlId ?? interaction?.leadId ?? reminder.reminderId;
+        const entityType = interaction?.sqlId
+          ? EntityType.SQL
+          : EntityType.LEAD;
+        const note =
+          reminder.note?.trim() || 'Tienes un recordatorio pendiente.';
         const created = await this.notificationModel.create({
           recipientUserId: reminder.userId,
           eventType: 'interaction.reminder',
@@ -302,8 +306,10 @@ export class RemindersService implements OnModuleInit, OnModuleDestroy {
   ): Promise<ReminderActionResponseDto> {
     const reminder = await this.loadOwnedReminder(reminderId, actorUserId);
     this.assertCanCancel(reminder);
-    const patch: { status: ReminderStatus; outlookSyncStatus?: OutlookSyncStatus } =
-      { status: ReminderStatus.Cancelado };
+    const patch: {
+      status: ReminderStatus;
+      outlookSyncStatus?: OutlookSyncStatus;
+    } = { status: ReminderStatus.Cancelado };
     if (reminder.outlookSyncStatus === OutlookSyncStatus.Synced) {
       patch.outlookSyncStatus = OutlookSyncStatus.Pending;
     }
@@ -477,6 +483,7 @@ export class RemindersService implements OnModuleInit, OnModuleDestroy {
       remind_at: reminder.remindAt,
       note: reminder.note,
       status: reminder.status,
+      completed_at: reminder.completedAt ?? null,
     };
   }
 }

@@ -15,6 +15,6 @@ import { GraphService } from './services/graph.service';
   imports: [ConfigModule],
   controllers: [GraphController],
   providers: [GraphClientService, GraphService],
-  exports: [GraphService],
+  exports: [GraphService, GraphClientService],
 })
 export class GraphIntegrationModule {}

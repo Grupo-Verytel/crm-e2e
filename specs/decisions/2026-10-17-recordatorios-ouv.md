@@ -24,7 +24,7 @@ Los pasos 2 a 9 dejan el recordatorio usable dentro del CRM. La sincronización 
 
 Graph usa el permiso de aplicación `Calendars.ReadWrite` del app registration que ya existe. El evento se crea solo en el calendario de `reminders.user_id` (`users.email`), nunca en un buzón de grupo.
 
-Se reutilizan `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET` y `GraphClientService`. No se crean variables `MS_GRAPH_*` ni un segundo cliente. Variables nuevas: `OUTLOOK_SYNC_ENABLED` y `OUTLOOK_SYNC_MAX_ATTEMPTS`.
+Se reutilizan `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET` y `GraphClientService`. No se crean variables `MS_GRAPH_*` ni un segundo cliente. Variables nuevas: `OUTLOOK_SYNC_ENABLED`, `OUTLOOK_SYNC_MAX_ATTEMPTS`, `OUTLOOK_SYNC_INTERVAL_MS` (default 60000) y `CRM_PUBLIC_URL` (obligatoria solo con el flag encendido; es el origen del enlace del evento).
 
 **Descartado:** permiso delegado por usuario; SDK nuevo de Microsoft.
 
@@ -103,3 +103,5 @@ Solo «Marcar como realizado» escribe `completed_at`.
 La subconsulta del semáforo (`MIN(event_at)` por OUV) recorre todas las `ouv_interactions`: el `EXPLAIN` del Paso 4 muestra `type ALL` sobre esa tabla. No se cambia ahora. Si el p95 del listado supera 1 s, la derivada debería filtrarse por las OUVs del alcance (el comercial, o el `comercial_id` pedido) en lugar de agrupar la bitácora completa.
 
 `npm run lint` del frontend falla en archivos que esta funcionalidad no toca (`DatePickerField`, modales de cuentas y otros). No se corrige en esta entrega. El lint de los archivos nuevos sí queda en verde.
+
+`reminder-errors.ts` asume que `VALIDATION_ERROR` siempre se refiere a la fecha. Si se reutiliza ese código, hay que distinguir por campo.

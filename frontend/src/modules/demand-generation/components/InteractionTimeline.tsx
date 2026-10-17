@@ -142,6 +142,14 @@ export function InteractionTimeline({
                   {reminder.remind_days_before}{' '}
                   {reminder.remind_days_before === 1 ? 'día' : 'días'} antes
                   {reminder.status === 'Enviado' ? ' · Avisado' : ''}
+                  {reminder.completed_at ? (
+                    <>
+                      {' · '}
+                      <span className="inline-flex items-center rounded-sm border border-semaphore-verde px-2 py-0.5 text-xs font-bold text-ink">
+                        Realizado
+                      </span>
+                    </>
+                  ) : null}
                   {reminder.note ? ` · ${reminder.note}` : ''}
                 </p>
               ))}
