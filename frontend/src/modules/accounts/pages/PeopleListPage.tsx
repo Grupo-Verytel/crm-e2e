@@ -21,8 +21,8 @@ const LIMIT = 20;
 const INFLUENCE_BLOCK =
   'Este contacto está asignado como influencia en una OUV. Si esa asignación ya fue eliminada, recarga la lista.';
 
-/** View-only switch. Move stays implemented; the action is hidden for now. */
-const MOVE_PERSON_VISIBLE = false;
+/** View-only switch. Move stays implemented; the action is shown in Contactos. */
+const MOVE_PERSON_VISIBLE = true;
 
 export function PeopleListPage() {
   const [searchParams, setSearchParams] = useSearchParams();
