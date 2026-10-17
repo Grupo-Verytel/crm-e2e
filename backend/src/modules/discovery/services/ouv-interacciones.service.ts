@@ -4,16 +4,26 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/sequelize';
 import { randomUUID } from 'crypto';
 import type { Transaction } from 'sequelize';
 import { User } from '../../auth/models/user.model';
-import type { CrearOuvInteraccionDto } from '../dtos/ouv-interaccion.dto';
+import { OutlookSyncStatus } from '../../demand-generation/models/enums/outlook-sync-status.enum';
+import { ReminderStatus } from '../../demand-generation/models/enums/reminder-status.enum';
+import { Reminder } from '../../demand-generation/models/reminder.model';
+import { remindAtFromEvent } from '../../demand-generation/services/reminders.service';
+import type {
+  CrearOuvInteraccionDto,
+  ResponderOuvInteraccionDto,
+} from '../dtos/ouv-interaccion.dto';
 import type {
   OuvInteraccionHiloResponseDto,
   OuvInteraccionResponseDto,
+  OuvRecordatorioListItemDto,
+  OuvRecordatorioResponseDto,
 } from '../dtos/ouv-response.dto';
-import { canReadOuv } from '../lib/ouv-access';
+import { canReadAllOuvs, canReadOuv } from '../lib/ouv-access';
 import { OuvResultado, OuvZona } from '../models/enums/ouv.enums';
 import { OuvInteraction } from '../models/ouv-interaction.model';
 import { OuvInteractionReply } from '../models/ouv-interaction-reply.model';
@@ -48,6 +58,8 @@ export class OuvInteraccionesService {
     @InjectModel(OuvInteractionReply)
     private readonly replyModel: typeof OuvInteractionReply,
     @InjectModel(User) private readonly userModel: typeof User,
+    @InjectModel(Reminder) private readonly reminderModel: typeof Reminder,
+    private readonly configService: ConfigService,
   ) {}
 
   async listByOuv(
@@ -76,6 +88,49 @@ export class OuvInteraccionesService {
     return rows.map((row) => this.presentInteraction(row));
   }
 
+  /**
+   * Reminders of every interaction on this OUV. Same read rule as
+   * `OuvsService.getDetalle`: an Ejecutivo sees only their own OUV.
+   */
+  async listRecordatorios(
+    ouvId: string,
+    actorUserId: string,
+    actorRoleName: string,
+  ): Promise<OuvRecordatorioListItemDto[]> {
+    const ouv = await this.ouvModel.findByPk(ouvId);
+    if (!ouv) {
+      throw new NotFoundException({
+        code: 'NOT_FOUND',
+        message: `OUV ${ouvId} not found`,
+      });
+    }
+    if (!canReadAllOuvs(actorRoleName) && ouv.comercialId !== actorUserId) {
+      throw new ForbiddenException({
+        code: 'FORBIDDEN',
+        message: 'Not allowed to view this OUV',
+      });
+    }
+
+    const rows = await this.reminderModel.findAll({
+      include: [
+        {
+          model: OuvInteraction,
+          required: true,
+          where: { ouvId: ouv.ouvId, deletedAt: null },
+          attributes: ['ouvInteractionId', 'titulo', 'ouvId'],
+        },
+        {
+          model: User,
+          required: false,
+          attributes: ['userId', 'fullName'],
+        },
+      ],
+      order: [['eventAt', 'ASC']],
+    });
+
+    return rows.map((row) => this.presentRecordatorioListItem(row));
+  }
+
   async crear(
     ouvId: string,
     dto: CrearOuvInteraccionDto,
@@ -92,6 +147,7 @@ export class OuvInteraccionesService {
 
       const actorNombre = await this.resolveDisplayName(actorUserId);
       const now = new Date();
+      const recordatorio = this.parseRecordatorio(dto, now);
 
       const interaction = await this.interactionModel.create(
         {
@@ -106,8 +162,29 @@ export class OuvInteraccionesService {
         { transaction },
       );
 
+      const reminder = recordatorio
+        ? await this.reminderModel.create(
+            {
+              userId: actorUserId,
+              interactionId: null,
+              ouvInteractionId: interaction.ouvInteractionId,
+              eventAt: recordatorio.eventAt,
+              remindDaysBefore: recordatorio.remindDaysBefore,
+              remindAt: remindAtFromEvent(
+                recordatorio.eventAt,
+                recordatorio.remindDaysBefore,
+              ),
+              note: recordatorio.note,
+              status: ReminderStatus.Pendiente,
+              outlookSyncStatus: this.outlookStatusForCreate(),
+            },
+            { transaction },
+          )
+        : null;
+
       return this.presentInteraction(
         Object.assign(interaction, { hilos: [] as OuvInteractionReply[] }),
+        reminder ? this.presentRecordatorio(reminder) : null,
       );
     });
   }
@@ -156,7 +233,7 @@ export class OuvInteraccionesService {
   async responder(
     ouvId: string,
     ouvInteractionId: string,
-    dto: CrearOuvInteraccionDto,
+    dto: ResponderOuvInteraccionDto,
     actorUserId: string,
     actorRoleName: string,
   ): Promise<OuvInteraccionResponseDto> {
@@ -241,6 +318,10 @@ export class OuvInteraccionesService {
       // El `paranoid` de la tabla padre no propaga a los hijos; se hace a mano
       // para que el hilo también quede en soft delete y no reaparezca si se
       // recrea una interacción con el mismo id.
+      await this.cancelOpenReminders(
+        interaction.ouvInteractionId,
+        transaction,
+      );
       await this.replyModel.destroy({
         where: { ouvInteractionId: interaction.ouvInteractionId },
         transaction,
@@ -295,6 +376,36 @@ export class OuvInteraccionesService {
     });
   }
 
+  /**
+   * Pending, not-yet-done reminders of a soft-deleted interaction are cancelled
+   * in the same transaction. A synced Outlook event is marked PENDING so the
+   * job can delete it; `outlook_event_id` stays.
+   */
+  private async cancelOpenReminders(
+    ouvInteractionId: string,
+    transaction: Transaction,
+  ): Promise<void> {
+    const open = await this.reminderModel.findAll({
+      where: {
+        ouvInteractionId,
+        status: ReminderStatus.Pendiente,
+        completedAt: null,
+      },
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+    for (const reminder of open) {
+      const patch: {
+        status: ReminderStatus;
+        outlookSyncStatus?: OutlookSyncStatus;
+      } = { status: ReminderStatus.Cancelado };
+      if (reminder.outlookSyncStatus === OutlookSyncStatus.Synced) {
+        patch.outlookSyncStatus = OutlookSyncStatus.Pending;
+      }
+      await reminder.update(patch, { transaction });
+    }
+  }
+
   private async lockOuvForWrite(
     ouvId: string,
     actorUserId: string,
@@ -347,8 +458,63 @@ export class OuvInteraccionesService {
     return user.fullName;
   }
 
+  private parseRecordatorio(
+    dto: CrearOuvInteraccionDto,
+    now: Date,
+  ): { eventAt: Date; remindDaysBefore: number; note: string | null } | null {
+    if (!dto.recordatorio) {
+      return null;
+    }
+
+    const eventAt = new Date(dto.recordatorio.event_at);
+    if (Number.isNaN(eventAt.getTime()) || eventAt.getTime() <= now.getTime()) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'event_at must be in the future',
+      });
+    }
+
+    return {
+      eventAt,
+      remindDaysBefore: dto.recordatorio.remind_days_before ?? 1,
+      note: dto.recordatorio.note?.trim() || null,
+    };
+  }
+
+  private outlookStatusForCreate(): OutlookSyncStatus {
+    const raw = this.configService.get<string | boolean>('OUTLOOK_SYNC_ENABLED');
+    const enabled = raw === true || String(raw).trim().toLowerCase() === 'true';
+    return enabled ? OutlookSyncStatus.Pending : OutlookSyncStatus.NotRequired;
+  }
+
+  private presentRecordatorio(reminder: Reminder): OuvRecordatorioResponseDto {
+    return {
+      reminder_id: reminder.reminderId,
+      ouv_interaction_id: reminder.ouvInteractionId ?? '',
+      user_id: reminder.userId,
+      event_at: reminder.eventAt,
+      remind_days_before: reminder.remindDaysBefore,
+      remind_at: reminder.remindAt,
+      note: reminder.note,
+      status: reminder.status,
+      completed_at: reminder.completedAt ?? null,
+      outlook_sync_status: reminder.outlookSyncStatus,
+    };
+  }
+
+  private presentRecordatorioListItem(
+    reminder: Reminder,
+  ): OuvRecordatorioListItemDto {
+    return {
+      ...this.presentRecordatorio(reminder),
+      responsable_nombre: reminder.user?.fullName ?? null,
+      interaccion_titulo: reminder.ouvInteraction?.titulo ?? '',
+    };
+  }
+
   private presentInteraction(
     interaction: OuvInteraction,
+    recordatorio?: OuvRecordatorioResponseDto | null,
   ): OuvInteraccionResponseDto {
     const hilos = (interaction.hilos ?? [])
       .slice()
@@ -377,6 +543,7 @@ export class OuvInteraccionesService {
       registrado_por_nombre: interaction.registradoPorNombre,
       created_at: interaction.createdAt,
       hilos,
+      ...(recordatorio !== undefined ? { recordatorio } : {}),
     };
   }
 }

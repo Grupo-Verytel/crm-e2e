@@ -5,12 +5,14 @@ import { AuditModule } from '../audit/audit.module';
 import { AuthModule } from '../auth/auth.module';
 import { User } from '../auth/models/user.model';
 import { DemandGenerationModule } from '../demand-generation/demand-generation.module';
+import { Reminder } from '../demand-generation/models/reminder.model';
 import { WorkflowEngineModule } from '../workflow-engine/workflow-engine.module';
 import { DiscoveryCatalogosController } from './controllers/discovery-catalogos.controller';
 import { MotivosDescarteController } from './controllers/motivos-descarte.controller';
 import { MotivosPerdidaController } from './controllers/motivos-perdida.controller';
 import { OuvContactosController } from './controllers/ouv-contactos.controller';
 import { OuvInteraccionesController } from './controllers/ouv-interacciones.controller';
+import { OuvRecordatoriosController } from './controllers/ouv-recordatorios.controller';
 import { OuvDashboardController } from './controllers/ouv-dashboard.controller';
 import { OuvsController } from './controllers/ouvs.controller';
 import { ZonaChecklistTemplatesController } from './controllers/zona-checklist-templates.controller';
@@ -48,6 +50,7 @@ import { OuvsService } from './services/ouvs.service';
       ProcessType,
       ZonaChecklistTemplate,
       User,
+      Reminder,
     ]),
     AccountsModule,
     AuditModule,
@@ -60,6 +63,7 @@ import { OuvsService } from './services/ouvs.service';
     OuvDashboardController,
     OuvContactosController,
     OuvInteraccionesController,
+    OuvRecordatoriosController,
     DiscoveryCatalogosController,
     MotivosPerdidaController,
     MotivosDescarteController,
