@@ -5,7 +5,7 @@ import {
   completeReminder,
 } from '../../../components/reminders/reminders-api';
 import type { ReminderTrayItem } from '../../../components/reminders/types';
-import { ApiError } from '../../auth/types';
+import { reminderErrorMessage } from '../../../components/reminders/reminder-errors';
 import { useAuth } from '../../auth/hooks/useAuth';
 import type { Ouv } from '../api/ouvs-api';
 import { fetchOuvRecordatorios } from '../api/ouv-recordatorios-api';
@@ -16,13 +16,6 @@ type Props = {
   ouv: Ouv;
   refreshKey: number;
 };
-
-function serverError(error: unknown, fallback: string): string {
-  if (error instanceof ApiError) {
-    return error.code ? `${error.code}: ${error.message}` : error.message;
-  }
-  return error instanceof Error ? error.message : fallback;
-}
 
 function toTrayItem(item: OuvReminderItem): ReminderTrayItem {
   return {
@@ -52,9 +45,7 @@ export function OuvRecordatoriosPanel({ ouv, refreshKey }: Props) {
       setItems(rows);
     } catch (loadError) {
       setItems([]);
-      setError(
-        serverError(loadError, 'No se pudieron cargar los recordatorios.'),
-      );
+      setError(reminderErrorMessage(loadError));
     } finally {
       setLoading(false);
     }
@@ -71,7 +62,7 @@ export function OuvRecordatoriosPanel({ ouv, refreshKey }: Props) {
       await completeReminder(id);
       await load();
     } catch (action) {
-      setActionError(serverError(action, 'No se pudo marcar el recordatorio.'));
+      setActionError(reminderErrorMessage(action));
     }
   }
 
@@ -81,7 +72,7 @@ export function OuvRecordatoriosPanel({ ouv, refreshKey }: Props) {
       await cancelReminder(id);
       await load();
     } catch (action) {
-      setActionError(serverError(action, 'No se pudo cancelar el recordatorio.'));
+      setActionError(reminderErrorMessage(action));
     }
   }
 

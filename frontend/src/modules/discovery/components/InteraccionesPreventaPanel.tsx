@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ApiError } from '../../auth/types';
+import { reminderErrorMessage } from '../../../components/reminders/reminder-errors';
 import type { Ouv } from '../api/ouvs-api';
 import {
   crearOuvInteraccion,
@@ -37,13 +37,6 @@ const EMPTY_REMINDER: ReminderFieldsValue = {
 type ReminderFieldErrors = Partial<
   Record<'event_at' | 'remind_days_before' | 'note', string>
 >;
-
-function serverError(error: unknown, fallback: string): string {
-  if (error instanceof ApiError) {
-    return error.code ? `${error.code}: ${error.message}` : error.message;
-  }
-  return error instanceof Error ? error.message : fallback;
-}
 
 function validateReminder(value: ReminderFieldsValue): ReminderFieldErrors | null {
   const errors: ReminderFieldErrors = {};
@@ -141,7 +134,7 @@ function InteraccionFormModal({
       });
       onSaved({ hadReminder: reminder.enabled });
     } catch (error) {
-      setFormError(serverError(error, 'No se pudo guardar. Revisa permisos e intenta de nuevo.'));
+      setFormError(reminderErrorMessage(error));
     } finally {
       setSaving(false);
     }
