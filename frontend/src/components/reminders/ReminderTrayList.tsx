@@ -108,6 +108,11 @@ export function ReminderTrayList({
                 <p className="mt-0.5 text-xs text-muted">
                   {formatBogota(item.event_at)}
                 </p>
+                {item.responsable_nombre ? (
+                  <p className="mt-0.5 text-xs text-muted">
+                    {item.responsable_nombre}
+                  </p>
+                ) : null}
                 {item.note ? (
                   <p className="mt-1 text-sm text-ink">{item.note}</p>
                 ) : null}

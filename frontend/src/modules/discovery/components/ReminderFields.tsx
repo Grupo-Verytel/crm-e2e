@@ -1,6 +1,29 @@
 import { Bell } from 'lucide-react';
+import { DatePickerField } from '../../../components/DatePickerField';
+import { TimePickerField } from '../../../components/TimePickerField';
 import { inputClass, labelClass } from './ui';
 import type { ReminderFieldsValue } from '../types/ouv-reminder.types';
+
+function splitEventAt(value: string): { date: string; time: string } {
+  if (!value) {
+    return { date: '', time: '' };
+  }
+  const [date, time = ''] = value.split('T');
+  return { date, time: time.slice(0, 5) };
+}
+
+function joinEventAt(date: string, time: string): string {
+  if (!date && !time) {
+    return '';
+  }
+  if (!date) {
+    return `T${time}`;
+  }
+  if (!time) {
+    return date;
+  }
+  return `${date}T${time}`;
+}
 
 type FieldErrors = Partial<
   Record<'event_at' | 'remind_days_before' | 'note', string>
@@ -19,6 +42,8 @@ export function ReminderFields({
   errors,
   remindsImmediately,
 }: Props) {
+  const { date, time } = splitEventAt(value.event_at);
+
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-1.5">
@@ -46,22 +71,38 @@ export function ReminderFields({
 
       {value.enabled ? (
         <div className="grid gap-3 sm:grid-cols-2">
-          <div className="sm:col-span-2">
-            <label className={labelClass} htmlFor="reminder-event-at">
-              Fecha y hora
+          <div>
+            <label className={labelClass} htmlFor="reminder-event-date">
+              Fecha
             </label>
-            <input
-              id="reminder-event-at"
-              type="datetime-local"
-              className={inputClass}
-              value={value.event_at}
-              onChange={(event) =>
-                onChange({ ...value, event_at: event.target.value })
+            <DatePickerField
+              id="reminder-event-date"
+              value={date}
+              onChange={(nextDate) =>
+                onChange({
+                  ...value,
+                  event_at: joinEventAt(nextDate, time),
+                })
               }
             />
             {errors?.event_at ? (
               <p className="mt-1 text-xs text-danger">{errors.event_at}</p>
             ) : null}
+          </div>
+          <div>
+            <label className={labelClass} htmlFor="reminder-event-time">
+              Hora
+            </label>
+            <TimePickerField
+              id="reminder-event-time"
+              value={time}
+              onChange={(nextTime) =>
+                onChange({
+                  ...value,
+                  event_at: joinEventAt(date, nextTime),
+                })
+              }
+            />
           </div>
           <div>
             <label className={labelClass} htmlFor="reminder-days-before">

@@ -51,13 +51,14 @@ import {
 } from '../components/OuvDetailHeaderCard';
 import { WonCelebration } from '../components/WonCelebration';
 import { OuvFunnelRibbon } from '../components/OuvFunnelRibbon';
+import { OuvDetailNav } from '../components/OuvDetailNav';
 import {
-  OuvDetailNav,
   parseOuvDetailTab,
   type OuvDetailTab,
-} from '../components/OuvDetailNav';
+} from '../lib/ouv-detail-tab';
 import { PreventaActivityPanel } from '../components/PreventaActivityPanel';
 import { InteraccionesPreventaPanel } from '../components/InteraccionesPreventaPanel';
+import { OuvRecordatoriosPanel } from '../components/OuvRecordatoriosPanel';
 import { RetrocesoZonaModal } from '../components/RetrocesoZonaModal';
 import {
   cardClass,
@@ -114,9 +115,11 @@ export function OuvDetailPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const searchRef = useRef(searchParams);
+  // eslint-disable-next-line react-hooks/refs -- keeps the latest query for callbacks created once
   searchRef.current = searchParams;
   const { user } = useAuth();
   const detailTab = parseOuvDetailTab(searchParams.get('tab'));
+  const [remindersTick, setRemindersTick] = useState(0);
 
   function selectDetailTab(tab: OuvDetailTab) {
     setSearchParams(
@@ -165,6 +168,7 @@ export function OuvDetailPage() {
   const [presupuestoFuente, setPresupuestoFuente] = useState('cliente_declaro');
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- existing local extension load
     if (id) setOuvExtensions(loadOuvExtensions(id));
   }, [id]);
 
@@ -213,6 +217,7 @@ export function OuvDetailPage() {
   );
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- existing OUV fetch
     void load();
   }, [load]);
 
@@ -603,7 +608,12 @@ export function OuvDetailPage() {
           readOnly={!canSolicitarPreventa}
         />
       ) : detailTab === 'interacciones' ? (
-        <InteraccionesPreventaPanel ouv={ouv} />
+        <InteraccionesPreventaPanel
+          ouv={ouv}
+          onRemindersChanged={() => setRemindersTick((current) => current + 1)}
+        />
+      ) : detailTab === 'recordatorios' ? (
+        <OuvRecordatoriosPanel ouv={ouv} refreshKey={remindersTick} />
       ) : (
         <>
       {ouv.tiene_gap ? (

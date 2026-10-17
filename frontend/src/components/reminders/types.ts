@@ -27,4 +27,6 @@ export type ReminderTrayItem = {
   status: string;
   completed_at: string | null;
   source_label: string;
+  user_id?: string;
+  responsable_nombre?: string | null;
 };
