@@ -30,6 +30,11 @@
   /** Influencia Verde — aquamarine shifted toward green (not pure success green). */
   --semaphore-verde: color-mix(in srgb, var(--brand-turquoise) 32%, var(--success) 68%);
   --warning: #E0A100;
+  /**
+   * Follow-up yellow. Darkened from the design mix (#edc86b, 1.61:1 on
+   * --surface #FFFFFF) so the dot clears 3:1 (this value is 3.25:1).
+   */
+  --semaphore-amarillo: #B8860B;
   --danger: #C2362F;
   /** MEP `PARTIALLY_COMPLETED` — solicitud en curso con cierre parcial. */
   --mep-partial: #4BFAB6;
@@ -81,4 +86,6 @@
   --estado-amarillo-fg: color-mix(in srgb, var(--warning) 55%, white 45%);
   --estado-rojo-fill: color-mix(in srgb, var(--danger) 16%, transparent);
   --estado-rojo-fg: color-mix(in srgb, var(--danger) 45%, white 55%);
+  /** 7.70:1 against --surface #2A2A2A. */
+  --semaphore-amarillo: #F0B429;
 }
