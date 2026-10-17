@@ -1,7 +1,7 @@
 # AGENTS.md — CRM Frisson / Grupo Verytel
 
 **Versión:** 1.0 — inventario técnico vigente
-**Última verificación contra repo:** consolidado a partir de trabajo con Cursor a la fecha de este documento
+**Última verificación contra repo:** 2026-10-17 (recordatorios de OUV, pasos 0 a 11)
 **Relación con `CONSTITUTION.md`:** este documento contiene el *dato*, la constitución contiene la *regla*. Si un dato aquí cambia (se sube una versión, se agrega una librería aprobada), se actualiza este archivo — no requiere enmienda de constitución salvo que rompa una regla de gobierno.
 
 ---
@@ -32,7 +32,7 @@
 ## 3. Design system (verificado)
 
 - **Patrón:** `frontend/src/styles/tokens.css` (variables CSS marca Verytel) → `tailwind.config.js` mapea tokens a clases utilitarias (`bg-brand`, `text-ink`, `bg-surface`) → constantes de clase exportadas por módulo (ej. `frontend/src/modules/demand-generation/components/ui.ts`: `primaryButtonClass`, `ghostButtonClass`, `cardClass`) → componentes React simples con mapas `Record<string, string>` para variantes de badge (ej. `StatusBadge.tsx` con `ESTADO_TONE`/`TONE_CLASS`/`LABELS`)
-- **Sin carpeta de design system compartida** todavía — solo `Pagination.tsx` y `LoadingScreen` son compartidos; el resto vive por módulo
+- **Compartidos:** `Pagination.tsx`, `LoadingScreen` y `frontend/src/components/reminders/` (`ReminderTrayList`, `ReminderGroupTabs`, `useBellReminders`, `reminders-api.ts`, `reminder-errors.ts`). `FollowUpDot` vive en calificación (`frontend/src/modules/qualification/components/FollowUpDot.tsx`) y `ReminderFields` en discovery (`frontend/src/modules/discovery/components/ReminderFields.tsx`). El resto sigue por módulo
 - Regla `.cursor/rules/600-ui-design.mdc`: CSS tokens + Tailwind 4, sin kits de UI externos
 
 ## 4. Modelo de dominio (hechos verificados)
@@ -99,6 +99,23 @@ crm-e2e/
 
 - **IDE:** Cursor (pagado), `.cursor/rules/` + `.cursor/skills/`
 - **Diagramación:** draw.io, Lucidchart
+
+## 11. Recordatorios de OUV (2026-10-17)
+
+Spec: `specs/recordatorios-ouv/spec.md`. Decisiones: `specs/decisions/2026-10-17-recordatorios-ouv.md`.
+
+**Endpoints** (prefijo `api/v1`):
+
+- `GET /qualification/assigned-ouvs` — OUVs en curso con semáforo. `EjecutivoComercial` solo ve las suyas. Quien puede leer todas (`canReadAllOuvs`) ve el universo y puede filtrar `comercial_id`.
+- `GET /discovery/ouvs/:ouvId/recordatorios` — recordatorios de las interacciones de esa OUV.
+- `GET /reminders` — campana del usuario (`user_id` = actor): lead, SQL y OUV, con conteos vencidos / hoy / próximos.
+- `PATCH /reminders/:reminderId/complete` y `PATCH /reminders/:reminderId/cancel` — solo el responsable. No hay sujeto CASL `Reminder`.
+
+**Tiempo y semáforo.** `backend/src/common/time/bogota-day.ts` calcula el fin del día en America/Bogota (UTC−5, sin horario de verano). El semáforo usa `event_at`, nunca `remind_at`, y lo calcula el servidor: `RED` si la fecha ya pasó, `YELLOW` desde ahora hasta el fin del día Bogotá de hoy + `FOLLOW_UP_YELLOW_DAYS` (default 2, inclusive), `GREEN` si es posterior, `NONE` si no hay recordatorios abiertos. Abierto = `completed_at` nulo, `status` distinto de `Cancelado`, sin `deleted_at`, y la interacción de OUV no está eliminada. Orden por defecto: RED, YELLOW, GREEN, NONE y, dentro, `next_reminder_at` ascendente. La UI no recalcula el color.
+
+**Variables.** `FOLLOW_UP_YELLOW_DAYS`. Outlook: `OUTLOOK_SYNC_ENABLED` (default `false`), `OUTLOOK_SYNC_MAX_ATTEMPTS` (default 5), `OUTLOOK_SYNC_INTERVAL_MS` (default 60000), `CRM_PUBLIC_URL` (origen del enlace del evento; obligatoria solo con el flag encendido). Se reutilizan `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET` y `GraphClientService`.
+
+**Jobs.** `RemindersService.dispatchDue` corre cada 60 s con `setInterval` y marca `Enviado` los recordatorios vencidos de aviso. No usa `SKIP LOCKED`: con más de una instancia del backend puede duplicar notificaciones. `OutlookReminderSyncService` solo arranca si `OUTLOOK_SYNC_ENABLED=true`, solo toca recordatorios de OUV y reclama cada fila con `FOR UPDATE SKIP LOCKED`. La alarma del evento es `min(remind_days_before × 1440, 40320)`; el CRM conserva los días reales. Con el flag apagado el alta queda `NOT_REQUIRED` y no se sincroniza al encenderlo.
 
 ---
 

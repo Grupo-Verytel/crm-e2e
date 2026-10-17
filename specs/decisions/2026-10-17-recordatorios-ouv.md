@@ -36,6 +36,10 @@ Se reutilizan `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET` y `Gra
 
 Si Graph falla, el recordatorio no se revierte ni se bloquea. Queda `FAILED`, con `outlook_last_error` y `outlook_sync_attempts`. Un 403 de Graph no se reintenta.
 
+## AJ12 — Tope de la alarma de Outlook
+
+Graph no acepta `reminderMinutesBeforeStart` por encima de 40320 minutos (28 días). El job envía `min(remind_days_before × 1440, 40320)`. El CRM conserva `remind_days_before` y `remind_at`; `dispatchDue` notifica en esa fecha real, no en el tope del calendario.
+
 ## D6 — Del diseño solo la presentación
 
 La carpeta de referencia es `crm-e2e-DesignJD`. Se portan piezas que reciben props y devuelven JSX.
@@ -105,3 +109,7 @@ La subconsulta del semáforo (`MIN(event_at)` por OUV) recorre todas las `ouv_in
 `npm run lint` del frontend falla en archivos que esta funcionalidad no toca (`DatePickerField`, modales de cuentas y otros). No se corrige en esta entrega. El lint de los archivos nuevos sí queda en verde.
 
 `reminder-errors.ts` asume que `VALIDATION_ERROR` siempre se refiere a la fecha. Si se reutiliza ese código, hay que distinguir por campo.
+
+`dispatchDue` no mira el resultado de la OUV. Un recordatorio abierto de una OUV Ganada, Perdida o Descartada sigue notificando. No se cierra solo al cerrar la OUV (D10).
+
+`npx jest` del backend, en el Paso 11, deja 20 tests en rojo en `mep-contract-wiring.spec.ts`: al montar el módulo, `AuthModule` (llega por `AuditModule`) pide `JWT_SECRET` a un `ConfigService` que no es el doble del test. Esta rama no toca ese spec ni ese módulo. No se corrige aquí.

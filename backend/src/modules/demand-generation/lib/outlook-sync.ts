@@ -12,6 +12,13 @@ const MIN_INTERVAL_MS = 1_000;
 const MAX_PAUSE_MS = 60 * 60 * 1000;
 const ERROR_MAX_LENGTH = 500;
 
+/** Graph rejects reminderMinutesBeforeStart above 28 days. */
+export const OUTLOOK_REMINDER_MINUTES_CAP = 40320;
+
+export function outlookReminderMinutes(remindDaysBefore: number): number {
+  return Math.min(remindDaysBefore * 1440, OUTLOOK_REMINDER_MINUTES_CAP);
+}
+
 export type OutlookSyncSettings = {
   enabled: boolean;
   maxAttempts: number;
@@ -117,7 +124,7 @@ export function buildOutlookEvent(
     start: { dateTime: graphUtc(input.eventAt), timeZone: 'UTC' },
     end: { dateTime: graphUtc(end), timeZone: 'UTC' },
     isReminderOn: true,
-    reminderMinutesBeforeStart: input.remindDaysBefore * 1440,
+    reminderMinutesBeforeStart: outlookReminderMinutes(input.remindDaysBefore),
     showAs: 'free',
     transactionId: input.reminderId,
   };

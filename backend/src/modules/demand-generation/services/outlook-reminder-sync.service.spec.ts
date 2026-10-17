@@ -10,6 +10,7 @@ import {
   OUTLOOK_LOCK_SQL,
   OUTLOOK_MAILBOX_FORBIDDEN,
   OUTLOOK_UNAUTHORIZED_TENANT,
+  buildOutlookEvent,
   readOutlookSyncConfig,
 } from '../lib/outlook-sync';
 import { OutlookReminderSyncService } from './outlook-reminder-sync.service';
@@ -213,6 +214,23 @@ function expectCrmUntouched(patch: Record<string, unknown>) {
   expect(patch).not.toHaveProperty('status');
   expect(patch).not.toHaveProperty('completedAt');
 }
+
+describe('buildOutlookEvent alarm cap', () => {
+  it('sends 40320 minutes when remind_days_before is 30', () => {
+    const event = buildOutlookEvent({
+      reminderId: REMINDER_ID,
+      consecutivo: 'OUV-26-0001',
+      titulo: 'Llamada',
+      note: null,
+      eventAt: EVENT_AT,
+      remindDaysBefore: 30,
+      ouvId: OUV_ID,
+      publicUrl: 'https://crm.example',
+    });
+
+    expect(event.reminderMinutesBeforeStart).toBe(40320);
+  });
+});
 
 describe('readOutlookSyncConfig', () => {
   it('defaults the flag to off and does not require the public URL', () => {

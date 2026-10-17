@@ -339,9 +339,9 @@ Aceptación: tres filas con `event_at` ayer, hoy y mañana en Bogotá caen en `O
 
 Aceptación: el alta de un recordatorio de OUV con el flag en falso persiste `NOT_REQUIRED` y el job no llama a Graph.
 
-**REQ-16 (Evento).** Cuando se crea un recordatorio con el flag activo, el sistema debe marcarlo `PENDING`. Un job programado con `setInterval` debe crear el evento en el calendario del responsable (inicio = `event_at`, `isReminderOn = true`, `reminderMinutesBeforeStart = remind_days_before × 1440`), guardar `outlook_event_id` y marcarlo `SYNCED`. El job reclama filas con `FOR UPDATE SKIP LOCKED` y no crea un segundo evento si `outlook_event_id` ya existe.
+**REQ-16 (Evento).** Cuando se crea un recordatorio con el flag activo, el sistema debe marcarlo `PENDING`. Un job programado con `setInterval` debe crear el evento en el calendario del responsable (inicio = `event_at`, `isReminderOn = true`, `reminderMinutesBeforeStart = min(remind_days_before × 1440, 40320)`), guardar `outlook_event_id` y marcarlo `SYNCED`. El tope es el máximo que acepta Graph (28 días). `remind_days_before` y `remind_at` del CRM no cambian: la notificación de `dispatchDue` sigue la fecha real. El job reclama filas con `FOR UPDATE SKIP LOCKED` y no crea un segundo evento si `outlook_event_id` ya existe.
 
-Aceptación: con el cliente Graph mockeado, una fila `PENDING` termina `SYNCED` con id. Una segunda pasada no hace otro `POST`.
+Aceptación: con el cliente Graph mockeado, una fila `PENDING` termina `SYNCED` con id. Una segunda pasada no hace otro `POST`. Con `remind_days_before = 30` el evento sale con `reminderMinutesBeforeStart = 40320`.
 
 **REQ-17 (Evento).** Cuando un recordatorio `SYNCED` se cancela, el sistema debe pasar `outlook_sync_status` a `PENDING` para que el job elimine el evento en Outlook. Outlook solo crea y elimina eventos. No hay edición del recordatorio ni `PATCH` del evento.
 
