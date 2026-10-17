@@ -13,8 +13,19 @@ import {
   UpdatedAt,
 } from 'sequelize-typescript';
 import { User } from '../../auth/models/user.model';
+import type { Reminder } from '../../demand-generation/models/reminder.model';
 import { OuvInteractionReply } from './ouv-interaction-reply.model';
 import { Ouv } from './ouv.model';
+
+/**
+ * Reminder belongsTo this class, so a static `import { Reminder }` is copied
+ * while reminder.model.ts is still evaluating (tsconfig module nodenext, CJS).
+ * The HasMany factory then sees `undefined` even after both files have loaded.
+ * require() reads the export when Sequelize associates the models.
+ */
+function reminderModel(): typeof import('../../demand-generation/models/reminder.model').Reminder {
+  return require('../../demand-generation/models/reminder.model').Reminder;
+}
 
 /**
  * Bitácora de interacciones comerciales de una OUV.
@@ -91,6 +102,9 @@ export class OuvInteraction extends Model {
     as: 'hilos',
   })
   declare hilos: OuvInteractionReply[];
+
+  @HasMany(() => reminderModel(), { foreignKey: 'ouvInteractionId' })
+  declare reminders: Reminder[];
 
   @CreatedAt
   @Column({ type: DataType.DATE, field: 'created_at' })

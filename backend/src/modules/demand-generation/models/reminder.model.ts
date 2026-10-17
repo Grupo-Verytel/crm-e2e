@@ -12,14 +12,36 @@ import {
   UpdatedAt,
 } from 'sequelize-typescript';
 import { User } from '../../auth/models/user.model';
+import { OuvInteraction } from '../../discovery/models/ouv-interaction.model';
+import { OutlookSyncStatus } from './enums/outlook-sync-status.enum';
 import { ReminderStatus } from './enums/reminder-status.enum';
 import { Interaction } from './interaction.model';
+
+/** Exactly one of interaction_id / ouv_interaction_id. Mirrors chk_reminders_single_source. */
+export function assertSingleReminderSource(
+  interactionId: string | null | undefined,
+  ouvInteractionId: string | null | undefined,
+): void {
+  const hasInteraction = interactionId != null && interactionId !== '';
+  const hasOuvInteraction =
+    ouvInteractionId != null && ouvInteractionId !== '';
+  if (hasInteraction === hasOuvInteraction) {
+    throw new Error(
+      'A reminder must reference exactly one source: interaction_id or ouv_interaction_id',
+    );
+  }
+}
 
 @Table({
   tableName: 'reminders',
   paranoid: true,
   timestamps: true,
   underscored: true,
+  validate: {
+    singleSource() {
+      assertSingleReminderSource(this.interactionId, this.ouvInteractionId);
+    },
+  },
 })
 export class Reminder extends Model {
   @PrimaryKey
@@ -45,6 +67,17 @@ export class Reminder extends Model {
   @BelongsTo(() => Interaction)
   declare interaction: Interaction;
 
+  @ForeignKey(() => OuvInteraction)
+  @Column({
+    type: DataType.CHAR(36),
+    field: 'ouv_interaction_id',
+    allowNull: true,
+  })
+  declare ouvInteractionId: string | null;
+
+  @BelongsTo(() => OuvInteraction, { foreignKey: 'ouvInteractionId' })
+  declare ouvInteraction: OuvInteraction;
+
   @Column({ type: DataType.DATE, field: 'event_at', allowNull: false })
   declare eventAt: Date;
 
@@ -67,6 +100,42 @@ export class Reminder extends Model {
     allowNull: false,
   })
   declare status: ReminderStatus;
+
+  @Column({ type: DataType.DATE, field: 'completed_at', allowNull: true })
+  declare completedAt: Date | null;
+
+  @Column({
+    type: DataType.STRING(255),
+    field: 'outlook_event_id',
+    allowNull: true,
+  })
+  declare outlookEventId: string | null;
+
+  @Default(OutlookSyncStatus.NotRequired)
+  @Column({
+    type: DataType.ENUM(...Object.values(OutlookSyncStatus)),
+    field: 'outlook_sync_status',
+    allowNull: false,
+  })
+  declare outlookSyncStatus: OutlookSyncStatus;
+
+  @Default(0)
+  @Column({
+    type: DataType.INTEGER,
+    field: 'outlook_sync_attempts',
+    allowNull: false,
+  })
+  declare outlookSyncAttempts: number;
+
+  @Column({ type: DataType.DATE, field: 'outlook_synced_at', allowNull: true })
+  declare outlookSyncedAt: Date | null;
+
+  @Column({
+    type: DataType.STRING(500),
+    field: 'outlook_last_error',
+    allowNull: true,
+  })
+  declare outlookLastError: string | null;
 
   @CreatedAt
   @Column({ type: DataType.DATE, field: 'created_at' })
