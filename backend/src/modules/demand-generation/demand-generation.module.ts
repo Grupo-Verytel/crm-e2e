@@ -9,6 +9,7 @@ import { LoggerNotificationAdapter } from './adapters/logger-notification.adapte
 import { DashboardController } from './controllers/dashboard.controller';
 import { CampaignsController } from './controllers/campaigns.controller';
 import { LeadsController } from './controllers/leads.controller';
+import { RemindersController } from './controllers/reminders.controller';
 import { MqlsController } from './controllers/mqls.controller';
 import { SegmentsController } from './controllers/segments.controller';
 import { Campaign } from './models/campaign.model';
@@ -55,6 +56,7 @@ import { RemindersService } from './services/reminders.service';
   ],
   controllers: [
     LeadsController,
+    RemindersController,
     CampaignsController,
     MqlsController,
     DashboardController,

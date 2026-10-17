@@ -37,6 +37,11 @@ import { WorkflowEngineService } from './workflow-engine.service';
       useClass: WorkflowExceptionFilter,
     },
   ],
-  exports: [WorkflowEngineService, StatusHistoryService, SequelizeModule],
+  exports: [
+    WorkflowEngineService,
+    StatusHistoryService,
+    SequelizeModule,
+    NOTIFICATION_PUSH_PORT,
+  ],
 })
 export class WorkflowEngineModule {}
