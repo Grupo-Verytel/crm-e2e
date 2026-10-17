@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Pencil, Trash2 } from 'lucide-react';
+import { ArrowRightLeft, Pencil, Trash2 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { AppLayout } from '../../../layout/AppLayout';
 import { Pagination } from '../../../components/Pagination';
-import { useAuth } from '../../auth/hooks/useAuth';
 import { ApiError } from '../../auth/types';
 import { deletePerson, fetchAccount, fetchPeople } from '../api/accounts-api';
+import { MovePersonModal } from '../components/MovePersonModal';
 import { PersonFormModal } from '../components/PersonFormModal';
 import type { Person } from '../types';
 import { loadPersonInfluenciaTipo } from '../lib/person-influencia-extensions';
@@ -18,14 +18,14 @@ import {
 
 const LIMIT = 20;
 
+const INFLUENCE_BLOCK =
+  'Este contacto está asignado como influencia en una OUV. Si esa asignación ya fue eliminada, recarga la lista.';
+
+/** View-only switch. Move stays implemented; the action is hidden for now. */
+const MOVE_PERSON_VISIBLE = false;
+
 export function PeopleListPage() {
-  const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
-  const canDelete = Boolean(
-    user?.permissions?.some(
-      (p) => p.action === 'delete' && p.subject === 'Person',
-    ),
-  );
 
   const [draftQ, setDraftQ] = useState('');
   const [appliedQ, setAppliedQ] = useState('');
@@ -35,6 +35,7 @@ export function PeopleListPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<Person | null | 'new'>(null);
+  const [moving, setMoving] = useState<Person | null>(null);
   const [presetAccount, setPresetAccount] = useState<{
     account_id: string;
     name: string;
@@ -185,8 +186,10 @@ export function PeopleListPage() {
                 </tr>
               </thead>
               <tbody>
-                {items.map((row) => (
-                  <tr key={row.person_id} className="border-b border-border">
+                {items.map((row) => {
+                  const blocked = Boolean(row.has_active_influence);
+                  return (
+                    <tr key={row.person_id} className="border-b border-border">
                     <td className="px-4 py-3 text-ink">{row.name}</td>
                     <td className="px-4 py-3 text-muted">
                       {row.account_name ?? '—'}
@@ -209,20 +212,43 @@ export function PeopleListPage() {
                         >
                           <Pencil size={16} strokeWidth={2} />
                         </button>
-                        {canDelete ? (
+                        {MOVE_PERSON_VISIBLE ? (
                           <button
                             type="button"
-                            className="icon-btn grid h-9 w-9 place-items-center rounded text-danger"
-                            aria-label={`Eliminar ${row.name}`}
-                            onClick={() => void onDelete(row)}
+                            className="icon-btn grid h-9 w-9 place-items-center rounded disabled:cursor-not-allowed disabled:opacity-40"
+                            aria-label={
+                              blocked
+                                ? `No se puede mover ${row.name}. ${INFLUENCE_BLOCK}`
+                                : `Mover ${row.name} a otra empresa`
+                            }
+                            title={
+                              blocked ? INFLUENCE_BLOCK : 'Mover a otra empresa'
+                            }
+                            disabled={blocked}
+                            onClick={() => setMoving(row)}
                           >
-                            <Trash2 size={16} strokeWidth={2} />
+                            <ArrowRightLeft size={16} strokeWidth={2} />
                           </button>
                         ) : null}
+                        <button
+                          type="button"
+                          className="icon-btn grid h-9 w-9 place-items-center rounded text-danger disabled:cursor-not-allowed disabled:opacity-40"
+                          aria-label={
+                            blocked
+                              ? `No se puede eliminar ${row.name}. ${INFLUENCE_BLOCK}`
+                              : `Eliminar ${row.name}`
+                          }
+                          title={blocked ? INFLUENCE_BLOCK : 'Eliminar contacto'}
+                          disabled={blocked}
+                          onClick={() => void onDelete(row)}
+                        >
+                          <Trash2 size={16} strokeWidth={2} />
+                        </button>
                       </div>
                     </td>
-                  </tr>
-                ))}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -242,6 +268,14 @@ export function PeopleListPage() {
           presetAccount={presetAccount}
           onClose={closeEditor}
           onSaved={() => void load()}
+        />
+      ) : null}
+
+      {moving ? (
+        <MovePersonModal
+          person={moving}
+          onClose={() => setMoving(null)}
+          onMoved={() => void load()}
         />
       ) : null}
     </AppLayout>

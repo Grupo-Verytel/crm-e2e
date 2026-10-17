@@ -10,6 +10,7 @@ import {
   Op,
   QueryTypes,
   Sequelize,
+  Transaction,
   where as sqlWhere,
   WhereOptions,
 } from 'sequelize';
@@ -162,8 +163,14 @@ export class AccountsService {
       offset,
     });
 
+    const activeInfluence = await this.personIdsWithActiveInfluence(
+      rows.map((row) => row.personId),
+    );
+
     return {
-      items: rows.map((row) => this.toPersonDto(row)),
+      items: rows.map((row) =>
+        this.toPersonDto(row, this.hasPersonId(activeInfluence, row.personId)),
+      ),
       total: count,
       page,
       limit,
@@ -172,7 +179,13 @@ export class AccountsService {
 
   async getPerson(personId: string): Promise<PersonResponseDto> {
     const person = await this.findPersonOrFail(personId);
-    return this.toPersonDto(person);
+    const activeInfluence = await this.personIdsWithActiveInfluence([
+      person.personId,
+    ]);
+    return this.toPersonDto(
+      person,
+      this.hasPersonId(activeInfluence, person.personId),
+    );
   }
 
   /**
@@ -435,7 +448,7 @@ export class AccountsService {
     await person.reload({
       include: [{ model: Account, as: 'account', required: false }],
     });
-    return this.toPersonDto(person);
+    return this.toPersonDto(person, false);
   }
 
   async updatePerson(
@@ -463,19 +476,51 @@ export class AccountsService {
     await person.reload({
       include: [{ model: Account, as: 'account', required: false }],
     });
-    return this.toPersonDto(person);
+    const activeInfluence = await this.personIdsWithActiveInfluence([
+      person.personId,
+    ]);
+    return this.toPersonDto(
+      person,
+      this.hasPersonId(activeInfluence, person.personId),
+    );
+  }
+
+  async movePersonToAccount(
+    personId: string,
+    accountId: string,
+  ): Promise<PersonResponseDto> {
+    const person = await this.findPersonOrFail(personId);
+    if (person.accountId === accountId) {
+      throw new ConflictException({
+        code: ACCOUNTS_ERROR_CODES.PERSON_SAME_ACCOUNT,
+        message: 'El contacto ya pertenece a esa empresa.',
+      });
+    }
+    await this.findAccountOrFail(accountId);
+    await this.assertNoActiveInfluence(personId, 'move');
+
+    person.accountId = accountId;
+    await person.save();
+    await person.reload({
+      include: [{ model: Account, as: 'account', required: false }],
+    });
+    return this.toPersonDto(person, false);
   }
 
   async deletePerson(personId: string): Promise<void> {
     const person = await this.findPersonOrFail(personId);
-    if (await this.personIsReferenced(personId)) {
+    await this.assertNoActiveInfluence(personId, 'delete');
+    if (await this.personIsReferencedByLead(personId)) {
       throw new ConflictException({
         code: ACCOUNTS_ERROR_CODES.PERSON_REFERENCED,
-        message:
-          'No se puede eliminar el contacto: está asociado a un lead u OUV.',
+        message: 'No se puede eliminar el contacto: está asociado a un lead.',
       });
     }
-    await person.destroy();
+
+    await this.sequelize.transaction(async (transaction) => {
+      await this.detachOuvContactos(personId, transaction);
+      await person.destroy({ transaction });
+    });
   }
 
   private async assertAccountUniqueness(
@@ -540,23 +585,98 @@ export class AccountsService {
   }
 
   /**
-   * GC-11: block soft-delete when active lead_contacts / ouv_contactos
-   * reference person_id. Both bridges have person_id (demand-gen v2.5 + OUV Funnel v1.4).
+   * Active influence: ouv_influencias.deleted_at IS NULL linked through
+   * ouv_contactos.person_id. A soft-deleted influence does not block
+   * delete or a company move.
    */
-  private async personIsReferenced(personId: string): Promise<boolean> {
-    for (const table of ['lead_contacts', 'ouv_contactos'] as const) {
-      const refs = await this.sequelize.query<{ cnt: number }>(
-        `SELECT COUNT(*) AS cnt FROM \`${table}\` WHERE person_id = :personId AND deleted_at IS NULL`,
-        {
-          replacements: { personId },
-          type: QueryTypes.SELECT,
-        },
-      );
-      if (Number(refs[0]?.cnt ?? 0) > 0) {
-        return true;
-      }
+  private async personIdsWithActiveInfluence(
+    personIds: string[],
+  ): Promise<Set<string>> {
+    const unique = [...new Set(personIds.filter(Boolean))];
+    if (unique.length === 0) {
+      return new Set();
     }
-    return false;
+
+    const rows = await this.sequelize.query<{ person_id: string }>(
+      `
+        SELECT DISTINCT c.person_id AS person_id
+        FROM ouv_influencias i
+        INNER JOIN ouv_contactos c
+          ON c.contacto_ouv_id = i.contacto_ouv_id
+        WHERE i.deleted_at IS NULL
+          AND c.person_id IN (:personIds)
+      `,
+      {
+        replacements: { personIds: unique },
+        type: QueryTypes.SELECT,
+      },
+    );
+
+    return new Set(rows.map((row) => row.person_id.trim()));
+  }
+
+  private hasPersonId(ids: Set<string>, personId: string): boolean {
+    return ids.has(personId.trim());
+  }
+
+  private async assertNoActiveInfluence(
+    personId: string,
+    action: 'delete' | 'move',
+  ): Promise<void> {
+    const active = await this.personIdsWithActiveInfluence([personId]);
+    if (!this.hasPersonId(active, personId)) {
+      return;
+    }
+
+    throw new ConflictException({
+      code: ACCOUNTS_ERROR_CODES.PERSON_ACTIVE_INFLUENCE,
+      message:
+        action === 'delete'
+          ? 'No se puede eliminar el contacto: está asignado como influencia en una OUV.'
+          : 'No se puede mover el contacto: está asignado como influencia en una OUV.',
+    });
+  }
+
+  private async personIsReferencedByLead(personId: string): Promise<boolean> {
+    const refs = await this.sequelize.query<{ cnt: number }>(
+      `SELECT COUNT(*) AS cnt FROM \`lead_contacts\` WHERE person_id = :personId AND deleted_at IS NULL`,
+      {
+        replacements: { personId },
+        type: QueryTypes.SELECT,
+      },
+    );
+    return Number(refs[0]?.cnt ?? 0) > 0;
+  }
+
+  /**
+   * Drop OUV contact bridges that are not an active influence so the
+   * master person can be soft-deleted without leaving a blank row on the OUV.
+   */
+  private async detachOuvContactos(
+    personId: string,
+    transaction: Transaction,
+  ): Promise<void> {
+    const model = this.sequelize.models.OuvContacto;
+    if (!model) {
+      await this.sequelize.query(
+        `
+          UPDATE ouv_contactos
+          SET deleted_at = CURRENT_TIMESTAMP
+          WHERE person_id = :personId
+            AND deleted_at IS NULL
+        `,
+        { replacements: { personId }, transaction },
+      );
+      return;
+    }
+
+    const rows = await model.findAll({
+      where: { personId },
+      transaction,
+    });
+    for (const row of rows) {
+      await row.destroy({ transaction });
+    }
   }
 
   private async findAccountOrFail(accountId: string): Promise<Account> {
@@ -604,7 +724,10 @@ export class AccountsService {
     };
   }
 
-  private toPersonDto(person: Person): PersonResponseDto {
+  private toPersonDto(
+    person: Person,
+    hasActiveInfluence: boolean,
+  ): PersonResponseDto {
     return {
       person_id: person.personId,
       name: person.name,
@@ -613,6 +736,7 @@ export class AccountsService {
       phone: person.phone,
       account_id: person.accountId,
       account_name: person.account?.name ?? null,
+      has_active_influence: hasActiveInfluence,
       created_at: person.createdAt,
       updated_at: person.updatedAt,
     };
