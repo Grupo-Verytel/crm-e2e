@@ -10,10 +10,12 @@ import { DiscoveryModule } from '../discovery/discovery.module';
 import { Ouv } from '../discovery/models/ouv.model';
 import { GraphIntegrationModule } from '../graph-integration/graph-integration.module';
 import { WorkflowEngineModule } from '../workflow-engine/workflow-engine.module';
+import { AssignedOuvsController } from './controllers/assigned-ouvs.controller';
 import { QualificationDashboardController } from './controllers/qualification-dashboard.controller';
 import { SqlsController } from './controllers/sqls.controller';
 import { SqlCita } from './models/sql-cita.model';
 import { SqlAppointmentEvent } from './models/sql-appointment-event.model';
+import { AssignedOuvsService } from './services/assigned-ouvs.service';
 import { QualificationDashboardService } from './services/qualification-dashboard.service';
 import { SqlsService } from './services/sqls.service';
 
@@ -34,8 +36,12 @@ import { SqlsService } from './services/sqls.service';
     GraphIntegrationModule,
     WorkflowEngineModule,
   ],
-  controllers: [SqlsController, QualificationDashboardController],
-  providers: [SqlsService, QualificationDashboardService],
+  controllers: [
+    SqlsController,
+    QualificationDashboardController,
+    AssignedOuvsController,
+  ],
+  providers: [SqlsService, QualificationDashboardService, AssignedOuvsService],
   exports: [SqlsService, QualificationDashboardService],
 })
 export class QualificationModule {}
