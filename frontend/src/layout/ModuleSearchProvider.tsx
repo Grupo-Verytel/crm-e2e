@@ -25,6 +25,10 @@ const SEARCH_ROUTES: Array<{
     placeholder: 'Buscar lead, empresa, NIT o contacto…',
   },
   {
+    match: (pathname) => pathname === '/qualification/assigned-ouvs',
+    placeholder: 'Buscar OUV, título o cliente…',
+  },
+  {
     match: (pathname) =>
       pathname === '/qualification' || pathname === '/qualification/assigned',
     placeholder: 'Buscar SQL, empresa o contacto…',

@@ -33,6 +33,8 @@ type Props = {
   commercials: CommercialOption[];
   applied: AssignedOuvFilters;
   onApply: (next: AssignedOuvFilters) => void;
+  /** Hidden for EjecutivoComercial. The server still ignores `comercial_id`. */
+  showCommercial?: boolean;
 };
 
 export function AssignedCommercialFiltersPanel({
@@ -40,6 +42,7 @@ export function AssignedCommercialFiltersPanel({
   commercials,
   applied,
   onApply,
+  showCommercial = true,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<AssignedOuvFilters>(applied);
@@ -93,29 +96,31 @@ export function AssignedCommercialFiltersPanel({
             aria-label="Filtros"
           >
             <div className="flex flex-wrap items-end justify-between gap-3">
-              <div className="min-w-56 flex-1 md:max-w-xs">
-                <label className={labelClass} htmlFor={`${panelId}-comercial`}>
-                  Comercial asignado
-                </label>
-                <select
-                  id={`${panelId}-comercial`}
-                  className={inputClass}
-                  value={draft.comercial_id}
-                  onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      comercial_id: event.target.value,
-                    }))
-                  }
-                >
-                  <option value="">Todos</option>
-                  {commercials.map((commercial) => (
-                    <option key={commercial.user_id} value={commercial.user_id}>
-                      {commercial.full_name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {showCommercial ? (
+                <div className="min-w-56 flex-1 md:max-w-xs">
+                  <label className={labelClass} htmlFor={`${panelId}-comercial`}>
+                    Comercial asignado
+                  </label>
+                  <select
+                    id={`${panelId}-comercial`}
+                    className={inputClass}
+                    value={draft.comercial_id}
+                    onChange={(event) =>
+                      setDraft((current) => ({
+                        ...current,
+                        comercial_id: event.target.value,
+                      }))
+                    }
+                  >
+                    <option value="">Todos</option>
+                    {commercials.map((commercial) => (
+                      <option key={commercial.user_id} value={commercial.user_id}>
+                        {commercial.full_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : null}
               <fieldset className="min-w-56 flex-1">
                 <legend className={labelClass}>Seguimiento</legend>
                 <div className="flex flex-wrap gap-3">

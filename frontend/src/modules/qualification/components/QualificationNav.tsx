@@ -34,6 +34,11 @@ export function QualificationNav() {
       <NavLink to="/qualification/assigned" className={linkClass}>
         {seesAllAssigned ? 'SQL asignados' : 'Mis SQL'}
       </NavLink>
+      {isRoleName(user?.role_name, 'SoporteComercial', 'EjecutivoComercial') ? (
+        <NavLink to="/qualification/assigned-ouvs" className={linkClass}>
+          OUVs Asignadas
+        </NavLink>
+      ) : null}
       <NavLink to="/qualification/dashboard" className={linkClass}>
         Dashboard
       </NavLink>
