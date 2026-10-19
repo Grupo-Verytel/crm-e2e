@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { reminderErrorMessage } from '../../../components/reminders/reminder-errors';
 import type { Ouv } from '../api/ouvs-api';
 import {
   crearOuvInteraccion,
@@ -9,8 +10,10 @@ import {
 } from '../api/ouv-interacciones-api';
 import { mapOuvInteraccion } from '../lib/ouv-interacciones-mapper';
 import type { InteraccionRecord } from '../lib/ouv-interacciones';
+import type { ReminderFieldsValue } from '../types/ouv-reminder.types';
 import { ModalShell } from './ModalShell';
 import { FloatingToast } from './FloatingToast';
+import { ReminderFields } from './ReminderFields';
 import {
   cardClass,
   ghostButtonClass,
@@ -21,7 +24,50 @@ import {
 
 type Props = {
   ouv: Ouv;
+  onRemindersChanged?: () => void;
 };
+
+const EMPTY_REMINDER: ReminderFieldsValue = {
+  enabled: false,
+  event_at: '',
+  remind_days_before: 1,
+  note: '',
+};
+
+type ReminderFieldErrors = Partial<
+  Record<'event_at' | 'remind_days_before' | 'note', string>
+>;
+
+function validateReminder(value: ReminderFieldsValue): ReminderFieldErrors | null {
+  const errors: ReminderFieldErrors = {};
+  const event = new Date(value.event_at);
+  if (!value.event_at || Number.isNaN(event.getTime())) {
+    errors.event_at = 'Indica la fecha y hora del evento.';
+  } else if (event.getTime() <= Date.now()) {
+    errors.event_at = 'La fecha del evento debe ser futura.';
+  }
+  if (
+    !Number.isInteger(value.remind_days_before) ||
+    value.remind_days_before < 0 ||
+    value.remind_days_before > 365
+  ) {
+    errors.remind_days_before = 'Los días deben estar entre 0 y 365.';
+  }
+  if (value.note.length > 500) {
+    errors.note = 'La nota admite máximo 500 caracteres.';
+  }
+  return Object.keys(errors).length > 0 ? errors : null;
+}
+
+function remindsImmediately(value: ReminderFieldsValue): boolean {
+  const event = new Date(value.event_at);
+  if (Number.isNaN(event.getTime())) {
+    return false;
+  }
+  const remindAt =
+    event.getTime() - value.remind_days_before * 24 * 60 * 60 * 1000;
+  return remindAt < Date.now();
+}
 
 type ModalMode =
   | { kind: 'nueva' }
@@ -29,19 +75,70 @@ type ModalMode =
 
 function InteraccionFormModal({
   mode,
+  ouvId,
   onClose,
-  onSave,
+  onSaved,
 }: {
   mode: ModalMode;
+  ouvId: string;
   onClose: () => void;
-  onSave: (entry: { titulo: string; observaciones: string }) => void;
+  onSaved: (result: { hadReminder: boolean }) => void;
 }) {
   const [titulo, setTitulo] = useState('');
   const [observaciones, setObservaciones] = useState('');
+  const [reminder, setReminder] = useState<ReminderFieldsValue>(EMPTY_REMINDER);
+  const [fieldErrors, setFieldErrors] = useState<ReminderFieldErrors>({});
+  const [formError, setFormError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const fechaAuto = new Date().toISOString();
 
   const isHilo = mode.kind === 'hilo';
   const title = isHilo ? 'Responder hilo' : 'Registrar interacción';
+
+  async function submit() {
+    if (saving || !titulo.trim()) {
+      return;
+    }
+    if (!isHilo && reminder.enabled) {
+      const errors = validateReminder(reminder);
+      if (errors) {
+        setFieldErrors(errors);
+        return;
+      }
+    }
+    setSaving(true);
+    setFormError(null);
+    setFieldErrors({});
+    try {
+      if (isHilo) {
+        await responderOuvInteraccion(ouvId, mode.parentId, {
+          titulo: titulo.trim(),
+          observaciones: observaciones.trim() || null,
+        });
+        onSaved({ hadReminder: false });
+        return;
+      }
+      const note = reminder.note.trim();
+      await crearOuvInteraccion(ouvId, {
+        titulo: titulo.trim(),
+        observaciones: observaciones.trim() || null,
+        ...(reminder.enabled
+          ? {
+              recordatorio: {
+                event_at: new Date(reminder.event_at).toISOString(),
+                remind_days_before: reminder.remind_days_before,
+                ...(note ? { note } : {}),
+              },
+            }
+          : {}),
+      });
+      onSaved({ hadReminder: reminder.enabled });
+    } catch (error) {
+      setFormError(reminderErrorMessage(error));
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
     <ModalShell title={title} onClose={onClose}>
@@ -95,24 +192,48 @@ function InteraccionFormModal({
             placeholder="Notas, acuerdos, pendientes…"
           />
         </div>
+
+        {isHilo ? null : (
+          <ReminderFields
+            value={reminder}
+            onChange={(next) => {
+              setReminder(next);
+              setFieldErrors({});
+            }}
+            errors={fieldErrors}
+            remindsImmediately={
+              reminder.enabled ? remindsImmediately(reminder) : false
+            }
+          />
+        )}
       </div>
 
+      {formError ? (
+        <p className="mt-3 text-sm text-danger" role="alert">
+          {formError}
+        </p>
+      ) : null}
+
       <div className="mt-6 flex justify-end gap-2">
-        <button type="button" className={ghostButtonClass} onClick={onClose}>
+        <button
+          type="button"
+          className={ghostButtonClass}
+          disabled={saving}
+          onClick={onClose}
+        >
           Cancelar
         </button>
         <button
           type="button"
           className={primaryButtonClass}
-          disabled={!titulo.trim()}
-          onClick={() =>
-            onSave({
-              titulo: titulo.trim(),
-              observaciones: observaciones.trim(),
-            })
-          }
+          disabled={saving || !titulo.trim()}
+          onClick={() => void submit()}
         >
-          {isHilo ? 'Registrar respuesta' : 'Registrar'}
+          {saving
+            ? 'Guardando…'
+            : isHilo
+              ? 'Registrar respuesta'
+              : 'Registrar'}
         </button>
       </div>
     </ModalShell>
@@ -136,13 +257,15 @@ function Etiquetas({ tags }: { tags?: string[] }) {
 }
 
 /** Registro de interacciones / actividades realizadas con el proyecto. */
-export function InteraccionesPreventaPanel({ ouv }: Props) {
+export function InteraccionesPreventaPanel({
+  ouv,
+  onRemindersChanged,
+}: Props) {
   const [items, setItems] = useState<InteraccionRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [modal, setModal] = useState<ModalMode | null>(null);
   const [toast, setToast] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
 
   const reload = useCallback(async () => {
     try {
@@ -157,6 +280,7 @@ export function InteraccionesPreventaPanel({ ouv }: Props) {
   }, [ouv.ouv_id]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reload when the OUV changes
     setLoading(true);
     setModal(null);
     setToast(null);
@@ -168,29 +292,17 @@ export function InteraccionesPreventaPanel({ ouv }: Props) {
     window.setTimeout(() => setToast(null), 3000);
   }
 
-  async function handleSave(data: { titulo: string; observaciones: string }) {
-    if (!modal || saving) return;
-    setSaving(true);
-    try {
-      if (modal.kind === 'nueva') {
-        await crearOuvInteraccion(ouv.ouv_id, {
-          titulo: data.titulo,
-          observaciones: data.observaciones || null,
-        });
-        showToast('Interacción registrada correctamente.');
-      } else {
-        await responderOuvInteraccion(ouv.ouv_id, modal.parentId, {
-          titulo: data.titulo,
-          observaciones: data.observaciones || null,
-        });
-        showToast('Respuesta agregada al hilo.');
-      }
-      setModal(null);
-      await reload();
-    } catch {
-      showToast('No se pudo guardar. Revisa permisos e intenta de nuevo.');
-    } finally {
-      setSaving(false);
+  async function handleSaved(result: { hadReminder: boolean }) {
+    const wasReply = modal?.kind === 'hilo';
+    setModal(null);
+    showToast(
+      wasReply
+        ? 'Respuesta agregada al hilo.'
+        : 'Interacción registrada correctamente.',
+    );
+    await reload();
+    if (result.hadReminder) {
+      onRemindersChanged?.();
     }
   }
 
@@ -342,8 +454,9 @@ export function InteraccionesPreventaPanel({ ouv }: Props) {
       {modal ? (
         <InteraccionFormModal
           mode={modal}
+          ouvId={ouv.ouv_id}
           onClose={() => setModal(null)}
-          onSave={(data) => void handleSave(data)}
+          onSaved={(result) => void handleSaved(result)}
         />
       ) : null}
     </section>

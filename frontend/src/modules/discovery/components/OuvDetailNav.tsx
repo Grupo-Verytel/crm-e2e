@@ -1,10 +1,4 @@
-export type OuvDetailTab = 'detalle' | 'preventa' | 'interacciones';
-
-/** Reads `?tab=` on `/opportunities/:id`. Unknown values fall back to detalle. */
-export function parseOuvDetailTab(value: string | null): OuvDetailTab {
-  if (value === 'preventa' || value === 'interacciones') return value;
-  return 'detalle';
-}
+import type { OuvDetailTab } from '../lib/ouv-detail-tab';
 
 const tabClass = (active: boolean) =>
   [
@@ -19,7 +13,7 @@ type Props = {
   onChange: (tab: OuvDetailTab) => void;
 };
 
-/** Nav del detalle OUV — Detalle | Solicitudes Preventa | Interacciones. */
+/** Nav del detalle OUV — Detalle | Solicitudes Preventa | Interacciones | Recordatorios. */
 export function OuvDetailNav({ active, onChange }: Props) {
   return (
     <nav
@@ -49,6 +43,14 @@ export function OuvDetailNav({ active, onChange }: Props) {
         aria-current={active === 'interacciones' ? 'page' : undefined}
       >
         Interacciones
+      </button>
+      <button
+        type="button"
+        className={tabClass(active === 'recordatorios')}
+        onClick={() => onChange('recordatorios')}
+        aria-current={active === 'recordatorios' ? 'page' : undefined}
+      >
+        Recordatorios
       </button>
     </nav>
   );

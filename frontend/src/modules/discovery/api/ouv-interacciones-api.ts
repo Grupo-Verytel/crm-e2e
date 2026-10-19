@@ -32,7 +32,19 @@ export type OuvInteraccion = {
   hilos: OuvInteraccionHilo[];
 };
 
+export type RecordatorioOuvPayload = {
+  event_at: string;
+  remind_days_before?: number;
+  note?: string;
+};
+
 export type CrearOuvInteraccionPayload = {
+  titulo: string;
+  observaciones?: string | null;
+  recordatorio?: RecordatorioOuvPayload;
+};
+
+export type ResponderOuvInteraccionPayload = {
   titulo: string;
   observaciones?: string | null;
 };
@@ -58,7 +70,7 @@ export function crearOuvInteraccion(
 export function responderOuvInteraccion(
   ouvId: string,
   ouvInteractionId: string,
-  payload: CrearOuvInteraccionPayload,
+  payload: ResponderOuvInteraccionPayload,
 ): Promise<OuvInteraccion> {
   return apiRequest<OuvInteraccion>(
     `/discovery/ouvs/${ouvId}/interacciones/${encodeURIComponent(ouvInteractionId)}/hilos`,

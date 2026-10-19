@@ -3,12 +3,14 @@ import { SequelizeModule } from '@nestjs/sequelize';
 import { AccountsModule } from '../accounts/accounts.module';
 import { AuthModule } from '../auth/auth.module';
 import { DiscoveryModule } from '../discovery/discovery.module';
+import { GraphIntegrationModule } from '../graph-integration/graph-integration.module';
 import { User } from '../auth/models/user.model';
 import { WorkflowEngineModule } from '../workflow-engine/workflow-engine.module';
 import { LoggerNotificationAdapter } from './adapters/logger-notification.adapter';
 import { DashboardController } from './controllers/dashboard.controller';
 import { CampaignsController } from './controllers/campaigns.controller';
 import { LeadsController } from './controllers/leads.controller';
+import { RemindersController } from './controllers/reminders.controller';
 import { MqlsController } from './controllers/mqls.controller';
 import { SegmentsController } from './controllers/segments.controller';
 import { Campaign } from './models/campaign.model';
@@ -31,6 +33,7 @@ import { LeadImportJobService } from './services/lead-import-job.service';
 import { LeadStateMachineService } from './services/lead-state-machine.service';
 import { LeadsService } from './services/leads.service';
 import { MqlsService } from './services/mqls.service';
+import { OutlookReminderSyncService } from './services/outlook-reminder-sync.service';
 import { RemindersService } from './services/reminders.service';
 
 @Module({
@@ -51,10 +54,12 @@ import { RemindersService } from './services/reminders.service';
     AccountsModule,
     forwardRef(() => AuthModule),
     forwardRef(() => DiscoveryModule),
+    GraphIntegrationModule,
     WorkflowEngineModule,
   ],
   controllers: [
     LeadsController,
+    RemindersController,
     CampaignsController,
     MqlsController,
     DashboardController,
@@ -65,6 +70,7 @@ import { RemindersService } from './services/reminders.service';
     CampaignsService,
     InteractionsService,
     RemindersService,
+    OutlookReminderSyncService,
     LeadChecklistService,
     LeadStateMachineService,
     MqlsService,

@@ -402,6 +402,7 @@ export type Interaction = {
     remind_at: string;
     note: string | null;
     status: string;
+    completed_at?: string | null;
   }>;
 };
 

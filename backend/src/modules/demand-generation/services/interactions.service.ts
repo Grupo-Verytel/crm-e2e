@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/sequelize';
 import { col, fn, Op, Sequelize, type Transaction } from 'sequelize';
 import { Role } from '../../auth/models/role.model';
@@ -100,10 +104,13 @@ export class InteractionsService {
 
       await lead.update({ fechaUltimaInteraccion: fecha }, { transaction });
 
-      const loaded = await this.interactionModel.findByPk(interaction.interactionId, {
-        include: [RESPONSABLE_INCLUDE],
-        transaction,
-      });
+      const loaded = await this.interactionModel.findByPk(
+        interaction.interactionId,
+        {
+          include: [RESPONSABLE_INCLUDE],
+          transaction,
+        },
+      );
 
       return this.toResponseDto(loaded ?? interaction);
     });
@@ -171,8 +178,7 @@ export class InteractionsService {
   private resolveFecha(dto: CreateInteractionDto): Date {
     const fecha = dto.fecha ? new Date(dto.fecha) : new Date();
     const now = Date.now();
-    const oldest =
-      now - INTERACTION_MAX_BACKDATE_HOURS * 60 * 60 * 1000;
+    const oldest = now - INTERACTION_MAX_BACKDATE_HOURS * 60 * 60 * 1000;
 
     if (fecha.getTime() < oldest) {
       throw new BadRequestException({
@@ -250,6 +256,7 @@ export class InteractionsService {
           remind_at: reminder.remindAt,
           note: reminder.note,
           status: reminder.status,
+          completed_at: reminder.completedAt ?? null,
         })),
     };
   }

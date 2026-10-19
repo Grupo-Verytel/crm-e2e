@@ -115,6 +115,24 @@ export class OuvInteraccionHiloResponseDto {
   created_at!: Date;
 }
 
+export class OuvRecordatorioResponseDto {
+  reminder_id!: string;
+  ouv_interaction_id!: string;
+  user_id!: string;
+  event_at!: Date;
+  remind_days_before!: number;
+  remind_at!: Date;
+  note!: string | null;
+  status!: string;
+  completed_at!: Date | null;
+  outlook_sync_status!: string;
+}
+
+export class OuvRecordatorioListItemDto extends OuvRecordatorioResponseDto {
+  responsable_nombre!: string | null;
+  interaccion_titulo!: string;
+}
+
 export class OuvInteraccionResponseDto {
   ouv_interaction_id!: string;
   ouv_id!: string;
@@ -126,4 +144,6 @@ export class OuvInteraccionResponseDto {
   registrado_por_nombre!: string;
   created_at!: Date;
   hilos!: OuvInteraccionHiloResponseDto[];
+  /** Present on create: the reminder just stored, or null when none was asked. */
+  recordatorio?: OuvRecordatorioResponseDto | null;
 }

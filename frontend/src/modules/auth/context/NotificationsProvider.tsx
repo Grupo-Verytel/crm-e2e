@@ -34,6 +34,8 @@ type NotificationsContextValue = {
   dismissToast: () => void;
   refresh: () => Promise<void>;
   marcarLeida: (notificationId: string) => Promise<void>;
+  /** Bumps when a reminder should be re-read. The list itself stays in the bell. */
+  reminderSignal: number;
 };
 
 const NotificationsContext = createContext<NotificationsContextValue | null>(
@@ -45,6 +47,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<InAppNotification[]>([]);
   const [unread, setUnread] = useState(0);
   const [toast, setToast] = useState<ToastState>(null);
+  const [reminderSignal, setReminderSignal] = useState(0);
   const socketRef = useRef<Socket | null>(null);
   const toastTimerRef = useRef<number | null>(null);
 
@@ -92,6 +95,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- existing notification fetch
     void refresh();
   }, [refresh]);
 
@@ -125,7 +129,11 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         }
       });
 
-      socket.on('notification', (payload: InAppNotification) => {
+      socket.on('notification', (payload: InAppNotification & { eventType?: string }) => {
+        const eventType = payload.event_type || payload.eventType;
+        if (eventType === 'interaction.reminder') {
+          setReminderSignal((current) => current + 1);
+        }
         setItems((current) => {
           if (current.some((n) => n.notification_id === payload.notification_id)) {
             return current;
@@ -166,8 +174,9 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       dismissToast,
       refresh,
       marcarLeida,
+      reminderSignal,
     }),
-    [items, unread, toast, dismissToast, refresh, marcarLeida],
+    [items, unread, toast, dismissToast, refresh, marcarLeida, reminderSignal],
   );
 
   return (
@@ -177,6 +186,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- hook shares the provider file
 export function useNotifications(): NotificationsContextValue {
   const ctx = useContext(NotificationsContext);
   if (!ctx) {

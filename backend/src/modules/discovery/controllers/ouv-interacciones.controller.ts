@@ -11,7 +11,10 @@ import {
 import { CheckAbility } from '../../auth/casl/check-ability.decorator';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../../auth/interfaces/authenticated-user.interface';
-import { CrearOuvInteraccionDto } from '../dtos/ouv-interaccion.dto';
+import {
+  CrearOuvInteraccionDto,
+  ResponderOuvInteraccionDto,
+} from '../dtos/ouv-interaccion.dto';
 import { OuvInteraccionResponseDto } from '../dtos/ouv-response.dto';
 import { OuvInteraccionesService } from '../services/ouv-interacciones.service';
 
@@ -52,7 +55,7 @@ export class OuvInteraccionesController {
   responder(
     @Param('ouvId') ouvId: string,
     @Param('ouvInteractionId') ouvInteractionId: string,
-    @Body() dto: CrearOuvInteraccionDto,
+    @Body() dto: ResponderOuvInteraccionDto,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<OuvInteraccionResponseDto> {
     return this.interactions.responder(

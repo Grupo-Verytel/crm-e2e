@@ -33,6 +33,9 @@ const QualificationHomePage = lazy(
 const AssignedSqlsPage = lazy(
   () => import('../modules/qualification/pages/AssignedSqlsPageLazy'),
 );
+const AssignedOuvsPage = lazy(
+  () => import('../modules/qualification/pages/AssignedOuvsPageLazy'),
+);
 const SqlDetailPage = lazy(
   () => import('../modules/qualification/pages/SqlDetailPageLazy'),
 );
@@ -259,6 +262,14 @@ export function AppRoutes() {
       element: (
         <ProtectedRoute>
           <AssignedSqlsPage />
+        </ProtectedRoute>
+      ),
+    },
+    {
+      path: '/qualification/assigned-ouvs',
+      element: (
+        <ProtectedRoute>
+          <AssignedOuvsPage />
         </ProtectedRoute>
       ),
     },
