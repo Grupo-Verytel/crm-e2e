@@ -20,6 +20,8 @@ html[data-theme='dark'] {
   --accent-icon-hover: color-mix(in srgb, #c25e00 90%, black 10%);
   /* Same dark-mode yellow as tokens.css. 7.70:1 on --surface #2A2A2A. */
   --semaphore-amarillo: #F0B429;
+  /* Same dark-mode gem as tokens.css. 7.77:1 on --surface #2A2A2A. */
+  --high-value: #C4B5FD;
 }
 
 html,

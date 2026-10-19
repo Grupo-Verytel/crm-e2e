@@ -36,6 +36,8 @@
    */
   --semaphore-amarillo: #B8860B;
   --danger: #C2362F;
+  /** High-value account gem. 7.41:1 on --surface #FFFFFF. */
+  --high-value: #4C3BCF;
   /** MEP `PARTIALLY_COMPLETED` — solicitud en curso con cierre parcial. */
   --mep-partial: #4BFAB6;
   /**
@@ -88,4 +90,6 @@
   --estado-rojo-fg: color-mix(in srgb, var(--danger) 45%, white 55%);
   /** 7.70:1 against --surface #2A2A2A. */
   --semaphore-amarillo: #F0B429;
+  /** 7.77:1 against --surface #2A2A2A. */
+  --high-value: #C4B5FD;
 }

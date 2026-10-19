@@ -10,7 +10,9 @@ import {
   Patch,
   Post,
   Query,
+  Req,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import { CheckAbility } from '../../auth/casl/check-ability.decorator';
 import {
   AccountResponseDto,
@@ -44,8 +46,11 @@ export class AccountsController {
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @CheckAbility({ action: 'create', subject: 'Account' })
-  create(@Body() dto: CreateAccountDto): Promise<AccountResponseDto> {
-    return this.accountsService.createAccount(dto);
+  create(
+    @Body() dto: CreateAccountDto,
+    @Req() request: Request,
+  ): Promise<AccountResponseDto> {
+    return this.accountsService.createAccount(dto, request.ability);
   }
 
   @Patch(':accountId')
@@ -53,8 +58,9 @@ export class AccountsController {
   update(
     @Param('accountId', ParseUUIDPipe) accountId: string,
     @Body() dto: UpdateAccountDto,
+    @Req() request: Request,
   ): Promise<AccountResponseDto> {
-    return this.accountsService.updateAccount(accountId, dto);
+    return this.accountsService.updateAccount(accountId, dto, request.ability);
   }
 
   @Delete(':accountId')

@@ -5,6 +5,7 @@ export type Account = {
   economic_sector: string | null;
   address: string | null;
   website: string | null;
+  is_high_value: boolean;
   created_at: string;
   updated_at: string;
 };
@@ -48,6 +49,7 @@ export type CreateAccountPayload = {
   economic_sector?: string | null;
   address?: string | null;
   website?: string | null;
+  is_high_value?: boolean;
 };
 
 export type UpdateAccountPayload = {
@@ -56,6 +58,7 @@ export type UpdateAccountPayload = {
   economic_sector?: string | null;
   address?: string | null;
   website?: string | null;
+  is_high_value?: boolean;
 };
 
 export type CreatePersonPayload = {

@@ -61,7 +61,7 @@ export class OuvsController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<OuvResponseDto> {
     const ouv = await this.ouvsService.crearDirecta(dto, user.userId);
-    return this.ouvsService.toResponse(ouv);
+    return this.ouvsService.present(ouv);
   }
 
   @Get()
@@ -76,7 +76,7 @@ export class OuvsController {
       all: canListAll && query.all === true,
     });
     return {
-      items: result.items.map((o) => this.ouvsService.toResponse(o)),
+      items: await this.ouvsService.presentPage(result.items),
       total: result.total,
       page: result.page,
       limit: result.limit,
@@ -118,7 +118,7 @@ export class OuvsController {
       user.userId,
       user.roleName,
     );
-    return this.ouvsService.toResponse(ouv);
+    return this.ouvsService.present(ouv);
   }
 
   @Post(':id/avanzar')
@@ -366,7 +366,7 @@ export class OuvsController {
       user.userId,
       user.roleName,
     );
-    return this.ouvsService.toResponse(ouv);
+    return this.ouvsService.present(ouv);
   }
 
   @Patch(':id/presupuesto')
@@ -382,6 +382,6 @@ export class OuvsController {
       user.userId,
       user.roleName,
     );
-    return this.ouvsService.toResponse(ouv);
+    return this.ouvsService.present(ouv);
   }
 }

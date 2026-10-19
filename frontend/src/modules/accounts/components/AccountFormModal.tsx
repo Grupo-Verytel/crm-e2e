@@ -1,9 +1,13 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { HighValueBadge } from '../../../components/HighValueBadge';
+import { useAuth } from '../../auth/hooks/useAuth';
+import { ApiError } from '../../auth/types';
 import {
   createAccount,
   fetchAccounts,
   updateAccount,
 } from '../api/accounts-api';
+import { canManageHighValue } from '../lib/can-manage-high-value';
 import { ECONOMIC_SECTORS } from '../lib/economic-sectors';
 import type { Account } from '../types';
 import { FloatingToast } from './FloatingToast';
@@ -37,16 +41,27 @@ function isSameNit(a: string, b: string | null | undefined): boolean {
   return normalizeNit(a) === normalizeNit(b);
 }
 
+const HIGH_VALUE_LOCKED =
+  'Solo Soporte Comercial o Administrador pueden cambiar esta marca.';
+
+const HIGH_VALUE_FORBIDDEN =
+  'No tienes permiso para cambiar la marca de alto valor.';
+
 function duplicateMessage(account: Account): string {
   const nitPart = account.tax_id ? ` · NIT ${account.tax_id}` : '';
   return `Ya existe «${account.name}${nitPart}». Edítala desde el listado; no se puede crear de nuevo.`;
 }
 
 export function AccountFormModal({ editing, onClose, onSaved }: Props) {
+  const { user } = useAuth();
+  const canMarkHighValue = canManageHighValue(user);
   const isNew = editing === 'new';
 
   const [name, setName] = useState(isNew ? '' : editing.name);
   const [taxId, setTaxId] = useState(isNew ? '' : (editing.tax_id ?? ''));
+  const [isHighValue, setIsHighValue] = useState(
+    isNew ? false : editing.is_high_value,
+  );
   const [economicSector, setEconomicSector] = useState(
     isNew ? '' : (editing.economic_sector ?? ''),
   );
@@ -57,6 +72,7 @@ export function AccountFormModal({ editing, onClose, onSaved }: Props) {
   const [activeField, setActiveField] = useState<SearchField | null>(null);
   const [listOpen, setListOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const nameWrapRef = useRef<HTMLDivElement>(null);
   const taxWrapRef = useRef<HTMLDivElement>(null);
@@ -207,6 +223,7 @@ export function AccountFormModal({ editing, onClose, onSaved }: Props) {
       return;
     }
     setSaving(true);
+    setFormError(null);
     try {
       const payload = {
         name: name.trim(),
@@ -214,6 +231,7 @@ export function AccountFormModal({ editing, onClose, onSaved }: Props) {
         economic_sector: economicSector.trim(),
         address: address.trim() || null,
         website: website.trim() || null,
+        ...(canMarkHighValue ? { is_high_value: isHighValue } : {}),
       };
       const saved = isNew
         ? await createAccount(payload)
@@ -221,6 +239,10 @@ export function AccountFormModal({ editing, onClose, onSaved }: Props) {
       onSaved(saved);
       onClose();
     } catch (err) {
+      if (err instanceof ApiError && err.status === 403) {
+        setFormError(HIGH_VALUE_FORBIDDEN);
+        return;
+      }
       showToast(
         err instanceof Error ? err.message : 'No se pudo guardar la empresa.',
       );
@@ -279,8 +301,11 @@ export function AccountFormModal({ editing, onClose, onSaved }: Props) {
         onSubmit={(e) => void onSubmit(e)}
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="text-lg font-bold text-ink">
-          {isNew ? 'Crear empresa' : 'Editar empresa'}
+        <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
+          <span>{isNew ? 'Crear empresa' : 'Editar empresa'}</span>
+          {!isNew && editing.is_high_value ? (
+            <HighValueBadge size="md" />
+          ) : null}
         </h2>
 
         <div className="relative" ref={nameWrapRef}>
@@ -389,6 +414,37 @@ export function AccountFormModal({ editing, onClose, onSaved }: Props) {
             placeholder="https://"
           />
         </div>
+
+        <div
+          className="inline-flex max-w-full"
+          title={canMarkHighValue ? undefined : HIGH_VALUE_LOCKED}
+        >
+          <label className="flex items-center gap-2 text-sm text-ink">
+            <input
+              id="account-high-value"
+              type="checkbox"
+              className="mt-0.5 disabled:cursor-not-allowed"
+              checked={isHighValue}
+              disabled={!canMarkHighValue}
+              onChange={(event) => setIsHighValue(event.target.checked)}
+              aria-describedby={
+                canMarkHighValue ? undefined : 'account-high-value-hint'
+              }
+            />
+            Cuenta de alto valor
+          </label>
+          {canMarkHighValue ? null : (
+            <span id="account-high-value-hint" className="sr-only">
+              {HIGH_VALUE_LOCKED}
+            </span>
+          )}
+        </div>
+
+        {formError ? (
+          <p className="text-sm text-danger" role="alert">
+            {formError}
+          </p>
+        ) : null}
 
         <div className="flex gap-2 pt-1">
           <button

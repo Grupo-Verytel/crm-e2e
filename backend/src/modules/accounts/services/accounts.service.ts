@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -14,6 +15,8 @@ import {
   where as sqlWhere,
   WhereOptions,
 } from 'sequelize';
+import { AppAbility } from '../../auth/casl/casl-ability.factory';
+import { AUTH_ERROR_CODES } from '../../auth/constants/auth.constants';
 import { ACCOUNTS_ERROR_CODES } from '../constants/accounts.constants';
 import {
   AccountResponseDto,
@@ -76,7 +79,12 @@ export class AccountsService {
     return this.toAccountDto(account);
   }
 
-  async createAccount(dto: CreateAccountDto): Promise<AccountResponseDto> {
+  async createAccount(
+    dto: CreateAccountDto,
+    ability?: AppAbility,
+  ): Promise<AccountResponseDto> {
+    this.assertCanChangeHighValue(ability, dto.is_high_value, false);
+
     const name = dto.name.trim();
     const taxId = this.normalizeOptional(dto.tax_id);
     await this.assertAccountUniqueness(name, taxId);
@@ -87,6 +95,7 @@ export class AccountsService {
       economicSector: this.normalizeOptional(dto.economic_sector),
       address: this.normalizeOptional(dto.address),
       website: this.normalizeOptional(dto.website),
+      isHighValue: dto.is_high_value ?? false,
     });
     return this.toAccountDto(account);
   }
@@ -94,8 +103,14 @@ export class AccountsService {
   async updateAccount(
     accountId: string,
     dto: UpdateAccountDto,
+    ability?: AppAbility,
   ): Promise<AccountResponseDto> {
     const account = await this.findAccountOrFail(accountId);
+    this.assertCanChangeHighValue(
+      ability,
+      dto.is_high_value,
+      this.asHighValueFlag(account.isHighValue),
+    );
     const name = dto.name !== undefined ? dto.name.trim() : account.name;
     const taxId =
       dto.tax_id !== undefined
@@ -114,6 +129,9 @@ export class AccountsService {
         : {}),
       ...(dto.website !== undefined
         ? { website: this.normalizeOptional(dto.website) }
+        : {}),
+      ...(dto.is_high_value !== undefined
+        ? { isHighValue: dto.is_high_value }
         : {}),
     });
     return this.toAccountDto(account);
@@ -679,6 +697,51 @@ export class AccountsService {
     }
   }
 
+  /**
+   * One query for a page of OUVs. Missing and soft-deleted accounts are absent
+   * from the map; callers treat that as not high value.
+   */
+  async findHighValueByAccountIds(
+    accountIds: string[],
+  ): Promise<Map<string, boolean>> {
+    const unique = [...new Set(accountIds.filter(Boolean))];
+    const flags = new Map<string, boolean>();
+    if (unique.length === 0) {
+      return flags;
+    }
+
+    const rows = await this.accountModel.findAll({
+      where: { accountId: { [Op.in]: unique } },
+      attributes: ['accountId', 'isHighValue'],
+    });
+    for (const row of rows) {
+      flags.set(row.accountId, this.asHighValueFlag(row.isHighValue));
+    }
+    return flags;
+  }
+
+  /** MySQL TINYINT(1) can arrive as 1/0 before Sequelize casts it. */
+  private asHighValueFlag(value: unknown): boolean {
+    return value === true || value === 1;
+  }
+
+  private assertCanChangeHighValue(
+    ability: AppAbility | undefined,
+    next: boolean | undefined,
+    current: boolean,
+  ): void {
+    if (next === undefined || next === current) {
+      return;
+    }
+    if (ability?.can('manage_high_value', 'Account')) {
+      return;
+    }
+    throw new ForbiddenException({
+      code: AUTH_ERROR_CODES.FORBIDDEN,
+      message: 'No tienes permiso para cambiar la marca de alto valor.',
+    });
+  }
+
   private async findAccountOrFail(accountId: string): Promise<Account> {
     const account = await this.accountModel.findByPk(accountId);
     if (!account) {
@@ -719,6 +782,7 @@ export class AccountsService {
       economic_sector: account.economicSector,
       address: account.address,
       website: account.website,
+      is_high_value: this.asHighValueFlag(account.isHighValue),
       created_at: account.createdAt,
       updated_at: account.updatedAt,
     };

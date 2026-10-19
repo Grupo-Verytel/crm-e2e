@@ -1,7 +1,7 @@
 # AGENTS.md — CRM Frisson / Grupo Verytel
 
 **Versión:** 1.0 — inventario técnico vigente
-**Última verificación contra repo:** 2026-10-17 (recordatorios de OUV, pasos 0 a 11)
+**Última verificación contra repo:** 2026-10-18 (cuenta de alto valor, pasos 0 a 3)
 **Relación con `CONSTITUTION.md`:** este documento contiene el *dato*, la constitución contiene la *regla*. Si un dato aquí cambia (se sube una versión, se agrega una librería aprobada), se actualiza este archivo — no requiere enmienda de constitución salvo que rompa una regla de gobierno.
 
 ---
@@ -32,7 +32,8 @@
 ## 3. Design system (verificado)
 
 - **Patrón:** `frontend/src/styles/tokens.css` (variables CSS marca Verytel) → `tailwind.config.js` mapea tokens a clases utilitarias (`bg-brand`, `text-ink`, `bg-surface`) → constantes de clase exportadas por módulo (ej. `frontend/src/modules/demand-generation/components/ui.ts`: `primaryButtonClass`, `ghostButtonClass`, `cardClass`) → componentes React simples con mapas `Record<string, string>` para variantes de badge (ej. `StatusBadge.tsx` con `ESTADO_TONE`/`TONE_CLASS`/`LABELS`)
-- **Compartidos:** `Pagination.tsx`, `LoadingScreen` y `frontend/src/components/reminders/` (`ReminderTrayList`, `ReminderGroupTabs`, `useBellReminders`, `reminders-api.ts`, `reminder-errors.ts`). `FollowUpDot` vive en calificación (`frontend/src/modules/qualification/components/FollowUpDot.tsx`) y `ReminderFields` en discovery (`frontend/src/modules/discovery/components/ReminderFields.tsx`). El resto sigue por módulo
+- **Compartidos:** `Pagination.tsx`, `LoadingScreen`, `frontend/src/components/HighValueBadge.tsx` y `frontend/src/components/reminders/` (`ReminderTrayList`, `ReminderGroupTabs`, `useBellReminders`, `reminders-api.ts`, `reminder-errors.ts`). `FollowUpDot` vive en calificación (`frontend/src/modules/qualification/components/FollowUpDot.tsx`) y `ReminderFields` en discovery (`frontend/src/modules/discovery/components/ReminderFields.tsx`). El resto sigue por módulo
+- **Token `--high-value`:** `#4C3BCF` en claro y `#C4B5FD` en oscuro. Está en `:root` y en `:root[data-theme='dark']` de `tokens.css`, y otra vez en `html[data-theme='dark']` de `global.css`. Tailwind lo expone como `text-high-value`
 - Regla `.cursor/rules/600-ui-design.mdc`: CSS tokens + Tailwind 4, sin kits de UI externos
 
 ## 4. Modelo de dominio (hechos verificados)
@@ -116,6 +117,16 @@ Spec: `specs/recordatorios-ouv/spec.md`. Decisiones: `specs/decisions/2026-10-17
 **Variables.** `FOLLOW_UP_YELLOW_DAYS`. Outlook: `OUTLOOK_SYNC_ENABLED` (default `false`), `OUTLOOK_SYNC_MAX_ATTEMPTS` (default 5), `OUTLOOK_SYNC_INTERVAL_MS` (default 60000), `CRM_PUBLIC_URL` (origen del enlace del evento; obligatoria solo con el flag encendido). Se reutilizan `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET` y `GraphClientService`.
 
 **Jobs.** `RemindersService.dispatchDue` corre cada 60 s con `setInterval` y marca `Enviado` los recordatorios vencidos de aviso. No usa `SKIP LOCKED`: con más de una instancia del backend puede duplicar notificaciones. `OutlookReminderSyncService` solo arranca si `OUTLOOK_SYNC_ENABLED=true`, solo toca recordatorios de OUV y reclama cada fila con `FOR UPDATE SKIP LOCKED`. La alarma del evento es `min(remind_days_before × 1440, 40320)`; el CRM conserva los días reales. Con el flag apagado el alta queda `NOT_REQUIRED` y no se sincroniza al encenderlo.
+
+## 12. Cuenta de alto valor (2026-10-18)
+
+Spec: `specs/cuenta-alto-valor/spec.md`. Decisiones: `specs/decisions/2026-10-18-cuenta-alto-valor.md`.
+
+**Dato.** `accounts.is_high_value` es `BOOLEAN NOT NULL DEFAULT false`. No tiene índice y no se hereda: no hay cuenta padre. `OuvResponseDto.account_is_high_value` sale de esa columna. `account_id` nulo, o una cuenta ausente o con `deleted_at`, responden `false`. La lista de OUVs lo resuelve con una sola consulta `WHERE account_id IN (...)` en `AccountsService.findHighValueByAccountIds`. `empresa_nombre` no se usa para inferir la marca.
+
+**Permiso.** Acción CASL `manage_high_value` sobre el sujeto `Account`. La tienen `SoporteComercial` y `Admin`, en `buildPermissions` y en la migración `20261018120100-account-high-value-permission.js`. `EjecutivoComercial` sigue pudiendo crear y editar la cuenta, pero un `true` en el alta o un valor distinto al guardado responde 403 y no persiste ningún campo de ese request. Omitir el campo en la edición no cambia la columna. En el alta, omitirlo o enviar `false` no exige el permiso.
+
+**UI.** `canManageHighValue` (`frontend/src/modules/accounts/lib/can-manage-high-value.ts`) mira `user.permissions` y no nombres de rol. El checkbox vive en `AccountFormModal` (también el alta de empresa desde el lead). `HighValueBadge` es el ícono `Gem` con `text-high-value`: `sm` en la lista de cuentas, la tarjeta kanban y la fila del tablero; `md` en la cabecera del modal y junto a la organización en el detalle de la OUV. Los permisos del cliente se cargan al entrar; después de la migración hay que cerrar sesión y volver a entrar para ver el checkbox habilitado. El backend aplica la regla en el siguiente request.
 
 ---
 

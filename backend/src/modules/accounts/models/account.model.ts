@@ -43,6 +43,14 @@ export class Account extends Model {
   @Column({ type: DataType.STRING(255), allowNull: true })
   declare website: string | null;
 
+  @Default(false)
+  @Column({
+    type: DataType.BOOLEAN,
+    field: 'is_high_value',
+    allowNull: false,
+  })
+  declare isHighValue: boolean;
+
   @HasMany(() => Person, { foreignKey: 'accountId', as: 'people' })
   declare people: Person[];
 

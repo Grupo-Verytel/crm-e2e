@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Download, Filter, LayoutGrid, List, Plus } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { HighValueBadge } from '../../../components/HighValueBadge';
 import { Pagination } from '../../../components/Pagination';
 import { AppLayout } from '../../../layout/AppLayout';
 import { useModuleSearch } from '../../../layout/useModuleSearch';
@@ -540,7 +541,14 @@ function OuvsTray({ bandeja }: { bandeja: OuvBandejaKey }) {
                       </td>
                       <td className="px-4 py-3 text-ink">{ouv.titulo}</td>
                       <td className="px-4 py-3 text-ink">
-                        {ouv.empresa_nombre}
+                        <span className="inline-flex min-w-0 items-center gap-1.5">
+                          <span className="min-w-0 truncate">
+                            {ouv.empresa_nombre}
+                          </span>
+                          {ouv.account_is_high_value ? (
+                            <HighValueBadge size="sm" />
+                          ) : null}
+                        </span>
                       </td>
                       <td className="px-4 py-3">
                         <ZonaBadge zona={ouv.zona_actual} />
@@ -592,7 +600,7 @@ function OuvsTray({ bandeja }: { bandeja: OuvBandejaKey }) {
       ) : (
         <div className="grid gap-3 lg:grid-cols-4">
           {OUV_ZONAS.map((zona) => (
-            <div key={zona} className={`${cardClass} min-h-64 p-3`}>
+            <div key={zona} className={`${cardClass} min-h-64 min-w-0 p-3`}>
               <h2 className="mb-3 text-sm font-bold text-ink">
                 {OUV_ZONA_LABEL[zona]}
               </h2>
@@ -603,17 +611,22 @@ function OuvsTray({ bandeja }: { bandeja: OuvBandejaKey }) {
               ) : (
                 <ul className="space-y-2">
                   {kanban[zona].map((ouv) => (
-                    <li key={ouv.ouv_id}>
+                    <li key={ouv.ouv_id} className="min-w-0">
                       <Link
                         to={`/opportunities/${ouv.ouv_id}`}
-                        className="block rounded border border-border bg-bg p-2 hover:border-accent"
+                        className="block min-w-0 rounded border border-border bg-bg p-2 hover:border-accent"
                       >
                         <p className="text-xs font-bold text-accent">
                           {ouv.consecutivo}
                         </p>
-                        <p className="text-sm text-ink">{ouv.titulo}</p>
-                        <p className="text-xs text-muted">
-                          {ouv.empresa_nombre}
+                        <p className="truncate text-sm text-ink">{ouv.titulo}</p>
+                        <p className="flex min-w-0 items-center gap-1 text-xs text-muted">
+                          <span className="min-w-0 flex-1 truncate">
+                            {ouv.empresa_nombre}
+                          </span>
+                          {ouv.account_is_high_value ? (
+                            <HighValueBadge size="sm" />
+                          ) : null}
                         </p>
                         {bandeja === 'Ganada' && ouv.motivo_snapshot ? (
                           <p className="mt-1 text-xs text-muted">
