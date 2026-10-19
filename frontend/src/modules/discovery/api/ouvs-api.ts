@@ -16,6 +16,7 @@ export type Ouv = {
   comercial_id: string;
   comercial_nombre?: string | null;
   account_id: string | null;
+  account_is_high_value: boolean;
   titulo: string;
   empresa_nombre: string;
   city: string | null;

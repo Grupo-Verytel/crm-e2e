@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Calendar, Users } from 'lucide-react';
+import { HighValueBadge } from '../../../components/HighValueBadge';
 import { DatePickerField } from '../../../components/DatePickerField';
 import { formatDateTime } from '../../../lib/format';
 import type { Ouv } from '../api/ouvs-api';
@@ -288,7 +289,14 @@ export function OuvDetailHeaderCard({
             <div>
               <dt className="text-xs font-bold text-muted">Organización</dt>
               <dd className="mt-0.5 wrap-break-word font-medium text-ink">
-                {ouv.empresa_nombre || '—'}
+                <span className="inline-flex max-w-full items-center gap-1.5">
+                  <span className="min-w-0 break-words">
+                    {ouv.empresa_nombre || '—'}
+                  </span>
+                  {ouv.account_is_high_value ? (
+                    <HighValueBadge size="md" />
+                  ) : null}
+                </span>
               </dd>
             </div>
             <div>
@@ -470,7 +478,14 @@ export function OuvDetailHeaderCard({
             <div key={field.label}>
               <dt className="text-xs font-bold text-muted">{field.label}</dt>
               <dd className="mt-0.5 break-words font-medium text-ink">
-                {field.label === EXPECTED_CLOSE_DATE_LABEL ? (
+                {field.label === 'Organización' ? (
+                  <span className="inline-flex max-w-full items-center gap-1.5">
+                    <span className="min-w-0 break-words">{field.value}</span>
+                    {ouv.account_is_high_value ? (
+                      <HighValueBadge size="md" />
+                    ) : null}
+                  </span>
+                ) : field.label === EXPECTED_CLOSE_DATE_LABEL ? (
                   <ExpectedCloseDateValue value={field.value} />
                 ) : (
                   field.value

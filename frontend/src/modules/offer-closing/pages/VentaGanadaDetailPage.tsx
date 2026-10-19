@@ -68,6 +68,7 @@ function ouvFromVentaRecord(record: VentaGanadaRecord): Ouv {
     source_channel: null,
     comercial_id: '',
     account_id: null,
+    account_is_high_value: false,
     titulo: record.titulo,
     empresa_nombre: record.empresaNombre,
     city: null,

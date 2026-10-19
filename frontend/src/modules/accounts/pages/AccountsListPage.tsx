@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Pencil, Trash2, Users } from 'lucide-react';
+import { HighValueBadge } from '../../../components/HighValueBadge';
 import { AppLayout } from '../../../layout/AppLayout';
 import { Pagination } from '../../../components/Pagination';
 import { useAuth } from '../../auth/hooks/useAuth';
@@ -129,7 +130,12 @@ export function AccountsListPage() {
               <tbody>
                 {items.map((row) => (
                   <tr key={row.account_id} className="border-b border-border">
-                    <td className="px-4 py-3 text-ink">{row.name}</td>
+                    <td className="px-4 py-3 text-ink">
+                      <span className="inline-flex min-w-0 items-center gap-1.5">
+                        <span className="min-w-0 truncate">{row.name}</span>
+                        {row.is_high_value ? <HighValueBadge size="sm" /> : null}
+                      </span>
+                    </td>
                     <td className="px-4 py-3 text-muted">{row.tax_id ?? '—'}</td>
                     <td className="px-4 py-3 text-muted">
                       {row.economic_sector ?? '—'}
