@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import {
+  IsBoolean,
   IsInt,
   IsOptional,
   IsString,
@@ -55,6 +56,10 @@ export class CreateAccountDto {
   @IsString()
   @MaxLength(255)
   website?: string | null;
+
+  @IsOptional()
+  @IsBoolean()
+  is_high_value?: boolean;
 }
 
 export class UpdateAccountDto {
@@ -83,6 +88,10 @@ export class UpdateAccountDto {
   @IsString()
   @MaxLength(255)
   website?: string | null;
+
+  @IsOptional()
+  @IsBoolean()
+  is_high_value?: boolean;
 }
 
 export class AccountResponseDto {
@@ -92,6 +101,7 @@ export class AccountResponseDto {
   economic_sector!: string | null;
   address!: string | null;
   website!: string | null;
+  is_high_value!: boolean;
   created_at!: Date;
   updated_at!: Date;
 }

@@ -1028,7 +1028,49 @@ export class OuvsService {
     );
   }
 
-  toResponse(ouv: Ouv, diasPorZona?: OuvDiasPorZona): OuvResponseDto {
+  /**
+   * One `accounts` lookup for the whole page. A null `account_id`, a missing
+   * row, or a soft-deleted account becomes `account_is_high_value: false`.
+   */
+  async presentPage(ouvs: Ouv[]): Promise<OuvResponseDto[]> {
+    return this.presentMany(ouvs);
+  }
+
+  async present(ouv: Ouv): Promise<OuvResponseDto> {
+    const [dto] = await this.presentMany([ouv]);
+    return dto;
+  }
+
+  private async presentMany(
+    ouvs: Ouv[],
+    diasPorZona?: OuvDiasPorZona,
+  ): Promise<OuvResponseDto[]> {
+    const accountIds = [
+      ...new Set(
+        ouvs
+          .map((ouv) => ouv.accountId)
+          .filter((accountId): accountId is string => Boolean(accountId)),
+      ),
+    ];
+    const flags =
+      accountIds.length === 0
+        ? new Map<string, boolean>()
+        : await this.accountsService.findHighValueByAccountIds(accountIds);
+
+    return ouvs.map((ouv) =>
+      this.toResponse(
+        ouv,
+        diasPorZona,
+        ouv.accountId ? flags.get(ouv.accountId) === true : false,
+      ),
+    );
+  }
+
+  toResponse(
+    ouv: Ouv,
+    diasPorZona?: OuvDiasPorZona,
+    accountIsHighValue = false,
+  ): OuvResponseDto {
     return {
       ouv_id: ouv.ouvId,
       consecutivo: ouv.consecutivo,
@@ -1039,6 +1081,7 @@ export class OuvsService {
       comercial_id: ouv.comercialId,
       comercial_nombre: ouv.comercial?.fullName ?? null,
       account_id: ouv.accountId ?? null,
+      account_is_high_value: accountIsHighValue,
       titulo: ouv.titulo,
       empresa_nombre: ouv.empresaNombre,
       city: ouv.city ?? null,
@@ -1075,7 +1118,9 @@ export class OuvsService {
   }
 
   async toDetailResponse(ouv: Ouv): Promise<OuvResponseDto> {
-    return this.toResponse(ouv, await this.computeDiasPorZona(ouv));
+    const dias = await this.computeDiasPorZona(ouv);
+    const [dto] = await this.presentMany([ouv], dias);
+    return dto;
   }
 
   private async computeDiasPorZona(ouv: Ouv): Promise<OuvDiasPorZona> {

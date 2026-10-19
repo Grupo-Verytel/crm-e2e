@@ -210,6 +210,7 @@ function buildPermissions(roleName) {
 
   if (roleName === 'SoporteComercial' || roleName === 'Admin') {
     rules.push({ action: 'schedule', subject: 'Lead' });
+    rules.push({ action: 'manage_high_value', subject: 'Account' });
   }
 
   return rules;
