@@ -1,7 +1,7 @@
 # AGENTS.md — CRM Frisson / Grupo Verytel
 
 **Versión:** 1.0 — inventario técnico vigente
-**Última verificación contra repo:** 2026-10-18 (cuenta de alto valor, pasos 0 a 3)
+**Última verificación contra repo:** 2026-10-20 (Gerente Comercial en OUVs, pasos 0 a 3)
 **Relación con `CONSTITUTION.md`:** este documento contiene el *dato*, la constitución contiene la *regla*. Si un dato aquí cambia (se sube una versión, se agrega una librería aprobada), se actualiza este archivo — no requiere enmienda de constitución salvo que rompa una regla de gobierno.
 
 ---
@@ -46,7 +46,7 @@
 - **Modelo de contactos/cuentas (`specs/decisions/2026-08-DR-unificacion-contactos-cuentas-wave1.md` — supersede a los dos DRs de contactos anteriores, que asumían `organizations`/`people` inexistentes):** tablas nuevas `accounts` (adelanto mínimo de Módulo 12; columna `ouvs.account_id` implementada en discovery v1.4 / GC-13 — ver `2026-08-DR-auto-poblar-ouv-account-id.md`) y `people` (maestro de persona, `account_id` obligatorio). Las tablas existentes `lead_contacts` y `ouv_contactos` **se reestructuran, no se renombran** (siguen en español/mixto por ser preexistentes) para llevar la columna nueva `person_id` (inglés) en vez de datos denormalizados — minimiza cambios sobre código ya escrito, `ouv_influencias.contacto_ouv_id` no requiere cambio. La copia de contactos en creación de OUV Vía 1 (`spec-ouv-funnel.md` EARS-02) queda obsoleta: ahora se reutiliza el mismo `person_id`. **Esta unificación mueve alcance de Wave 2/Módulo 12 a Wave 1** — enmienda explícita registrada en el DR, no es un cambio silencioso.
 - **Nombre real de tabla de contactos de lead:** `lead_contacts` (confirmado contra `spec-demand-generation.md` v2.2 — `spec-ouv-funnel.md` v1.2 la nombra `contactos` por inconsistencia entre specs, pendiente de corregir ahí).
 - **Soft-delete estándar:** columna `deleted_at` + `paranoid: true` en Sequelize, en todas las entidades
-- **Roles vigentes (nombre en código, PascalCase sin espacios — la UI puede mostrar label largo):** `EjecutivoComercial`, `SoporteComercial` (Blueprint V2 lo describe también como "Profesional Soporte Comercial" — **es el mismo rol**, ese es solo el label de UI, no un rol aparte — confirmado 2026-08-10), `ProductManager` (`specs/decisions/2026-08-DR-rol-product-manager.md`, seed en PascalCase sin espacio; UI muestra "Product Manager"), `TraductorDeNegocio` (`specs/decisions/2026-08-DR-rol-traductor-negocio.md`, campo nuevo `leads.business_referrer_id` en inglés, login + lectura limitada) — ninguno de los dos últimos está aún en Blueprint V2 formalmente — **no existe `DirectorComercial`**
+- **Roles vigentes (nombre en código, PascalCase sin espacios — la UI puede mostrar label largo):** `EjecutivoComercial`, `SoporteComercial` (Blueprint V2 lo describe también como "Profesional Soporte Comercial" — **es el mismo rol**, ese es solo el label de UI, no un rol aparte — confirmado 2026-08-10), `ProductManager` (`specs/decisions/2026-08-DR-rol-product-manager.md`, seed en PascalCase sin espacio; UI muestra "Product Manager"), `TraductorDeNegocio` (`specs/decisions/2026-08-DR-rol-traductor-negocio.md`, campo nuevo `leads.business_referrer_id` en inglés, login + lectura limitada) — ninguno de los dos últimos está aún en Blueprint V2 formalmente — **no existe `DirectorComercial`**. `Gerente Comercial` (con espacio) existe en la tabla `roles` y no está en `BASE_ROLES` (`specs/decisions/2026-10-20-gerente-comercial-rol-existente.md`, propuesta de catálogo en `specs/decisions/2026-10-20-propuesta-gerente-comercial-base-roles.md`)
 - **OUVs sin origen lead/SQL:** ~10% de casos (upsell, outbound, licitaciones)
 
 ## 5. Estructura de repo
@@ -124,9 +124,21 @@ Spec: `specs/cuenta-alto-valor/spec.md`. Decisiones: `specs/decisions/2026-10-18
 
 **Dato.** `accounts.is_high_value` es `BOOLEAN NOT NULL DEFAULT false`. No tiene índice y no se hereda: no hay cuenta padre. `OuvResponseDto.account_is_high_value` sale de esa columna. `account_id` nulo, o una cuenta ausente o con `deleted_at`, responden `false`. La lista de OUVs lo resuelve con una sola consulta `WHERE account_id IN (...)` en `AccountsService.findHighValueByAccountIds`. `empresa_nombre` no se usa para inferir la marca.
 
-**Permiso.** Acción CASL `manage_high_value` sobre el sujeto `Account`. La tienen `SoporteComercial` y `Admin`, en `buildPermissions` y en la migración `20261018120100-account-high-value-permission.js`. `EjecutivoComercial` sigue pudiendo crear y editar la cuenta, pero un `true` en el alta o un valor distinto al guardado responde 403 y no persiste ningún campo de ese request. Omitir el campo en la edición no cambia la columna. En el alta, omitirlo o enviar `false` no exige el permiso.
+**Permiso.** Acción CASL `manage_high_value` sobre el sujeto `Account`. La tienen `SoporteComercial` y `Admin`, en `buildPermissions` y en la migración `20261018120100-account-high-value-permission.js`. Desde 2026-10-20 también la tiene la fila `Gerente Comercial`, solo por la migración `20261020120000-gerente-comercial-manage-high-value.js` (no entra a `buildPermissions`). `EjecutivoComercial` sigue pudiendo crear y editar la cuenta, pero un `true` en el alta o un valor distinto al guardado responde 403 y no persiste ningún campo de ese request. Omitir el campo en la edición no cambia la columna. En el alta, omitirlo o enviar `false` no exige el permiso. El tooltip del checkbox dice: «Solo Soporte Comercial, Administrador o Gerente Comercial pueden cambiar esta marca.»
 
 **UI.** `canManageHighValue` (`frontend/src/modules/accounts/lib/can-manage-high-value.ts`) mira `user.permissions` y no nombres de rol. El checkbox vive en `AccountFormModal` (también el alta de empresa desde el lead). `HighValueBadge` es el ícono `Gem` con `text-high-value`: `sm` en la lista de cuentas, la tarjeta kanban y la fila del tablero; `md` en la cabecera del modal y junto a la organización en el detalle de la OUV. Los permisos del cliente se cargan al entrar; después de la migración hay que cerrar sesión y volver a entrar para ver el checkbox habilitado. El backend aplica la regla en el siguiente request.
+
+## 13. Gerente Comercial en OUVs (2026-10-20)
+
+Spec: `specs/gerente-comercial-ouvs/spec.md`. Decisiones: `specs/decisions/2026-10-20-gerente-comercial-rol-existente.md`.
+
+**Nombre.** El rol en `roles.name` es `Gerente Comercial`, con espacio. La constante está en `backend/src/modules/auth/constants/commercial-role-names.js`. No está en `BASE_ROLES` ni en los seeders. Si en un ambiente no existe esa fila, o el nombre es otro, no se crea ni se renombra: se detiene el despliegue.
+
+**Bandeja.** `GET /auth/me` devuelve `ouv_board_default` (`own` solo para este rol, `all` para el resto), `can_create_direct_ouv` y `can_act_as_assigned_commercial` (verdaderos para `EjecutivoComercial` y para este rol). El cliente no compara el nombre del rol. En `/opportunities` el Gerente entra viendo sus OUVs. «Todos» lista todas. «Limpiar» vuelve a las suyas. El CSV usa el filtro aplicado; el de Soporte también.
+
+**Acciones.** Los guards de avance y retroceso de zona, alta directa, cita de SQL, conversión y descarte de SQL aceptan al Gerente solo si es el comercial asignado. Puede leer la bitácora de cualquier OUV. Escribir en la de otro sigue en 403. El tab «OUVs Asignadas» y los dos dashboards no cambian de corte y no arrancan en «mis OUVs».
+
+**Catálogos.** `GET /discovery/ouvs/ejecutivos-comerciales` y `GET /leads/appointment-commercials` listan activos de `EjecutivoComercial` y de `Gerente Comercial`. El duplicado `GET /discovery/ejecutivos-comerciales` no se tocó.
 
 ---
 

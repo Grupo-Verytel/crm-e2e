@@ -1,4 +1,7 @@
-import type { EjecutivoComercialOption } from '../api/catalogos-api';
+import {
+  commercialOptionLabel,
+  type EjecutivoComercialOption,
+} from '../api/catalogos-api';
 import type { DraftFilters } from '../lib/ouv-filters';
 import { OUV_ZONA_LABEL, OUV_ZONAS } from '../lib/ouv-vocab';
 import {
@@ -62,7 +65,7 @@ export function OuvFiltersPanel({
               <option value="">Todos</option>
               {ejecutivos.map((ejecutivo) => (
                 <option key={ejecutivo.user_id} value={ejecutivo.user_id}>
-                  {ejecutivo.full_name}
+                  {commercialOptionLabel(ejecutivo)}
                 </option>
               ))}
             </select>

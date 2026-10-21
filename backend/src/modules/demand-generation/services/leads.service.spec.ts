@@ -89,7 +89,10 @@ describe('LeadsService channel flows', () => {
         create: mqlCreate,
       },
       userModel: { findByPk: jest.fn().mockResolvedValue({ userId: 'user-1' }) },
-      usersService: { isActiveWithRole: jest.fn().mockResolvedValue(true) },
+      usersService: {
+        isActiveWithRole: jest.fn().mockResolvedValue(true),
+        isActiveWithAnyRole: jest.fn().mockResolvedValue(true),
+      },
       accountsService: {
         getPeopleWithAccounts: jest.fn().mockResolvedValue(
           new Map([

@@ -1,4 +1,5 @@
 import { ForbiddenException } from '@nestjs/common';
+import { isGerenteComercialRole } from '../../auth/constants/commercial-roles';
 
 /**
  * Mutaciones de OUV en curso: solo el comercial dueño.
@@ -53,6 +54,7 @@ export function canReadOuv(
   roleName: string,
 ): boolean {
   if (roleName === 'SoporteComercial' || roleName === 'Admin') return true;
+  if (isGerenteComercialRole(roleName)) return true;
   return comercialId === actorUserId;
 }
 

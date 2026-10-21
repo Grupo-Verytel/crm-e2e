@@ -92,7 +92,7 @@ export function SqlDetailPage() {
       if (
         err instanceof ApiError &&
         err.status === 403 &&
-        isRoleName(user?.role_name, 'EjecutivoComercial')
+        user?.can_act_as_assigned_commercial === true
       ) {
         navigate('/qualification/assigned', { replace: true });
         return;
@@ -101,29 +101,27 @@ export function SqlDetailPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [id, navigate, user?.role_name]);
+  }, [id, navigate, user?.can_act_as_assigned_commercial]);
 
   useEffect(() => {
     void loadSql();
   }, [loadSql]);
 
   const back = backLink(searchParams.get('from'), user?.role_name);
-  const canConvert =
-    user?.role_name === 'EjecutivoComercial' &&
-    sql?.estado === 'Asignado' &&
-    sql.comercial_asignado_id === user.user_id;
+  const isAssignedCommercial =
+    user?.can_act_as_assigned_commercial === true &&
+    sql?.comercial_asignado_id === user.user_id;
+  const canConvert = isAssignedCommercial && sql?.estado === 'Asignado';
   const canManageCita =
     sql != null &&
     sql.estado === 'Asignado' &&
     (isRoleName(user?.role_name, 'SoporteComercial', 'Admin') ||
-      (isRoleName(user?.role_name, 'EjecutivoComercial') &&
-        sql.comercial_asignado_id === user?.user_id));
+      isAssignedCommercial);
   const canRegister =
     sql != null &&
     REGISTRABLE_ESTADOS.has(sql.estado) &&
     (isRoleName(user?.role_name, 'SoporteComercial', 'Admin') ||
-      (isRoleName(user?.role_name, 'EjecutivoComercial') &&
-        sql.comercial_asignado_id === user?.user_id));
+      isAssignedCommercial);
   const canCloseCita =
     canManageCita && sql.cita != null && isOpenSqlCitaEstado(sql.cita.estado);
   const canScheduleNewCita =

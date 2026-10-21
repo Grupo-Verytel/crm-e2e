@@ -96,8 +96,8 @@ export function AssignedSqlsPage() {
       return 'none';
     }
     const isOwner =
-      isRoleName(user?.role_name, 'EjecutivoComercial') &&
-      sql.comercial_asignado_id === user?.user_id;
+      user?.can_act_as_assigned_commercial === true &&
+      sql.comercial_asignado_id === user.user_id;
     const isSoporte = isRoleName(user?.role_name, 'SoporteComercial');
     if (!isSoporte && !isOwner) {
       return 'none';

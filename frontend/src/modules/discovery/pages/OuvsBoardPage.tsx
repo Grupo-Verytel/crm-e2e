@@ -14,6 +14,7 @@ import { ApiError } from '../../auth/types';
 import { isRoleName } from '../../../lib/roles';
 import { useAuth } from '../../auth/hooks/useAuth';
 import {
+  commercialOptionLabel,
   fetchEjecutivosComerciales,
   type EjecutivoComercialOption,
 } from '../api/catalogos-api';
@@ -63,6 +64,16 @@ function formatLostAmount(ouv: Ouv): string {
   return formatAmountEsCo(ouv.monto_estimado_perdido);
 }
 
+function boardFiltersFor(user: {
+  ouv_board_default?: 'own' | 'all';
+  user_id: string;
+} | null): DraftFilters {
+  if (user?.ouv_board_default === 'own') {
+    return { ...EMPTY_OUV_FILTERS, comercial_id: user.user_id };
+  }
+  return EMPTY_OUV_FILTERS;
+}
+
 export function OuvsBoardPage() {
   const { pathname } = useLocation();
   const bandeja = bandejaFromPath(pathname);
@@ -73,7 +84,7 @@ function OuvsTray({ bandeja }: { bandeja: OuvBandejaKey }) {
   const { user } = useAuth();
   const { query, setDraft: setSearch } = useModuleSearch();
   const navigate = useNavigate();
-  const isEjecutivo = isRoleName(user?.role_name, 'EjecutivoComercial');
+  const canCreateDirectOuv = user?.can_create_direct_ouv === true;
   const isSoporte = isRoleName(user?.role_name, 'SoporteComercial', 'Admin');
   const canListAll = canReadAllOuvs(user?.role_name);
   const isClosedTray = bandeja !== 'EnCurso';
@@ -81,8 +92,10 @@ function OuvsTray({ bandeja }: { bandeja: OuvBandejaKey }) {
 
   const [view, setView] = useState<ViewMode>(isClosedTray ? 'lista' : 'kanban');
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [draft, setDraft] = useState<DraftFilters>(EMPTY_OUV_FILTERS);
-  const [applied, setApplied] = useState<DraftFilters>(EMPTY_OUV_FILTERS);
+  const [draft, setDraft] = useState<DraftFilters>(() => boardFiltersFor(user));
+  const [applied, setApplied] = useState<DraftFilters>(() =>
+    boardFiltersFor(user),
+  );
   const [page, setPage] = useState(1);
   const [lastQuery, setLastQuery] = useState(query);
   if (query !== lastQuery) {
@@ -236,8 +249,9 @@ function OuvsTray({ bandeja }: { bandeja: OuvBandejaKey }) {
   }
 
   function handleClearFilters() {
-    setDraft(EMPTY_OUV_FILTERS);
-    setApplied(EMPTY_OUV_FILTERS);
+    const next = boardFiltersFor(user);
+    setDraft(next);
+    setApplied(next);
     setPage(1);
   }
 
@@ -246,7 +260,7 @@ function OuvsTray({ bandeja }: { bandeja: OuvBandejaKey }) {
     setIsExporting(true);
     setError(null);
     try {
-      const ouvs = await fetchAllOuvsForExport(canListAll);
+      const ouvs = await fetchAllOuvsForExport(queryBase());
       downloadOuvsCsv(
         ouvs,
         user ? { user_id: user.user_id, full_name: user.full_name } : null,
@@ -260,7 +274,7 @@ function OuvsTray({ bandeja }: { bandeja: OuvBandejaKey }) {
     } finally {
       setIsExporting(false);
     }
-  }, [canListAll, isExporting, user]);
+  }, [isExporting, queryBase, user]);
 
   const toolbarIconClass = (active: boolean) =>
     [
@@ -273,11 +287,21 @@ function OuvsTray({ bandeja }: { bandeja: OuvBandejaKey }) {
     : hasActiveFilters
       ? ui.emptyFiltered
       : ui.empty;
-  const listHint = !canListAll
-    ? ''
-    : isSoporte
-      ? ui.soporteHint
-      : 'Ves todas las OUVs de esta bandeja. El avance y el cierre corresponden al Ejecutivo Comercial dueño.';
+  const selectedCommercial = ejecutivos.find(
+    (ejecutivo) => ejecutivo.user_id === applied.comercial_id,
+  );
+  const listHint =
+    user?.ouv_board_default === 'own'
+      ? !applied.comercial_id
+        ? 'Estás viendo todas las OUVs.'
+        : applied.comercial_id === user.user_id
+          ? 'Estás viendo tus OUVs. Usa el filtro de comercial para ver las de tu equipo.'
+          : `Estás viendo las OUVs de ${selectedCommercial?.full_name ?? 'otro comercial'}.`
+      : !canListAll
+        ? ''
+        : isSoporte
+          ? ui.soporteHint
+          : 'Ves todas las OUVs de esta bandeja. El avance y el cierre corresponden al Ejecutivo Comercial dueño.';
 
   return (
     <AppLayout title="Oportunidades (OUV)">
@@ -339,7 +363,7 @@ function OuvsTray({ bandeja }: { bandeja: OuvBandejaKey }) {
           >
             <Download size={18} strokeWidth={2} />
           </button>
-          {isEjecutivo && bandeja === 'EnCurso' ? (
+          {canCreateDirectOuv && bandeja === 'EnCurso' ? (
             <button
               type="button"
               className={toolbarIconClass(false)}
@@ -378,7 +402,7 @@ function OuvsTray({ bandeja }: { bandeja: OuvBandejaKey }) {
                   <option value="">Todos</option>
                   {ejecutivos.map((ejecutivo) => (
                     <option key={ejecutivo.user_id} value={ejecutivo.user_id}>
-                      {ejecutivo.full_name}
+                      {commercialOptionLabel(ejecutivo)}
                     </option>
                   ))}
                 </select>

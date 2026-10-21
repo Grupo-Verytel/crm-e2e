@@ -42,7 +42,7 @@ function isSameNit(a: string, b: string | null | undefined): boolean {
 }
 
 const HIGH_VALUE_LOCKED =
-  'Solo Soporte Comercial o Administrador pueden cambiar esta marca.';
+  'Solo Soporte Comercial, Administrador o Gerente Comercial pueden cambiar esta marca.';
 
 const HIGH_VALUE_FORBIDDEN =
   'No tienes permiso para cambiar la marca de alto valor.';

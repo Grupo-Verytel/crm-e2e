@@ -19,6 +19,9 @@ export type MeResponse = {
   is_active: boolean;
   last_login_at: string | null;
   permissions: CaslPermissionRule[];
+  ouv_board_default?: 'own' | 'all';
+  can_create_direct_ouv?: boolean;
+  can_act_as_assigned_commercial?: boolean;
 };
 
 export type LoginCredentials = {

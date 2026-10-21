@@ -1,5 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
+import { ASSIGNABLE_COMMERCIAL_ROLE_NAMES } from '../../auth/constants/commercial-roles';
 import { UsersService } from '../../auth/services/users.service';
 import { DEMAND_GENERATION_ROLES } from '../constants/demand-generation.constants';
 import { ApproveMqlDto } from '../dtos/approve-mql.dto';
@@ -157,8 +158,9 @@ export class DemandGenerationService {
   }
 
   async listAppointmentCommercials(): Promise<CommercialOptionDto[]> {
-    const users =
-      await this.usersService.findActiveByRoleName('EjecutivoComercial');
+    const users = await this.usersService.findActiveByRoleNames(
+      ASSIGNABLE_COMMERCIAL_ROLE_NAMES,
+    );
 
     return users.map((user) => ({
       user_id: user.user_id,

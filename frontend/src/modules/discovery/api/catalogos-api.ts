@@ -4,7 +4,20 @@ import type { OuvZona } from '../lib/ouv-vocab';
 export type EjecutivoComercialOption = {
   user_id: string;
   full_name: string;
+  role_name?: string;
 };
+
+const GERENTE_COMERCIAL_ROLE_NAME = 'Gerente Comercial';
+
+export function commercialOptionLabel(option: {
+  full_name: string;
+  role_name?: string;
+}): string {
+  if (option.role_name === GERENTE_COMERCIAL_ROLE_NAME) {
+    return `${option.full_name} (Gerente Comercial)`;
+  }
+  return option.full_name;
+}
 
 export type MotivoCatalogo = {
   motivo_id: string;
