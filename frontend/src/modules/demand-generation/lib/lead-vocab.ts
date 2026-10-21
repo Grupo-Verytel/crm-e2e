@@ -62,6 +62,7 @@ export const SEGMENTO_DOT: Record<Segmento, string> = {
   'Defensa y seguridad': 'bg-blue-500',
   'Ciudades y gobernaciones': 'bg-sky',
   Industria: 'bg-muted',
+  Otros: 'bg-ink',
 };
 
 export function segmentoDot(segmento: string): string {

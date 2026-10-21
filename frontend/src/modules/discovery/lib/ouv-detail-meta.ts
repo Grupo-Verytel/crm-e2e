@@ -12,6 +12,7 @@ export const SEGMENTO_LABEL: Record<string, string> = {
   'Gobierno central': 'Gobierno central',
   'Defensa y seguridad': 'Defensa y seguridad',
   Industria: 'Industria',
+  Otros: 'Otros',
   Gobierno: 'Gobierno central',
   'D&S': 'Defensa y seguridad',
   ProyectosEspeciales: 'Ciudades y gobernaciones',
