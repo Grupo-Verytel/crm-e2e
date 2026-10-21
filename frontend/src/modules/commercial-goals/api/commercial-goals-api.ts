@@ -16,6 +16,23 @@ export async function fetchCommercialGoals(
   );
 }
 
+/** All rows for a quarter, walking the existing paginated list. */
+export async function fetchAllCommercialGoals(
+  query: Omit<GoalListQuery, 'page' | 'limit'>,
+): Promise<CommercialGoal[]> {
+  const items: CommercialGoal[] = [];
+  let page = 1;
+  let total = Number.POSITIVE_INFINITY;
+  while (items.length < total && page <= 50) {
+    const list = await fetchCommercialGoals({ ...query, page, limit: 100 });
+    items.push(...list.items);
+    total = list.total;
+    if (list.items.length === 0) break;
+    page += 1;
+  }
+  return items;
+}
+
 export async function fetchCommercialGoalSummary(query: {
   fiscal_year: number;
   user_id?: string;

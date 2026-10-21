@@ -15,12 +15,18 @@ import {
 import {
   createCommercialGoal,
   deleteCommercialGoal,
+  fetchAllCommercialGoals,
   fetchCommercialGoal,
   fetchCommercialGoals,
   fetchCommercialGoalSummary,
   updateCommercialGoal,
 } from '../api/commercial-goals-api';
 import { CommercialGoalFormModal, type GoalDraft, type SegmentOption } from '../components/CommercialGoalFormModal';
+import {
+  QuarterGoalGrid,
+  type GoalGridRow,
+  type GoalGridSegment,
+} from '../components/QuarterGoalGrid';
 import { QuarterSummaryCards, type QuarterCardModel } from '../components/QuarterSummaryCards';
 import { CommercialGoalsTable } from '../components/CommercialGoalsTable';
 import {
@@ -30,6 +36,7 @@ import {
   primaryButtonClass,
 } from '../components/ui';
 import { formatCopDisplay, formatCopIntegerInput, parseCopInteger } from '../lib/cop-amount';
+import { goalCellKey } from '../lib/goal-cell';
 import { hasCommercialGoalPermission } from '../lib/can-read-commercial-goals';
 import {
   formatVerytelQuarterRange,
@@ -42,6 +49,7 @@ import type { CommercialGoal, CommercialGoalSummary } from '../types';
 
 const PAGE_LIMIT = 20;
 const QUARTERS: VerytelQuarter[] = [1, 2, 3, 4];
+const MANAGER_ROLE = 'Gerente Comercial';
 
 type GoalFilters = {
   userId: string;
@@ -107,7 +115,15 @@ export function CommercialGoalsPage() {
   const [toast, setToast] = useState<string | null>(null);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [matrixValues, setMatrixValues] = useState<Record<string, string>>({});
+  const [matrixBase, setMatrixBase] = useState<Record<string, string>>({});
+  const [matrixIds, setMatrixIds] = useState<Record<string, string>>({});
+  const [matrixGoals, setMatrixGoals] = useState<CommercialGoal[]>([]);
+  const [matrixLoading, setMatrixLoading] = useState(false);
+  const [matrixSaving, setMatrixSaving] = useState(false);
+  const [matrixError, setMatrixError] = useState<string | null>(null);
   const toastTimer = useRef<number | null>(null);
+  const matrixErrorHold = useRef<string | null>(null);
 
   const showToast = useCallback((message: string) => {
     if (toastTimer.current) window.clearTimeout(toastTimer.current);
@@ -188,6 +204,253 @@ export function CommercialGoalsPage() {
       window.clearTimeout(handle);
     };
   }, [allowed, load, reloadKey]);
+
+  const matrixQuarter = isQuarter(Number(applied.quarter))
+    ? (Number(applied.quarter) as VerytelQuarter)
+    : null;
+  const canWriteMatrix = canCreate || canUpdate;
+
+  const loadMatrix = useCallback(
+    async (isCancelled: () => boolean) => {
+      if (matrixQuarter == null) return;
+      setMatrixLoading(true);
+      try {
+        const goals = await fetchAllCommercialGoals({
+          fiscal_year: year,
+          quarter: matrixQuarter,
+          ...(applied.userId ? { user_id: applied.userId } : {}),
+          ...(applied.segmentId ? { segment_id: applied.segmentId } : {}),
+        });
+        if (isCancelled()) return;
+        const values: Record<string, string> = {};
+        const ids: Record<string, string> = {};
+        for (const goal of goals) {
+          const key = goalCellKey(goal.user_id, goal.segment_id);
+          values[key] = formatCopIntegerInput(goal.amount_cop);
+          ids[key] = goal.commercial_goal_id;
+        }
+        setMatrixGoals(goals);
+        setMatrixValues(values);
+        setMatrixBase(values);
+        setMatrixIds(ids);
+        setMatrixError(matrixErrorHold.current);
+        matrixErrorHold.current = null;
+      } catch (caught) {
+        if (isCancelled()) return;
+        setMatrixGoals([]);
+        setMatrixValues({});
+        setMatrixBase({});
+        setMatrixIds({});
+        setMatrixError(matrixErrorHold.current ?? messageOf(caught));
+        matrixErrorHold.current = null;
+      } finally {
+        if (!isCancelled()) setMatrixLoading(false);
+      }
+    },
+    [applied.segmentId, applied.userId, matrixQuarter, year],
+  );
+
+  useEffect(() => {
+    if (!allowed || matrixQuarter == null || !canWriteMatrix) return;
+    let cancelled = false;
+    const handle = window.setTimeout(() => {
+      if (!cancelled) void loadMatrix(() => cancelled);
+    }, 0);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(handle);
+    };
+  }, [allowed, canWriteMatrix, loadMatrix, matrixQuarter, reloadKey]);
+
+  const matrixRows = useMemo(() => {
+    const byId = new Map<string, GoalGridRow>();
+    for (const commercial of commercials) {
+      if (applied.userId && commercial.user_id !== applied.userId) continue;
+      byId.set(commercial.user_id, {
+        userId: commercial.user_id,
+        label: commercial.full_name,
+        isManager: commercial.role_name === MANAGER_ROLE,
+      });
+    }
+    for (const goal of matrixGoals) {
+      if (byId.has(goal.user_id)) continue;
+      byId.set(goal.user_id, {
+        userId: goal.user_id,
+        label: goal.commercial_full_name,
+        isManager: goal.commercial_role_name === MANAGER_ROLE,
+      });
+    }
+    return [...byId.values()].sort((left, right) =>
+      left.label.localeCompare(right.label, 'es'),
+    );
+  }, [applied.userId, commercials, matrixGoals]);
+
+  const matrixSegments = useMemo(() => {
+    const byId = new Map<string, GoalGridSegment>();
+    for (const segment of segments) {
+      if (applied.segmentId && segment.id !== applied.segmentId) continue;
+      byId.set(segment.id, segment);
+    }
+    for (const goal of matrixGoals) {
+      if (byId.has(goal.segment_id)) continue;
+      byId.set(goal.segment_id, {
+        id: goal.segment_id,
+        name: goal.segment_name,
+      });
+    }
+    return [...byId.values()].sort((left, right) =>
+      left.name.localeCompare(right.name, 'es'),
+    );
+  }, [applied.segmentId, matrixGoals, segments]);
+
+  function onMatrixChange(userId: string, segmentId: string, formatted: string) {
+    setMatrixValues((current) => ({
+      ...current,
+      [goalCellKey(userId, segmentId)]: formatted,
+    }));
+  }
+
+  function onFillEmpty(formatted: string) {
+    if (parseCopInteger(formatted) === null) return;
+    setMatrixValues((current) => {
+      const next = { ...current };
+      for (const row of matrixRows) {
+        for (const segment of matrixSegments) {
+          const key = goalCellKey(row.userId, segment.id);
+          if (next[key]) continue;
+          next[key] = formatted;
+        }
+      }
+      return next;
+    });
+  }
+
+  function onCopyRow(userId: string) {
+    setMatrixValues((current) => {
+      const next = { ...current };
+      let source = '';
+      for (const segment of matrixSegments) {
+        const value = next[goalCellKey(userId, segment.id)] ?? '';
+        if (value) {
+          source = value;
+          break;
+        }
+      }
+      if (!source) return current;
+      for (const segment of matrixSegments) {
+        const key = goalCellKey(userId, segment.id);
+        if (next[key]) continue;
+        next[key] = source;
+      }
+      return next;
+    });
+  }
+
+  async function onSaveMatrix() {
+    if (matrixQuarter == null) return;
+    const keys = new Set([
+      ...Object.keys(matrixBase),
+      ...Object.keys(matrixValues),
+    ]);
+    type MatrixOp =
+      | { kind: 'create'; userId: string; segmentId: string; amount: number }
+      | { kind: 'update'; goalId: string; amount: number }
+      | { kind: 'delete'; goalId: string };
+    const ops: MatrixOp[] = [];
+    for (const key of keys) {
+      const next = matrixValues[key] ?? '';
+      const previous = matrixBase[key] ?? '';
+      if (next === previous) continue;
+      const separator = key.indexOf(':');
+      const userId = key.slice(0, separator);
+      const segmentId = key.slice(separator + 1);
+      if (!next) {
+        const goalId = matrixIds[key];
+        if (goalId) ops.push({ kind: 'delete', goalId });
+        continue;
+      }
+      const amount = parseCopInteger(next);
+      if (amount === null) {
+        setMatrixError('Hay un valor que no es un entero mayor que 0.');
+        return;
+      }
+      const goalId = matrixIds[key];
+      if (goalId) {
+        if (!canUpdate) continue;
+        ops.push({ kind: 'update', goalId, amount });
+      } else if (canCreate) {
+        ops.push({ kind: 'create', userId, segmentId, amount });
+      }
+    }
+    if (ops.length === 0) return;
+    const deletes = ops.filter((op) => op.kind === 'delete');
+    if (deletes.length > 0 && !canDelete) {
+      setMatrixError('No tienes permiso para dejar vacía una meta que ya existe.');
+      return;
+    }
+    if (deletes.length > 0) {
+      const label =
+        deletes.length === 1
+          ? '1 meta que quedó vacía'
+          : `${deletes.length} metas que quedaron vacías`;
+      const confirmed = window.confirm(
+        `¿Eliminar ${label}? Esta acción queda registrada en la auditoría.`,
+      );
+      if (!confirmed) return;
+    }
+    setMatrixSaving(true);
+    setMatrixError(null);
+    const failures: string[] = [];
+    const run = async (op: MatrixOp) => {
+      if (op.kind === 'delete') {
+        await deleteCommercialGoal(op.goalId);
+        return;
+      }
+      if (op.kind === 'update') {
+        await updateCommercialGoal(op.goalId, { amount_cop: op.amount });
+        return;
+      }
+      try {
+        await createCommercialGoal({
+          user_id: op.userId,
+          fiscal_year: year,
+          quarter: matrixQuarter,
+          segment_id: op.segmentId,
+          amount_cop: op.amount,
+        });
+      } catch (caught) {
+        if (
+          caught instanceof ApiError &&
+          caught.status === 409 &&
+          caught.existingGoalId
+        ) {
+          await updateCommercialGoal(caught.existingGoalId, {
+            amount_cop: op.amount,
+          });
+          return;
+        }
+        throw caught;
+      }
+    };
+    for (let index = 0; index < ops.length; index += 6) {
+      const chunk = ops.slice(index, index + 6);
+      const results = await Promise.allSettled(chunk.map((op) => run(op)));
+      for (const result of results) {
+        if (result.status === 'rejected') failures.push(messageOf(result.reason));
+      }
+    }
+    setMatrixSaving(false);
+    if (failures.length > 0) {
+      matrixErrorHold.current =
+        failures.length === 1
+          ? failures[0]
+          : `No se pudieron guardar ${failures.length} celdas. ${failures[0]}`;
+    }
+    setReloadKey((current) => current + 1);
+    if (failures.length === 0) {
+      showToast(ops.length === 1 ? 'Meta guardada' : 'Metas guardadas');
+    }
+  }
 
   const filtersActive = Boolean(
     applied.userId || applied.quarter || applied.segmentId,
@@ -386,6 +649,31 @@ export function CommercialGoalsPage() {
       </div>
 
       <QuarterSummaryCards cards={cards} onToggle={toggleQuarter} />
+
+      {matrixQuarter == null ? (
+        <p className="mt-3 text-sm text-muted">
+          Selecciona un trimestre para ingresar, de una vez, la meta de cada comercial en cada segmento.
+        </p>
+      ) : canWriteMatrix ? (
+        <QuarterGoalGrid
+          title={formatVerytelQuarterTitle(year, matrixQuarter)}
+          rangeLabel={formatVerytelQuarterRange(
+            verytelQuarterRange(year, matrixQuarter),
+          )}
+          rows={matrixRows}
+          segments={matrixSegments}
+          values={matrixValues}
+          originals={matrixBase}
+          loading={matrixLoading}
+          saving={matrixSaving}
+          canWrite
+          error={matrixError}
+          onChange={onMatrixChange}
+          onFillEmpty={onFillEmpty}
+          onCopyRow={onCopyRow}
+          onSave={() => void onSaveMatrix()}
+        />
+      ) : null}
 
       <div className="mt-4 flex flex-wrap items-end gap-3">
         <div className="w-56">
