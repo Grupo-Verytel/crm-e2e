@@ -110,7 +110,7 @@ Tooltip del checkbox (`AccountFormModal.tsx:45`): «Solo Soporte Comercial, Admi
 
 - **REQ-13 (Ubicuo):** El sistema deberá mostrar el botón de crear OUV a quien tenga `can_create_direct_ouv` en `/auth/me`. El cliente no compara nombres de rol.
 
-Criterio de «Limpiar filtros»: sigue vaciando el comercial (`OuvsBoardPage.tsx:238-241`). Vacío significa «Todos» para quien puede listar todas. El default «yo» solo se aplica al entrar.
+Criterio de «Limpiar filtros» (aprobado en el Paso 2): restablece el default del usuario. Para el Gerente vuelve a sus OUVs. Para Soporte y Ejecutivo vacía el comercial, y vacío sigue siendo «Todos» para quien puede listar todas.
 
 ## 6. Comercial asignado (REQ-07, Q4=A)
 
