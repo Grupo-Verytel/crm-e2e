@@ -1,4 +1,4 @@
-import { fetchOuvs, type Ouv } from '../api/ouvs-api';
+import { fetchOuvs, type Ouv, type OuvsQuery } from '../api/ouvs-api';
 import { OUV_ZONA_RIBBON_LABEL, type OuvResultado } from './ouv-vocab';
 
 const EXPORT_PAGE_SIZE = 100;
@@ -98,9 +98,9 @@ export function downloadOuvsCsv(
   URL.revokeObjectURL(url);
 }
 
-/** Pages through the list API so the CSV includes every accessible OUV. */
+/** Pages through the list API using the filters already applied on screen. */
 export async function fetchAllOuvsForExport(
-  canListAll: boolean,
+  filters: Omit<OuvsQuery, 'page' | 'limit'>,
 ): Promise<Ouv[]> {
   const collected: Ouv[] = [];
   let page = 1;
@@ -108,9 +108,9 @@ export async function fetchAllOuvsForExport(
 
   while (collected.length < total) {
     const data = await fetchOuvs({
+      ...filters,
       page,
       limit: EXPORT_PAGE_SIZE,
-      all: canListAll || undefined,
     });
     total = data.total;
     collected.push(...data.items);

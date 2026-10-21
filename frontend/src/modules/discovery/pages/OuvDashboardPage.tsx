@@ -4,6 +4,7 @@ import { AppLayout } from '../../../layout/AppLayout';
 import { ApiError } from '../../auth/types';
 import { useAuth } from '../../auth/hooks/useAuth';
 import {
+  commercialOptionLabel,
   fetchEjecutivosComerciales,
   type EjecutivoComercialOption,
 } from '../api/catalogos-api';
@@ -199,7 +200,7 @@ export function OuvDashboardPage() {
                 <option value="">Todos</option>
                 {ejecutivos.map((ejecutivo) => (
                   <option key={ejecutivo.user_id} value={ejecutivo.user_id}>
-                    {ejecutivo.full_name}
+                    {commercialOptionLabel(ejecutivo)}
                   </option>
                 ))}
               </select>

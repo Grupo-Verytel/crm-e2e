@@ -527,7 +527,9 @@ export function OuvDetailPage() {
   }
 
   const editable =
-    ouv.resultado === 'EnCurso' && user?.user_id === ouv.comercial_id;
+    ouv.resultado === 'EnCurso' &&
+    user?.can_act_as_assigned_commercial === true &&
+    user.user_id === ouv.comercial_id;
   // Mismo guard CASL que `POST solicitudes-preventa`: sin `update Opportunity`
   // (Preventa y otros roles de seguimiento) el panel queda en solo lectura.
   const canSolicitarPreventa = Boolean(

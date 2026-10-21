@@ -22,4 +22,9 @@ export class MeResponseDto {
   ouv_board_default: 'own' | 'all';
   /** EjecutivoComercial and Gerente Comercial may open a direct OUV they will own. */
   can_create_direct_ouv: boolean;
+  /**
+   * True for an active EjecutivoComercial or Gerente Comercial.
+   * Actions on one OUV or SQL also require that user to be the assignee.
+   */
+  can_act_as_assigned_commercial: boolean;
 }

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { reminderErrorMessage } from '../../../components/reminders/reminder-errors';
+import { useAuth } from '../../auth/hooks/useAuth';
 import type { Ouv } from '../api/ouvs-api';
 import {
   crearOuvInteraccion,
@@ -261,6 +262,10 @@ export function InteraccionesPreventaPanel({
   ouv,
   onRemindersChanged,
 }: Props) {
+  const { user } = useAuth();
+  const canWrite =
+    user?.can_act_as_assigned_commercial !== true ||
+    user.user_id === ouv.comercial_id;
   const [items, setItems] = useState<InteraccionRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -334,13 +339,15 @@ export function InteraccionesPreventaPanel({
             operativo).
           </p>
         </div>
-        <button
-          type="button"
-          className={ghostButtonClass}
-          onClick={() => setModal({ kind: 'nueva' })}
-        >
-          Registrar interacción
-        </button>
+        {canWrite ? (
+          <button
+            type="button"
+            className={ghostButtonClass}
+            onClick={() => setModal({ kind: 'nueva' })}
+          >
+            Registrar interacción
+          </button>
+        ) : null}
       </div>
 
       {loadError ? (
@@ -388,27 +395,31 @@ export function InteraccionesPreventaPanel({
                   ) : (
                     <p className="mt-2 text-sm text-muted">Sin observaciones</p>
                   )}
+                  {canWrite ? (
+                    <button
+                      type="button"
+                      className="mt-2 text-sm font-bold text-accent hover:underline"
+                      onClick={() =>
+                        setModal({
+                          kind: 'hilo',
+                          parentId: item.id,
+                          parentTitulo: item.titulo,
+                        })
+                      }
+                    >
+                      Responder hilo
+                    </button>
+                  ) : null}
+                </div>
+                {canWrite ? (
                   <button
                     type="button"
-                    className="mt-2 text-sm font-bold text-accent hover:underline"
-                    onClick={() =>
-                      setModal({
-                        kind: 'hilo',
-                        parentId: item.id,
-                        parentTitulo: item.titulo,
-                      })
-                    }
+                    className="text-xs text-muted hover:text-danger"
+                    onClick={() => void handleDelete(item.id)}
                   >
-                    Responder hilo
+                    Eliminar
                   </button>
-                </div>
-                <button
-                  type="button"
-                  className="text-xs text-muted hover:text-danger"
-                  onClick={() => void handleDelete(item.id)}
-                >
-                  Eliminar
-                </button>
+                ) : null}
               </div>
               {item.hilos.length > 0 ? (
                 <ul className="mt-3 space-y-2 border-t border-border pt-3">
@@ -434,13 +445,17 @@ export function InteraccionesPreventaPanel({
                             </p>
                           ) : null}
                         </div>
-                        <button
-                          type="button"
-                          className="text-xs text-muted hover:text-danger"
-                          onClick={() => void handleDeleteHilo(item.id, hilo.id)}
-                        >
-                          Eliminar
-                        </button>
+                        {canWrite ? (
+                          <button
+                            type="button"
+                            className="text-xs text-muted hover:text-danger"
+                            onClick={() =>
+                              void handleDeleteHilo(item.id, hilo.id)
+                            }
+                          >
+                            Eliminar
+                          </button>
+                        ) : null}
                       </div>
                     </li>
                   ))}

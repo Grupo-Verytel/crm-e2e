@@ -5,6 +5,7 @@ import { UsersService } from '../services/users.service';
 import {
   ASSIGNABLE_COMMERCIAL_ROLE_NAMES,
   GERENTE_COMERCIAL_ROLE_NAME,
+  canActAsAssignedCommercial,
   canCreateDirectOuv,
   ouvBoardDefault,
 } from './commercial-roles';
@@ -33,6 +34,13 @@ describe('commercial role helpers', () => {
     expect(canCreateDirectOuv('SoporteComercial')).toBe(false);
     expect(canCreateDirectOuv('Admin')).toBe(false);
   });
+
+  it('can_act_as_assigned_commercial matches the same two roles', () => {
+    expect(canActAsAssignedCommercial(GERENTE_COMERCIAL_ROLE_NAME)).toBe(true);
+    expect(canActAsAssignedCommercial('EjecutivoComercial')).toBe(true);
+    expect(canActAsAssignedCommercial('SoporteComercial')).toBe(false);
+    expect(canActAsAssignedCommercial('Admin')).toBe(false);
+  });
 });
 
 describe('GET /auth/me commercial fields', () => {
@@ -60,12 +68,14 @@ describe('GET /auth/me commercial fields', () => {
     const me = await serviceFor(GERENTE_COMERCIAL_ROLE_NAME).getMe('user-1');
     expect(me.ouv_board_default).toBe('own');
     expect(me.can_create_direct_ouv).toBe(true);
+    expect(me.can_act_as_assigned_commercial).toBe(true);
   });
 
   it('Soporte receives all and cannot create a direct OUV', async () => {
     const me = await serviceFor('SoporteComercial').getMe('user-1');
     expect(me.ouv_board_default).toBe('all');
     expect(me.can_create_direct_ouv).toBe(false);
+    expect(me.can_act_as_assigned_commercial).toBe(false);
   });
 });
 

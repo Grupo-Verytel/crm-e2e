@@ -484,7 +484,7 @@ export function VentaGanadaDetailPage() {
           (p.subject === 'WonSale' || p.subject === 'all'),
       ),
     ) &&
-    (user?.role_name !== 'EjecutivoComercial' ||
+    (user?.can_act_as_assigned_commercial !== true ||
       headerOuv.comercial_id === user.user_id);
   // Crear UT y aliados: solo SoporteComercial (y Admin) — DR 2026-10.
   const puedeCrear = (subject: string) =>

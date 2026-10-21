@@ -1,5 +1,6 @@
 import { Filter } from 'lucide-react';
 import { useState } from 'react';
+import { commercialOptionLabel } from '../../discovery/api/catalogos-api';
 import type {
   AssignedOuvFilters,
   FollowUpStatus,
@@ -26,6 +27,7 @@ const EMPTY_FILTERS: AssignedOuvFilters = {
 export type CommercialOption = {
   user_id: string;
   full_name: string;
+  role_name?: string;
 };
 
 type Props = {
@@ -115,7 +117,7 @@ export function AssignedCommercialFiltersPanel({
                     <option value="">Todos</option>
                     {commercials.map((commercial) => (
                       <option key={commercial.user_id} value={commercial.user_id}>
-                        {commercial.full_name}
+                        {commercialOptionLabel(commercial)}
                       </option>
                     ))}
                   </select>

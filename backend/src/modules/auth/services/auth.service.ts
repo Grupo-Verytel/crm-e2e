@@ -15,6 +15,7 @@ import {
   LOCKOUT_THRESHOLD,
 } from '../constants/auth.constants';
 import {
+  canActAsAssignedCommercial,
   canCreateDirectOuv,
   ouvBoardDefault,
 } from '../constants/commercial-roles';
@@ -222,6 +223,9 @@ export class AuthService {
       permissions: this.normalizePermissions(user.role.permissions),
       ouv_board_default: ouvBoardDefault(user.role.name),
       can_create_direct_ouv: canCreateDirectOuv(user.role.name),
+      can_act_as_assigned_commercial: canActAsAssignedCommercial(
+        user.role.name,
+      ),
     };
   }
 

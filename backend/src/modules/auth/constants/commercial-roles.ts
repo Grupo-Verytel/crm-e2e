@@ -53,3 +53,10 @@ export function canCreateDirectOuv(
 ): boolean {
   return isAssignableCommercialRole(roleName);
 }
+
+/** Active EjecutivoComercial or Gerente Comercial may act on a record they own. */
+export function canActAsAssignedCommercial(
+  roleName: string | undefined | null,
+): boolean {
+  return isAssignableCommercialRole(roleName);
+}
