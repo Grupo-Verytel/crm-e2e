@@ -51,6 +51,9 @@ const OuvsBoardPage = lazy(
 const OuvDashboardPage = lazy(
   () => import('../modules/discovery/pages/OuvDashboardPageLazy'),
 );
+const CommercialGoalsPage = lazy(
+  () => import('../modules/commercial-goals/pages/CommercialGoalsPageLazy'),
+);
 const OuvDetailPage = lazy(
   () => import('../modules/discovery/pages/OuvDetailPageLazy'),
 );
@@ -132,6 +135,14 @@ export function AppRoutes() {
       element: (
         <ProtectedRoute>
           <OuvDashboardPage />
+        </ProtectedRoute>
+      ),
+    },
+    {
+      path: '/dashboard/metas-comerciales',
+      element: (
+        <ProtectedRoute>
+          <CommercialGoalsPage />
         </ProtectedRoute>
       ),
     },

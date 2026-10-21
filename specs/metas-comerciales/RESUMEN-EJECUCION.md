@@ -5,8 +5,8 @@ Rama: `EP-Feature-MetasComerciales`. Sin push.
 | Paso | Commit | Tests | Estado |
 |---|---|---|---|
 | 0 Inventario y spec | `3f02ce4` `feat(metas-comerciales): paso 0 — inventario y spec` | No aplica | Cerrado |
-| 1 Backend | este commit | 4 suites, 30 tests, build en verde | Cerrado |
-| 2 Frontend | — | — | Pendiente |
+| 1 Backend | `6b259c7` `feat(metas-comerciales): paso 1 — backend` | 4 suites, 30 tests, build en verde | Cerrado |
+| 2 Frontend | este commit | `npm run build` 418 módulos, eslint limpio. Manual pendiente | Cerrado |
 | 3 QA y cierre | — | — | Pendiente |
 
 ## Decisiones autónomas ya tomadas

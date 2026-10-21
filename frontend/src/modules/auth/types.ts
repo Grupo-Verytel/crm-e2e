@@ -93,11 +93,18 @@ export type ApiErrorBody = {
 export class ApiError extends Error {
   readonly status: number;
   readonly code?: string;
+  readonly existingGoalId?: string;
 
-  constructor(status: number, message: string, code?: string) {
+  constructor(
+    status: number,
+    message: string,
+    code?: string,
+    existingGoalId?: string,
+  ) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.code = code;
+    this.existingGoalId = existingGoalId;
   }
 }

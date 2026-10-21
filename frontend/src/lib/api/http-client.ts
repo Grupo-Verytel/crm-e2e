@@ -143,6 +143,7 @@ export async function apiRequest<T>(
   if (!response.ok) {
     let message = response.statusText || 'Request failed';
     let code: string | undefined;
+    let existingGoalId: string | undefined;
 
     try {
       const body = (await response.json()) as ApiErrorBody & {
@@ -150,8 +151,12 @@ export async function apiRequest<T>(
         detalle?: string;
         codigo_error?: string;
         guard?: string;
+        existing_goal_id?: string;
       };
       code = body.codigo_error ?? body.code;
+      if (typeof body.existing_goal_id === 'string') {
+        existingGoalId = body.existing_goal_id;
+      }
       if (typeof body.detail === 'string' && body.detail.trim()) {
         message = body.detail;
       } else if (typeof body.detalle === 'string' && body.detalle.trim()) {
@@ -173,7 +178,7 @@ export async function apiRequest<T>(
       // ignore parse errors
     }
 
-    throw new ApiError(response.status, message, code);
+    throw new ApiError(response.status, message, code, existingGoalId);
   }
 
   if (response.status === 204) {
