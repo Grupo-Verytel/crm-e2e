@@ -104,6 +104,8 @@ export class ActualizarZonaChecklistTemplateDto {
 export class EjecutivoComercialOptionDto {
   user_id!: string;
   full_name!: string;
+  /** Present on `GET /discovery/ouvs/ejecutivos-comerciales`. */
+  role_name?: string;
 }
 
 export class ProcessTypeResponseDto {

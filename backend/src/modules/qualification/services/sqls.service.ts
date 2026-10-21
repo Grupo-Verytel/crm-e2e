@@ -7,6 +7,10 @@ import {
 import { InjectConnection, InjectModel } from '@nestjs/sequelize';
 import { Op, Sequelize, type Transaction, type WhereOptions } from 'sequelize';
 import { User } from '../../auth/models/user.model';
+import {
+  ASSIGNABLE_COMMERCIAL_ROLE_NAMES,
+  isGerenteComercialRole,
+} from '../../auth/constants/commercial-roles';
 import { UsersService } from '../../auth/services/users.service';
 import type { UserResponseDto } from '../../auth/dtos/user-response.dto';
 import { CreateReminderDto } from '../../demand-generation/dtos/create-reminder.dto';
@@ -403,12 +407,15 @@ export class SqlsService {
         transaction,
       );
 
-      if (
-        isQualificationRole(
+      const actorOwnsSql = sql.comercialAsignadoId === actorUserId;
+      const actorMayEmitReschedule =
+        actorOwnsSql &&
+        (isQualificationRole(
           actorRoleName,
           QUALIFICATION_ROLES.EJECUTIVO_COMERCIAL,
-        )
-      ) {
+        ) ||
+          isGerenteComercialRole(actorRoleName));
+      if (actorMayEmitReschedule) {
         await this.workflowEngine.transition(
           EntityType.SQL,
           sql.sqlId,
@@ -422,6 +429,7 @@ export class SqlsService {
             actorUserId,
             payload: {
               sqlId: sql.sqlId,
+              comercial_asignado_id: sql.comercialAsignadoId,
               cita: this.toCitaResponse(cita),
             },
             entity: { estado: sql.estado },
@@ -897,15 +905,18 @@ export class SqlsService {
   private async requireActiveEjecutivo(
     userId: string,
   ): Promise<UserResponseDto> {
-    const commercials = await this.usersService.findActiveByRoleName(
-      QUALIFICATION_ROLES.EJECUTIVO_COMERCIAL,
+    const groups = await Promise.all(
+      ASSIGNABLE_COMMERCIAL_ROLE_NAMES.map((roleName) =>
+        this.usersService.findActiveByRoleName(roleName),
+      ),
     );
+    const commercials = groups.flat();
     const match = commercials.find((u) => u.user_id === userId);
     if (!match) {
       throw new BadRequestException({
         code: QUALIFICATION_ERROR_CODES.USER_NOT_FOUND,
         message:
-          'comercial_asignado_id must reference an active EjecutivoComercial',
+          `comercial_asignado_id must reference an active ${ASSIGNABLE_COMMERCIAL_ROLE_NAMES.join(' or ')}`,
       });
     }
     return match;
@@ -1117,15 +1128,19 @@ export class SqlsService {
       return;
     }
     if (
-      isQualificationRole(actorRoleName, QUALIFICATION_ROLES.EJECUTIVO_COMERCIAL) &&
-      sql.comercialAsignadoId === actorUserId
+      sql.comercialAsignadoId === actorUserId &&
+      (isQualificationRole(
+        actorRoleName,
+        QUALIFICATION_ROLES.EJECUTIVO_COMERCIAL,
+      ) ||
+        isGerenteComercialRole(actorRoleName))
     ) {
       return;
     }
     throw new ForbiddenException({
       code: QUALIFICATION_ERROR_CODES.FORBIDDEN,
       message:
-        'Only SoporteComercial or the assigned Ejecutivo Comercial can schedule the cita',
+        'Only SoporteComercial or the assigned commercial can schedule the cita',
     });
   }
 

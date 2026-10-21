@@ -247,6 +247,35 @@ describe('SqlsService.createCitaForAssignedSql', () => {
     expect(ctx.existingUpdate).not.toHaveBeenCalled();
   });
 
+  it('lets the assigned Gerente Comercial schedule the cita', async () => {
+    const ctx = createService({ existing: null });
+
+    const cita = await ctx.service.createCitaForAssignedSql(
+      SQL_ID,
+      dto,
+      COMERCIAL_ID,
+      'Gerente Comercial',
+    );
+
+    expect(ctx.createMeeting).toHaveBeenCalledTimes(1);
+    expect(cita.graph_event_id).toBe('evt-new');
+  });
+
+  it('rejects a Gerente Comercial who is not the assigned commercial', async () => {
+    const ctx = createService({ existing: null });
+
+    await expect(
+      ctx.service.createCitaForAssignedSql(
+        SQL_ID,
+        dto,
+        'otro-gerente',
+        'Gerente Comercial',
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+
+    expect(ctx.createMeeting).not.toHaveBeenCalled();
+  });
+
   it('rejects an Ejecutivo who is not the assigned commercial', async () => {
     const ctx = createService({ existing: null });
 

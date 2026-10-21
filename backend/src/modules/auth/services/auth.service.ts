@@ -15,6 +15,10 @@ import {
   LOCKOUT_THRESHOLD,
 } from '../constants/auth.constants';
 import {
+  canCreateDirectOuv,
+  ouvBoardDefault,
+} from '../constants/commercial-roles';
+import {
   AuthTokenResponseDto,
   MeResponseDto,
   PermissionRuleDto,
@@ -216,6 +220,8 @@ export class AuthService {
       is_active: user.isActive,
       last_login_at: user.lastLoginAt,
       permissions: this.normalizePermissions(user.role.permissions),
+      ouv_board_default: ouvBoardDefault(user.role.name),
+      can_create_direct_ouv: canCreateDirectOuv(user.role.name),
     };
   }
 

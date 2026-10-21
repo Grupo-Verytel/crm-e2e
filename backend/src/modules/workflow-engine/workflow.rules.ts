@@ -8,6 +8,7 @@ import { guardEntidadEnEstado } from './guards/guard-entidad-en-estado';
 import { guardPresupuestoConfirmado } from './guards/guard-presupuesto-confirmado';
 import { guardUsuarioEsComercialDelOUV } from './guards/guard-usuario-es-comercial-del-ouv';
 import { guardUsuarioEsComercialDelSQL } from './guards/guard-usuario-es-comercial-del-sql';
+import { guardEjecutivoOGerenteAsignado } from './guards/guard-ejecutivo-o-gerente-asignado';
 import { guardUsuarioTieneRol } from './guards/guard-usuario-tiene-rol';
 import type { WorkflowRule } from './types/workflow.types';
 
@@ -75,7 +76,7 @@ export const workflowRules: WorkflowRule[] = [
     eventType: 'sql.cita_reagendada',
     guards: [
       guardEntidadEnEstado(EntityType.SQL, 'Asignado'),
-      guardUsuarioTieneRol('EjecutivoComercial'),
+      guardEjecutivoOGerenteAsignado('comercial_asignado_id'),
     ],
     destinatarios: [
       { tipo: 'rol', resolver: () => 'SoporteComercial' },
@@ -88,7 +89,7 @@ export const workflowRules: WorkflowRule[] = [
     eventType: 'sql.convertido_ouv',
     guards: [
       guardEntidadEnEstado(EntityType.SQL, 'Asignado'),
-      guardUsuarioTieneRol('EjecutivoComercial'),
+      guardEjecutivoOGerenteAsignado('comercial_asignado_id'),
     ],
     destinatarios: [
       { tipo: 'rol', resolver: () => 'SoporteComercial' },
@@ -101,7 +102,7 @@ export const workflowRules: WorkflowRule[] = [
     eventType: 'sql.descartado',
     guards: [
       guardEntidadEnEstado(EntityType.SQL, 'Asignado'),
-      guardUsuarioTieneRol('EjecutivoComercial'),
+      guardEjecutivoOGerenteAsignado('comercial_asignado_id'),
     ],
     destinatarios: [
       { tipo: 'rol', resolver: () => 'DirectorMercadeo' },
@@ -130,7 +131,7 @@ export const workflowRules: WorkflowRule[] = [
   },
   {
     eventType: 'ouv.creada_directa',
-    guards: [guardUsuarioTieneRol('EjecutivoComercial')],
+    guards: [guardEjecutivoOGerenteAsignado('comercial_id')],
     destinatarios: [
       { tipo: 'rol', resolver: () => 'SoporteComercial' },
     ],
@@ -142,7 +143,7 @@ export const workflowRules: WorkflowRule[] = [
     eventType: 'ouv.avance_zona',
     guards: [
       guardUsuarioEsComercialDelOUV,
-      guardUsuarioTieneRol('EjecutivoComercial'),
+      guardEjecutivoOGerenteAsignado('comercial_id'),
       guardPresupuestoConfirmado,
       guard2InfluenciasEnVerde,
     ],
@@ -157,7 +158,7 @@ export const workflowRules: WorkflowRule[] = [
     eventType: 'ouv.retroceso_zona',
     guards: [
       guardUsuarioEsComercialDelOUV,
-      guardUsuarioTieneRol('EjecutivoComercial'),
+      guardEjecutivoOGerenteAsignado('comercial_id'),
     ],
     destinatarios: [
       { tipo: 'rol', resolver: () => 'SoporteComercial' },

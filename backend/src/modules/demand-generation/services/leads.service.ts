@@ -16,6 +16,7 @@ import {
 } from 'sequelize';
 import { AccountsService } from '../../accounts/services/accounts.service';
 import { User } from '../../auth/models/user.model';
+import { ASSIGNABLE_COMMERCIAL_ROLE_NAMES } from '../../auth/constants/commercial-roles';
 import { UsersService } from '../../auth/services/users.service';
 import { EntityType } from '../../workflow-engine/enums/entity-type.enum';
 import { StatusHistoryTrigger } from '../../workflow-engine/lib/status-history-trigger';
@@ -620,16 +621,15 @@ export class LeadsService {
     }
 
     await this.ensureUserExists(dto.comercial_asignado_id);
-    const isEligibleCommercial = await this.usersService.isActiveWithRole(
+    const isEligibleCommercial = await this.usersService.isActiveWithAnyRole(
       dto.comercial_asignado_id,
-      DEMAND_GENERATION_ROLES.EJECUTIVO_COMERCIAL,
+      ASSIGNABLE_COMMERCIAL_ROLE_NAMES,
     );
 
     if (!isEligibleCommercial) {
       throw new BadRequestException({
         code: DEMAND_GENERATION_ERROR_CODES.VALIDATION_ERROR,
-        message:
-          'comercial_asignado_id must reference an active EjecutivoComercial',
+        message: `comercial_asignado_id must reference an active ${ASSIGNABLE_COMMERCIAL_ROLE_NAMES.join(' or ')}`,
       });
     }
 

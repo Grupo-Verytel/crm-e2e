@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
-import { UniqueConstraintError } from 'sequelize';
+import { Op, UniqueConstraintError } from 'sequelize';
 import { AUTH_ERROR_CODES } from '../constants/auth.constants';
 import { CreateUserDto } from '../dtos/create-user.dto';
 import { UpdateUserDto } from '../dtos/update-user.dto';
@@ -54,10 +54,54 @@ export class UsersService {
     return users.map((user) => this.toResponseDto(user));
   }
 
+  async findActiveByRoleNames(
+    roleNames: readonly string[],
+  ): Promise<UserResponseDto[]> {
+    if (roleNames.length === 0) {
+      return [];
+    }
+
+    const users = await this.userModel.findAll({
+      where: { isActive: true },
+      include: [
+        {
+          model: Role,
+          where: { name: { [Op.in]: [...roleNames] } },
+          required: true,
+        },
+      ],
+      order: [['fullName', 'ASC']],
+    });
+
+    return users.map((user) => this.toResponseDto(user));
+  }
+
   async isActiveWithRole(userId: string, roleName: string): Promise<boolean> {
     const count = await this.userModel.count({
       where: { userId, isActive: true },
       include: [{ model: Role, where: { name: roleName }, required: true }],
+    });
+
+    return count > 0;
+  }
+
+  async isActiveWithAnyRole(
+    userId: string,
+    roleNames: readonly string[],
+  ): Promise<boolean> {
+    if (roleNames.length === 0) {
+      return false;
+    }
+
+    const count = await this.userModel.count({
+      where: { userId, isActive: true },
+      include: [
+        {
+          model: Role,
+          where: { name: { [Op.in]: [...roleNames] } },
+          required: true,
+        },
+      ],
     });
 
     return count > 0;

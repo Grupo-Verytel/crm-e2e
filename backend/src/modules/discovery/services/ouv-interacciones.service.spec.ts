@@ -30,6 +30,7 @@ describe('OuvInteraccionesService reminders', () => {
       findByPk: jest.fn(),
     };
     const interactionModel = {
+      findAll: jest.fn().mockResolvedValue([]),
       create: jest.fn(async (row: Record<string, unknown>) => ({
         ...row,
         etiquetas: [],
@@ -327,6 +328,31 @@ describe('OuvInteraccionesService reminders', () => {
       responsable_nombre: 'Ana Ruiz',
       interaccion_titulo: 'Visita',
     });
+  });
+
+  it('REQ-11: Gerente Comercial reads interactions and reminders of any OUV and cannot write on another', async () => {
+    const { service, interactionModel, reminderModel, openOuv } = setup();
+    openOuv(OTHER_ID);
+    reminderModel.findAll.mockResolvedValue([]);
+
+    await expect(
+      service.listByOuv(OUV_ID, ACTOR_ID, 'Gerente Comercial'),
+    ).resolves.toEqual([]);
+    expect(interactionModel.findAll).toHaveBeenCalled();
+
+    await expect(
+      service.listRecordatorios(OUV_ID, ACTOR_ID, 'Gerente Comercial'),
+    ).resolves.toEqual([]);
+
+    await expect(
+      service.crear(
+        OUV_ID,
+        { titulo: 'Nota ajena' },
+        ACTOR_ID,
+        'Gerente Comercial',
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(interactionModel.create).not.toHaveBeenCalled();
   });
 
   it('lets SoporteComercial list reminders of an OUV they do not own', async () => {

@@ -1,4 +1,4 @@
-import { canReadAllOuvs } from './ouv-access';
+import { canReadAllOuvs, canReadOuv } from './ouv-access';
 
 describe('canReadAllOuvs', () => {
   it('allows follow-up roles with Opportunity read to list every OUV', () => {
@@ -16,5 +16,16 @@ describe('canReadAllOuvs', () => {
   it('scopes EjecutivoComercial to own pipeline', () => {
     expect(canReadAllOuvs('EjecutivoComercial')).toBe(false);
     expect(canReadAllOuvs('Ejecutivo Comercial')).toBe(false);
+  });
+});
+
+describe('canReadOuv', () => {
+  it('REQ-11: Gerente Comercial reads any OUV interaction log', () => {
+    expect(canReadOuv('owner', 'other', 'Gerente Comercial')).toBe(true);
+  });
+
+  it('still limits EjecutivoComercial to the owning commercial', () => {
+    expect(canReadOuv('owner', 'other', 'EjecutivoComercial')).toBe(false);
+    expect(canReadOuv('owner', 'owner', 'EjecutivoComercial')).toBe(true);
   });
 });

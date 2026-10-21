@@ -18,4 +18,8 @@ export class MeResponseDto {
   is_active: boolean;
   last_login_at: Date | null;
   permissions: PermissionRuleDto[];
+  /** `'own'` only for Gerente Comercial. Everyone else gets `'all'`. */
+  ouv_board_default: 'own' | 'all';
+  /** EjecutivoComercial and Gerente Comercial may open a direct OUV they will own. */
+  can_create_direct_ouv: boolean;
 }

@@ -9,6 +9,7 @@ import { InjectConnection, InjectModel } from '@nestjs/sequelize';
 import { Op, QueryTypes, Sequelize, type Transaction } from 'sequelize';
 import { AccountsService } from '../../accounts/services/accounts.service';
 import { User } from '../../auth/models/user.model';
+import { ASSIGNABLE_COMMERCIAL_ROLE_NAMES } from '../../auth/constants/commercial-roles';
 import { UsersService } from '../../auth/services/users.service';
 import { DemandGenerationService } from '../../demand-generation/services/demand-generation.service';
 import { EntityType } from '../../workflow-engine/enums/entity-type.enum';
@@ -737,13 +738,13 @@ export class OuvsService {
             'Only Admin can reassign the OUV commercial owner',
           );
         }
-        const eligible = await this.usersService.isActiveWithRole(
+        const eligible = await this.usersService.isActiveWithAnyRole(
           dto.comercial_id,
-          'EjecutivoComercial',
+          ASSIGNABLE_COMMERCIAL_ROLE_NAMES,
         );
         if (!eligible) {
           throw new BadRequestException(
-            'comercial_id must reference an active Ejecutivo Comercial',
+            `comercial_id must reference an active ${ASSIGNABLE_COMMERCIAL_ROLE_NAMES.join(' or ')}`,
           );
         }
         patch.comercialId = dto.comercial_id;
@@ -903,13 +904,15 @@ export class OuvsService {
   }
 
   async listEjecutivosComerciales(): Promise<
-    Array<{ user_id: string; full_name: string }>
+    Array<{ user_id: string; full_name: string; role_name: string }>
   > {
-    const users =
-      await this.usersService.findActiveByRoleName('EjecutivoComercial');
+    const users = await this.usersService.findActiveByRoleNames(
+      ASSIGNABLE_COMMERCIAL_ROLE_NAMES,
+    );
     return users.map((user) => ({
       user_id: user.user_id,
       full_name: user.full_name,
+      role_name: user.role_name,
     }));
   }
 
