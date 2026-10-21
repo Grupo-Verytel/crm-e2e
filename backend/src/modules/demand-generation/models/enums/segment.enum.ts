@@ -4,6 +4,7 @@ export enum Segmento {
   GobiernoCentral = 'Gobierno central',
   DefensaYSeguridad = 'Defensa y seguridad',
   Industria = 'Industria',
+  Otros = 'Otros',
 }
 
 /** Campaign target segment — includes all-segments option. */

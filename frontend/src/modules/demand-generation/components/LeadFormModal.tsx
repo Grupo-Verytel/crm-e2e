@@ -44,6 +44,7 @@ const SEGMENT_NAME_TO_ENUM: Record<string, Segmento> = {
   'Defensa y seguridad': 'Defensa y seguridad',
   'Ciudades y gobernaciones': 'Ciudades y gobernaciones',
   Industria: 'Industria',
+  Otros: 'Otros',
   Gobierno: 'Gobierno central',
   'D&S': 'Defensa y seguridad',
   'Proyectos Especiales': 'Ciudades y gobernaciones',

@@ -185,6 +185,7 @@ export type ConvertirSqlPayload = {
     | 'Gobierno central'
     | 'Defensa y seguridad'
     | 'Industria'
+    | 'Otros'
     | 'Gobierno'
     | 'D&S'
     | 'ProyectosEspeciales'

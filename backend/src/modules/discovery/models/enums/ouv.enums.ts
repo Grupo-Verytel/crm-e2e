@@ -22,6 +22,7 @@ export enum OuvSegmento {
   GobiernoCentral = 'Gobierno central',
   DefensaYSeguridad = 'Defensa y seguridad',
   Industria = 'Industria',
+  Otros = 'Otros',
 }
 
 /** How the OUV was created (Vía 1 vs Vías 2/3/4). */

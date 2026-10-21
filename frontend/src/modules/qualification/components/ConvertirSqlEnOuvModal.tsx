@@ -44,6 +44,7 @@ function segmentNameToEnum(
     return 'Ciudades y gobernaciones';
   }
   if (name === 'B2B' || name === 'Industria') return 'Industria';
+  if (name === 'Otros') return 'Otros';
   return name;
 }
 
