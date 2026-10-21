@@ -4,8 +4,8 @@ Rama: `EP-Feature-MetasComerciales`. Sin push.
 
 | Paso | Commit | Tests | Estado |
 |---|---|---|---|
-| 0 Inventario y spec | pendiente de cerrar en este commit | No aplica | En curso |
-| 1 Backend | — | — | Pendiente |
+| 0 Inventario y spec | `3f02ce4` `feat(metas-comerciales): paso 0 — inventario y spec` | No aplica | Cerrado |
+| 1 Backend | este commit | 4 suites, 30 tests, build en verde | Cerrado |
 | 2 Frontend | — | — | Pendiente |
 | 3 QA y cierre | — | — | Pendiente |
 
@@ -19,4 +19,4 @@ Pendiente hasta el Paso 2. No la ejecuta el agente.
 
 ## Deuda
 
-Ninguna todavía. La migración no se aplica en esta corrida (DA-14).
+- DA-14: las migraciones `20261020231000` y `20261020231100` no se aplicaron. `DB_HOST` no es local.
