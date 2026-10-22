@@ -25,6 +25,7 @@ const SUBJECTS = {
   billing: ['Billing'],
   'post-sales': ['PostSale'],
   'audit-log': ['AuditLog'],
+  'commercial-goals': ['CommercialGoal'],
 };
 
 /** RBAC matrix §3.1 from spec-auth (keys match Role.name). */
@@ -47,6 +48,7 @@ const MATRIX = {
     'won-sales': 'CRUD',
     'executing-companies': 'CR',
     'audit-log': 'R',
+    'commercial-goals': 'CRUD',
   },
   DirectorMercadeo: {
     'leads/campaigns': 'CRUA',
@@ -97,6 +99,7 @@ const MATRIX = {
     'won-sales': 'CRUD',
     'executing-companies': 'CR',
     'post-sales': 'CRU',
+    'commercial-goals': 'CRUD',
   },
   Preventa: {
     // OUV solo lectura: las solicitudes se consultan dentro del detalle OUV.

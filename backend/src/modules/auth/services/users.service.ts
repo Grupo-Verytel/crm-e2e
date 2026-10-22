@@ -44,6 +44,16 @@ export class UsersService {
     };
   }
 
+  async findById(userId: string): Promise<UserResponseDto | null> {
+    const user = await this.userModel.findByPk(userId, {
+      include: [Role],
+    });
+    if (!user?.role) {
+      return null;
+    }
+    return this.toResponseDto(user);
+  }
+
   async findActiveByRoleName(roleName: string): Promise<UserResponseDto[]> {
     const users = await this.userModel.findAll({
       where: { isActive: true },

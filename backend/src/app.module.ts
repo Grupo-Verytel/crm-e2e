@@ -3,6 +3,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { DatabaseModule } from './database/database.module';
 import { AccountsModule } from './modules/accounts/accounts.module';
+import { CommercialGoalsModule } from './modules/commercial-goals/commercial-goals.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { DemandGenerationModule } from './modules/demand-generation/demand-generation.module';
@@ -20,6 +21,7 @@ import { WorkflowEngineModule } from './modules/workflow-engine/workflow-engine.
     AuthModule,
     AuditModule,
     AccountsModule,
+    CommercialGoalsModule,
     DemandGenerationModule,
     DiscoveryModule,
     GraphIntegrationModule,

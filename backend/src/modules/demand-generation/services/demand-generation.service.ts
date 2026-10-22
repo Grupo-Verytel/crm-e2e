@@ -1,4 +1,8 @@
-import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { ASSIGNABLE_COMMERCIAL_ROLE_NAMES } from '../../auth/constants/commercial-roles';
 import { UsersService } from '../../auth/services/users.service';
@@ -69,7 +73,8 @@ import { RemindersService } from './reminders.service';
 export class DemandGenerationService {
   constructor(
     @InjectModel(Segment) private readonly segmentModel: typeof Segment,
-    @InjectModel(Subsegment) private readonly subsegmentModel: typeof Subsegment,
+    @InjectModel(Subsegment)
+    private readonly subsegmentModel: typeof Subsegment,
     private readonly leadsService: LeadsService,
     private readonly campaignsService: CampaignsService,
     private readonly interactionsService: InteractionsService,
@@ -327,6 +332,22 @@ export class DemandGenerationService {
           name: subsegment.name,
         })) ?? [],
     }));
+  }
+
+  /**
+   * Names for goals that outlive a segment's active flag.
+   * Soft-deleted segments stay excluded (paranoid). Inactive ones are included.
+   */
+  async findSegmentNamesByIds(ids: string[]): Promise<Map<string, string>> {
+    const unique = [...new Set(ids.filter(Boolean))];
+    if (unique.length === 0) {
+      return new Map();
+    }
+    const segments = await this.segmentModel.findAll({
+      where: { id: unique },
+      attributes: ['id', 'name'],
+    });
+    return new Map(segments.map((segment) => [segment.id, segment.name]));
   }
 
   /**

@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Settings } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { DatePickerField } from '../../../components/DatePickerField';
 import { AppLayout } from '../../../layout/AppLayout';
 import { ApiError } from '../../auth/types';
@@ -18,6 +20,7 @@ import { inputClass, labelClass } from '../components/ui';
 import { canReadAllOuvs } from '../lib/ouv-access';
 import { formatPeriodDate } from '../lib/ouv-dashboard-format';
 import { SEGMENTOS } from '../lib/ouv-vocab';
+import { hasCommercialGoalPermission } from '../../commercial-goals/lib/can-read-commercial-goals';
 
 function yearOptions(): number[] {
   const currentYear = new Date().getFullYear();
@@ -27,6 +30,7 @@ function yearOptions(): number[] {
 export function OuvDashboardPage() {
   const { user } = useAuth();
   const showEjecutivo = canReadAllOuvs(user?.role_name);
+  const showGoals = hasCommercialGoalPermission(user, 'read');
   const years = useMemo(() => yearOptions(), []);
   const [year, setYear] = useState<number | null>(() => new Date().getFullYear());
   const [quarter, setQuarter] = useState<number | null>(null);
@@ -224,6 +228,16 @@ export function OuvDashboardPage() {
               ))}
             </select>
           </div>
+          {showGoals ? (
+            <Link
+              to="/dashboard/metas-comerciales"
+              title="Metas comerciales"
+              aria-label="Metas comerciales"
+              className="btn-glow-outline inline-flex h-10 w-10 shrink-0 items-center justify-center self-start rounded focus-visible:ring-2 focus-visible:ring-accent"
+            >
+              <Settings size={18} aria-hidden />
+            </Link>
+          ) : null}
         </div>
       </div>
       {periodFrom !== periodTo && (!periodFrom || !periodTo) ? (
