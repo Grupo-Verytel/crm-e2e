@@ -166,6 +166,7 @@ export const SEGMENTOS = [
   'Gobierno central',
   'Defensa y seguridad',
   'Industria',
+  'Otros',
 ] as const;
 
 export const OUV_EVENT_PREFIX = 'ouv.';

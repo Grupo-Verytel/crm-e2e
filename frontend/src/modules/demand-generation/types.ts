@@ -21,16 +21,30 @@ export type Segmento =
   | 'Ciudades y gobernaciones'
   | 'Gobierno central'
   | 'Defensa y seguridad'
-  | 'Industria';
+  | 'Industria'
+  | 'Otros';
 export const SEGMENTOS: Segmento[] = [
   'Ciudades y gobernaciones',
   'Gobierno central',
   'Defensa y seguridad',
   'Industria',
+  'Otros',
 ];
 
-export type SegmentoObjetivo = Segmento | 'Todos';
-export const SEGMENTOS_OBJETIVO: SegmentoObjetivo[] = [...SEGMENTOS, 'Todos'];
+/** Campaign target. Otros is a lead/OUV segment, not a campaign objective. */
+export type SegmentoObjetivo =
+  | 'Ciudades y gobernaciones'
+  | 'Gobierno central'
+  | 'Defensa y seguridad'
+  | 'Industria'
+  | 'Todos';
+export const SEGMENTOS_OBJETIVO: SegmentoObjetivo[] = [
+  'Ciudades y gobernaciones',
+  'Gobierno central',
+  'Defensa y seguridad',
+  'Industria',
+  'Todos',
+];
 
 export type TipoLead = 'Inbound' | 'Outbound' | 'Referido' | 'Aliado' | 'Licitacion';
 export const TIPOS_LEAD: TipoLead[] = [
