@@ -322,13 +322,15 @@ export function AssignSqlModal({
           ? ['Consultando el calendario del comercial.']
           : conflicts;
 
-  const availabilityOk =
+  // Calendar overlaps stay visible, but they do not block continue or schedule.
+  const calendarConsulted =
     availabilityChecked &&
     commercialInTenant &&
     !loadingAvailability &&
     !availabilityError &&
-    conflicts.length === 0 &&
     duration !== null;
+
+  const slotIsFree = calendarConsulted && conflicts.length === 0;
 
   const graphWarning = !graphStatus
     ? null
@@ -436,8 +438,8 @@ export function AssignSqlModal({
 
   function continueToContacts() {
     setError(null);
-    if (!availabilityOk) {
-      setError('Confirma un horario disponible antes de continuar.');
+    if (!calendarConsulted) {
+      setError('Espera a que termine la consulta del calendario antes de continuar.');
       return;
     }
     setContactsUnlocked(true);
@@ -553,7 +555,7 @@ export function AssignSqlModal({
       setTab('contactos');
       return;
     }
-    if (!availabilityOk) {
+    if (!calendarConsulted) {
       setError('Valida la disponibilidad antes de agendar.');
       setTab('disponibilidad');
       return;
@@ -592,7 +594,7 @@ export function AssignSqlModal({
       setTab('contactos');
       return;
     }
-    if (!availabilityOk) {
+    if (!calendarConsulted) {
       setError('Valida la disponibilidad antes de asignar.');
       setTab('disponibilidad');
       return;
@@ -924,7 +926,7 @@ export function AssignSqlModal({
                     <button
                       type="button"
                       className={primaryButtonClass}
-                      disabled={!availabilityOk}
+                      disabled={!calendarConsulted}
                       onClick={continueToContacts}
                     >
                       Continuar a contactos
@@ -933,16 +935,20 @@ export function AssignSqlModal({
 
                   {availabilityMessages.length > 0 ? (
                     <div className="rounded border border-border bg-bg p-3 text-sm">
-                      {availabilityOk ? null : (
-                        <ul className="list-disc pl-4 text-danger">
-                          {availabilityMessages.map((message) => (
-                            <li key={message}>{message}</li>
-                          ))}
-                        </ul>
-                      )}
+                      <ul className="list-disc pl-4 text-danger">
+                        {availabilityMessages.map((message) => (
+                          <li key={message}>{message}</li>
+                        ))}
+                      </ul>
+                      {calendarConsulted && conflicts.length > 0 ? (
+                        <p className="mt-2 text-ink">
+                          Puedes continuar y agendar este horario aunque el
+                          comercial tenga otros compromisos.
+                        </p>
+                      ) : null}
                     </div>
                   ) : null}
-                  {availabilityOk ? (
+                  {slotIsFree ? (
                     <p className="text-sm text-positive">
                       Horario disponible para el Ejecutivo Comercial.
                     </p>
