@@ -1,4 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
+import type { Transaction } from 'sequelize';
 import { InjectModel } from '@nestjs/sequelize';
 import { ASSIGNABLE_COMMERCIAL_ROLE_NAMES } from '../../auth/constants/commercial-roles';
 import { UsersService } from '../../auth/services/users.service';
@@ -146,6 +147,20 @@ export class DemandGenerationService {
     dto: RecycleLeadDto,
   ): Promise<LeadResponseDto> {
     return this.leadsService.recycle(leadId, dto);
+  }
+
+  async returnLeadFromAssignedSql(
+    leadId: string,
+    motivo: string,
+    actorUserId: string,
+    transaction: Transaction,
+  ): Promise<{ responsableId: string; label: string }> {
+    return this.leadsService.returnFromAssignedSql(
+      leadId,
+      motivo,
+      actorUserId,
+      transaction,
+    );
   }
 
   async registerLeadAppointment(

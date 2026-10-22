@@ -11,7 +11,7 @@ const VALID_TRANSITIONS: Record<LeadEstado, LeadEstado[]> = {
     LeadEstado.Reciclaje,
     LeadEstado.Descartado,
   ],
-  [LeadEstado.SQL]: [],
+  [LeadEstado.SQL]: [LeadEstado.Reciclaje],
   [LeadEstado.Reciclaje]: [LeadEstado.MOFU, LeadEstado.Descartado],
   [LeadEstado.Descartado]: [LeadEstado.MOFU],
 };
@@ -52,7 +52,7 @@ export function assertValidLeadTransition(
 }
 
 export function canRecycleLead(estado: LeadEstado): boolean {
-  return estado === LeadEstado.Descartado;
+  return estado === LeadEstado.Descartado || estado === LeadEstado.Reciclaje;
 }
 
 export function getAllowedLeadTransitions(from: LeadEstado): LeadEstado[] {

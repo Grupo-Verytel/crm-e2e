@@ -210,6 +210,16 @@ export type ConvertirSqlResponse = {
   };
 };
 
+export async function returnSqlToDevueltas(
+  sqlId: string,
+  motivo: string,
+): Promise<SqlDetail> {
+  return apiRequest(`/qualification/sqls/${sqlId}/devolver`, {
+    method: 'POST',
+    body: { motivo },
+  });
+}
+
 export async function convertirSqlEnOuv(
   sqlId: string,
   payload: ConvertirSqlPayload,

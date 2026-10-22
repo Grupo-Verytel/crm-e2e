@@ -24,6 +24,7 @@ import {
   UpdateSqlCitaDto,
 } from '../dtos/assign-sql.dto';
 import { CloseSqlCitaDto } from '../dtos/close-sql-cita.dto';
+import { DevolverSqlDto } from '../dtos/devolver-sql.dto';
 import { SqlAppointmentEventResponseDto } from '../dtos/sql-appointment-event-response.dto';
 import {
   AssignSqlResponseDto,
@@ -128,6 +129,16 @@ export class SqlsController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<ConvertirSqlResponseDto> {
     return this.sqlsService.convertirEnOuv(id, dto, user.userId);
+  }
+
+  @Post(':id/devolver')
+  @CheckAbility({ action: 'update', subject: 'Opportunity' })
+  devolver(
+    @Param('id') id: string,
+    @Body() dto: DevolverSqlDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<SqlDetailDto> {
+    return this.sqlsService.devolver(id, dto.motivo, user.userId, user.roleName);
   }
 
   @Post(':id/cita')
