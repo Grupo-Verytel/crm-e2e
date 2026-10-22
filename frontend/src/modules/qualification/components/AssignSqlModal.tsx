@@ -876,7 +876,8 @@ export function AssignSqlModal({
 
                   <p className="text-xs text-muted">
                     La reunión se crea en el calendario del comercial y se invita a
-                    los contactos.
+                    los contactos. Si agendas como Soporte Comercial, también
+                    recibes la invitación.
                   </p>
                   {graphWarning ? (
                     <p className="rounded border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">

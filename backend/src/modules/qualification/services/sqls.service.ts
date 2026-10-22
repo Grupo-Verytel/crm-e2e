@@ -264,6 +264,10 @@ export class SqlsService {
           leadLabel: this.citaLeadLabel(lead, sql.sqlId),
           dto: dto.cita,
           contactos: this.resolveCitaContactos(dto.cita),
+          invitee: await this.resolveSoporteInvitee(
+            soporteUserId,
+            soporteRoleName,
+          ),
         });
         await cita.update(
           {
@@ -391,6 +395,11 @@ export class SqlsService {
         await this.updateTeamsMeetingForCita(
           cita,
           this.citaLeadLabel(lead, sql.sqlId),
+          await this.resolveSoporteInvitee(
+            actorUserId,
+            actorRoleName,
+            cita.agendadaPor,
+          ),
         );
       }
 
@@ -655,6 +664,10 @@ export class SqlsService {
         leadLabel: this.citaLeadLabel(lead, sql.sqlId),
         dto,
         contactos,
+        invitee: await this.resolveSoporteInvitee(
+          actorUserId,
+          actorRoleName,
+        ),
       });
 
       const graphFields = {
@@ -922,11 +935,90 @@ export class SqlsService {
     return match;
   }
 
+  /**
+   * Soporte Comercial schedules on behalf of the commercial. The commercial is
+   * the organizer and the contacts are attendees; this user must be invited too.
+   * On reschedule, keep the Soporte who originally booked the cita.
+   */
+  private async resolveSoporteInvitee(
+    actorUserId: string,
+    actorRoleName?: string,
+    scheduledByUserId?: string | null,
+  ): Promise<{ email: string; name: string } | null> {
+    if (
+      isQualificationRole(actorRoleName, QUALIFICATION_ROLES.SOPORTE_COMERCIAL)
+    ) {
+      return this.requireSoporteInvitee(actorUserId);
+    }
+    if (!scheduledByUserId || scheduledByUserId === actorUserId) {
+      return null;
+    }
+    const scheduler = await this.usersService.findById(scheduledByUserId);
+    if (
+      !scheduler ||
+      !isQualificationRole(
+        scheduler.role_name,
+        QUALIFICATION_ROLES.SOPORTE_COMERCIAL,
+      )
+    ) {
+      return null;
+    }
+    const email = scheduler.email.trim();
+    if (!email.includes('@')) {
+      return null;
+    }
+    return { email, name: scheduler.full_name };
+  }
+
+  private async requireSoporteInvitee(
+    userId: string,
+  ): Promise<{ email: string; name: string }> {
+    const user = await this.usersService.findById(userId);
+    const email = user?.email?.trim() ?? '';
+    if (!user || !email.includes('@')) {
+      throw new BadRequestException({
+        code: QUALIFICATION_ERROR_CODES.TEAMS_MEETING_FAILED,
+        message:
+          'El usuario de Soporte Comercial no tiene un correo para invitarlo a la reunión de Teams.',
+      });
+    }
+    return { email, name: user.full_name };
+  }
+
+  private citaAttendees(
+    contactos: Array<{ nombre: string; email: string }>,
+    invitee: { email: string; name: string } | null,
+    organizerUpn: string,
+  ): Array<{ email: string; name: string; type: 'required' }> {
+    const attendees = contactos
+      .filter((contacto) => contacto.email.includes('@'))
+      .map((contacto) => ({
+        email: contacto.email.trim(),
+        name: contacto.nombre,
+        type: 'required' as const,
+      }));
+    if (!invitee) {
+      return attendees;
+    }
+    const email = invitee.email.trim();
+    const key = email.toLowerCase();
+    if (
+      !email.includes('@') ||
+      key === organizerUpn ||
+      attendees.some((row) => row.email.toLowerCase() === key)
+    ) {
+      return attendees;
+    }
+    attendees.push({ email, name: invitee.name, type: 'required' });
+    return attendees;
+  }
+
   private async createTeamsMeetingForCita(params: {
     comercial: UserResponseDto;
     leadLabel: string;
     dto: CreateSqlCitaDto;
     contactos: Array<{ nombre: string; email: string; telefono: string }>;
+    invitee?: { email: string; name: string } | null;
   }): Promise<{
     eventId: string;
     organizerUpn: string;
@@ -938,13 +1030,11 @@ export class SqlsService {
       params.dto.hora,
       params.dto.duration_minutes ?? 60,
     );
-    const attendees = params.contactos
-      .filter((contacto) => contacto.email.includes('@'))
-      .map((contacto) => ({
-        email: contacto.email,
-        name: contacto.nombre,
-        type: 'required' as const,
-      }));
+    const attendees = this.citaAttendees(
+      params.contactos,
+      params.invitee ?? null,
+      organizerUpn,
+    );
 
     try {
       const meeting = await this.graphService.createMeeting({
@@ -988,6 +1078,7 @@ export class SqlsService {
   private async updateTeamsMeetingForCita(
     cita: SqlCita,
     leadLabel: string,
+    invitee: { email: string; name: string } | null = null,
   ): Promise<void> {
     if (!cita.graphEventId || !cita.graphOrganizerUpn) {
       return;
@@ -998,6 +1089,7 @@ export class SqlsService {
       cita.durationMinutes ?? 60,
     );
     const contactos = normalizeCitaContactos(cita.contactos);
+    const organizerUpn = cita.graphOrganizerUpn.trim().toLowerCase();
     try {
       await this.graphService.updateMeeting(cita.graphEventId, {
         organizerUpn: cita.graphOrganizerUpn,
@@ -1005,13 +1097,7 @@ export class SqlsService {
         startTime,
         endTime,
         timeZone: this.graphService.timeZone,
-        attendees: contactos
-          .filter((contacto) => contacto.email.includes('@'))
-          .map((contacto) => ({
-            email: contacto.email,
-            name: contacto.nombre,
-            type: 'required' as const,
-          })),
+        attendees: this.citaAttendees(contactos, invitee, organizerUpn),
         location: cita.lugar,
         body: cita.descripcion ?? undefined,
         isOnlineMeeting: true,

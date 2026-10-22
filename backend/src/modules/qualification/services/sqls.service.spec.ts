@@ -42,6 +42,7 @@ describe('SqlsService.createCitaForAssignedSql', () => {
     estado?: SqlEstado;
     comercialAsignadoId?: string | null;
     existing?: Record<string, unknown> | null;
+    soporteEmail?: string | null;
   }) {
     const sqlUpdate = jest.fn();
     const sql = {
@@ -138,6 +139,19 @@ describe('SqlsService.createCitaForAssignedSql', () => {
             full_name: 'Kam',
           },
         ]),
+        findById: jest.fn(async (userId: string) => {
+          if (userId !== SOPORTE_ID) return null;
+          const soporteEmail =
+            options && 'soporteEmail' in options
+              ? options.soporteEmail
+              : 'soporte@frisson.net.co';
+          return {
+            user_id: SOPORTE_ID,
+            email: soporteEmail ?? '',
+            full_name: 'Soporte',
+            role_name: 'SoporteComercial',
+          };
+        }),
       } as unknown as UsersService,
       { transition: jest.fn() } as unknown as WorkflowEngineService,
       { findById: jest.fn() } as unknown as OuvsService,
@@ -176,6 +190,23 @@ describe('SqlsService.createCitaForAssignedSql', () => {
     expect(ctx.sql.comercialAsignadoId).toBe(COMERCIAL_ID);
     expect(ctx.sql.estado).toBe(SqlEstado.Asignado);
     expect(ctx.createMeeting).toHaveBeenCalledTimes(1);
+    expect(ctx.createMeeting).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizerUpn: 'kam@frisson.net.co',
+        attendees: [
+          {
+            email: 'ana@cliente.com',
+            name: 'Ana',
+            type: 'required',
+          },
+          {
+            email: 'soporte@frisson.net.co',
+            name: 'Soporte',
+            type: 'required',
+          },
+        ],
+      }),
+    );
     expect(ctx.updateMeeting).not.toHaveBeenCalled();
     expect(ctx.sqlCitaModel.create).toHaveBeenCalled();
     expect(cita.graph_event_id).toBe('evt-new');
@@ -195,6 +226,17 @@ describe('SqlsService.createCitaForAssignedSql', () => {
 
     expect(ctx.updateMeeting).not.toHaveBeenCalled();
     expect(ctx.createMeeting).toHaveBeenCalledTimes(1);
+    expect(ctx.createMeeting).toHaveBeenCalledWith(
+      expect.objectContaining({
+        attendees: [
+          {
+            email: 'ana@cliente.com',
+            name: 'Ana',
+            type: 'required',
+          },
+        ],
+      }),
+    );
     expect(ctx.sqlCitaModel.create).not.toHaveBeenCalled();
     expect(ctx.existingUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -307,6 +349,21 @@ describe('SqlsService.createCitaForAssignedSql', () => {
     ).rejects.toMatchObject({
       response: { code: 'SQL_NOT_ASSIGNED' },
     });
+
+    expect(ctx.createMeeting).not.toHaveBeenCalled();
+  });
+
+  it('does not create the Teams meeting when Soporte Comercial has no email', async () => {
+    const ctx = createService({ existing: null, soporteEmail: null });
+
+    await expect(
+      ctx.service.createCitaForAssignedSql(
+        SQL_ID,
+        dto,
+        SOPORTE_ID,
+        'SoporteComercial',
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
 
     expect(ctx.createMeeting).not.toHaveBeenCalled();
   });
@@ -425,6 +482,12 @@ describe('createCitaForAssignedSql audit hook', () => {
             full_name: 'Kam',
           },
         ]),
+        findById: jest.fn().mockResolvedValue({
+          user_id: SOPORTE_ID,
+          email: 'soporte@frisson.net.co',
+          full_name: 'Soporte',
+          role_name: 'SoporteComercial',
+        }),
       } as unknown as UsersService,
       { transition: jest.fn() } as unknown as WorkflowEngineService,
       { findById: jest.fn() } as unknown as OuvsService,
