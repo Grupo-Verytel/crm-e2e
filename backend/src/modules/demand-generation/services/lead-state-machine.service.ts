@@ -219,15 +219,44 @@ export class LeadStateMachineService {
     const proposedAppointment = this.resolveProposedAppointment(lead, dto);
 
     const result = await this.sequelize.transaction(async (transaction) => {
-      const sql = await this.sqlModel.create(
-        {
-          mqlId: mql.mqlId,
-          estado: SqlEstado.PendienteAsignacion,
-          enBacklog: true,
-          origenCreacion: SqlOrigenCreacion.EnrutamientoNormal,
-        },
-        { transaction },
-      );
+      const existingSql = await this.sqlModel.findOne({
+        where: { mqlId: mql.mqlId },
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+      let sql: Sql;
+      if (existingSql) {
+        if (
+          existingSql.estado !== SqlEstado.Backlog &&
+          existingSql.estado !== SqlEstado.Descartado
+        ) {
+          throw new BadRequestException({
+            code: DEMAND_GENERATION_ERROR_CODES.INVALID_TRANSITION,
+            message: `MQL already has a SQL in ${existingSql.estado}`,
+          });
+        }
+        await existingSql.update(
+          {
+            estado: SqlEstado.PendienteAsignacion,
+            enBacklog: true,
+            comercialAsignadoId: null,
+            fechaAsignacion: null,
+            ouvId: null,
+          },
+          { transaction },
+        );
+        sql = existingSql;
+      } else {
+        sql = await this.sqlModel.create(
+          {
+            mqlId: mql.mqlId,
+            estado: SqlEstado.PendienteAsignacion,
+            enBacklog: true,
+            origenCreacion: SqlOrigenCreacion.EnrutamientoNormal,
+          },
+          { transaction },
+        );
+      }
 
       await mql.update(
         {

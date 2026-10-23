@@ -111,6 +111,23 @@ export const workflowRules: WorkflowRule[] = [
     mensaje: (ctx) =>
       `El SQL de ${ctx.entityLabel} fue descartado.`,
   },
+  {
+    eventType: 'sql.devuelto',
+    guards: [
+      guardEntidadEnEstado(EntityType.SQL, 'Asignado'),
+      guardEjecutivoOGerenteAsignado('comercial_asignado_id'),
+    ],
+    destinatarios: [
+      { tipo: 'rol', resolver: () => 'SoporteComercial' },
+      {
+        tipo: 'usuario',
+        resolver: (ctx) => String(ctx.payload.responsable_id ?? ''),
+      },
+    ],
+    titulo: () => 'Lead devuelto desde calificación',
+    mensaje: (ctx) =>
+      `El Ejecutivo Comercial devolvió el lead ${ctx.entityLabel} a Leads devueltas.`,
+  },
 
   // ─── OUV funnel (spec-ouv-funnel v1.2) ─────────────────────────────
 

@@ -843,6 +843,107 @@ export class SqlsService {
     });
   }
 
+  /**
+   * Assigned Ejecutivo Comercial returns the lead to Leads devueltas (Reciclaje).
+   * The SQL leaves Asignado and cannot be converted.
+   */
+  async devolver(
+    sqlId: string,
+    motivo: string,
+    actorUserId: string,
+    actorRoleName?: string,
+  ): Promise<SqlDetailDto> {
+    const trimmed = motivo?.trim() ?? '';
+    if (!trimmed) {
+      throw new BadRequestException({
+        code: QUALIFICATION_ERROR_CODES.VALIDATION_ERROR,
+        message: 'motivo is required to return an SQL',
+      });
+    }
+    if (
+      !isQualificationRole(
+        actorRoleName,
+        QUALIFICATION_ROLES.EJECUTIVO_COMERCIAL,
+      )
+    ) {
+      throw new ForbiddenException({
+        code: QUALIFICATION_ERROR_CODES.FORBIDDEN,
+        message: 'Only an Ejecutivo Comercial can return an assigned SQL',
+      });
+    }
+
+    return this.sequelize.transaction(async (transaction) => {
+      const sql = await this.sqlModel.findByPk(sqlId, {
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+        include: [{ model: Mql, required: true }],
+      });
+      if (!sql) {
+        throw new NotFoundException({
+          code: QUALIFICATION_ERROR_CODES.NOT_FOUND,
+          message: `SQL ${sqlId} not found`,
+        });
+      }
+      if (sql.estado !== SqlEstado.Asignado) {
+        throw new BadRequestException({
+          code: QUALIFICATION_ERROR_CODES.SQL_NOT_ASSIGNED,
+          message: `SQL must be in Asignado to return (current: ${sql.estado})`,
+        });
+      }
+      if (sql.comercialAsignadoId !== actorUserId) {
+        throw new ForbiddenException({
+          code: QUALIFICATION_ERROR_CODES.FORBIDDEN,
+          message: 'Only the assigned Ejecutivo Comercial can return this SQL',
+        });
+      }
+      if (sql.ouvId) {
+        throw new BadRequestException({
+          code: QUALIFICATION_ERROR_CODES.VALIDATION_ERROR,
+          message: `SQL ${sqlId} is already linked to an OUV`,
+        });
+      }
+
+      const estadoAnterior = sql.estado;
+      const returned = await this.demandGenerationService.returnLeadFromAssignedSql(
+        sql.mql.leadId,
+        trimmed,
+        actorUserId,
+        transaction,
+      );
+
+      await this.workflowEngine.transition(
+        EntityType.SQL,
+        sql.sqlId,
+        'sql.devuelto',
+        {
+          estadoAnterior,
+          estadoNuevo: SqlEstado.Backlog,
+          entityLabel: returned.label,
+          actorUserId,
+          payload: {
+            sqlId: sql.sqlId,
+            leadId: sql.mql.leadId,
+            comercial_asignado_id: sql.comercialAsignadoId,
+            responsable_id: returned.responsableId,
+            motivo: trimmed,
+          },
+          entity: { estado: estadoAnterior },
+        },
+        transaction,
+      );
+
+      await sql.update(
+        {
+          estado: SqlEstado.Backlog,
+          enBacklog: true,
+        },
+        { transaction },
+      );
+
+      return this.toDetailResponse(sql);
+    });
+  }
+
   private async createCita(
     sqlId: string,
     dto: CreateSqlCitaDto,

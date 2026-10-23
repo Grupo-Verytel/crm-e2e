@@ -1,4 +1,4 @@
-import { Calendar, CalendarClock, CalendarX2, UserPlus } from 'lucide-react';
+import { Calendar, CalendarClock, CalendarX2, Undo2, UserPlus } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Pagination } from '../../../components/Pagination';
@@ -14,6 +14,7 @@ import { useAuth } from '../../auth/hooks/useAuth';
 import {
   cancelSqlCita,
   fetchAssignedSqls,
+  returnSqlToDevueltas,
   type SqlDetail,
 } from '../api/sqls-api';
 import { isOpenSqlCitaEstado } from '../types/sql-appointment-event.types';
@@ -21,6 +22,7 @@ import { AssignSqlModal } from '../components/AssignSqlModal';
 import { ConfirmCitaActionModal } from '../components/ConfirmCitaActionModal';
 import { QualificationNav } from '../components/QualificationNav';
 import { RescheduleSqlCitaModal } from '../components/RescheduleSqlCitaModal';
+import { ReturnLeadModal } from '../components/ReturnLeadModal';
 import { cardClass } from '../components/ui';
 import { sqlLeadName } from '../lib/agency-cita';
 
@@ -49,6 +51,7 @@ export function AssignedSqlsPage() {
   const [scheduleSql, setScheduleSql] = useState<SqlDetail | null>(null);
   const [rescheduleSql, setRescheduleSql] = useState<SqlDetail | null>(null);
   const [cancelSql, setCancelSql] = useState<SqlDetail | null>(null);
+  const [returnSql, setReturnSql] = useState<SqlDetail | null>(null);
   const [busySqlId, setBusySqlId] = useState<string | null>(null);
 
   const load = useCallback(async (opts?: { silent?: boolean }) => {
@@ -175,6 +178,11 @@ export function AssignedSqlsPage() {
               {items.map((sql) => {
                 const action = rowAction(sql);
                 const label = sqlLeadName(sql.lead);
+                const isOwner =
+                  sql.estado === 'Asignado' &&
+                  user?.can_act_as_assigned_commercial === true &&
+                  isRoleName(user.role_name, 'EjecutivoComercial') &&
+                  sql.comercial_asignado_id === user.user_id;
                 return (
                 <tr key={sql.sql_id} className="border-b border-border">
                   <td className="px-4 py-3">
@@ -250,6 +258,7 @@ export function AssignedSqlsPage() {
                     {formatDateTime(sql.fecha_asignacion)}
                   </td>
                   <td className="px-4 py-3">
+                    <div className="flex items-center gap-1">
                     {action === 'agendar' ? (
                       <button
                         type="button"
@@ -287,6 +296,19 @@ export function AssignedSqlsPage() {
                     ) : (
                       <span className="text-sm text-muted">—</span>
                     )}
+                    {isOwner && !sql.ouv_id ? (
+                      <button
+                        type="button"
+                        className="icon-btn ml-1 grid h-9 w-9 place-items-center rounded text-ink"
+                        title="Devolver a leads devueltas"
+                        aria-label={`Devolver ${label}`}
+                        disabled={busySqlId === sql.sql_id}
+                        onClick={() => setReturnSql(sql)}
+                      >
+                        <Undo2 size={16} strokeWidth={2} />
+                      </button>
+                    ) : null}
+                    </div>
                   </td>
                 </tr>
                 );
@@ -318,6 +340,31 @@ export function AssignedSqlsPage() {
           sql={rescheduleSql}
           onClose={() => setRescheduleSql(null)}
           onRescheduled={() => void load({ silent: true })}
+        />
+      ) : null}
+      {returnSql ? (
+        <ReturnLeadModal
+          leadLabel={sqlLeadName(returnSql.lead)}
+          onClose={() => {
+            if (busySqlId === returnSql.sql_id) return;
+            setReturnSql(null);
+          }}
+          onConfirm={async (motivo) => {
+            setBusySqlId(returnSql.sql_id);
+            try {
+              await returnSqlToDevueltas(returnSql.sql_id, motivo);
+              setReturnSql(null);
+              await load({ silent: true });
+            } catch (err) {
+              throw new Error(
+                err instanceof Error && err.message
+                  ? err.message
+                  : 'No se pudo devolver el lead.',
+              );
+            } finally {
+              setBusySqlId(null);
+            }
+          }}
         />
       ) : null}
       {cancelSql ? (

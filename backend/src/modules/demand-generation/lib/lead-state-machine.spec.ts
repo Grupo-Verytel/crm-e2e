@@ -55,7 +55,12 @@ describe('Lead state machine (spec §4)', () => {
     ).toThrow('Invalid lead state transition');
   });
 
-  it('SQL is terminal within this module', () => {
-    expect(getAllowedLeadTransitions(LeadEstado.SQL)).toHaveLength(0);
+  it('allows SQL → Reciclaje when qualification returns the lead', () => {
+    expect(isValidLeadTransition(LeadEstado.SQL, LeadEstado.Reciclaje)).toBe(
+      true,
+    );
+    expect(getAllowedLeadTransitions(LeadEstado.SQL)).toEqual([
+      LeadEstado.Reciclaje,
+    ]);
   });
 });
