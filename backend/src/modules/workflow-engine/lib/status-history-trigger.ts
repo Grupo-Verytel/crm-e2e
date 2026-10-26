@@ -24,6 +24,7 @@ const TRIGGER_BY_EVENT: Record<string, StatusHistoryTriggerValue> = {
   'sql.asignado': StatusHistoryTrigger.Assignment,
   'sql.convertido_ouv': StatusHistoryTrigger.Conversion,
   'sql.descartado': StatusHistoryTrigger.Discard,
+  'sql.devuelto': StatusHistoryTrigger.Rejection,
   'ouv.creada_desde_sql': StatusHistoryTrigger.Create,
   'ouv.creada_directa': StatusHistoryTrigger.Create,
   'ouv.avance_zona': StatusHistoryTrigger.Advance,

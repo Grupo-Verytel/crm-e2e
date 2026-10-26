@@ -12,10 +12,11 @@ import {
   fetchSqlInteractions,
   registerSqlInteraction,
 } from '../api/sql-interactions-api';
-import { closeSqlCita, fetchSql, type SqlDetail } from '../api/sqls-api';
+import { closeSqlCita, fetchSql, returnSqlToDevueltas, type SqlDetail } from '../api/sqls-api';
 import { AssignSqlModal } from '../components/AssignSqlModal';
 import { ConfirmCitaActionModal } from '../components/ConfirmCitaActionModal';
 import { ConvertirSqlEnOuvModal } from '../components/ConvertirSqlEnOuvModal';
+import { ReturnLeadModal } from '../components/ReturnLeadModal';
 import { QualificationNav } from '../components/QualificationNav';
 import { SqlCitaTraceCard } from '../components/SqlCitaTraceCard';
 import { SqlDetailNav, type SqlDetailTab } from '../components/SqlDetailNav';
@@ -72,6 +73,7 @@ export function SqlDetailPage() {
     searchParams.get('tab') === 'interacciones' ? 'interacciones' : 'detalle',
   );
   const [showConvertModal, setShowConvertModal] = useState(false);
+  const [showReturnModal, setShowReturnModal] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [listVersion, setListVersion] = useState(0);
   const [traceVersion, setTraceVersion] = useState(0);
@@ -112,6 +114,10 @@ export function SqlDetailPage() {
     user?.can_act_as_assigned_commercial === true &&
     sql?.comercial_asignado_id === user.user_id;
   const canConvert = isAssignedCommercial && sql?.estado === 'Asignado';
+  const canReturn =
+    canConvert &&
+    !sql?.ouv_id &&
+    isRoleName(user?.role_name, 'EjecutivoComercial');
   const canManageCita =
     sql != null &&
     sql.estado === 'Asignado' &&
@@ -256,7 +262,7 @@ export function SqlDetailPage() {
                 </dl>
 
                 {canConvert ? (
-                  <div className="mt-5">
+                  <div className="mt-5 flex flex-wrap gap-2">
                     <button
                       type="button"
                       className={primaryButtonClass}
@@ -264,6 +270,15 @@ export function SqlDetailPage() {
                     >
                       Crear OUV
                     </button>
+                    {canReturn ? (
+                      <button
+                        type="button"
+                        className={ghostButtonClass}
+                        onClick={() => setShowReturnModal(true)}
+                      >
+                        Devolver
+                      </button>
+                    ) : null}
                   </div>
                 ) : null}
 
@@ -408,6 +423,30 @@ export function SqlDetailPage() {
             </>
           )}
         </>
+      ) : null}
+
+      {showReturnModal && sql ? (
+        <ReturnLeadModal
+          leadLabel={String(sql.lead.empresa_nombre ?? sqlLeadName(sql.lead))}
+          onClose={() => setShowReturnModal(false)}
+          onConfirm={async (motivo) => {
+            try {
+              await returnSqlToDevueltas(sql.sql_id, motivo);
+            } catch (err) {
+              if (err instanceof ApiError && err.status === 403) {
+                throw new Error(
+                  'Solo el Ejecutivo Comercial asignado puede devolver este lead.',
+                );
+              }
+              throw new Error(
+                err instanceof Error && err.message
+                  ? err.message
+                  : 'No se pudo devolver el lead.',
+              );
+            }
+            await loadSql();
+          }}
+        />
       ) : null}
 
       {showConvertModal && sql ? (

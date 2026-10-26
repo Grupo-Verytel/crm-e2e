@@ -45,7 +45,10 @@ import {
   computeChecklistResult,
   missingChecklistCriteria,
 } from '../lib/checklist-result';
-import { canRecycleLead } from '../lib/lead-state-machine';
+import {
+  assertValidLeadTransition,
+  canRecycleLead,
+} from '../lib/lead-state-machine';
 import { normalizePhoneToE164 } from '../lib/phone-normalize';
 import { normalizeCitaContactos } from '../lib/cita-contactos';
 import { resolveReferrerName } from '../lib/lead-referrer';
@@ -561,12 +564,13 @@ export class LeadsService {
     if (!canRecycleLead(lead.estado)) {
       throw new BadRequestException({
         code: DEMAND_GENERATION_ERROR_CODES.RECYCLE_NOT_ALLOWED,
-        message: 'Only discarded leads can be recycled',
+        message: 'Only returned or discarded leads can be recycled',
       });
     }
 
     await this.ensureUserExists(dto.responsable_id);
 
+    const fromEstado = lead.estado;
     await lead.update({
       estado: LeadEstado.MOFU,
       responsableId: dto.responsable_id,
@@ -576,13 +580,70 @@ export class LeadsService {
       entityType: EntityType.LEAD,
       entityId: lead.leadId,
       rootLeadId: lead.leadId,
-      fromEstado: LeadEstado.Descartado,
+      fromEstado,
       toEstado: LeadEstado.MOFU,
       trigger: StatusHistoryTrigger.Recycle,
       changedBy: dto.responsable_id,
     });
 
     return this.toResponseDto(lead);
+  }
+
+  /**
+   * Qualification return: assigned SQL sends the lead to Leads devueltas
+   * (Reciclaje). Caller holds the transaction and the SQL row lock.
+   */
+  async returnFromAssignedSql(
+    leadId: string,
+    motivo: string,
+    actorUserId: string,
+    transaction: Transaction,
+  ): Promise<{ responsableId: string; label: string }> {
+    const trimmed = motivo.trim();
+    if (!trimmed) {
+      throw new BadRequestException({
+        code: DEMAND_GENERATION_ERROR_CODES.VALIDATION_ERROR,
+        message: 'motivo is required to return a lead',
+      });
+    }
+
+    const lead = await this.leadModel.findByPk(leadId, {
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+    if (!lead) {
+      throw new NotFoundException({
+        code: DEMAND_GENERATION_ERROR_CODES.NOT_FOUND,
+        message: 'Lead not found',
+      });
+    }
+
+    assertValidLeadTransition(lead.estado, LeadEstado.Reciclaje);
+    const fromEstado = lead.estado;
+    await lead.update(
+      {
+        estado: LeadEstado.Reciclaje,
+        motivoDescarte: trimmed,
+      },
+      { transaction },
+    );
+    await this.statusHistory.record({
+      entityType: EntityType.LEAD,
+      entityId: lead.leadId,
+      rootLeadId: lead.leadId,
+      fromEstado,
+      toEstado: LeadEstado.Reciclaje,
+      trigger: StatusHistoryTrigger.Rejection,
+      changedBy: actorUserId,
+      motivo: trimmed,
+      metadata: { source: 'qualification' },
+      transaction,
+    });
+
+    return {
+      responsableId: lead.responsableId,
+      label: lead.name?.trim() || lead.leadId,
+    };
   }
 
   async registerAppointment(

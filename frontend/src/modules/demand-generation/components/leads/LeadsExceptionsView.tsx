@@ -174,7 +174,7 @@ export function LeadsExceptionsView({
                       : 'Sin interacción'}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    {lead.estado === 'Descartado' ? (
+                    {lead.estado === 'Descartado' || lead.estado === 'Reciclaje' ? (
                       <button
                         type="button"
                         onClick={() => handleRecycle(lead)}
