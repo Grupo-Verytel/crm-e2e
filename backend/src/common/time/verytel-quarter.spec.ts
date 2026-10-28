@@ -2,6 +2,7 @@ import { bogotaDayEnd, bogotaDayStart } from './bogota-day';
 import {
   formatVerytelQuarterRange,
   isVerytelQuarterFinished,
+  verytelFiscalPeriod,
   verytelQuarterOf,
   verytelQuarterRange,
 } from './verytel-quarter';
@@ -101,5 +102,28 @@ describe('verytel quarter', () => {
       false,
     );
     expect(isVerytelQuarterFinished(q1, bogota(2026, 4, 1, 0, 0))).toBe(true);
+  });
+
+  it('opens each quarter and the fiscal year on the Verytel bounds', () => {
+    expect(verytelFiscalPeriod(2026, 1)).toEqual({
+      start: new Date('2026-02-01T05:00:00.000Z'),
+      end: new Date('2026-05-01T05:00:00.000Z'),
+    });
+    expect(verytelFiscalPeriod(2026, 2)).toEqual({
+      start: new Date('2026-05-01T05:00:00.000Z'),
+      end: new Date('2026-08-01T05:00:00.000Z'),
+    });
+    expect(verytelFiscalPeriod(2026, 3)).toEqual({
+      start: new Date('2026-08-01T05:00:00.000Z'),
+      end: new Date('2026-11-01T05:00:00.000Z'),
+    });
+    expect(verytelFiscalPeriod(2026, 4)).toEqual({
+      start: new Date('2026-11-01T05:00:00.000Z'),
+      end: new Date('2027-02-01T05:00:00.000Z'),
+    });
+    expect(verytelFiscalPeriod(2026)).toEqual({
+      start: new Date('2026-02-01T05:00:00.000Z'),
+      end: new Date('2027-02-01T05:00:00.000Z'),
+    });
   });
 });

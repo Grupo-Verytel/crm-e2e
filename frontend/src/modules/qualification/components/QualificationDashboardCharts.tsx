@@ -275,6 +275,7 @@ export function PipelineEmbudoMeters({
   discarded,
   activeKind,
   onOpenDetail,
+  leadOriginCaption,
 }: {
   periodActive: boolean;
   openZonas?: {
@@ -288,6 +289,7 @@ export function PipelineEmbudoMeters({
   discarded: MoneyMetric;
   activeKind: QualificationDashboardDetailKind | null;
   onOpenDetail: OpenDetail;
+  leadOriginCaption: string;
 }) {
   const t = QUALIFICATION_DASHBOARD_TARGETS;
   const empty: MoneyMetric = { amount: 0, count: 0 };
@@ -338,10 +340,11 @@ export function PipelineEmbudoMeters({
       <section aria-labelledby="qual-pipeline-open-title">
         <h2
           id="qual-pipeline-open-title"
-          className="mb-3 text-sm font-bold text-ink"
+          className="text-sm font-bold text-ink"
         >
           Pipeline abierto (valor presupuestado)
         </h2>
+        <p className="mb-3 mt-1 text-sm text-muted">{leadOriginCaption}</p>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {openCards.map((card) => (
             <DonutMetric
@@ -367,10 +370,11 @@ export function PipelineEmbudoMeters({
       <section aria-labelledby="qual-pipeline-closed-title">
         <h2
           id="qual-pipeline-closed-title"
-          className="mb-3 text-sm font-bold text-ink"
+          className="text-sm font-bold text-ink"
         >
           Cierre del periodo
         </h2>
+        <p className="mb-3 mt-1 text-sm text-muted">{leadOriginCaption}</p>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           <DonutMetric
             titleAbove

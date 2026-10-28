@@ -32,29 +32,29 @@ function row(
 }
 
 describe('resolveOuvDashboardPeriod', () => {
-  it('uses the calendar year when only the year is set', () => {
+  it('uses the fiscal year when only the year is set', () => {
     const resolved = resolveOuvDashboardPeriod({ year: 2026 });
     expect(resolved.current?.start.toISOString()).toBe(
-      '2026-01-01T05:00:00.000Z',
+      '2026-02-01T05:00:00.000Z',
     );
     expect(resolved.current?.end.toISOString()).toBe(
-      '2027-01-01T05:00:00.000Z',
+      '2027-02-01T05:00:00.000Z',
     );
     expect(resolved.previous?.start.toISOString()).toBe(
-      '2025-01-01T05:00:00.000Z',
+      '2025-02-01T05:00:00.000Z',
     );
   });
 
-  it('uses the quarter inside the selected year', () => {
+  it('uses the Verytel quarter inside the selected year', () => {
     const resolved = resolveOuvDashboardPeriod({ year: 2026, quarter: 4 });
     expect(resolved.current?.start.toISOString()).toBe(
-      '2026-10-01T05:00:00.000Z',
+      '2026-11-01T05:00:00.000Z',
     );
     expect(resolved.current?.end.toISOString()).toBe(
-      '2027-01-01T05:00:00.000Z',
+      '2027-02-01T05:00:00.000Z',
     );
     expect(resolved.previous?.start.toISOString()).toBe(
-      '2026-07-01T05:00:00.000Z',
+      '2026-08-01T05:00:00.000Z',
     );
   });
 
@@ -90,7 +90,7 @@ describe('buildOuvDashboard', () => {
       ouvId: 'open-mayor',
       zonaActual: 'MAYOR_PROBABILIDAD',
       presupuestoMonto: 200,
-      createdAt: new Date('2026-08-01T05:00:00.000Z'),
+      createdAt: new Date('2026-07-01T05:00:00.000Z'),
       updatedAt: new Date('2026-10-04T05:00:00.000Z'),
       comercialId: 'comercial-b',
       comercialName: 'Luis',
@@ -125,7 +125,7 @@ describe('buildOuvDashboard', () => {
       resultado: 'Ganada',
       montoFinal: 30,
       createdAt: new Date('2026-05-01T05:00:00.000Z'),
-      fechaCierre: new Date('2026-09-01T05:00:00.000Z'),
+      fechaCierre: new Date('2026-07-15T05:00:00.000Z'),
       segmento: 'Industria',
     }),
     row({
@@ -138,7 +138,7 @@ describe('buildOuvDashboard', () => {
     }),
   ];
 
-  const dashboard = buildOuvDashboard(rows, { year: 2026, quarter: 4 }, NOW);
+  const dashboard = buildOuvDashboard(rows, { year: 2026, quarter: 3 }, NOW);
 
   it('weights the open pipeline by zone and compares it with the previous period', () => {
     expect(dashboard.pipeline_weighted.amount).toBe(162.5);

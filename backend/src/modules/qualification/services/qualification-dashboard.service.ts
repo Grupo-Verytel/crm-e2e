@@ -8,6 +8,7 @@ import { MqlEstado } from '../../demand-generation/models/enums/mql.enums';
 import { SqlEstado } from '../../demand-generation/models/enums/sql.enums';
 import { Sql } from '../../demand-generation/models/sql.model';
 import {
+  OuvOrigenVia,
   OuvResultado,
   OuvZona,
 } from '../../discovery/models/enums/ouv.enums';
@@ -24,6 +25,10 @@ import {
   QualificationDashboardResponseDto,
   QualificationOuvValueMetricDto,
 } from '../dtos/qualification-dashboard.dto';
+import {
+  verytelFiscalPeriod,
+  type VerytelQuarter,
+} from '../../../common/time/verytel-quarter';
 import { SqlCita } from '../models/sql-cita.model';
 import { SqlCitaEstado } from '../models/enums/sql-cita-estado.enum';
 
@@ -55,6 +60,16 @@ function ownedOuvComercialId(user: AuthenticatedUser): string | undefined {
 /** Closed-negative OUVs: lost amount, else last budgeted amount. */
 const CLOSED_NEGATIVE_AMOUNT_SQL =
   'COALESCE(monto_estimado_perdido, presupuesto_monto)';
+
+/**
+ * Lead → MQL → SQL → OUV. Direct creates and Pipedrive imports are `directa`
+ * with a null `sql_id_origen`, so this predicate keeps them out of the
+ * qualification dashboard. Shared by the aggregate and the detail list.
+ */
+const LEAD_ORIGIN_OUV_WHERE: WhereOptions = {
+  origenVia: OuvOrigenVia.DesdeSql,
+  sqlIdOrigen: { [Op.ne]: null },
+};
 
 @Injectable()
 export class QualificationDashboardService {
@@ -661,6 +676,7 @@ export class QualificationDashboardService {
 
   private openZonaWhere(zona: OuvZona, comercialId?: string): WhereOptions {
     return {
+      ...LEAD_ORIGIN_OUV_WHERE,
       zonaActual: zona,
       resultado: OuvResultado.EnCurso,
       ...(comercialId ? { comercialId } : {}),
@@ -691,6 +707,7 @@ export class QualificationDashboardService {
     comercialId?: string,
   ): WhereOptions {
     return {
+      ...LEAD_ORIGIN_OUV_WHERE,
       resultado,
       ...(comercialId ? { comercialId } : {}),
       [Op.and]: where(fn('COALESCE', col('fecha_cierre'), col('updated_at')), {
@@ -809,14 +826,15 @@ export class QualificationDashboardService {
     let quarterEnd: Date | null = null;
     let hasAccumulatedRange = false;
 
-    if (year != null && quarter != null) {
+    if (year != null) {
       hasAccumulatedRange = true;
-      quarterStart = new Date(Date.UTC(year, (quarter - 1) * 3, 1, 5));
-      quarterEnd = new Date(Date.UTC(year, quarter * 3, 1, 5));
-    } else if (year != null) {
-      hasAccumulatedRange = true;
-      quarterStart = new Date(Date.UTC(year, 0, 1, 5));
-      quarterEnd = new Date(Date.UTC(year + 1, 0, 1, 5));
+      const fiscalQuarter =
+        quarter === 1 || quarter === 2 || quarter === 3 || quarter === 4
+          ? (quarter as VerytelQuarter)
+          : null;
+      const range = verytelFiscalPeriod(year, fiscalQuarter);
+      quarterStart = range.start;
+      quarterEnd = range.end;
     }
 
     return {

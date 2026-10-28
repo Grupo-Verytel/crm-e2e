@@ -1,3 +1,8 @@
+import {
+  verytelFiscalPeriod,
+  type VerytelQuarter,
+} from '../../../common/time/verytel-quarter';
+
 /**
  * Commercial OUV dashboard math.
  *
@@ -189,16 +194,19 @@ export function resolveOuvDashboardPeriod(input: OuvDashboardPeriodInput): {
   } else if (input.year != null && input.quarter != null) {
     year = input.year;
     quarter = input.quarter;
-    current = {
-      start: new Date(Date.UTC(input.year, (input.quarter - 1) * 3, 1, 5)),
-      end: new Date(Date.UTC(input.year, input.quarter * 3, 1, 5)),
-    };
+    const fiscalQuarter =
+      input.quarter === 1 ||
+      input.quarter === 2 ||
+      input.quarter === 3 ||
+      input.quarter === 4
+        ? (input.quarter as VerytelQuarter)
+        : null;
+    if (fiscalQuarter) {
+      current = verytelFiscalPeriod(input.year, fiscalQuarter);
+    }
   } else if (input.year != null) {
     year = input.year;
-    current = {
-      start: new Date(Date.UTC(input.year, 0, 1, 5)),
-      end: new Date(Date.UTC(input.year + 1, 0, 1, 5)),
-    };
+    current = verytelFiscalPeriod(input.year);
   }
 
   if (!current) {

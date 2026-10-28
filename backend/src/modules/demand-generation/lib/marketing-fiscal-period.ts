@@ -1,3 +1,8 @@
+import {
+  verytelFiscalPeriod,
+  type VerytelQuarter,
+} from '../../../common/time/verytel-quarter';
+
 /**
  * Marketing fiscal calendar for a selected year (America/Bogota dates).
  *
@@ -10,25 +15,16 @@
  * Returned `end` is exclusive (next day at Bogotá midnight).
  */
 
-function bogotaDay(year: number, month: number, day: number): Date {
-  return new Date(Date.UTC(year, month - 1, day, 5, 0, 0, 0));
+function asQuarter(quarter?: number | null): VerytelQuarter | null {
+  if (quarter === 1 || quarter === 2 || quarter === 3 || quarter === 4) {
+    return quarter;
+  }
+  return null;
 }
 
 export function marketingFiscalRange(
   year: number,
   quarter?: number | null,
 ): { start: Date; end: Date } {
-  if (quarter === 1) {
-    return { start: bogotaDay(year, 2, 1), end: bogotaDay(year, 5, 1) };
-  }
-  if (quarter === 2) {
-    return { start: bogotaDay(year, 5, 1), end: bogotaDay(year, 8, 1) };
-  }
-  if (quarter === 3) {
-    return { start: bogotaDay(year, 8, 1), end: bogotaDay(year, 11, 1) };
-  }
-  if (quarter === 4) {
-    return { start: bogotaDay(year, 11, 1), end: bogotaDay(year + 1, 2, 1) };
-  }
-  return { start: bogotaDay(year, 2, 1), end: bogotaDay(year + 1, 2, 1) };
+  return verytelFiscalPeriod(year, asQuarter(quarter));
 }
