@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { List } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { DatePickerField } from '../../../components/DatePickerField';
+import { FiscalQuarterSelect } from '../../../components/FiscalQuarterSelect';
 import { Pagination } from '../../../components/Pagination';
 import { AppLayout } from '../../../layout/AppLayout';
 import { useAuth } from '../../auth/hooks/useAuth';
@@ -271,24 +272,18 @@ export function MarketingDashboardPage() {
             <label className={labelClass} htmlFor="dashboard-quarter">
               Trimestre
             </label>
-            <select
+            <FiscalQuarterSelect
               id="dashboard-quarter"
               className={`${inputClass} min-w-52 disabled:cursor-not-allowed disabled:opacity-50`}
-              value={quarter ?? ''}
+              value={quarter}
               disabled={accumulatedYear == null}
               title={
                 accumulatedYear == null
                   ? 'Selecciona un año primero'
                   : 'Trimestre del año seleccionado'
               }
-              onChange={(event) => handleQuarterChange(event.target.value)}
-            >
-              <option value="">Todo el año fiscal</option>
-              <option value="1">Q1 · 01 feb – 30 abr</option>
-              <option value="2">Q2 · 01 may – 31 jul</option>
-              <option value="3">Q3 · 01 ago – 31 oct</option>
-              <option value="4">Q4 · 01 nov – 31 ene</option>
-            </select>
+              onChange={handleQuarterChange}
+            />
           </div>
           <div>
             <label className={labelClass} htmlFor="dashboard-period-from">

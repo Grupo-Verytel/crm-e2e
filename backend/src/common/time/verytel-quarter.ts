@@ -71,6 +71,21 @@ export function verytelQuarterOf(instant: Date): VerytelQuarterPoint {
   return { fiscalYear: year, quarter: 4 };
 }
 
+/**
+ * Half-open window [start, end) at America/Bogota midnights.
+ * Without a quarter, the window is the full fiscal year: 1 Feb → 1 Feb next year.
+ */
+export function verytelFiscalPeriod(
+  fiscalYear: number,
+  quarter?: VerytelQuarter | null,
+): { start: Date; end: Date } {
+  const from = quarter ?? 1;
+  const to = quarter ?? 4;
+  const start = verytelQuarterRange(fiscalYear, from).start;
+  const inclusiveEnd = verytelQuarterRange(fiscalYear, to).end;
+  return { start, end: new Date(inclusiveEnd.getTime() + 1) };
+}
+
 export function verytelQuarterRange(
   fiscalYear: number,
   quarter: VerytelQuarter,

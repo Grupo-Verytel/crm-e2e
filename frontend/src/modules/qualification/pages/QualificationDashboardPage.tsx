@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { DatePickerField } from '../../../components/DatePickerField';
+import { FiscalQuarterSelect } from '../../../components/FiscalQuarterSelect';
 import { Pagination } from '../../../components/Pagination';
 import { AppLayout } from '../../../layout/AppLayout';
 import { ModalShell } from '../../demand-generation/components/ModalShell';
@@ -200,20 +201,13 @@ export function QualificationDashboardPage() {
             <label className={labelClass} htmlFor="qual-dashboard-quarter">
               Trimestre
             </label>
-            <select
+            <FiscalQuarterSelect
               id="qual-dashboard-quarter"
-              className={`${inputClass} min-w-24 disabled:cursor-not-allowed disabled:opacity-50`}
-              value={quarter ?? ''}
+              className={`${inputClass} min-w-52 disabled:cursor-not-allowed disabled:opacity-50`}
+              value={quarter}
               disabled={accumulatedYear == null}
-              onChange={(event) => handleQuarterChange(event.target.value)}
-            >
-              <option value="">—</option>
-              {[1, 2, 3, 4].map((value) => (
-                <option key={value} value={value}>
-                  Q{value}
-                </option>
-              ))}
-            </select>
+              onChange={handleQuarterChange}
+            />
           </div>
           <div>
             <label className={labelClass} htmlFor="qual-dashboard-from">
@@ -282,6 +276,7 @@ export function QualificationDashboardPage() {
             discarded={data.pipeline.ouvs_discarded_in_period}
             activeKind={detail?.kind ?? null}
             onOpenDetail={openDetail}
+            leadOriginCaption="Solo oportunidades originadas en Leads"
           />
         </div>
       )}

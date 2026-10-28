@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Settings } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { DatePickerField } from '../../../components/DatePickerField';
+import { FiscalQuarterSelect } from '../../../components/FiscalQuarterSelect';
 import { AppLayout } from '../../../layout/AppLayout';
 import { ApiError } from '../../auth/types';
 import { useAuth } from '../../auth/hooks/useAuth';
@@ -132,28 +133,21 @@ export function OuvDashboardPage() {
               ))}
             </select>
           </div>
-          <div className="w-48">
+          <div className="min-w-52">
             <label className={labelClass} htmlFor="ouv-dashboard-quarter">
               Trimestre
             </label>
-            <select
+            <FiscalQuarterSelect
               id="ouv-dashboard-quarter"
-              className={`${inputClass} disabled:cursor-not-allowed disabled:opacity-50`}
-              value={quarter ?? ''}
+              className={`${inputClass} min-w-52 disabled:cursor-not-allowed disabled:opacity-50`}
+              value={quarter}
               disabled={year == null}
-              onChange={(event) => {
-                setQuarter(event.target.value ? Number(event.target.value) : null);
+              onChange={(value) => {
+                setQuarter(value ? Number(value) : null);
                 setPeriodFrom('');
                 setPeriodTo('');
               }}
-            >
-              <option value="">Todo el año fiscal</option>
-              {[1, 2, 3, 4].map((value) => (
-                <option key={value} value={value}>
-                  Q{value}
-                </option>
-              ))}
-            </select>
+            />
           </div>
           <div className="w-48">
             <label className={labelClass} htmlFor="ouv-dashboard-from">

@@ -146,7 +146,7 @@ Spec: `specs/metas-comerciales/spec.md`. Decisiones: `specs/decisions/2026-10-20
 
 **Dato.** Tabla `commercial_goals`: `commercial_goal_id`, `user_id`, `fiscal_year`, `quarter` (1–4), `segment_id` (FK a `segments`), `amount_cop DECIMAL(18,0)`, timestamps y `deleted_at`. Unicidad de la fila viva: columna generada `active_marker` dentro de `uq_commercial_goals_active_natural`. El calendario Verytel no se persiste.
 
-**Calendario.** `backend/src/common/time/verytel-quarter.ts` (y la copia de UI en `frontend/src/modules/commercial-goals/lib/verytel-quarter.ts`). Q1 feb–abr, Q2 may–jul, Q3 ago–oct, Q4 nov–ene del año siguiente. El año fiscal es el año en que empieza el trimestre. Los límites de día salen de `bogota-day.ts`. El tablero de OUVs sigue con trimestres de calendario.
+**Calendario.** `backend/src/common/time/verytel-quarter.ts` (y la copia de UI en `frontend/src/modules/commercial-goals/lib/verytel-quarter.ts`). Q1 feb–abr, Q2 may–jul, Q3 ago–oct, Q4 nov–ene del año siguiente. El año fiscal es el año en que empieza el trimestre. Los límites de día salen de `bogota-day.ts`. Los tableros de OUVs, calificación y mercadeo usan este mismo calendario fiscal.
 
 **Permiso.** Subject `CommercialGoal` con `create`, `read`, `update` y `delete`. Lo tienen `SoporteComercial` y `Admin` en `buildPermissions` y en la migración `20261020231100-commercial-goal-permissions.js`. Ni el API ni el engranaje comparan nombres de rol. Tras la migración, Soporte y Admin cierran sesión y vuelven a entrar.
 
