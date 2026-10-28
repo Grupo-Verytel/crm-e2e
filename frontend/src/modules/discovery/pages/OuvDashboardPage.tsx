@@ -1,18 +1,18 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Settings } from 'lucide-react';
-import { Link } from 'react-router-dom';
-import { DatePickerField } from '../../../components/DatePickerField';
-import { FiscalQuarterSelect } from '../../../components/FiscalQuarterSelect';
-import { Pagination } from '../../../components/Pagination';
-import { AppLayout } from '../../../layout/AppLayout';
-import { ModalShell } from '../../demand-generation/components/ModalShell';
-import { ApiError } from '../../auth/types';
-import { useAuth } from '../../auth/hooks/useAuth';
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Settings } from "lucide-react";
+import { Link } from "react-router-dom";
+import { DatePickerField } from "../../../components/DatePickerField";
+import { FiscalQuarterSelect } from "../../../components/FiscalQuarterSelect";
+import { Pagination } from "../../../components/Pagination";
+import { AppLayout } from "../../../layout/AppLayout";
+import { ModalShell } from "../../demand-generation/components/ModalShell";
+import { ApiError } from "../../auth/types";
+import { useAuth } from "../../auth/hooks/useAuth";
 import {
   commercialOptionLabel,
   fetchEjecutivosComerciales,
   type EjecutivoComercialOption,
-} from '../api/catalogos-api';
+} from "../api/catalogos-api";
 import {
   fetchOuvDashboard,
   fetchOuvDashboardDetails,
@@ -20,16 +20,20 @@ import {
   type OuvDashboardDetailItem,
   type OuvDashboardDetailOpen,
   type OuvDashboardDetailQuery,
-} from '../api/ouv-dashboard-api';
-import { DiscoveryNav } from '../components/DiscoveryNav';
-import { OuvDashboardDetailTable } from '../components/OuvDashboardDetailTable';
-import { OuvDashboardPanels } from '../components/OuvDashboardPanels';
-import { ghostButtonClass, inputClass, labelClass } from '../components/ui';
-import { downloadOuvDashboardDetailXlsx } from '../lib/ouv-dashboard-excel';
-import { canReadAllOuvs } from '../lib/ouv-access';
-import { formatCompactMoney, formatPeriodDate } from '../lib/ouv-dashboard-format';
-import { SEGMENTOS } from '../lib/ouv-vocab';
-import { hasCommercialGoalPermission } from '../../commercial-goals/lib/can-read-commercial-goals';
+} from "../api/ouv-dashboard-api";
+import { DiscoveryNav } from "../components/DiscoveryNav";
+import { OuvDashboardDetailTable } from "../components/OuvDashboardDetailTable";
+import { OuvDashboardPanels } from "../components/OuvDashboardPanels";
+import { ghostButtonClass, inputClass, labelClass } from "../components/ui";
+import { downloadOuvDashboardDetailXlsx } from "../lib/ouv-dashboard-excel";
+import { canReadAllOuvs } from "../lib/ouv-access";
+import {
+  formatCompactMoney,
+  formatPeriodDate,
+} from "../lib/ouv-dashboard-format";
+import { SEGMENTOS } from "../lib/ouv-vocab";
+import { hasCommercialGoalPermission } from "../../commercial-goals/lib/can-read-commercial-goals";
+import { hasCommercialReportPermission } from "../lib/can-read-commercial-report";
 
 const DETAIL_PAGE_SIZE = 20;
 const DETAIL_EXPORT_PAGE_SIZE = 50;
@@ -42,14 +46,17 @@ function yearOptions(): number[] {
 export function OuvDashboardPage() {
   const { user } = useAuth();
   const showEjecutivo = canReadAllOuvs(user?.role_name);
-  const showGoals = hasCommercialGoalPermission(user, 'read');
+  const showGoals = hasCommercialGoalPermission(user, "read");
+  const showReports = hasCommercialReportPermission(user);
   const years = useMemo(() => yearOptions(), []);
-  const [year, setYear] = useState<number | null>(() => new Date().getFullYear());
+  const [year, setYear] = useState<number | null>(() =>
+    new Date().getFullYear(),
+  );
   const [quarter, setQuarter] = useState<number | null>(null);
-  const [periodFrom, setPeriodFrom] = useState('');
-  const [periodTo, setPeriodTo] = useState('');
-  const [comercialId, setComercialId] = useState('');
-  const [segmento, setSegmento] = useState('');
+  const [periodFrom, setPeriodFrom] = useState("");
+  const [periodTo, setPeriodTo] = useState("");
+  const [comercialId, setComercialId] = useState("");
+  const [segmento, setSegmento] = useState("");
   const [ejecutivos, setEjecutivos] = useState<EjecutivoComercialOption[]>([]);
   const [data, setData] = useState<OuvDashboard | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -95,7 +102,7 @@ export function OuvDashboardPage() {
         setError(
           err instanceof ApiError && err.message
             ? err.message
-            : 'No se pudo cargar el tablero.',
+            : "No se pudo cargar el tablero.",
         );
         setIsLoading(false);
       });
@@ -115,11 +122,11 @@ export function OuvDashboardPage() {
 
   const detailFilters = useCallback((): Omit<
     OuvDashboardDetailQuery,
-    'page' | 'limit'
+    "page" | "limit"
   > | null => {
     if (!detail) return null;
     const comercialIdParam =
-      detail.comercialId || (showEjecutivo && comercialId ? comercialId : '');
+      detail.comercialId || (showEjecutivo && comercialId ? comercialId : "");
     const segmentoParam = detail.segmento || segmento;
     return {
       kind: detail.kind,
@@ -172,7 +179,7 @@ export function OuvDashboardPage() {
         setDetailError(
           err instanceof ApiError && err.message
             ? err.message
-            : 'No se pudo cargar el detalle.',
+            : "No se pudo cargar el detalle.",
         );
       })
       .finally(() => {
@@ -231,7 +238,7 @@ export function OuvDashboardPage() {
       setExportError(
         err instanceof ApiError && err.message
           ? err.message
-          : 'No se pudo exportar el detalle.',
+          : "No se pudo exportar el detalle.",
       );
     } finally {
       setIsExporting(false);
@@ -241,7 +248,7 @@ export function OuvDashboardPage() {
   const periodCaption =
     data?.period.active && data.period.period_from && data.period.period_to
       ? `${formatPeriodDate(data.period.period_from)} – ${formatPeriodDate(data.period.period_to)}`
-      : 'Todo el historial';
+      : "Todo el historial";
 
   return (
     <AppLayout title="Oportunidades (OUV)">
@@ -262,12 +269,12 @@ export function OuvDashboardPage() {
             <select
               id="ouv-dashboard-year"
               className={inputClass}
-              value={year ?? ''}
+              value={year ?? ""}
               onChange={(event) => {
                 setYear(event.target.value ? Number(event.target.value) : null);
                 setQuarter(null);
-                setPeriodFrom('');
-                setPeriodTo('');
+                setPeriodFrom("");
+                setPeriodTo("");
               }}
             >
               <option value="">—</option>
@@ -289,8 +296,8 @@ export function OuvDashboardPage() {
               disabled={year == null}
               onChange={(value) => {
                 setQuarter(value ? Number(value) : null);
-                setPeriodFrom('');
-                setPeriodTo('');
+                setPeriodFrom("");
+                setPeriodTo("");
               }}
             />
           </div>
@@ -367,6 +374,14 @@ export function OuvDashboardPage() {
               ))}
             </select>
           </div>
+          {showReports ? (
+            <Link
+              to="/reports"
+              className="btn-glow-outline inline-flex h-10 items-center rounded px-3 text-sm font-bold"
+            >
+              Reportes
+            </Link>
+          ) : null}
           {showGoals ? (
             <Link
               to="/dashboard/metas-comerciales"
@@ -392,7 +407,7 @@ export function OuvDashboardPage() {
         </p>
       ) : error || !data ? (
         <p className="px-6 py-10 text-center text-sm text-danger">
-          {error ?? 'Sin datos.'}
+          {error ?? "Sin datos."}
         </p>
       ) : (
         <OuvDashboardPanels data={data} onOpenDetail={openDetail} />
@@ -411,7 +426,7 @@ export function OuvDashboardPage() {
                   data-detail-total={detailTotal}
                   data-detail-amount={detailAmount}
                 >
-                  {detailTotal} {detailTotal === 1 ? 'registro' : 'registros'} ·
+                  {detailTotal} {detailTotal === 1 ? "registro" : "registros"} ·
                   suma {formatCompactMoney(detailAmount)}
                 </p>
                 {detailItems.length === 0 ? (
@@ -445,9 +460,13 @@ export function OuvDashboardPage() {
                 isExporting
               }
             >
-              {isExporting ? 'Exportando…' : 'Exportar a Excel'}
+              {isExporting ? "Exportando…" : "Exportar a Excel"}
             </button>
-            <button type="button" onClick={closeDetail} className={ghostButtonClass}>
+            <button
+              type="button"
+              onClick={closeDetail}
+              className={ghostButtonClass}
+            >
               Cerrar
             </button>
           </div>

@@ -11,6 +11,16 @@ import {
 import { RecordSecurityEventDto } from '../dtos/record-security-event.dto';
 import { AuditWriterService } from './audit-writer.service';
 
+export type AuditFieldUpdate = {
+  auditId: string;
+  registroId: string;
+  campoModificado: string | null;
+  valorAnterior: string | null;
+  valorNuevo: string | null;
+  usuarioId: string;
+  timestamp: Date;
+};
+
 @Injectable()
 export class AuditService {
   constructor(
@@ -56,6 +66,33 @@ export class AuditService {
       order: [['timestamp', 'ASC']],
     });
     return rows.map((row) => this.toResponseDto(row));
+  }
+
+  /** Amount history for reports. Empty ids skip the query. */
+  async listFieldUpdates(
+    tabla: string,
+    registroIds: string[],
+    campos: string[],
+  ): Promise<AuditFieldUpdate[]> {
+    if (registroIds.length === 0 || campos.length === 0) return [];
+    const rows = await this.auditLogModel.findAll({
+      where: {
+        tabla,
+        registroId: { [Op.in]: registroIds },
+        campoModificado: { [Op.in]: campos },
+        accion: AuditAction.UPDATE,
+      },
+      order: [['timestamp', 'ASC']],
+    });
+    return rows.map((row) => ({
+      auditId: row.auditId,
+      registroId: row.registroId,
+      campoModificado: row.campoModificado,
+      valorAnterior: row.valorAnterior,
+      valorNuevo: row.valorNuevo,
+      usuarioId: row.usuarioId,
+      timestamp: row.timestamp,
+    }));
   }
 
   async recordChange(entry: {

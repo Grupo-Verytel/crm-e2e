@@ -1,3 +1,8 @@
+import {
+  addBogotaCalendarDays,
+  bogotaDayStartFromYmd,
+  bogotaYmd,
+} from '../../../common/time/bogota-day';
 import { verytelFiscalPeriod } from '../../../common/time/verytel-quarter';
 
 /**
@@ -43,7 +48,6 @@ export const OUV_DASHBOARD_ZONE_WEIGHT: Record<OuvDashboardZone, number> = {
 export const OUV_DASHBOARD_STALE_DAYS = 30;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-const COT_OFFSET_MS = 5 * 60 * 60 * 1000;
 
 export type OuvDashboardSourceRow = {
   ouvId: string;
@@ -184,20 +188,8 @@ function roundRatio(value: number): number {
   return Math.round(value * 10000) / 10000;
 }
 
-function startOfCotDay(ymd: string): Date {
-  return new Date(`${ymd.slice(0, 10)}T05:00:00.000Z`);
-}
-
-function formatCotYmd(instant: Date): string {
-  const shifted = new Date(instant.getTime() - COT_OFFSET_MS);
-  const year = shifted.getUTCFullYear();
-  const month = String(shifted.getUTCMonth() + 1).padStart(2, '0');
-  const day = String(shifted.getUTCDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
 function inclusiveEndYmd(exclusiveEnd: Date): string {
-  return formatCotYmd(new Date(exclusiveEnd.getTime() - DAY_MS));
+  return addBogotaCalendarDays(bogotaYmd(exclusiveEnd), -1);
 }
 
 export function resolveOuvDashboardPeriod(input: OuvDashboardPeriodInput): {
@@ -212,8 +204,10 @@ export function resolveOuvDashboardPeriod(input: OuvDashboardPeriodInput): {
   let quarter: number | null = null;
 
   if (custom) {
-    const start = startOfCotDay(input.periodFrom!);
-    const end = new Date(startOfCotDay(input.periodTo!).getTime() + DAY_MS);
+    const start = bogotaDayStartFromYmd(input.periodFrom!);
+    const end = bogotaDayStartFromYmd(
+      addBogotaCalendarDays(input.periodTo!, 1),
+    );
     if (end.getTime() > start.getTime()) {
       current = { start, end };
     }
@@ -634,11 +628,11 @@ export function buildOuvDashboard(
   return {
     period: {
       active: period != null,
-      period_from: period ? formatCotYmd(period.start) : null,
+      period_from: period ? bogotaYmd(period.start) : null,
       period_to: period ? inclusiveEndYmd(period.end) : null,
       year: resolved.year,
       quarter: resolved.quarter,
-      compare_from: previous ? formatCotYmd(previous.start) : null,
+      compare_from: previous ? bogotaYmd(previous.start) : null,
       compare_to: previous ? inclusiveEndYmd(previous.end) : null,
     },
     pipeline_weighted: {
