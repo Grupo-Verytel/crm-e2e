@@ -1,6 +1,6 @@
 # 2026-10-28 — Dos definiciones de OUV abierta en el tablero
 
-Estado: aplicada en el working tree de `EP-Feature-Reportes` (2026-10-28). Sin commit.
+Estado: aplicada en EP-Feature-Reportes (2026-10-28).
 
 ## D-ABIERTA — Foto y EnCurso conviven
 

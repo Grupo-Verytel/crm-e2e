@@ -147,9 +147,9 @@ export function OuvDashboardPage() {
     const filters = detailFilters();
     if (!filters) return;
 
-    let cancelled = false;
+    let ignore = false;
     const markLoading = window.setTimeout(() => {
-      if (cancelled) return;
+      if (ignore) return;
       setDetailLoading(true);
       setDetailError(null);
     }, 0);
@@ -159,13 +159,13 @@ export function OuvDashboardPage() {
       limit: DETAIL_PAGE_SIZE,
     })
       .then((response) => {
-        if (cancelled) return;
+        if (ignore) return;
         setDetailItems(response.items);
         setDetailTotal(response.total);
         setDetailAmount(response.amount_total);
       })
       .catch((err: unknown) => {
-        if (cancelled) return;
+        if (ignore) return;
         setDetailItems([]);
         setDetailTotal(0);
         setDetailAmount(0);
@@ -176,10 +176,10 @@ export function OuvDashboardPage() {
         );
       })
       .finally(() => {
-        if (!cancelled) setDetailLoading(false);
+        if (!ignore) setDetailLoading(false);
       });
     return () => {
-      cancelled = true;
+      ignore = true;
       window.clearTimeout(markLoading);
     };
   }, [detailFilters, detailPage]);
