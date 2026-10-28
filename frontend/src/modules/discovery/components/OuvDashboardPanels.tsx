@@ -1,6 +1,9 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import type { OuvDashboard } from '../api/ouv-dashboard-api';
+import type {
+  OuvDashboard,
+  OuvDashboardDetailOpen,
+} from '../api/ouv-dashboard-api';
 import {
   formatCompactMoney,
   formatRate,
@@ -70,7 +73,36 @@ function EmptyLine({ children }: { children: string }) {
   return <p className="text-sm text-muted">{children}</p>;
 }
 
-export function OuvDashboardPanels({ data }: { data: OuvDashboard }) {
+function FigureButton({
+  count,
+  amount,
+  onClick,
+}: {
+  count: number;
+  amount: number;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      data-count={count}
+      data-amount={amount}
+      className="text-left text-accent hover:underline"
+    >
+      <span className="block font-bold">{count}</span>
+      <span className="block text-xs">{formatCompactMoney(amount)}</span>
+    </button>
+  );
+}
+
+export function OuvDashboardPanels({
+  data,
+  onOpenDetail,
+}: {
+  data: OuvDashboard;
+  onOpenDetail: (request: OuvDashboardDetailOpen) => void;
+}) {
   const maxFunnel = Math.max(...data.funnel.map((step) => step.amount), 0);
   const maxOrigin = Math.max(...data.new_origins.map((item) => item.count), 0);
   const maxWon = Math.max(...data.executives.map((item) => item.won_amount), 0);
@@ -100,16 +132,26 @@ export function OuvDashboardPanels({ data }: { data: OuvDashboard }) {
           </p>
           <DeltaRatio ratio={data.pipeline_value.delta_ratio} />
         </KpiCard>
-        <KpiCard
-          label="Tasa de cierre"
-          value={formatRate(data.close_rate.rate)}
-        >
-          <p>
-            {data.close_rate.won_count} ganadas · {data.close_rate.lost_count}{' '}
-            perdidas
+        <article className={`${cardClass} p-4`}>
+          <p className="text-xs font-bold uppercase tracking-wide text-muted">
+            Tasa de cierre
           </p>
-          <DeltaPoints points={data.close_rate.delta_points} />
-        </KpiCard>
+          <p className="mt-2 text-xs text-muted">Por cantidad</p>
+          <p className="text-2xl font-bold text-ink">
+            {formatRate(data.close_rate.rate)}
+          </p>
+          <p className="mt-2 text-xs text-muted">Por monto</p>
+          <p className="text-2xl font-bold text-ink">
+            {formatRate(data.close_rate.rate_amount)}
+          </p>
+          <div className="mt-2 text-sm text-muted">
+            <p>
+              {data.close_rate.won_count} ganadas · {data.close_rate.lost_count}{' '}
+              perdidas
+            </p>
+            <DeltaPoints points={data.close_rate.delta_points} />
+          </div>
+        </article>
         <KpiCard
           label="Ciclo de venta promedio"
           value={
@@ -126,6 +168,121 @@ export function OuvDashboardPanels({ data }: { data: OuvDashboard }) {
         >
           {formatCompactMoney(data.new_ouvs.amount)} en valor potencial
         </KpiCard>
+      </section>
+
+      <section className={`${cardClass} p-4`}>
+        <h2 className="mb-1 text-sm font-bold text-ink">Resultado por segmento</h2>
+        <p className="mb-3 text-xs text-muted">
+          Abiertas de hoy. Ganadas y perdidas del periodo.
+        </p>
+        {data.by_segment.length === 0 ? (
+          <EmptyLine>No hay segmentos con OUVs en este corte.</EmptyLine>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[52rem] text-left text-sm">
+              <thead className="text-xs text-muted">
+                <tr>
+                  <th className="pb-2 font-bold">Segmento</th>
+                  <th className="pb-2 font-bold">Abiertas hoy (#, $)</th>
+                  <th className="pb-2 font-bold">Ganadas periodo (#, $)</th>
+                  <th className="pb-2 font-bold">Perdidas periodo (#, $)</th>
+                  <th className="pb-2 font-bold">Win rate #</th>
+                  <th className="pb-2 font-bold">Win rate $</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.by_segment.map((row) => (
+                  <tr key={row.segmento} className="border-t border-border">
+                    <td className="py-2 pr-2 text-ink">{row.segmento}</td>
+                    <td className="py-2 pr-2">
+                      <FigureButton
+                        count={row.open_count}
+                        amount={row.open_amount}
+                        onClick={() =>
+                          onOpenDetail({
+                            kind: 'open_by_segment',
+                            title: `Abiertas hoy · ${row.segmento}`,
+                            segmento: row.segmento,
+                          })
+                        }
+                      />
+                    </td>
+                    <td className="py-2 pr-2">
+                      <FigureButton
+                        count={row.won_count}
+                        amount={row.won_amount}
+                        onClick={() =>
+                          onOpenDetail({
+                            kind: 'won_by_segment',
+                            title: `Ganadas del periodo · ${row.segmento}`,
+                            segmento: row.segmento,
+                          })
+                        }
+                      />
+                    </td>
+                    <td className="py-2 pr-2">
+                      <FigureButton
+                        count={row.lost_count}
+                        amount={row.lost_amount}
+                        onClick={() =>
+                          onOpenDetail({
+                            kind: 'lost_by_segment',
+                            title: `Perdidas del periodo · ${row.segmento}`,
+                            segmento: row.segmento,
+                          })
+                        }
+                      />
+                    </td>
+                    <td className="py-2 pr-2 text-ink">{formatRate(row.win_rate)}</td>
+                    <td className="py-2 text-ink">
+                      {formatRate(row.win_rate_amount)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <section className={`${cardClass} p-4`}>
+        <h2 className="mb-3 text-sm font-bold text-ink">
+          Mayor probabilidad por segmento
+        </h2>
+        {data.mayor_probabilidad_by_segment.length === 0 ? (
+          <EmptyLine>No hay OUVs abiertas en Mayor probabilidad.</EmptyLine>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[28rem] text-left text-sm">
+              <thead className="text-xs text-muted">
+                <tr>
+                  <th className="pb-2 font-bold">Segmento</th>
+                  <th className="pb-2 font-bold">Abiertas (#, $)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.mayor_probabilidad_by_segment.map((row) => (
+                  <tr key={row.segmento} className="border-t border-border">
+                    <td className="py-2 pr-2 text-ink">{row.segmento}</td>
+                    <td className="py-2">
+                      <FigureButton
+                        count={row.count}
+                        amount={row.amount}
+                        onClick={() =>
+                          onOpenDetail({
+                            kind: 'mayor_probabilidad',
+                            title: `Mayor probabilidad · ${row.segmento}`,
+                            segmento: row.segmento,
+                          })
+                        }
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -270,13 +427,15 @@ export function OuvDashboardPanels({ data }: { data: OuvDashboard }) {
             <EmptyLine>No hay ejecutivos con pipeline o cierres en este corte.</EmptyLine>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[32rem] text-left text-sm">
+              <table className="w-full min-w-[44rem] text-left text-sm">
                 <thead className="text-xs text-muted">
                   <tr>
                     <th className="pb-2 font-bold">Ejecutivo</th>
                     <th className="pb-2 font-bold">OUVs</th>
                     <th className="pb-2 font-bold">Pipeline</th>
+                    <th className="pb-2 font-bold">Abiertas hoy</th>
                     <th className="pb-2 font-bold">Win rate</th>
+                    <th className="pb-2 font-bold">Win rate $</th>
                     <th className="pb-2 font-bold">Valor ganado</th>
                   </tr>
                 </thead>
@@ -284,13 +443,44 @@ export function OuvDashboardPanels({ data }: { data: OuvDashboard }) {
                   {data.executives.map((row) => (
                     <tr key={row.user_id} className="border-t border-border">
                       <td className="py-2 pr-2 text-ink">{row.full_name}</td>
-                      <td className="py-2 pr-2">{row.open_count}</td>
-                      <td className="py-2 pr-2">
+                      <td className="py-2 pr-2 text-ink">{row.open_count}</td>
+                      <td className="py-2 pr-2 text-ink">
                         {formatCompactMoney(row.pipeline_amount)}
                       </td>
-                      <td className="py-2 pr-2">{formatRate(row.win_rate)}</td>
+                      <td className="py-2 pr-2">
+                        <FigureButton
+                          count={row.open_count_now}
+                          amount={row.open_amount_now}
+                          onClick={() =>
+                            onOpenDetail({
+                              kind: 'open_by_executive',
+                              title: `Abiertas hoy · ${row.full_name}`,
+                              comercialId: row.user_id,
+                            })
+                          }
+                        />
+                      </td>
+                      <td className="py-2 pr-2 text-ink">{formatRate(row.win_rate)}</td>
+                      <td className="py-2 pr-2 text-ink">
+                        {formatRate(row.win_rate_amount)}
+                      </td>
                       <td className="py-2">
-                        <p>{formatCompactMoney(row.won_amount)}</p>
+                        <button
+                          type="button"
+                          data-amount={row.won_amount}
+                          onClick={() =>
+                            onOpenDetail({
+                              kind: 'won_by_executive',
+                              title: `Ganadas del periodo · ${row.full_name}`,
+                              comercialId: row.user_id,
+                            })
+                          }
+                          className="text-left text-accent hover:underline"
+                        >
+                          <span className="block font-bold">
+                            {formatCompactMoney(row.won_amount)}
+                          </span>
+                        </button>
                         <Meter
                           width={maxWon > 0 ? (row.won_amount / maxWon) * 100 : 0}
                           className="mt-1 bg-brand"
