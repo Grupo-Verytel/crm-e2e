@@ -96,6 +96,62 @@ function FigureButton({
   );
 }
 
+const segmentFigureGrid = 'grid w-full grid-cols-[2.75rem_minmax(4.5rem,1fr)] gap-x-3';
+
+function SegmentMetricHeader({
+  title,
+  barClass,
+}: {
+  title: string;
+  barClass: string;
+}) {
+  return (
+    <th className="border-l border-border px-3 pb-2 align-bottom font-bold">
+      <span className={`mb-1.5 block h-0.5 w-8 rounded-full ${barClass}`} />
+      <span className="block whitespace-nowrap text-ink">{title}</span>
+      <span
+        className={`${segmentFigureGrid} mt-1 text-[10px] font-normal tracking-wide text-muted`}
+      >
+        <span className="text-right">#</span>
+        <span className="text-right">$</span>
+      </span>
+    </th>
+  );
+}
+
+function SegmentFigure({
+  count,
+  amount,
+  tone,
+  onClick,
+}: {
+  count: number;
+  amount: number;
+  tone: 'open' | 'won' | 'lost';
+  onClick: () => void;
+}) {
+  const quiet = count === 0 && amount === 0;
+  const toneClass = quiet
+    ? 'text-muted'
+    : tone === 'won'
+      ? 'text-semaphore-verde'
+      : tone === 'lost'
+        ? 'text-danger'
+        : 'text-accent';
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      data-count={count}
+      data-amount={amount}
+      className={`${segmentFigureGrid} items-baseline rounded text-right underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${toneClass}`}
+    >
+      <span className="font-bold tabular-nums">{count}</span>
+      <span className="text-xs tabular-nums">{formatCompactMoney(amount)}</span>
+    </button>
+  );
+}
+
 export function OuvDashboardPanels({
   data,
   onOpenDetail,
@@ -132,21 +188,44 @@ export function OuvDashboardPanels({
           </p>
           <DeltaRatio ratio={data.pipeline_value.delta_ratio} />
         </KpiCard>
-        <article className={`${cardClass} p-4`}>
-          <p className="text-xs font-bold uppercase tracking-wide text-muted">
-            Tasa de cierre
-          </p>
-          <p className="mt-2 text-xs text-muted">Por cantidad</p>
-          <p className="text-2xl font-bold text-ink">
-            {formatRate(data.close_rate.rate)}
-          </p>
-          <p className="mt-2 text-xs text-muted">Por monto</p>
-          <p className="text-2xl font-bold text-ink">
-            {formatRate(data.close_rate.rate_amount)}
-          </p>
-          <div className="mt-2 text-sm text-muted">
-            <p>
-              {data.close_rate.won_count} ganadas · {data.close_rate.lost_count}{' '}
+        <article className={`${cardClass} flex min-h-28 flex-col justify-between p-4`}>
+          <p className="text-xs text-muted">Tasa de cierre</p>
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            <div className="min-w-0">
+              <p className="text-2xl font-bold leading-none text-ink">
+                {formatRate(data.close_rate.rate)}
+              </p>
+              <p className="mt-1 text-xs text-muted">Por cantidad</p>
+              <div className="mt-2">
+                <Meter
+                  width={(data.close_rate.rate ?? 0) * 100}
+                  className="bg-brand"
+                />
+              </div>
+            </div>
+            <div className="min-w-0">
+              <p className="text-2xl font-bold leading-none text-ink">
+                {formatRate(data.close_rate.rate_amount)}
+              </p>
+              <p className="mt-1 text-xs text-muted">Por monto</p>
+              <div className="mt-2">
+                <Meter
+                  width={(data.close_rate.rate_amount ?? 0) * 100}
+                  className="bg-brand"
+                />
+              </div>
+            </div>
+          </div>
+          <div className="mt-3 border-t border-border pt-2">
+            <p className="text-xs text-muted">
+              <span className="font-bold text-semaphore-verde">
+                {data.close_rate.won_count}
+              </span>{' '}
+              ganadas
+              <span className="mx-1">·</span>
+              <span className="font-bold text-danger">
+                {data.close_rate.lost_count}
+              </span>{' '}
               perdidas
             </p>
             <DeltaPoints points={data.close_rate.delta_points} />
@@ -179,25 +258,49 @@ export function OuvDashboardPanels({
           <EmptyLine>No hay segmentos con OUVs en este corte.</EmptyLine>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[52rem] text-left text-sm">
+            <table className="w-full min-w-[46rem] border-separate border-spacing-0 text-left text-sm">
+              <colgroup>
+                <col className="w-[18%]" />
+                <col className="w-[22%]" />
+                <col className="w-[22%]" />
+                <col className="w-[22%]" />
+                <col className="w-[16%]" />
+              </colgroup>
               <thead className="text-xs text-muted">
                 <tr>
-                  <th className="pb-2 font-bold">Segmento</th>
-                  <th className="pb-2 font-bold">Abiertas hoy (#, $)</th>
-                  <th className="pb-2 font-bold">Ganadas periodo (#, $)</th>
-                  <th className="pb-2 font-bold">Perdidas periodo (#, $)</th>
-                  <th className="pb-2 font-bold">Win rate #</th>
-                  <th className="pb-2 font-bold">Win rate $</th>
+                  <th className="pb-2 pr-3 align-bottom font-bold text-ink">
+                    Segmento
+                  </th>
+                  <SegmentMetricHeader title="Abiertas hoy" barClass="bg-brand" />
+                  <SegmentMetricHeader
+                    title="Ganadas periodo"
+                    barClass="bg-semaphore-verde"
+                  />
+                  <SegmentMetricHeader
+                    title="Perdidas periodo"
+                    barClass="bg-danger"
+                  />
+                  <th className="border-l border-border px-3 pb-2 align-bottom font-bold">
+                    <span className="mb-1.5 block h-0.5 w-8 rounded-full bg-muted" />
+                    <span className="block whitespace-nowrap text-ink">Win rate</span>
+                    <span className="mt-1 grid grid-cols-2 gap-x-3 text-[10px] font-normal tracking-wide text-muted">
+                      <span className="text-right">#</span>
+                      <span className="text-right">$</span>
+                    </span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {data.by_segment.map((row) => (
-                  <tr key={row.segmento} className="border-t border-border">
-                    <td className="py-2 pr-2 text-ink">{row.segmento}</td>
-                    <td className="py-2 pr-2">
-                      <FigureButton
+                  <tr key={row.segmento} className="group">
+                    <td className="border-t border-border py-2.5 pr-3 text-ink group-hover:bg-bg">
+                      {row.segmento}
+                    </td>
+                    <td className="border-l border-t border-border px-3 py-2.5 group-hover:bg-bg">
+                      <SegmentFigure
                         count={row.open_count}
                         amount={row.open_amount}
+                        tone="open"
                         onClick={() =>
                           onOpenDetail({
                             kind: 'open_by_segment',
@@ -207,10 +310,11 @@ export function OuvDashboardPanels({
                         }
                       />
                     </td>
-                    <td className="py-2 pr-2">
-                      <FigureButton
+                    <td className="border-l border-t border-border px-3 py-2.5 group-hover:bg-bg">
+                      <SegmentFigure
                         count={row.won_count}
                         amount={row.won_amount}
+                        tone="won"
                         onClick={() =>
                           onOpenDetail({
                             kind: 'won_by_segment',
@@ -220,10 +324,11 @@ export function OuvDashboardPanels({
                         }
                       />
                     </td>
-                    <td className="py-2 pr-2">
-                      <FigureButton
+                    <td className="border-l border-t border-border px-3 py-2.5 group-hover:bg-bg">
+                      <SegmentFigure
                         count={row.lost_count}
                         amount={row.lost_amount}
+                        tone="lost"
                         onClick={() =>
                           onOpenDetail({
                             kind: 'lost_by_segment',
@@ -233,9 +338,11 @@ export function OuvDashboardPanels({
                         }
                       />
                     </td>
-                    <td className="py-2 pr-2 text-ink">{formatRate(row.win_rate)}</td>
-                    <td className="py-2 text-ink">
-                      {formatRate(row.win_rate_amount)}
+                    <td className="border-l border-t border-border px-3 py-2.5 group-hover:bg-bg">
+                      <div className="grid grid-cols-2 gap-x-3 text-right tabular-nums text-ink">
+                        <span>{formatRate(row.win_rate)}</span>
+                        <span>{formatRate(row.win_rate_amount)}</span>
+                      </div>
                     </td>
                   </tr>
                 ))}
