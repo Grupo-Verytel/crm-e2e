@@ -1,13 +1,21 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { DatePickerField } from "../../../components/DatePickerField";
-import { FiscalQuarterSelect } from "../../../components/FiscalQuarterSelect";
+import { useEffect, useMemo, useState } from "react";
+import { useLocation, useSearchParams } from "react-router-dom";
 import { Pagination } from "../../../components/Pagination";
-import { AppLayout } from "../../../layout/AppLayout";
+import { AppLayout } from "../../../layout/AppLayout.tsx";
 import { formatDateTime } from "../../../lib/format";
 import { verytelQuarterOf } from "../../commercial-goals/lib/verytel-quarter";
 import { ModalShell } from "../../demand-generation/components/ModalShell";
 import { ApiError } from "../../auth/types";
-import { useAuth } from "../../auth/hooks/useAuth";
+import { useAuth } from "../../auth/hooks/useAuth.ts";
+import { ReportFilterBar } from "../../reports/components/ReportFilterBar";
+import {
+  fechaCorteFromSearch,
+  filterSearchKey,
+  filtersFromSearch,
+  serializeFilters,
+  type ReportKind,
+  type ReportPageFilters,
+} from "../../reports/lib/report-filters";
 import {
   fetchCommercialReportDetails,
   fetchCommitteeReport,
@@ -27,7 +35,7 @@ import {
   CommitteePanels,
   PipelineHealthPanels,
 } from "../components/CommercialReportsPanels";
-import { ghostButtonClass, inputClass, labelClass } from "../components/ui";
+import { ghostButtonClass } from "../components/ui";
 import { hasCommercialReportPermission } from "../lib/can-read-commercial-report";
 import { canReadAllOuvs } from "../lib/ouv-access";
 import { formatCompactMoney } from "../lib/ouv-dashboard-format";
@@ -35,28 +43,32 @@ import { OUV_ZONA_LABEL, type OuvZona, SEGMENTOS } from "../lib/ouv-vocab";
 
 const DETAIL_PAGE_SIZE = 20;
 
-function bogotaToday(): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Bogota",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
+const PAGE_COPY: Record<ReportKind, { title: string; question: string }> = {
+  committee: {
+    title: "Comité comercial",
+    question: "¿Qué cambió desde el último comité y cómo está el periodo?",
+  },
+  "pipeline-health": {
+    title: "Salud del pipeline",
+    question: "¿Cuántas OUVs abiertas llevan más de un año y cuál es su edad?",
+  },
+};
+
+function reportFromPath(pathname: string): ReportKind {
+  return pathname.startsWith("/reports/pipeline-health")
+    ? "pipeline-health"
+    : "committee";
 }
 
-function addCalendarDays(ymd: string, days: number): string {
-  const [year, month, day] = ymd.split("-").map(Number);
-  const utc = new Date(Date.UTC(year, month - 1, day + days));
-  const nextYear = utc.getUTCFullYear();
-  const nextMonth = String(utc.getUTCMonth() + 1).padStart(2, "0");
-  const nextDay = String(utc.getUTCDate()).padStart(2, "0");
-  return `${nextYear}-${nextMonth}-${nextDay}`;
-}
-
-function yearOptions(fiscalYear: number): number[] {
+function yearOptions(selected: number | null): number[] {
+  const fiscalYear = verytelQuarterOf(new Date()).fiscalYear;
   const currentYear = new Date().getFullYear();
   return [
-    ...new Set([fiscalYear, currentYear, currentYear - 1, currentYear - 2]),
+    ...new Set(
+      [fiscalYear, selected, currentYear, currentYear - 1, currentYear - 2].filter(
+        (value): value is number => value != null,
+      ),
+    ),
   ].sort((left, right) => right - left);
 }
 
@@ -71,35 +83,39 @@ function formatMoney(value: number | null): string {
   return formatCompactMoney(value);
 }
 
-const tabIdle =
-  "-mb-px border-b-2 border-transparent px-4 py-2 text-sm text-muted hover:text-accent";
-const tabActive =
-  "-mb-px border-b-2 border-accent px-4 py-2 text-sm font-bold text-accent";
-
 export function CommercialReportsPage() {
   const { user } = useAuth();
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const report = reportFromPath(location.pathname);
+  const copy = PAGE_COPY[report];
   const allowed = hasCommercialReportPermission(user);
   const showEjecutivo = canReadAllOuvs(user?.role_name);
-  const today = useMemo(() => verytelQuarterOf(new Date()), []);
-  const years = useMemo(
-    () => yearOptions(today.fiscalYear),
-    [today.fiscalYear],
+  const filterKey = filterSearchKey(searchParams, report);
+  const fechaCorte = fechaCorteFromSearch(searchParams);
+  const applied = useMemo(
+    () => filtersFromSearch(new URLSearchParams(filterKey), report),
+    [filterKey, report],
   );
-  const [tab, setTab] = useState<"committee" | "health">("committee");
-  const [year, setYear] = useState<number | null>(today.fiscalYear);
-  const [quarter, setQuarter] = useState<number | null>(today.quarter);
-  const [periodFrom, setPeriodFrom] = useState("");
-  const [periodTo, setPeriodTo] = useState("");
-  const [fechaCorte, setFechaCorte] = useState(() =>
-    addCalendarDays(bogotaToday(), -7),
-  );
-  const [comercialId, setComercialId] = useState("");
-  const [segmento, setSegmento] = useState("");
+  const urlIdentity = `${report}|${filterKey}`;
+  const [seenUrl, setSeenUrl] = useState(urlIdentity);
+  const [draft, setDraft] = useState<ReportPageFilters>(applied);
+  if (seenUrl !== urlIdentity) {
+    setSeenUrl(urlIdentity);
+    setDraft(applied);
+  }
   const [ejecutivos, setEjecutivos] = useState<EjecutivoComercialOption[]>([]);
-  const [committee, setCommittee] = useState<CommitteeReport | null>(null);
-  const [health, setHealth] = useState<PipelineHealthReport | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [committeeLoaded, setCommitteeLoaded] = useState<{
+    periodKey: string;
+    corte: string;
+    data: CommitteeReport;
+  } | null>(null);
+  const [healthLoaded, setHealthLoaded] = useState<{
+    key: string;
+    data: PipelineHealthReport;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [errorIdentity, setErrorIdentity] = useState<string | null>(null);
   const [detail, setDetail] = useState<CommercialReportDetailOpen | null>(null);
   const [detailPage, setDetailPage] = useState(1);
   const [detailItems, setDetailItems] = useState<CommercialReportDetailItem[]>(
@@ -111,7 +127,10 @@ export function CommercialReportsPage() {
   const [detailOuvAmount, setDetailOuvAmount] = useState(0);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
-  const periodRangeActive = Boolean(periodFrom && periodTo);
+  const years = useMemo(
+    () => yearOptions(draft.year ?? applied.year),
+    [applied.year, draft.year],
+  );
 
   useEffect(() => {
     if (!allowed || !showEjecutivo) return;
@@ -120,82 +139,160 @@ export function CommercialReportsPage() {
       .catch(() => setEjecutivos([]));
   }, [allowed, showEjecutivo]);
 
-  const scope = useMemo(
-    () => ({
-      ...(showEjecutivo && comercialId ? { comercial_id: comercialId } : {}),
-      ...(segmento ? { segmento } : {}),
-    }),
-    [comercialId, segmento, showEjecutivo],
-  );
-
-  const committeeQuery = useMemo<CommercialReportQuery>(
-    () => ({
-      ...(year != null && !periodRangeActive ? { year } : {}),
-      ...(quarter != null && !periodRangeActive ? { quarter } : {}),
-      ...(periodRangeActive
-        ? { period_from: periodFrom, period_to: periodTo }
+  const periodQuery = useMemo<CommercialReportQuery>(() => {
+    const range = Boolean(applied.periodFrom && applied.periodTo);
+    return {
+      ...(applied.year != null && !range ? { year: applied.year } : {}),
+      ...(applied.quarter != null && applied.year != null && !range
+        ? { quarter: applied.quarter }
         : {}),
-      ...(fechaCorte ? { fecha_corte: fechaCorte } : {}),
-      ...scope,
-    }),
-    [fechaCorte, periodFrom, periodRangeActive, periodTo, quarter, scope, year],
+      ...(range
+        ? { period_from: applied.periodFrom, period_to: applied.periodTo }
+        : {}),
+      ...(showEjecutivo && applied.comercialId
+        ? { comercial_id: applied.comercialId }
+        : {}),
+      ...(applied.segmento ? { segmento: applied.segmento } : {}),
+    };
+  }, [
+    applied.comercialId,
+    applied.periodFrom,
+    applied.periodTo,
+    applied.quarter,
+    applied.segmento,
+    applied.year,
+    showEjecutivo,
+  ]);
+  const periodKey = JSON.stringify(periodQuery);
+  const requestIdentity = `${report}|${periodKey}|${fechaCorte}`;
+  const detailIdentity = `${report}|${periodKey}|${fechaCorte}`;
+  const [seenDetail, setSeenDetail] = useState(detailIdentity);
+  if (seenDetail !== detailIdentity) {
+    setSeenDetail(detailIdentity);
+    setDetail(null);
+  }
+  const committeeQuery = useMemo<CommercialReportQuery>(
+    () =>
+      report === "committee"
+        ? { ...periodQuery, fecha_corte: fechaCorte }
+        : periodQuery,
+    [fechaCorte, periodQuery, report],
   );
+  const healthQuery = useMemo(
+    () => ({
+      ...(showEjecutivo && applied.comercialId
+        ? { comercial_id: applied.comercialId }
+        : {}),
+      ...(applied.segmento ? { segmento: applied.segmento } : {}),
+    }),
+    [applied.comercialId, applied.segmento, showEjecutivo],
+  );
+  const healthKey = JSON.stringify(healthQuery);
+  const committee =
+    report === "committee" && committeeLoaded?.periodKey === periodKey
+      ? committeeLoaded.data
+      : null;
+  const health =
+    report === "pipeline-health" && healthLoaded?.key === healthKey
+      ? healthLoaded.data
+      : null;
+  const activeIdentity =
+    report === "committee" ? requestIdentity : `health|${healthKey}`;
+  const visibleError = errorIdentity === activeIdentity ? error : null;
+  const mobilizationUpdating =
+    committee != null &&
+    committeeLoaded?.corte !== fechaCorte &&
+    visibleError == null;
 
   useEffect(() => {
-    if (!allowed || tab !== "committee") return;
+    if (!allowed || report !== "committee") return;
     let cancelled = false;
     void fetchCommitteeReport(committeeQuery)
       .then((result) => {
         if (cancelled) return;
-        setCommittee(result);
+        setCommitteeLoaded({ periodKey, corte: fechaCorte, data: result });
         setError(null);
-        setIsLoading(false);
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        setCommittee(null);
+        setErrorIdentity(requestIdentity);
         setError(
           err instanceof ApiError && err.message
             ? err.message
             : "No se pudo cargar el comité.",
         );
-        setIsLoading(false);
       });
     return () => {
       cancelled = true;
     };
-  }, [allowed, committeeQuery, tab]);
+  }, [allowed, committeeQuery, fechaCorte, periodKey, report, requestIdentity]);
 
   useEffect(() => {
-    if (!allowed || tab !== "health") return;
+    if (!allowed || report !== "pipeline-health") return;
     let cancelled = false;
-    void fetchPipelineHealth(scope)
+    const identity = `health|${healthKey}`;
+    void fetchPipelineHealth(healthQuery)
       .then((result) => {
         if (cancelled) return;
-        setHealth(result);
+        setHealthLoaded({ key: healthKey, data: result });
         setError(null);
-        setIsLoading(false);
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        setHealth(null);
+        setErrorIdentity(identity);
         setError(
           err instanceof ApiError && err.message
             ? err.message
             : "No se pudo cargar la salud del pipeline.",
         );
-        setIsLoading(false);
       });
     return () => {
       cancelled = true;
     };
-  }, [allowed, scope, tab]);
+  }, [allowed, healthKey, healthQuery, report]);
 
-  const detailFilters = useCallback(() => {
-    if (!detail) return null;
-    const comercial = detail.comercial_id || (showEjecutivo ? comercialId : "");
-    const sector = detail.segmento || segmento;
-    return {
+  function openDetail(request: CommercialReportDetailOpen) {
+    setDetailPage(1);
+    setDetailLoading(true);
+    setDetailError(null);
+    setDetailItems([]);
+    setDetailTotal(0);
+    setDetailAmount(0);
+    setDetailOuvCount(0);
+    setDetailOuvAmount(0);
+    setDetail(request);
+  }
+
+  function closeDetail() {
+    setDetail(null);
+    setDetailItems([]);
+    setDetailError(null);
+  }
+
+  function onFechaCorteChange(value: string) {
+    const next = new URLSearchParams(searchParams);
+    const canonical = fechaCorteFromSearch(new URLSearchParams());
+    if (value === canonical) next.delete("fecha_corte");
+    else next.set("fecha_corte", value);
+    setSearchParams(next);
+  }
+
+  function onApply() {
+    setSearchParams(serializeFilters(draft, report, fechaCorte));
+  }
+
+  function onClear() {
+    setSearchParams(new URLSearchParams());
+  }
+
+  useEffect(() => {
+    if (!detail) return;
+    let ignore = false;
+    const comercial =
+      detail.comercial_id ||
+      (showEjecutivo ? applied.comercialId : "");
+    const sector = detail.segmento || applied.segmento;
+    const filters = {
       report: detail.report,
       kind: detail.kind,
       ...(detail.report === "committee" ? committeeQuery : {}),
@@ -204,23 +301,15 @@ export function CommercialReportsPage() {
       ...(detail.resultado ? { resultado: detail.resultado } : {}),
       ...(comercial ? { comercial_id: comercial } : {}),
       ...(sector ? { segmento: sector } : {}),
+      page: detailPage,
+      limit: DETAIL_PAGE_SIZE,
     };
-  }, [comercialId, committeeQuery, detail, segmento, showEjecutivo]);
-
-  useEffect(() => {
-    const filters = detailFilters();
-    if (!filters) return;
-    let ignore = false;
     const markLoading = window.setTimeout(() => {
       if (ignore) return;
       setDetailLoading(true);
       setDetailError(null);
     }, 0);
-    void fetchCommercialReportDetails({
-      ...filters,
-      page: detailPage,
-      limit: DETAIL_PAGE_SIZE,
-    })
+    void fetchCommercialReportDetails(filters)
       .then((response) => {
         if (ignore) return;
         setDetailItems(response.items);
@@ -249,29 +338,18 @@ export function CommercialReportsPage() {
       ignore = true;
       window.clearTimeout(markLoading);
     };
-  }, [detailFilters, detailPage]);
-
-  function openDetail(request: CommercialReportDetailOpen) {
-    setDetailPage(1);
-    setDetailLoading(true);
-    setDetailError(null);
-    setDetailItems([]);
-    setDetailTotal(0);
-    setDetailAmount(0);
-    setDetailOuvCount(0);
-    setDetailOuvAmount(0);
-    setDetail(request);
-  }
-
-  function closeDetail() {
-    setDetail(null);
-    setDetailItems([]);
-    setDetailError(null);
-  }
+  }, [
+    applied.comercialId,
+    applied.segmento,
+    committeeQuery,
+    detail,
+    detailPage,
+    showEjecutivo,
+  ]);
 
   if (!allowed) {
     return (
-      <AppLayout title="Reportes">
+      <AppLayout title={copy.title}>
         <p className="px-6 py-10 text-sm text-ink">
           No tienes permiso para ver Reportes.
         </p>
@@ -279,6 +357,8 @@ export function CommercialReportsPage() {
     );
   }
 
+  const comercialName =
+    ejecutivos.find((row) => row.user_id === applied.comercialId) ?? null;
   const showStageHeader = detail?.kind.startsWith("m035_") ?? false;
   const stageSummary = `${detailOuvCount} ${detailOuvCount === 1 ? "OUV" : "OUVs"} · monto actual ${formatCompactMoney(detailOuvAmount)} (${detailTotal} ${detailTotal === 1 ? "evento" : "eventos"} · suma ${formatCompactMoney(detailAmount)})`;
   const showEventColumns = detailItems.some(
@@ -288,178 +368,55 @@ export function CommercialReportsPage() {
     (item) =>
       item.previous_amount != null || item.new_amount != null || item.campo,
   );
+  const waiting =
+    visibleError == null &&
+    (report === "committee" ? committee == null : health == null);
 
   return (
-    <AppLayout title="Reportes">
-      <nav
-        className="mb-4 flex flex-wrap gap-1 border-b border-border"
-        aria-label="Reportes"
-      >
-        <button
-          type="button"
-          className={tab === "committee" ? tabActive : tabIdle}
-          onClick={() => {
-            setIsLoading(committee == null);
-            setTab("committee");
-          }}
-        >
-          Comité comercial
-        </button>
-        <button
-          type="button"
-          className={tab === "health" ? tabActive : tabIdle}
-          onClick={() => {
-            setIsLoading(health == null);
-            setTab("health");
-          }}
-        >
-          Salud del pipeline
-        </button>
-      </nav>
+    <AppLayout title={copy.title}>
+      <h1 className="text-lg font-bold text-ink">{copy.title}</h1>
+      <p className="mb-4 text-sm text-muted">{copy.question}</p>
 
-      <div className="mb-4 flex flex-wrap items-end gap-3">
-        {tab === "committee" ? (
-          <>
-            <div className="w-28">
-              <label className={labelClass} htmlFor="reports-year">
-                Año
-              </label>
-              <select
-                id="reports-year"
-                className={inputClass}
-                value={year ?? ""}
-                onChange={(event) => {
-                  setYear(
-                    event.target.value ? Number(event.target.value) : null,
-                  );
-                  setQuarter(null);
-                  setPeriodFrom("");
-                  setPeriodTo("");
-                }}
-              >
-                <option value="">—</option>
-                {years.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="min-w-52">
-              <label className={labelClass} htmlFor="reports-quarter">
-                Trimestre
-              </label>
-              <FiscalQuarterSelect
-                id="reports-quarter"
-                className={`${inputClass} min-w-52 disabled:cursor-not-allowed disabled:opacity-50`}
-                value={quarter}
-                disabled={year == null}
-                onChange={(value) => {
-                  setQuarter(value ? Number(value) : null);
-                  setPeriodFrom("");
-                  setPeriodTo("");
-                }}
-              />
-            </div>
-            <div className="w-48">
-              <label className={labelClass} htmlFor="reports-from">
-                Desde
-              </label>
-              <DatePickerField
-                id="reports-from"
-                value={periodFrom}
-                aria-label="Desde"
-                onChange={(value) => {
-                  setPeriodFrom(value);
-                  if (value && periodTo) {
-                    setYear(null);
-                    setQuarter(null);
-                  }
-                }}
-              />
-            </div>
-            <div className="w-48">
-              <label className={labelClass} htmlFor="reports-to">
-                Hasta
-              </label>
-              <DatePickerField
-                id="reports-to"
-                value={periodTo}
-                aria-label="Hasta"
-                align="end"
-                onChange={(value) => {
-                  setPeriodTo(value);
-                  if (periodFrom && value) {
-                    setYear(null);
-                    setQuarter(null);
-                  }
-                }}
-              />
-            </div>
-            <div className="w-48">
-              <label className={labelClass} htmlFor="reports-corte">
-                Fecha de corte
-              </label>
-              <DatePickerField
-                id="reports-corte"
-                value={fechaCorte}
-                aria-label="Fecha de corte"
-                onChange={(value) => {
-                  if (value) setFechaCorte(value);
-                }}
-              />
-            </div>
-          </>
-        ) : null}
-        {showEjecutivo ? (
-          <div className="w-48">
-            <label className={labelClass} htmlFor="reports-ejecutivo">
-              Ejecutivo
-            </label>
-            <select
-              id="reports-ejecutivo"
-              className={inputClass}
-              value={comercialId}
-              onChange={(event) => setComercialId(event.target.value)}
-            >
-              <option value="">Todos</option>
-              {ejecutivos.map((ejecutivo) => (
-                <option key={ejecutivo.user_id} value={ejecutivo.user_id}>
-                  {commercialOptionLabel(ejecutivo)}
-                </option>
-              ))}
-            </select>
-          </div>
-        ) : null}
-        <div className="w-52">
-          <label className={labelClass} htmlFor="reports-sector">
-            Sector
-          </label>
-          <select
-            id="reports-sector"
-            className={inputClass}
-            value={segmento}
-            onChange={(event) => setSegmento(event.target.value)}
-          >
-            <option value="">Todos</option>
-            {SEGMENTOS.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
+      <ReportFilterBar
+        report={report}
+        draft={draft}
+        applied={applied}
+        years={years}
+        showComercial={showEjecutivo}
+        segments={SEGMENTOS}
+        comercialOptions={ejecutivos.map((row) => ({
+          value: row.user_id,
+          label: commercialOptionLabel(row),
+        }))}
+        comercialName={
+          comercialName ? commercialOptionLabel(comercialName) : null
+        }
+        onDraftChange={setDraft}
+        onApply={onApply}
+        onClear={onClear}
+      />
 
-      {isLoading ? (
+      {visibleError && (committee != null || health != null) ? (
+        <p className="mb-3 text-sm text-danger">{visibleError}</p>
+      ) : null}
+
+      {waiting ? (
         <p className="px-6 py-10 text-center text-sm text-muted">
           Cargando reportes…
         </p>
-      ) : error ? (
-        <p className="px-6 py-10 text-center text-sm text-danger">{error}</p>
-      ) : tab === "committee" && committee ? (
-        <CommitteePanels data={committee} onOpenDetail={openDetail} />
-      ) : tab === "health" && health ? (
+      ) : visibleError && committee == null && health == null ? (
+        <p className="px-6 py-10 text-center text-sm text-danger">
+          {visibleError}
+        </p>
+      ) : report === "committee" && committee ? (
+        <CommitteePanels
+          data={committee}
+          fechaCorte={fechaCorte}
+          mobilizationUpdating={mobilizationUpdating}
+          onFechaCorteChange={onFechaCorteChange}
+          onOpenDetail={openDetail}
+        />
+      ) : report === "pipeline-health" && health ? (
         <PipelineHealthPanels data={health} onOpenDetail={openDetail} />
       ) : (
         <p className="px-6 py-10 text-center text-sm text-muted">Sin datos.</p>
@@ -527,9 +484,7 @@ export function CommercialReportsPage() {
                             <td className="px-6 py-2 text-ink">
                               {item.consecutivo}
                             </td>
-                            <td className="py-2 pr-2 text-ink">
-                              {item.titulo}
-                            </td>
+                            <td className="py-2 pr-2 text-ink">{item.titulo}</td>
                             <td className="py-2 pr-2 text-ink">
                               {item.empresa || "—"}
                             </td>

@@ -5,7 +5,8 @@ import {
   Megaphone,
   Filter,
   Compass,
-  BarChart3,
+  Presentation,
+  HeartPulse,
   Cpu,
   Calculator,
   FileSignature,
@@ -22,7 +23,7 @@ export type NavItem = {
   label: string;
   path: string;
   icon: ComponentType<{ size?: number; strokeWidth?: number }>;
-  group: "commercial" | "platform";
+  group: "commercial" | "reports" | "platform";
   // CASL subjects that gate this module.
   subjects: string[];
   /** When set, the item needs one of these actions on a listed subject. */
@@ -54,15 +55,6 @@ export const NAV_ITEMS: NavItem[] = [
     icon: Compass,
     group: "commercial",
     subjects: ["Opportunity"],
-  },
-  {
-    key: "commercial-reports",
-    label: "Reportes",
-    path: "/reports",
-    icon: BarChart3,
-    group: "commercial",
-    subjects: ["CommercialReport"],
-    actions: ["read"],
   },
   {
     key: "technical-feasibility",
@@ -103,6 +95,24 @@ export const NAV_ITEMS: NavItem[] = [
     icon: RefreshCw,
     group: "commercial",
     subjects: ["PostSale"],
+  },
+  {
+    key: "committee-report",
+    label: "Comité comercial",
+    path: "/reports/committee",
+    icon: Presentation,
+    group: "reports",
+    subjects: ["CommercialReport"],
+    actions: ["read"],
+  },
+  {
+    key: "pipeline-health-report",
+    label: "Salud del pipeline",
+    path: "/reports/pipeline-health",
+    icon: HeartPulse,
+    group: "reports",
+    subjects: ["CommercialReport"],
+    actions: ["read"],
   },
   // Platform — auth, audit, accounts (adelanto Módulo 12)
   {

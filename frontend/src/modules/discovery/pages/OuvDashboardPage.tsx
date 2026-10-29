@@ -4,10 +4,10 @@ import { Link } from "react-router-dom";
 import { DatePickerField } from "../../../components/DatePickerField";
 import { FiscalQuarterSelect } from "../../../components/FiscalQuarterSelect";
 import { Pagination } from "../../../components/Pagination";
-import { AppLayout } from "../../../layout/AppLayout";
+import { AppLayout } from "../../../layout/AppLayout.tsx";
 import { ModalShell } from "../../demand-generation/components/ModalShell";
 import { ApiError } from "../../auth/types";
-import { useAuth } from "../../auth/hooks/useAuth";
+import { useAuth } from "../../auth/hooks/useAuth.ts";
 import {
   commercialOptionLabel,
   fetchEjecutivosComerciales,
@@ -21,7 +21,7 @@ import {
   type OuvDashboardDetailOpen,
   type OuvDashboardDetailQuery,
 } from "../api/ouv-dashboard-api";
-import { DiscoveryNav } from "../components/DiscoveryNav";
+import { DiscoveryNav } from "../components/DiscoveryNav.tsx";
 import { OuvDashboardDetailTable } from "../components/OuvDashboardDetailTable";
 import { OuvDashboardPanels } from "../components/OuvDashboardPanels";
 import { ghostButtonClass, inputClass, labelClass } from "../components/ui";
@@ -376,7 +376,7 @@ export function OuvDashboardPage() {
           </div>
           {showReports ? (
             <Link
-              to="/reports"
+              to="/reports/committee"
               className="btn-glow-outline inline-flex h-10 items-center rounded px-3 text-sm font-bold"
             >
               Reportes

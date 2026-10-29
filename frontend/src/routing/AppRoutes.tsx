@@ -1,5 +1,5 @@
 import { lazy, type ReactNode } from "react";
-import { Navigate, useRoutes } from "react-router-dom";
+import { Navigate, useLocation, useRoutes } from "react-router-dom";
 import { ProtectedRoute } from "../modules/auth/components/ProtectedRoute";
 import { PublicRoute } from "../modules/auth/components/PublicRoute";
 import { AdminRoute } from "../modules/auth/components/AdminRoute";
@@ -147,6 +147,22 @@ export function AppRoutes() {
     },
     {
       path: "/reports",
+      element: (
+        <ProtectedRoute>
+          <ReportsIndexRedirect />
+        </ProtectedRoute>
+      ),
+    },
+    {
+      path: "/reports/committee",
+      element: (
+        <ProtectedRoute>
+          <CommercialReportsPage />
+        </ProtectedRoute>
+      ),
+    },
+    {
+      path: "/reports/pipeline-health",
       element: (
         <ProtectedRoute>
           <CommercialReportsPage />
@@ -409,4 +425,9 @@ export function AppRoutes() {
       ),
     },
   ]);
+}
+
+function ReportsIndexRedirect() {
+  const { search } = useLocation();
+  return <Navigate to={`/reports/committee${search}`} replace />;
 }
