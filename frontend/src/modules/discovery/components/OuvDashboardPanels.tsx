@@ -73,6 +73,71 @@ function EmptyLine({ children }: { children: string }) {
   return <p className="text-sm text-muted">{children}</p>;
 }
 
+function CloseBySegmentChart({
+  rows,
+}: {
+  rows: OuvDashboard['by_segment'];
+}) {
+  const active = rows.filter((row) => row.won_count > 0 || row.lost_count > 0);
+
+  return (
+    <div className="mt-5">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs font-bold text-muted">Por segmento</p>
+        <div className="flex items-center gap-3 text-xs text-muted">
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full bg-semaphore-verde" />
+            Ganadas
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full bg-danger" />
+            Perdidas
+          </span>
+        </div>
+      </div>
+      {active.length === 0 ? (
+        <EmptyLine>Aún no hay OUVs ganadas ni perdidas en el periodo.</EmptyLine>
+      ) : (
+        <ul className="space-y-3">
+          {active.map((row) => (
+            <li key={row.segmento}>
+              <p className="mb-1 truncate text-xs text-ink" title={row.segmento}>
+                {row.segmento}
+              </p>
+              <div className="flex h-2.5 overflow-hidden rounded-full bg-bg">
+                {row.won_count > 0 ? (
+                  <div
+                    className="h-full bg-semaphore-verde"
+                    style={{ flexGrow: row.won_count, flexBasis: 0 }}
+                  />
+                ) : null}
+                {row.lost_count > 0 ? (
+                  <div
+                    className="h-full bg-danger"
+                    style={{ flexGrow: row.lost_count, flexBasis: 0 }}
+                  />
+                ) : null}
+              </div>
+              <div className="mt-1 flex items-baseline justify-between gap-3 text-xs tabular-nums">
+                <p className="whitespace-nowrap text-semaphore-verde">
+                  <span className="font-bold">{row.won_count}</span>
+                  {' · '}
+                  {formatCompactMoney(row.won_amount)}
+                </p>
+                <p className="whitespace-nowrap text-danger">
+                  <span className="font-bold">{row.lost_count}</span>
+                  {' · '}
+                  {formatCompactMoney(row.lost_amount)}
+                </p>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function FigureButton({
   count,
   amount,
@@ -447,37 +512,20 @@ export function OuvDashboardPanels({
               </p>
             </div>
           </div>
-          <h3 className="mb-3 mt-6 text-xs font-bold text-muted">
-            Motivos de pérdida
-          </h3>
-          {data.won_vs_lost.loss_reasons.length === 0 ? (
-            <EmptyLine>No hay OUVs perdidas en el periodo.</EmptyLine>
-          ) : (
-            <ul className="space-y-2">
-              {data.won_vs_lost.loss_reasons.map((reason) => (
-                <li key={reason.label}>
-                  <div className="mb-1 flex justify-between text-xs text-ink">
-                    <span>{reason.label}</span>
-                    <span>{formatRate(reason.share)}</span>
-                  </div>
-                  <Meter width={reason.share * 100} className="bg-accent" />
-                </li>
-              ))}
-            </ul>
-          )}
+          <CloseBySegmentChart rows={data.by_segment} />
         </section>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <section className={`${cardClass} p-4`}>
-          <h2 className="mb-3 text-sm font-bold text-ink">Pipeline por sector</h2>
+          <h2 className="mb-3 text-sm font-bold text-ink">Pipeline por segmento</h2>
           {data.pipeline_by_sector.length === 0 ? (
             <EmptyLine>No hay pipeline abierto en este corte.</EmptyLine>
           ) : (
             <table className="w-full text-left text-sm">
               <thead className="text-xs text-muted">
                 <tr>
-                  <th className="pb-2 font-bold">Sector</th>
+                  <th className="pb-2 font-bold">Segmento</th>
                   <th className="pb-2 font-bold">Valor</th>
                   <th className="pb-2 font-bold">Part.</th>
                   <th className="pb-2 font-bold">Win rate</th>
