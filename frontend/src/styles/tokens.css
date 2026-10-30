@@ -67,7 +67,8 @@
   /* Button pointer glow (10% white, follows cursor) */
   --button-glow: rgba(255, 255, 255, 0.1);
 
-  /* Login split panels — neutral charcoal (no warm undertone) */
+  /* Login split panels. Orange is fixed and does not follow --accent. */
+  --login-accent: #f88702;
   --login-panel-left: #333333;   /* grey branding panel */
   --login-panel-right: #1C1C1C;  /* near-black form panel */
 }
