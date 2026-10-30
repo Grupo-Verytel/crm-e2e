@@ -13,9 +13,13 @@ import { WorkflowEngineModule } from '../workflow-engine/workflow-engine.module'
 import { AssignedOuvsController } from './controllers/assigned-ouvs.controller';
 import { QualificationDashboardController } from './controllers/qualification-dashboard.controller';
 import { SqlsController } from './controllers/sqls.controller';
+import { DefaultMeetingAttendeesController } from './controllers/default-meeting-attendees.controller';
+import { DefaultMeetingAttendee } from './models/default-meeting-attendee.model';
 import { SqlCita } from './models/sql-cita.model';
+import { SqlCitaAttendee } from './models/sql-cita-attendee.model';
 import { SqlAppointmentEvent } from './models/sql-appointment-event.model';
 import { AssignedOuvsService } from './services/assigned-ouvs.service';
+import { DefaultMeetingAttendeesService } from './services/default-meeting-attendees.service';
 import { QualificationDashboardService } from './services/qualification-dashboard.service';
 import { SqlsService } from './services/sqls.service';
 
@@ -26,7 +30,9 @@ import { SqlsService } from './services/sqls.service';
       Mql,
       Lead,
       SqlCita,
+      SqlCitaAttendee,
       SqlAppointmentEvent,
+      DefaultMeetingAttendee,
       User,
       Ouv,
     ]),
@@ -40,8 +46,14 @@ import { SqlsService } from './services/sqls.service';
     SqlsController,
     QualificationDashboardController,
     AssignedOuvsController,
+    DefaultMeetingAttendeesController,
   ],
-  providers: [SqlsService, QualificationDashboardService, AssignedOuvsService],
+  providers: [
+    SqlsService,
+    QualificationDashboardService,
+    AssignedOuvsService,
+    DefaultMeetingAttendeesService,
+  ],
   exports: [SqlsService, QualificationDashboardService],
 })
 export class QualificationModule {}

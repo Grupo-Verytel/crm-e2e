@@ -2,6 +2,14 @@ import { apiRequest } from '../../../lib/api/http-client';
 import { buildQueryString } from '../../../lib/format';
 import type { SqlAppointmentEvent } from '../types/sql-appointment-event.types';
 
+export type SqlCitaAttendee = {
+  email: string;
+  name: string | null;
+  user_id: string | null;
+  source: 'default' | 'manual';
+  sort_order: number;
+};
+
 export type SqlCita = {
   cita_id: string;
   sql_id: string;
@@ -26,6 +34,8 @@ export type SqlCita = {
   duration_minutes?: number;
   /** Computed by the API in America/Bogota. Do not recompute on the client. */
   vigente?: boolean;
+  /** Snapshot stored on the cita. Missing or empty means no default attendees. */
+  attendees?: SqlCitaAttendee[];
   created_at: string;
   updated_at: string;
 };

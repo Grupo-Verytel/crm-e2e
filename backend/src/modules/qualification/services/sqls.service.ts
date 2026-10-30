@@ -45,6 +45,7 @@ import {
   AssignSqlResponseDto,
   ConvertirSqlResponseDto,
   PaginatedSqlsResponseDto,
+  SqlCitaAttendeeResponseDto,
   SqlCitaResponseDto,
   SqlDetailDto,
   SqlsQueryDto,
@@ -53,13 +54,31 @@ import {
   SqlCitaEstado,
   isOpenCitaEstado,
 } from '../models/enums/sql-cita-estado.enum';
+import { DefaultMeetingAttendee } from '../models/default-meeting-attendee.model';
 import { SqlAppointmentEvent } from '../models/sql-appointment-event.model';
 import { SqlCita } from '../models/sql-cita.model';
+import {
+  SqlCitaAttendee,
+  SqlCitaAttendeeSource,
+} from '../models/sql-cita-attendee.model';
 import {
   isCompleteCitaContacto,
   normalizeCitaContactos,
 } from '../lib/cita-contactos';
 import { isCitaVigente } from '../lib/cita-vigencia';
+
+type ResolvedDefaultAttendee = {
+  email: string;
+  name: string | null;
+  sortOrder: number;
+  userId: string | null;
+};
+
+type GraphCitaAttendee = {
+  email: string;
+  name?: string;
+  type: 'required';
+};
 
 @Injectable()
 export class SqlsService {
@@ -74,6 +93,10 @@ export class SqlsService {
     private readonly workflowEngine: WorkflowEngineService,
     private readonly ouvsService: OuvsService,
     private readonly graphService: GraphService,
+    @InjectModel(DefaultMeetingAttendee)
+    private readonly defaultMeetingAttendeeModel: typeof DefaultMeetingAttendee,
+    @InjectModel(SqlCitaAttendee)
+    private readonly sqlCitaAttendeeModel: typeof SqlCitaAttendee,
   ) {}
 
   /** EARS-02 — Soporte bandeja de enrutamiento. DirectorMercadeo: lectura. */
@@ -258,7 +281,14 @@ export class SqlsService {
       const interactions =
         await this.demandGenerationService.listInteractions(sql.mql.leadId);
 
+      let snapshotRows: SqlCitaAttendee[] = [];
       if (cita && dto.cita) {
+        const defaults = await this.resolveActiveDefaultAttendees();
+        snapshotRows = await this.insertAttendeeSnapshot(
+          cita.citaId,
+          defaults,
+          transaction,
+        );
         const meeting = await this.createTeamsMeetingForCita({
           comercial,
           leadLabel: this.citaLeadLabel(lead, sql.sqlId),
@@ -268,6 +298,7 @@ export class SqlsService {
             soporteUserId,
             soporteRoleName,
           ),
+          defaultAttendees: defaults,
         });
         await cita.update(
           {
@@ -290,7 +321,9 @@ export class SqlsService {
         );
       }
 
-      const citaDto = cita ? this.toCitaResponse(cita) : null;
+      const citaDto = cita
+        ? await this.toCitaResponse(cita, transaction, snapshotRows)
+        : null;
 
       await this.workflowEngine.transition(
         EntityType.SQL,
@@ -323,6 +356,8 @@ export class SqlsService {
         sql,
         lead as unknown as Record<string, unknown>,
         cita,
+        snapshotRows,
+        transaction,
       );
       return { sql: detail, cita: citaDto };
     });
@@ -390,6 +425,7 @@ export class SqlsService {
       const lead = await this.demandGenerationService.findLeadById(
         sql.mql.leadId,
       );
+      const snapshot = await this.loadAttendeeSnapshot(cita.citaId, transaction);
 
       if (cita.graphEventId && cita.graphOrganizerUpn) {
         await this.updateTeamsMeetingForCita(
@@ -400,6 +436,7 @@ export class SqlsService {
             actorRoleName,
             cita.agendadaPor,
           ),
+          snapshot,
         );
       }
 
@@ -439,7 +476,7 @@ export class SqlsService {
             payload: {
               sqlId: sql.sqlId,
               comercial_asignado_id: sql.comercialAsignadoId,
-              cita: this.toCitaResponse(cita),
+              cita: await this.toCitaResponse(cita, transaction, snapshot),
             },
             entity: { estado: sql.estado },
           },
@@ -447,7 +484,7 @@ export class SqlsService {
         );
       }
 
-      return this.toCitaResponse(cita);
+      return this.toCitaResponse(cita, transaction, snapshot);
     });
   }
 
@@ -593,7 +630,7 @@ export class SqlsService {
         },
         transaction,
       );
-      return this.toCitaResponse(cita);
+      return this.toCitaResponse(cita, transaction);
     });
   }
 
@@ -659,6 +696,7 @@ export class SqlsService {
       const lead = await this.demandGenerationService.findLeadById(
         sql.mql.leadId,
       );
+      const defaults = await this.resolveActiveDefaultAttendees();
       const meeting = await this.createTeamsMeetingForCita({
         comercial,
         leadLabel: this.citaLeadLabel(lead, sql.sqlId),
@@ -668,6 +706,7 @@ export class SqlsService {
           actorUserId,
           actorRoleName,
         ),
+        defaultAttendees: defaults,
       });
 
       const graphFields = {
@@ -685,6 +724,11 @@ export class SqlsService {
           transaction,
         );
         await created.update(graphFields, { transaction });
+        const snapshotRows = await this.insertAttendeeSnapshot(
+          created.citaId,
+          defaults,
+          transaction,
+        );
         await this.recordAppointmentEvent(
           sql.sqlId,
           SqlCitaEstado.Agendada,
@@ -695,7 +739,7 @@ export class SqlsService {
           },
           transaction,
         );
-        return this.toCitaResponse(created);
+        return this.toCitaResponse(created, transaction, snapshotRows);
       }
 
       const principal = contactos[0];
@@ -729,7 +773,12 @@ export class SqlsService {
         },
         transaction,
       );
-      return this.toCitaResponse(existing);
+      const snapshotRows = await this.replaceAttendeeSnapshot(
+        existing.citaId,
+        defaults,
+        transaction,
+      );
+      return this.toCitaResponse(existing, transaction, snapshotRows);
     });
   }
 
@@ -1090,28 +1139,71 @@ export class SqlsService {
     contactos: Array<{ nombre: string; email: string }>,
     invitee: { email: string; name: string } | null,
     organizerUpn: string,
-  ): Array<{ email: string; name: string; type: 'required' }> {
-    const attendees = contactos
-      .filter((contacto) => contacto.email.includes('@'))
-      .map((contacto) => ({
-        email: contacto.email.trim(),
-        name: contacto.nombre,
-        type: 'required' as const,
-      }));
-    if (!invitee) {
-      return attendees;
+    defaults: Array<{ email: string; name: string | null }> = [],
+  ): GraphCitaAttendee[] {
+    const attendees: GraphCitaAttendee[] = [];
+    for (const contacto of contactos) {
+      this.pushCitaAttendee(
+        attendees,
+        contacto.email,
+        contacto.nombre,
+        organizerUpn,
+        true,
+      );
     }
-    const email = invitee.email.trim();
+    if (invitee) {
+      this.pushCitaAttendee(
+        attendees,
+        invitee.email,
+        invitee.name,
+        organizerUpn,
+        true,
+      );
+    }
+    for (const row of defaults) {
+      this.pushCitaAttendee(
+        attendees,
+        row.email,
+        row.name,
+        organizerUpn,
+        false,
+      );
+    }
+    return attendees;
+  }
+
+  /**
+   * Contacts and the Soporte invitee keep an empty name, matching the previous
+   * payload. Default attendees omit the name when it is blank so Graph stores
+   * only the address.
+   */
+  private pushCitaAttendee(
+    attendees: GraphCitaAttendee[],
+    emailRaw: string | null | undefined,
+    nameRaw: string | null | undefined,
+    organizerUpn: string,
+    keepEmptyName: boolean,
+  ): void {
+    const email = emailRaw?.trim() ?? '';
     const key = email.toLowerCase();
+    const organizerKey = organizerUpn.trim().toLowerCase();
     if (
       !email.includes('@') ||
-      key === organizerUpn ||
+      key === organizerKey ||
       attendees.some((row) => row.email.toLowerCase() === key)
     ) {
-      return attendees;
+      return;
     }
-    attendees.push({ email, name: invitee.name, type: 'required' });
-    return attendees;
+    const name = nameRaw?.trim() ?? '';
+    if (name) {
+      attendees.push({ email, name, type: 'required' });
+      return;
+    }
+    if (keepEmptyName) {
+      attendees.push({ email, name: '', type: 'required' });
+      return;
+    }
+    attendees.push({ email, type: 'required' });
   }
 
   private async createTeamsMeetingForCita(params: {
@@ -1120,6 +1212,7 @@ export class SqlsService {
     dto: CreateSqlCitaDto;
     contactos: Array<{ nombre: string; email: string; telefono: string }>;
     invitee?: { email: string; name: string } | null;
+    defaultAttendees?: Array<{ email: string; name: string | null }>;
   }): Promise<{
     eventId: string;
     organizerUpn: string;
@@ -1135,6 +1228,7 @@ export class SqlsService {
       params.contactos,
       params.invitee ?? null,
       organizerUpn,
+      params.defaultAttendees ?? [],
     );
 
     try {
@@ -1180,6 +1274,7 @@ export class SqlsService {
     cita: SqlCita,
     leadLabel: string,
     invitee: { email: string; name: string } | null = null,
+    snapshot: Array<{ email: string; name: string | null }> = [],
   ): Promise<void> {
     if (!cita.graphEventId || !cita.graphOrganizerUpn) {
       return;
@@ -1198,7 +1293,12 @@ export class SqlsService {
         startTime,
         endTime,
         timeZone: this.graphService.timeZone,
-        attendees: this.citaAttendees(contactos, invitee, organizerUpn),
+        attendees: this.citaAttendees(
+          contactos,
+          invitee,
+          organizerUpn,
+          snapshot,
+        ),
         location: cita.lugar,
         body: cita.descripcion ?? undefined,
         isOnlineMeeting: true,
@@ -1426,8 +1526,26 @@ export class SqlsService {
     const counts = await this.demandGenerationService.countInteractionsByLeadIds(
       rows.map((sql) => sql.mql.leadId),
     );
+    const sqlIds = rows.map((sql) => sql.sqlId);
+    const citas = sqlIds.length
+      ? await this.sqlCitaModel.findAll({
+          where: { sqlId: { [Op.in]: sqlIds } },
+        })
+      : [];
+    const citaBySql = new Map(citas.map((cita) => [cita.sqlId, cita]));
+    const attendeesByCita = await this.loadAttendeesByCitaIds(
+      citas.map((cita) => cita.citaId),
+    );
     const items = await Promise.all(
-      rows.map((sql) => this.toDetailResponse(sql)),
+      rows.map((sql) => {
+        const cita = citaBySql.get(sql.sqlId) ?? null;
+        return this.toDetailResponse(
+          sql,
+          undefined,
+          cita,
+          attendeesByCita.get(cita?.citaId ?? '') ?? [],
+        );
+      }),
     );
     return items.map((item, index) => ({
       ...item,
@@ -1518,7 +1636,136 @@ export class SqlsService {
     return hora.length === 5 ? `${hora}:00` : hora;
   }
 
-  private toCitaResponse(cita: SqlCita): SqlCitaResponseDto {
+  private async resolveActiveDefaultAttendees(): Promise<
+    ResolvedDefaultAttendee[]
+  > {
+    const rows = await this.defaultMeetingAttendeeModel.findAll({
+      where: { isActive: true },
+      order: [
+        ['sortOrder', 'ASC'],
+        ['email', 'ASC'],
+      ],
+    });
+    const ordered = [...rows].sort(
+      (left, right) =>
+        left.sortOrder - right.sortOrder ||
+        left.email.localeCompare(right.email),
+    );
+    const seen = new Set<string>();
+    const resolved: ResolvedDefaultAttendee[] = [];
+    for (const row of ordered) {
+      const email = row.email.trim().toLowerCase();
+      if (!email || seen.has(email)) {
+        continue;
+      }
+      seen.add(email);
+      const user = await this.usersService.findByEmail(email);
+      const name = row.name?.trim() || null;
+      resolved.push({
+        email,
+        name,
+        sortOrder: row.sortOrder,
+        userId: user?.user_id ?? null,
+      });
+    }
+    return resolved;
+  }
+
+  private async insertAttendeeSnapshot(
+    citaId: string,
+    attendees: ResolvedDefaultAttendee[],
+    transaction: Transaction,
+  ): Promise<SqlCitaAttendee[]> {
+    if (attendees.length === 0) {
+      return [];
+    }
+    return this.sqlCitaAttendeeModel.bulkCreate(
+      attendees.map((row) => ({
+        citaId,
+        email: row.email,
+        name: row.name,
+        userId: row.userId,
+        source: SqlCitaAttendeeSource.Default,
+        sortOrder: row.sortOrder,
+      })),
+      { transaction, individualHooks: true },
+    );
+  }
+
+  /** Delete previous snapshot rows, then insert. Delete first so the unique key can be reused. */
+  private async replaceAttendeeSnapshot(
+    citaId: string,
+    attendees: ResolvedDefaultAttendee[],
+    transaction: Transaction,
+  ): Promise<SqlCitaAttendee[]> {
+    await this.sqlCitaAttendeeModel.destroy({
+      where: { citaId },
+      transaction,
+      individualHooks: true,
+    });
+    return this.insertAttendeeSnapshot(citaId, attendees, transaction);
+  }
+
+  private async loadAttendeeSnapshot(
+    citaId: string,
+    transaction?: Transaction,
+  ): Promise<SqlCitaAttendee[]> {
+    return this.sqlCitaAttendeeModel.findAll({
+      where: { citaId },
+      order: [
+        ['sortOrder', 'ASC'],
+        ['email', 'ASC'],
+      ],
+      transaction,
+    });
+  }
+
+  private async loadAttendeesByCitaIds(
+    citaIds: string[],
+  ): Promise<Map<string, SqlCitaAttendee[]>> {
+    const grouped = new Map<string, SqlCitaAttendee[]>();
+    if (citaIds.length === 0) {
+      return grouped;
+    }
+    const rows = await this.sqlCitaAttendeeModel.findAll({
+      where: { citaId: { [Op.in]: citaIds } },
+      order: [
+        ['sortOrder', 'ASC'],
+        ['email', 'ASC'],
+      ],
+    });
+    for (const row of rows) {
+      const current = grouped.get(row.citaId) ?? [];
+      current.push(row);
+      grouped.set(row.citaId, current);
+    }
+    return grouped;
+  }
+
+  private mapAttendees(
+    rows: readonly SqlCitaAttendee[],
+  ): SqlCitaAttendeeResponseDto[] {
+    return [...rows]
+      .sort(
+        (left, right) =>
+          left.sortOrder - right.sortOrder ||
+          left.email.localeCompare(right.email),
+      )
+      .map((row) => ({
+        sql_cita_attendee_id: row.sqlCitaAttendeeId,
+        email: row.email,
+        name: row.name,
+        user_id: row.userId,
+        source: row.source,
+        sort_order: row.sortOrder,
+      }));
+  }
+
+  private async toCitaResponse(
+    cita: SqlCita,
+    transaction?: Transaction,
+    attendees?: readonly SqlCitaAttendee[],
+  ): Promise<SqlCitaResponseDto> {
     const contactos = normalizeCitaContactos(
       cita.contactos ?? [
         {
@@ -1528,6 +1775,9 @@ export class SqlsService {
         },
       ],
     );
+    const snapshot =
+      attendees ??
+      (await this.loadAttendeeSnapshot(cita.citaId, transaction));
     return {
       cita_id: cita.citaId,
       sql_id: cita.sqlId,
@@ -1548,6 +1798,7 @@ export class SqlsService {
       duration_minutes: cita.durationMinutes ?? 60,
       vigente:
         isOpenCitaEstado(cita.estado) && isCitaVigente(cita.fecha, cita.hora),
+      attendees: this.mapAttendees(snapshot),
       created_at: cita.createdAt,
       updated_at: cita.updatedAt,
     };
@@ -1557,6 +1808,8 @@ export class SqlsService {
     sql: Sql,
     leadDto?: Record<string, unknown>,
     citaModel?: SqlCita | null,
+    attendees?: readonly SqlCitaAttendee[],
+    transaction?: Transaction,
   ): Promise<SqlDetailDto> {
     const mql = sql.mql;
     if (!mql?.leadId) {
@@ -1571,9 +1824,14 @@ export class SqlsService {
       ((await this.demandGenerationService.findLeadById(
         mql.leadId,
       )) as unknown as Record<string, unknown>);
-    let cita = citaModel ?? null;
-    if (cita === null) {
-      cita = await this.sqlCitaModel.findOne({ where: { sqlId: sql.sqlId } });
+    let cita: SqlCita | null;
+    if (citaModel === undefined) {
+      cita = await this.sqlCitaModel.findOne({
+        where: { sqlId: sql.sqlId },
+        transaction,
+      });
+    } else {
+      cita = citaModel;
     }
 
     let ouvSummary: SqlDetailDto['ouv'] = null;
@@ -1597,7 +1855,9 @@ export class SqlsService {
       ouv: ouvSummary,
       lead: lead as unknown as Record<string, unknown>,
       interactions: [],
-      cita: cita ? this.toCitaResponse(cita) : null,
+      cita: cita
+        ? await this.toCitaResponse(cita, transaction, attendees)
+        : null,
     };
   }
 }

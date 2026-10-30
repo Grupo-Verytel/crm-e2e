@@ -219,6 +219,13 @@ function buildPermissions(roleName) {
     rules.push({ action: 'manage_high_value', subject: 'Account' });
   }
 
+  if (roleName === 'Admin') {
+    rules.push({
+      action: 'manage_default_attendees',
+      subject: 'DefaultMeetingAttendee',
+    });
+  }
+
   return rules;
 }
 

@@ -144,6 +144,7 @@ export async function apiRequest<T>(
     let message = response.statusText || 'Request failed';
     let code: string | undefined;
     let existingGoalId: string | undefined;
+    let validationMessages: string[] | undefined;
 
     try {
       const body = (await response.json()) as ApiErrorBody & {
@@ -164,7 +165,13 @@ export async function apiRequest<T>(
           ? `${body.guard}: ${body.detalle}`
           : body.detalle;
       } else if (Array.isArray(body.message)) {
-        message = body.message.join(', ');
+        validationMessages = body.message.filter(
+          (item): item is string => typeof item === 'string' && item.length > 0,
+        );
+        message =
+          validationMessages.length > 0
+            ? validationMessages.join(', ')
+            : message;
       } else if (typeof body.message === 'string') {
         message = body.message;
       } else if (
@@ -178,7 +185,13 @@ export async function apiRequest<T>(
       // ignore parse errors
     }
 
-    throw new ApiError(response.status, message, code, existingGoalId);
+    throw new ApiError(
+      response.status,
+      message,
+      code,
+      existingGoalId,
+      validationMessages,
+    );
   }
 
   if (response.status === 204) {

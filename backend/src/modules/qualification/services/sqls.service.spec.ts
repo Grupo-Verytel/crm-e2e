@@ -11,8 +11,10 @@ import { OuvsService } from '../../discovery/services/ouvs.service';
 import { GraphService } from '../../graph-integration/services/graph.service';
 import { WorkflowEngineService } from '../../workflow-engine/workflow-engine.service';
 import { CreateAssignedSqlCitaDto } from '../dtos/assign-sql.dto';
+import { DefaultMeetingAttendee } from '../models/default-meeting-attendee.model';
 import { SqlAppointmentEvent } from '../models/sql-appointment-event.model';
 import { SqlCita } from '../models/sql-cita.model';
+import { SqlCitaAttendee } from '../models/sql-cita-attendee.model';
 import { SqlsService } from './sqls.service';
 
 const SQL_ID = 'sql-1';
@@ -161,6 +163,14 @@ describe('SqlsService.createCitaForAssignedSql', () => {
         createMeeting,
         updateMeeting,
       } as unknown as GraphService,
+      {
+        findAll: jest.fn().mockResolvedValue([]),
+      } as unknown as typeof DefaultMeetingAttendee,
+      {
+        findAll: jest.fn().mockResolvedValue([]),
+        bulkCreate: jest.fn().mockResolvedValue([]),
+        destroy: jest.fn().mockResolvedValue(0),
+      } as unknown as typeof SqlCitaAttendee,
     );
 
     return {
@@ -497,6 +507,14 @@ describe('createCitaForAssignedSql audit hook', () => {
         createMeeting: jest.fn().mockResolvedValue(graphMeeting),
         updateMeeting: jest.fn(),
       } as unknown as GraphService,
+      {
+        findAll: jest.fn().mockResolvedValue([]),
+      } as unknown as typeof DefaultMeetingAttendee,
+      {
+        findAll: jest.fn().mockResolvedValue([]),
+        bulkCreate: jest.fn().mockResolvedValue([]),
+        destroy: jest.fn().mockResolvedValue(0),
+      } as unknown as typeof SqlCitaAttendee,
     );
 
     await service.createCitaForAssignedSql(

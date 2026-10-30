@@ -36,6 +36,15 @@ export class SqlsQueryDto {
   q?: string;
 }
 
+export class SqlCitaAttendeeResponseDto {
+  sql_cita_attendee_id: string;
+  email: string;
+  name: string | null;
+  user_id: string | null;
+  source: 'default' | 'manual';
+  sort_order: number;
+}
+
 export class SqlCitaResponseDto {
   cita_id: string;
   sql_id: string;
@@ -60,6 +69,8 @@ export class SqlCitaResponseDto {
   duration_minutes: number;
   /** Start is now or later in America/Bogota. Computed by the API; clients must not recompute it. */
   vigente: boolean;
+  /** Snapshot stored on the cita. Empty when the cita has no default attendees. */
+  attendees: SqlCitaAttendeeResponseDto[];
   created_at: Date;
   updated_at: Date;
 }
