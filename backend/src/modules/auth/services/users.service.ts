@@ -54,6 +54,25 @@ export class UsersService {
     return this.toResponseDto(user);
   }
 
+  /**
+   * Live user with this mailbox. Email is trimmed and lowercased.
+   * Soft-deleted users are excluded by paranoid. Inactive users still match.
+   */
+  async findByEmail(email: string): Promise<UserResponseDto | null> {
+    const normalized = email.trim().toLowerCase();
+    if (!normalized) {
+      return null;
+    }
+    const user = await this.userModel.findOne({
+      where: { email: normalized },
+      include: [Role],
+    });
+    if (!user?.role) {
+      return null;
+    }
+    return this.toResponseDto(user);
+  }
+
   async findActiveByRoleName(roleName: string): Promise<UserResponseDto[]> {
     const users = await this.userModel.findAll({
       where: { isActive: true },

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Users } from 'lucide-react';
 import { AppLayout } from '../../../layout/AppLayout';
 import { ApiError } from '../../auth/types';
 import { formatDateTime } from '../../../lib/format';
@@ -12,7 +13,13 @@ import {
   fetchSqlInteractions,
   registerSqlInteraction,
 } from '../api/sql-interactions-api';
-import { closeSqlCita, fetchSql, returnSqlToDevueltas, type SqlDetail } from '../api/sqls-api';
+import {
+  closeSqlCita,
+  fetchSql,
+  returnSqlToDevueltas,
+  type SqlCitaAttendee,
+  type SqlDetail,
+} from '../api/sqls-api';
 import { AssignSqlModal } from '../components/AssignSqlModal';
 import { ConfirmCitaActionModal } from '../components/ConfirmCitaActionModal';
 import { ConvertirSqlEnOuvModal } from '../components/ConvertirSqlEnOuvModal';
@@ -28,6 +35,21 @@ import {
   formatLeadOrigin,
   formatLeadSourceChannel,
 } from '../lib/lead-source-labels';
+
+function sortedCitaAttendees(
+  attendees: SqlCitaAttendee[] | undefined,
+): SqlCitaAttendee[] {
+  return [...(attendees ?? [])].sort(
+    (left, right) =>
+      left.sort_order - right.sort_order ||
+      left.email.localeCompare(right.email),
+  );
+}
+
+function citaAttendeeTitle(attendee: SqlCitaAttendee): string {
+  const name = attendee.name?.trim();
+  return name ? name : attendee.email;
+}
 
 const REGISTRABLE_ESTADOS = new Set(['PendienteAsignacion', 'Asignado']);
 
@@ -133,6 +155,7 @@ export function SqlDetailPage() {
   const canScheduleNewCita =
     canManageCita &&
     (sql.cita == null || !isOpenSqlCitaEstado(sql.cita.estado));
+  const citaAttendees = sortedCitaAttendees(sql?.cita?.attendees);
 
   async function handleCloseCita() {
     if (!sql || !pendingOutcome) return;
@@ -356,6 +379,35 @@ export function SqlDetailPage() {
                             {contacto.telefono ? ` · ${contacto.telefono}` : ''}
                           </p>
                         ))}
+                      </dd>
+                    </div>
+                    <div className="pt-1">
+                      <dt className="flex items-center gap-2 font-bold text-ink">
+                        <Users size={16} aria-hidden />
+                        Invitados ({citaAttendees.length})
+                      </dt>
+                      <dd className="mt-2 space-y-2">
+                        {citaAttendees.length === 0 ? (
+                          <p className="text-muted">Sin invitados</p>
+                        ) : (
+                          citaAttendees.map((attendee) => {
+                            const title = citaAttendeeTitle(attendee);
+                            const showEmail = Boolean(attendee.name?.trim());
+                            return (
+                              <div
+                                key={`${attendee.sort_order}-${attendee.email}`}
+                                className="min-w-0"
+                              >
+                                <p className="break-words text-ink">{title}</p>
+                                {showEmail ? (
+                                  <p className="break-all text-xs text-muted">
+                                    {attendee.email}
+                                  </p>
+                                ) : null}
+                              </div>
+                            );
+                          })
+                        )}
                       </dd>
                     </div>
                   </dl>

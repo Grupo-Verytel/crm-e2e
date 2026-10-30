@@ -94,17 +94,21 @@ export class ApiError extends Error {
   readonly status: number;
   readonly code?: string;
   readonly existingGoalId?: string;
+  /** class-validator sends `message` as a string array. One entry per message. */
+  readonly messages?: string[];
 
   constructor(
     status: number,
     message: string,
     code?: string,
     existingGoalId?: string,
+    messages?: string[],
   ) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.code = code;
     this.existingGoalId = existingGoalId;
+    this.messages = messages;
   }
 }

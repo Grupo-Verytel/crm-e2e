@@ -9,8 +9,10 @@ import { Sql } from '../../demand-generation/models/sql.model';
 import { OuvsService } from '../../discovery/services/ouvs.service';
 import { GraphService } from '../../graph-integration/services/graph.service';
 import { WorkflowEngineService } from '../../workflow-engine/workflow-engine.service';
+import { DefaultMeetingAttendee } from '../models/default-meeting-attendee.model';
 import { SqlAppointmentEvent } from '../models/sql-appointment-event.model';
 import { SqlCita } from '../models/sql-cita.model';
+import { SqlCitaAttendee } from '../models/sql-cita-attendee.model';
 import { SqlsService } from './sqls.service';
 
 const SQL_ID = 'sql-1';
@@ -57,6 +59,8 @@ function build(options?: {
     {} as WorkflowEngineService,
     {} as OuvsService,
     {} as GraphService,
+    {} as typeof DefaultMeetingAttendee,
+    {} as typeof SqlCitaAttendee,
   );
 
   return { service, registerSqlInteraction, listInteractions, sql };
