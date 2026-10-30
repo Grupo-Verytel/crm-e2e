@@ -1,15 +1,20 @@
 import {
-  verytelFiscalPeriod,
-  type VerytelQuarter,
-} from '../../../common/time/verytel-quarter';
+  addBogotaCalendarDays,
+  bogotaDayStartFromYmd,
+  bogotaYmd,
+} from '../../../common/time/bogota-day';
+import { verytelFiscalPeriod } from '../../../common/time/verytel-quarter';
 
 /**
  * Commercial OUV dashboard math.
  *
- * Open pipeline at an instant T is reconstructed from created_at and
- * fecha_cierre: an OUV is open at T when it already existed and had not
- * closed yet. There is no stage-history table, so funnel conversion assumes
- * a linear zone path and treats Ganada as having passed every zone.
+ * The existing open pipeline at an instant T is reconstructed from
+ * created_at and fecha_cierre. Funnel conversion assumes a linear zone path
+ * and treats Ganada as having passed every zone.
+ *
+ * The added segment breakdown counts resultado EnCurso as open. Won and lost
+ * stay on fecha_cierre inside the period, same as closeStats. Amount win rate
+ * divides won monto_final by won monto_final plus lostAmount.
  *
  * Weighted pipeline uses a fixed probability per zone. OUVs do not store
  * their own win probability, and there is no sales-quota table, so the
@@ -43,7 +48,6 @@ export const OUV_DASHBOARD_ZONE_WEIGHT: Record<OuvDashboardZone, number> = {
 export const OUV_DASHBOARD_STALE_DAYS = 30;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-const COT_OFFSET_MS = 5 * 60 * 60 * 1000;
 
 export type OuvDashboardSourceRow = {
   ouvId: string;
@@ -63,6 +67,9 @@ export type OuvDashboardSourceRow = {
   origin: string | null;
   origenVia: string;
   motivoSnapshot: string | null;
+  empresaNombre: string;
+  presupuestoMoneda: string | null;
+  monedaFinal: string | null;
 };
 
 export type OuvDashboardPeriodInput = {
@@ -97,6 +104,7 @@ export type OuvDashboardMetrics = {
   };
   close_rate: {
     rate: number | null;
+    rate_amount: number | null;
     delta_points: number | null;
     won_count: number;
     lost_count: number;
@@ -127,8 +135,11 @@ export type OuvDashboardMetrics = {
   pipeline_by_sector: {
     segmento: string;
     amount: number;
+    open_count: number;
+    open_amount_now: number;
     share: number;
     win_rate: number | null;
+    win_rate_amount: number | null;
   }[];
   new_origins: { label: string; count: number }[];
   executives: {
@@ -136,8 +147,27 @@ export type OuvDashboardMetrics = {
     full_name: string;
     open_count: number;
     pipeline_amount: number;
+    open_count_now: number;
+    open_amount_now: number;
     win_rate: number | null;
+    win_rate_amount: number | null;
     won_amount: number;
+  }[];
+  by_segment: {
+    segmento: string;
+    open_count: number;
+    open_amount: number;
+    won_count: number;
+    won_amount: number;
+    lost_count: number;
+    lost_amount: number;
+    win_rate: number | null;
+    win_rate_amount: number | null;
+  }[];
+  mayor_probabilidad_by_segment: {
+    segmento: string;
+    count: number;
+    amount: number;
   }[];
   stalled: {
     ouv_id: string;
@@ -158,20 +188,8 @@ function roundRatio(value: number): number {
   return Math.round(value * 10000) / 10000;
 }
 
-function startOfCotDay(ymd: string): Date {
-  return new Date(`${ymd.slice(0, 10)}T05:00:00.000Z`);
-}
-
-function formatCotYmd(instant: Date): string {
-  const shifted = new Date(instant.getTime() - COT_OFFSET_MS);
-  const year = shifted.getUTCFullYear();
-  const month = String(shifted.getUTCMonth() + 1).padStart(2, '0');
-  const day = String(shifted.getUTCDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
 function inclusiveEndYmd(exclusiveEnd: Date): string {
-  return formatCotYmd(new Date(exclusiveEnd.getTime() - DAY_MS));
+  return addBogotaCalendarDays(bogotaYmd(exclusiveEnd), -1);
 }
 
 export function resolveOuvDashboardPeriod(input: OuvDashboardPeriodInput): {
@@ -186,8 +204,10 @@ export function resolveOuvDashboardPeriod(input: OuvDashboardPeriodInput): {
   let quarter: number | null = null;
 
   if (custom) {
-    const start = startOfCotDay(input.periodFrom!);
-    const end = new Date(startOfCotDay(input.periodTo!).getTime() + DAY_MS);
+    const start = bogotaDayStartFromYmd(input.periodFrom!);
+    const end = bogotaDayStartFromYmd(
+      addBogotaCalendarDays(input.periodTo!, 1),
+    );
     if (end.getTime() > start.getTime()) {
       current = { start, end };
     }
@@ -199,7 +219,7 @@ export function resolveOuvDashboardPeriod(input: OuvDashboardPeriodInput): {
       input.quarter === 2 ||
       input.quarter === 3 ||
       input.quarter === 4
-        ? (input.quarter as VerytelQuarter)
+        ? input.quarter
         : null;
     if (fiscalQuarter) {
       current = verytelFiscalPeriod(input.year, fiscalQuarter);
@@ -232,6 +252,31 @@ function inRange(date: Date | null, range: HalfOpenRange | null): boolean {
   return time >= range.start.getTime() && time < range.end.getTime();
 }
 
+/** Open for the new segment breakdown and its detail. Descartada is excluded. */
+export function isDashboardOpen(row: OuvDashboardSourceRow): boolean {
+  return row.resultado === 'EnCurso';
+}
+
+export function isWonInPeriod(
+  row: OuvDashboardSourceRow,
+  range: HalfOpenRange | null,
+): boolean {
+  return row.resultado === 'Ganada' && inRange(row.fechaCierre, range);
+}
+
+export function isLostInPeriod(
+  row: OuvDashboardSourceRow,
+  range: HalfOpenRange | null,
+): boolean {
+  return row.resultado === 'Perdida' && inRange(row.fechaCierre, range);
+}
+
+export function isMayorProbabilidadAbierta(
+  row: OuvDashboardSourceRow,
+): boolean {
+  return isDashboardOpen(row) && row.zonaActual === 'MAYOR_PROBABILIDAD';
+}
+
 function isOpenAt(row: OuvDashboardSourceRow, instant: Date): boolean {
   if (row.createdAt.getTime() >= instant.getTime()) return false;
   if (row.resultado === 'EnCurso') return true;
@@ -251,8 +296,14 @@ function rankReached(row: OuvDashboardSourceRow): number {
   return index < 0 ? 0 : index;
 }
 
-function lostAmount(row: OuvDashboardSourceRow): number {
+/** Same lost-money rule the board already uses for won-vs-lost. */
+export function lostAmount(row: OuvDashboardSourceRow): number {
   return row.montoPerdido > 0 ? row.montoPerdido : row.presupuestoMonto;
+}
+
+export function amountWinRate(won: number, lost: number): number | null {
+  const decided = won + lost;
+  return decided > 0 ? roundRatio(won / decided) : null;
 }
 
 function originLabel(row: OuvDashboardSourceRow): string {
@@ -270,9 +321,8 @@ function closeStats(
   let won = 0;
   let lost = 0;
   for (const row of rows) {
-    if (!inRange(row.fechaCierre, range)) continue;
-    if (row.resultado === 'Ganada') won += 1;
-    else if (row.resultado === 'Perdida') lost += 1;
+    if (isWonInPeriod(row, range)) won += 1;
+    else if (isLostInPeriod(row, range)) lost += 1;
   }
   const decided = won + lost;
   return {
@@ -337,9 +387,7 @@ export function buildOuvDashboard(
       origins.set(label, (origins.get(label) ?? 0) + 1);
     }
 
-    if (!inRange(row.fechaCierre, period)) continue;
-
-    if (row.resultado === 'Ganada') {
+    if (isWonInPeriod(row, period)) {
       wonAmount += row.montoFinal;
       if (row.fechaCierre) {
         const days =
@@ -351,7 +399,7 @@ export function buildOuvDashboard(
           cycleBySegment.set(row.segmento, bucket);
         }
       }
-    } else if (row.resultado === 'Perdida') {
+    } else if (isLostInPeriod(row, period)) {
       lostAmountSum += lostAmount(row);
       const reason = row.motivoSnapshot?.trim() || 'Sin motivo';
       reasons.set(reason, (reasons.get(reason) ?? 0) + 1);
@@ -412,20 +460,38 @@ export function buildOuvDashboard(
 
   const sectorMap = new Map<
     string,
-    { amount: number; won: number; lost: number }
+    {
+      amount: number;
+      open_count: number;
+      open_amount_now: number;
+      won: number;
+      lost: number;
+      won_amount: number;
+      lost_amount: number;
+    }
   >();
   for (const row of rows) {
     const bucket = sectorMap.get(row.segmento) ?? {
       amount: 0,
+      open_count: 0,
+      open_amount_now: 0,
       won: 0,
       lost: 0,
+      won_amount: 0,
+      lost_amount: 0,
     };
     if (isOpenAt(row, snapshotAt)) bucket.amount += row.presupuestoMonto;
-    if (inRange(row.fechaCierre, period) && row.resultado === 'Ganada') {
-      bucket.won += 1;
+    if (isDashboardOpen(row)) {
+      bucket.open_count += 1;
+      bucket.open_amount_now += row.presupuestoMonto;
     }
-    if (inRange(row.fechaCierre, period) && row.resultado === 'Perdida') {
+    if (isWonInPeriod(row, period)) {
+      bucket.won += 1;
+      bucket.won_amount += row.montoFinal;
+    }
+    if (isLostInPeriod(row, period)) {
       bucket.lost += 1;
+      bucket.lost_amount += lostAmount(row);
     }
     sectorMap.set(row.segmento, bucket);
   }
@@ -437,8 +503,11 @@ export function buildOuvDashboard(
       return {
         segmento,
         amount: roundMoney(bucket.amount),
+        open_count: bucket.open_count,
+        open_amount_now: roundMoney(bucket.open_amount_now),
         share: openTotal > 0 ? roundRatio(bucket.amount / openTotal) : 0,
         win_rate: decided > 0 ? roundRatio(bucket.won / decided) : null,
+        win_rate_amount: amountWinRate(bucket.won_amount, bucket.lost_amount),
       };
     })
     .filter((row) => row.amount > 0 || row.win_rate != null)
@@ -452,9 +521,12 @@ export function buildOuvDashboard(
       full_name: string;
       open_count: number;
       pipeline_amount: number;
+      open_count_now: number;
+      open_amount_now: number;
       won: number;
       lost: number;
       won_amount: number;
+      lost_amount: number;
     }
   >();
   for (const row of rows) {
@@ -462,20 +534,28 @@ export function buildOuvDashboard(
       full_name: row.comercialName || 'Sin ejecutivo',
       open_count: 0,
       pipeline_amount: 0,
+      open_count_now: 0,
+      open_amount_now: 0,
       won: 0,
       lost: 0,
       won_amount: 0,
+      lost_amount: 0,
     };
     if (isOpenAt(row, snapshotAt)) {
       bucket.open_count += 1;
       bucket.pipeline_amount += row.presupuestoMonto;
     }
-    if (inRange(row.fechaCierre, period) && row.resultado === 'Ganada') {
+    if (isDashboardOpen(row)) {
+      bucket.open_count_now += 1;
+      bucket.open_amount_now += row.presupuestoMonto;
+    }
+    if (isWonInPeriod(row, period)) {
       bucket.won += 1;
       bucket.won_amount += row.montoFinal;
     }
-    if (inRange(row.fechaCierre, period) && row.resultado === 'Perdida') {
+    if (isLostInPeriod(row, period)) {
       bucket.lost += 1;
+      bucket.lost_amount += lostAmount(row);
     }
     executiveMap.set(row.comercialId, bucket);
   }
@@ -488,12 +568,19 @@ export function buildOuvDashboard(
         full_name: bucket.full_name,
         open_count: bucket.open_count,
         pipeline_amount: roundMoney(bucket.pipeline_amount),
+        open_count_now: bucket.open_count_now,
+        open_amount_now: roundMoney(bucket.open_amount_now),
         win_rate: decided > 0 ? roundRatio(bucket.won / decided) : null,
+        win_rate_amount: amountWinRate(bucket.won_amount, bucket.lost_amount),
         won_amount: roundMoney(bucket.won_amount),
       };
     })
     .filter(
-      (row) => row.open_count > 0 || row.win_rate != null || row.won_amount > 0,
+      (row) =>
+        row.open_count > 0 ||
+        row.open_count_now > 0 ||
+        row.win_rate != null ||
+        row.won_amount > 0,
     )
     .sort(
       (a, b) =>
@@ -541,11 +628,11 @@ export function buildOuvDashboard(
   return {
     period: {
       active: period != null,
-      period_from: period ? formatCotYmd(period.start) : null,
+      period_from: period ? bogotaYmd(period.start) : null,
       period_to: period ? inclusiveEndYmd(period.end) : null,
       year: resolved.year,
       quarter: resolved.quarter,
-      compare_from: previous ? formatCotYmd(previous.start) : null,
+      compare_from: previous ? bogotaYmd(previous.start) : null,
       compare_to: previous ? inclusiveEndYmd(previous.end) : null,
     },
     pipeline_weighted: {
@@ -568,6 +655,7 @@ export function buildOuvDashboard(
     },
     close_rate: {
       rate: currentClose.rate == null ? null : roundRatio(currentClose.rate),
+      rate_amount: amountWinRate(wonAmount, lostAmountSum),
       delta_points: deltaPoints,
       won_count: currentClose.won,
       lost_count: currentClose.lost,
@@ -606,6 +694,221 @@ export function buildOuvDashboard(
       .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label))
       .slice(0, 8),
     executives,
+    by_segment: buildSegmentBreakdown(rows, period),
+    mayor_probabilidad_by_segment: buildMayorProbabilidad(rows),
     stalled,
   };
+}
+
+type SegmentBucket = {
+  open_count: number;
+  open_amount: number;
+  won_count: number;
+  won_amount: number;
+  lost_count: number;
+  lost_amount: number;
+};
+
+function emptySegmentBucket(): SegmentBucket {
+  return {
+    open_count: 0,
+    open_amount: 0,
+    won_count: 0,
+    won_amount: 0,
+    lost_count: 0,
+    lost_amount: 0,
+  };
+}
+
+function buildSegmentBreakdown(
+  rows: OuvDashboardSourceRow[],
+  period: HalfOpenRange | null,
+): OuvDashboardMetrics['by_segment'] {
+  const map = new Map<string, SegmentBucket>();
+  for (const row of rows) {
+    const bucket = map.get(row.segmento) ?? emptySegmentBucket();
+    if (isDashboardOpen(row)) {
+      bucket.open_count += 1;
+      bucket.open_amount += row.presupuestoMonto;
+    }
+    if (isWonInPeriod(row, period)) {
+      bucket.won_count += 1;
+      bucket.won_amount += row.montoFinal;
+    }
+    if (isLostInPeriod(row, period)) {
+      bucket.lost_count += 1;
+      bucket.lost_amount += lostAmount(row);
+    }
+    map.set(row.segmento, bucket);
+  }
+
+  return [...map.entries()]
+    .filter(([, bucket]) => segmentBucketHasRows(bucket))
+    .map(([segmento, bucket]) => ({
+      segmento,
+      open_count: bucket.open_count,
+      open_amount: roundMoney(bucket.open_amount),
+      won_count: bucket.won_count,
+      won_amount: roundMoney(bucket.won_amount),
+      lost_count: bucket.lost_count,
+      lost_amount: roundMoney(bucket.lost_amount),
+      win_rate:
+        bucket.won_count + bucket.lost_count > 0
+          ? roundRatio(
+              bucket.won_count / (bucket.won_count + bucket.lost_count),
+            )
+          : null,
+      win_rate_amount: amountWinRate(bucket.won_amount, bucket.lost_amount),
+    }))
+    .sort((a, b) => a.segmento.localeCompare(b.segmento, 'es'));
+}
+
+function segmentBucketHasRows(bucket: SegmentBucket): boolean {
+  return bucket.open_count > 0 || bucket.won_count > 0 || bucket.lost_count > 0;
+}
+
+function buildMayorProbabilidad(
+  rows: OuvDashboardSourceRow[],
+): OuvDashboardMetrics['mayor_probabilidad_by_segment'] {
+  const map = new Map<string, { count: number; amount: number }>();
+  for (const row of rows) {
+    if (!isMayorProbabilidadAbierta(row)) continue;
+    const bucket = map.get(row.segmento) ?? { count: 0, amount: 0 };
+    bucket.count += 1;
+    bucket.amount += row.presupuestoMonto;
+    map.set(row.segmento, bucket);
+  }
+  return [...map.entries()]
+    .map(([segmento, bucket]) => ({
+      segmento,
+      count: bucket.count,
+      amount: roundMoney(bucket.amount),
+    }))
+    .sort(
+      (a, b) =>
+        b.amount - a.amount || a.segmento.localeCompare(b.segmento, 'es'),
+    );
+}
+
+export const OUV_DASHBOARD_DETAIL_KINDS = [
+  'open_by_segment',
+  'won_by_segment',
+  'lost_by_segment',
+  'mayor_probabilidad',
+  'won_by_executive',
+  'open_by_executive',
+] as const;
+
+export type OuvDashboardDetailKind =
+  (typeof OUV_DASHBOARD_DETAIL_KINDS)[number];
+
+export type OuvDashboardDetailFechaTipo = 'creacion' | 'cierre';
+
+export type OuvDashboardDetailItem = {
+  ouv_id: string;
+  consecutivo: string;
+  titulo: string;
+  empresa: string;
+  comercial: string;
+  segmento: string;
+  zona: string;
+  monto: number;
+  moneda: string | null;
+  fecha: string | null;
+  fecha_tipo: OuvDashboardDetailFechaTipo;
+};
+
+function detailMatches(
+  row: OuvDashboardSourceRow,
+  kind: OuvDashboardDetailKind,
+  period: HalfOpenRange | null,
+): boolean {
+  switch (kind) {
+    case 'open_by_segment':
+    case 'open_by_executive':
+      return isDashboardOpen(row);
+    case 'won_by_segment':
+    case 'won_by_executive':
+      return isWonInPeriod(row, period);
+    case 'lost_by_segment':
+      return isLostInPeriod(row, period);
+    case 'mayor_probabilidad':
+      return isMayorProbabilidadAbierta(row);
+  }
+}
+
+function detailAmount(
+  row: OuvDashboardSourceRow,
+  kind: OuvDashboardDetailKind,
+): number {
+  if (kind === 'won_by_segment' || kind === 'won_by_executive') {
+    return row.montoFinal;
+  }
+  if (kind === 'lost_by_segment') {
+    return lostAmount(row);
+  }
+  return row.presupuestoMonto;
+}
+
+function detailMoneda(
+  row: OuvDashboardSourceRow,
+  kind: OuvDashboardDetailKind,
+): string | null {
+  if (kind === 'won_by_segment' || kind === 'won_by_executive') {
+    return row.monedaFinal;
+  }
+  return row.presupuestoMoneda;
+}
+
+function detailFecha(
+  row: OuvDashboardSourceRow,
+  kind: OuvDashboardDetailKind,
+): { fecha: string | null; fecha_tipo: OuvDashboardDetailFechaTipo } {
+  if (
+    kind === 'won_by_segment' ||
+    kind === 'won_by_executive' ||
+    kind === 'lost_by_segment'
+  ) {
+    return {
+      fecha: row.fechaCierre ? row.fechaCierre.toISOString() : null,
+      fecha_tipo: 'cierre',
+    };
+  }
+  return {
+    fecha: row.createdAt.toISOString(),
+    fecha_tipo: 'creacion',
+  };
+}
+
+export function listOuvDashboardDetails(
+  rows: OuvDashboardSourceRow[],
+  input: OuvDashboardPeriodInput,
+  kind: OuvDashboardDetailKind,
+  zona?: string | null,
+): OuvDashboardDetailItem[] {
+  const period = resolveOuvDashboardPeriod(input).current;
+  return rows
+    .filter((row) => detailMatches(row, kind, period))
+    .filter((row) => !zona || row.zonaActual === zona)
+    .map((row) => {
+      const fecha = detailFecha(row, kind);
+      return {
+        ouv_id: row.ouvId,
+        consecutivo: row.consecutivo,
+        titulo: row.titulo,
+        empresa: row.empresaNombre,
+        comercial: row.comercialName,
+        segmento: row.segmento,
+        zona: row.zonaActual,
+        monto: detailAmount(row, kind),
+        moneda: detailMoneda(row, kind),
+        fecha: fecha.fecha,
+        fecha_tipo: fecha.fecha_tipo,
+      };
+    })
+    .sort(
+      (a, b) =>
+        a.consecutivo.localeCompare(b.consecutivo, 'es') ||
+        a.ouv_id.localeCompare(b.ouv_id),
+    );
 }

@@ -5,6 +5,12 @@ import { canAccessNavItem, NAV_ITEMS, type NavItem } from '../lib/navigation';
 import { useAuth } from '../modules/auth/hooks/useAuth';
 import { BrandMark } from './BrandMark';
 
+const NAV_GROUPS: { id: NavItem['group']; label: string }[] = [
+  { id: 'commercial', label: 'Comercial' },
+  { id: 'reports', label: 'Reportes' },
+  { id: 'platform', label: 'Plataforma' },
+];
+
 /**
  * Minimalist Verytel sidebar. White surface, hairline divider, Oriole active state.
  * Density and structure follow a Pipedrive-like work tool: icons + labels, no decoration.
@@ -23,8 +29,10 @@ export function Sidebar({
   const visible = NAV_ITEMS.filter((item) =>
     canAccessNavItem(user?.permissions, item),
   );
-  const commercial = visible.filter((item) => item.group === 'commercial');
-  const platform = visible.filter((item) => item.group === 'platform');
+  const groups = NAV_GROUPS.map((group) => ({
+    ...group,
+    items: visible.filter((item) => item.group === group.id),
+  })).filter((group) => group.items.length > 0);
 
   async function handleLogout() {
     await logout();
@@ -58,29 +66,22 @@ export function Sidebar({
       </div>
 
       <nav className={`flex-1 overflow-y-auto py-2 ${isCollapsed ? 'px-2' : 'px-3'}`}>
-        {commercial.length > 0 ? (
-          <>
-            {!isCollapsed ? <SectionLabel>Comercial</SectionLabel> : null}
-            {commercial.map((item) => (
-              <Item key={item.key} item={item} isCollapsed={isCollapsed} />
-            ))}
-          </>
-        ) : null}
-
-        {platform.length > 0 ? (
-          <>
-            {!isCollapsed ? (
-              <SectionLabel className={commercial.length > 0 ? 'mt-4' : ''}>
-                Plataforma
-              </SectionLabel>
-            ) : commercial.length > 0 ? (
-              <div className="mx-2 my-3 border-t border-border" />
+        {groups.map((group, index) => (
+          <div key={group.id}>
+            {index > 0 ? (
+              isCollapsed ? (
+                <div className="mx-2 my-3 border-t border-border" />
+              ) : (
+                <SectionLabel className="mt-4">{group.label}</SectionLabel>
+              )
+            ) : !isCollapsed ? (
+              <SectionLabel>{group.label}</SectionLabel>
             ) : null}
-            {platform.map((item) => (
+            {group.items.map((item) => (
               <Item key={item.key} item={item} isCollapsed={isCollapsed} />
             ))}
-          </>
-        ) : null}
+          </div>
+        ))}
       </nav>
 
       <div

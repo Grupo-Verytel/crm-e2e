@@ -1,91 +1,98 @@
-import { lazy, type ReactNode } from 'react';
-import { Navigate, useRoutes } from 'react-router-dom';
-import { ProtectedRoute } from '../modules/auth/components/ProtectedRoute';
-import { PublicRoute } from '../modules/auth/components/PublicRoute';
-import { AdminRoute } from '../modules/auth/components/AdminRoute';
-import { RoleRoute } from '../modules/auth/components/RoleRoute';
-import { ModulePlaceholderPage } from '../modules/shared/pages/ModulePlaceholderPage';
+import { lazy, type ReactNode } from "react";
+import { Navigate, useLocation, useRoutes } from "react-router-dom";
+import { ProtectedRoute } from "../modules/auth/components/ProtectedRoute";
+import { PublicRoute } from "../modules/auth/components/PublicRoute";
+import { AdminRoute } from "../modules/auth/components/AdminRoute";
+import { RoleRoute } from "../modules/auth/components/RoleRoute";
+import { ModulePlaceholderPage } from "../modules/shared/pages/ModulePlaceholderPage";
 
-const LoginPage = lazy(() => import('../modules/auth/pages/LoginPageLazy'));
-const AdminUsersPage = lazy(() => import('../modules/auth/pages/AdminUsersPageLazy'));
-const AuditLogPage = lazy(() => import('../modules/audit/pages/AuditLogPageLazy'));
+const LoginPage = lazy(() => import("../modules/auth/pages/LoginPageLazy"));
+const AdminUsersPage = lazy(
+  () => import("../modules/auth/pages/AdminUsersPageLazy"),
+);
+const AuditLogPage = lazy(
+  () => import("../modules/audit/pages/AuditLogPageLazy"),
+);
 const LeadsListPage = lazy(
-  () => import('../modules/demand-generation/pages/LeadsListPageLazy'),
+  () => import("../modules/demand-generation/pages/LeadsListPageLazy"),
 );
 const LeadDetailPage = lazy(
-  () => import('../modules/demand-generation/pages/LeadDetailPageLazy'),
+  () => import("../modules/demand-generation/pages/LeadDetailPageLazy"),
 );
 const CampaignsListPage = lazy(
-  () => import('../modules/demand-generation/pages/CampaignsListPageLazy'),
+  () => import("../modules/demand-generation/pages/CampaignsListPageLazy"),
 );
 const CampaignFormPage = lazy(
-  () => import('../modules/demand-generation/pages/CampaignFormPageLazy'),
+  () => import("../modules/demand-generation/pages/CampaignFormPageLazy"),
 );
 const MqlInboxPage = lazy(
-  () => import('../modules/demand-generation/pages/MqlInboxPageLazy'),
+  () => import("../modules/demand-generation/pages/MqlInboxPageLazy"),
 );
 const MarketingDashboardPage = lazy(
-  () => import('../modules/demand-generation/pages/MarketingDashboardPageLazy'),
+  () => import("../modules/demand-generation/pages/MarketingDashboardPageLazy"),
 );
 const QualificationHomePage = lazy(
-  () => import('../modules/qualification/pages/QualificationHomePageLazy'),
+  () => import("../modules/qualification/pages/QualificationHomePageLazy"),
 );
 const AssignedSqlsPage = lazy(
-  () => import('../modules/qualification/pages/AssignedSqlsPageLazy'),
+  () => import("../modules/qualification/pages/AssignedSqlsPageLazy"),
 );
 const AssignedOuvsPage = lazy(
-  () => import('../modules/qualification/pages/AssignedOuvsPageLazy'),
+  () => import("../modules/qualification/pages/AssignedOuvsPageLazy"),
 );
 const SqlDetailPage = lazy(
-  () => import('../modules/qualification/pages/SqlDetailPageLazy'),
+  () => import("../modules/qualification/pages/SqlDetailPageLazy"),
 );
 const QualificationDashboardPage = lazy(
-  () => import('../modules/qualification/pages/QualificationDashboardPageLazy'),
+  () => import("../modules/qualification/pages/QualificationDashboardPageLazy"),
 );
 const AfterSalesPage = lazy(
-  () => import('../modules/post-sales/pages/AfterSalesPageLazy'),
+  () => import("../modules/post-sales/pages/AfterSalesPageLazy"),
 );
 const OuvsBoardPage = lazy(
-  () => import('../modules/discovery/pages/OuvsBoardPageLazy'),
+  () => import("../modules/discovery/pages/OuvsBoardPageLazy"),
 );
 const OuvDashboardPage = lazy(
-  () => import('../modules/discovery/pages/OuvDashboardPageLazy'),
+  () => import("../modules/discovery/pages/OuvDashboardPageLazy"),
+);
+const CommercialReportsPage = lazy(
+  () => import("../modules/discovery/pages/CommercialReportsPageLazy"),
 );
 const CommercialGoalsPage = lazy(
-  () => import('../modules/commercial-goals/pages/CommercialGoalsPageLazy'),
+  () => import("../modules/commercial-goals/pages/CommercialGoalsPageLazy"),
 );
 const OuvDetailPage = lazy(
-  () => import('../modules/discovery/pages/OuvDetailPageLazy'),
+  () => import("../modules/discovery/pages/OuvDetailPageLazy"),
 );
 const MotivosPerdidaPage = lazy(
-  () => import('../modules/discovery/pages/MotivosPerdidaPageLazy'),
+  () => import("../modules/discovery/pages/MotivosPerdidaPageLazy"),
 );
 const MotivosDescartePage = lazy(
-  () => import('../modules/discovery/pages/MotivosDescartePageLazy'),
+  () => import("../modules/discovery/pages/MotivosDescartePageLazy"),
 );
 const ZonaChecklistAdminPage = lazy(
-  () => import('../modules/discovery/pages/ZonaChecklistAdminPageLazy'),
+  () => import("../modules/discovery/pages/ZonaChecklistAdminPageLazy"),
 );
 const AccountsListPage = lazy(
-  () => import('../modules/accounts/pages/AccountsListPageLazy'),
+  () => import("../modules/accounts/pages/AccountsListPageLazy"),
 );
 const PeopleListPage = lazy(
-  () => import('../modules/accounts/pages/PeopleListPageLazy'),
+  () => import("../modules/accounts/pages/PeopleListPageLazy"),
 );
 const SoporteComercialInboxPage = lazy(
-  () => import('../modules/offer-closing/pages/SoporteComercialInboxPageLazy'),
+  () => import("../modules/offer-closing/pages/SoporteComercialInboxPageLazy"),
 );
 const VentaGanadaDetailPage = lazy(
-  () => import('../modules/offer-closing/pages/VentaGanadaDetailPageLazy'),
+  () => import("../modules/offer-closing/pages/VentaGanadaDetailPageLazy"),
 );
 const ServicesListPage = lazy(
-  () => import('../modules/implementation/pages/ServicesListPageLazy'),
+  () => import("../modules/implementation/pages/ServicesListPageLazy"),
 );
 const ProjectExecutionPage = lazy(
-  () => import('../modules/implementation/pages/ProjectExecutionPageLazy'),
+  () => import("../modules/implementation/pages/ProjectExecutionPageLazy"),
 );
 const ReportesProyectoPage = lazy(
-  () => import('../modules/implementation/pages/ReportesProyectoPageLazy'),
+  () => import("../modules/implementation/pages/ReportesProyectoPageLazy"),
 );
 
 function protectedElement(title: string, description: string) {
@@ -107,7 +114,7 @@ function adminElement(page: ReactNode) {
 export function AppRoutes() {
   return useRoutes([
     {
-      path: '/',
+      path: "/",
       element: (
         <ProtectedRoute>
           <Navigate to="/opportunities" replace />
@@ -115,7 +122,7 @@ export function AppRoutes() {
       ),
     },
     {
-      path: '/login',
+      path: "/login",
       element: (
         <PublicRoute>
           <LoginPage />
@@ -123,7 +130,7 @@ export function AppRoutes() {
       ),
     },
     {
-      path: '/opportunities',
+      path: "/opportunities",
       element: (
         <ProtectedRoute>
           <OuvsBoardPage />
@@ -131,7 +138,7 @@ export function AppRoutes() {
       ),
     },
     {
-      path: '/opportunities/dashboard',
+      path: "/opportunities/dashboard",
       element: (
         <ProtectedRoute>
           <OuvDashboardPage />
@@ -139,7 +146,31 @@ export function AppRoutes() {
       ),
     },
     {
-      path: '/dashboard/metas-comerciales',
+      path: "/reports",
+      element: (
+        <ProtectedRoute>
+          <ReportsIndexRedirect />
+        </ProtectedRoute>
+      ),
+    },
+    {
+      path: "/reports/committee",
+      element: (
+        <ProtectedRoute>
+          <CommercialReportsPage />
+        </ProtectedRoute>
+      ),
+    },
+    {
+      path: "/reports/pipeline-health",
+      element: (
+        <ProtectedRoute>
+          <CommercialReportsPage />
+        </ProtectedRoute>
+      ),
+    },
+    {
+      path: "/dashboard/metas-comerciales",
       element: (
         <ProtectedRoute>
           <CommercialGoalsPage />
@@ -147,7 +178,7 @@ export function AppRoutes() {
       ),
     },
     {
-      path: '/opportunities/ganadas',
+      path: "/opportunities/ganadas",
       element: (
         <ProtectedRoute>
           <OuvsBoardPage />
@@ -155,7 +186,7 @@ export function AppRoutes() {
       ),
     },
     {
-      path: '/opportunities/perdidas',
+      path: "/opportunities/perdidas",
       element: (
         <ProtectedRoute>
           <OuvsBoardPage />
@@ -163,7 +194,7 @@ export function AppRoutes() {
       ),
     },
     {
-      path: '/opportunities/descartadas',
+      path: "/opportunities/descartadas",
       element: (
         <ProtectedRoute>
           <OuvsBoardPage />
@@ -171,37 +202,37 @@ export function AppRoutes() {
       ),
     },
     {
-      path: '/opportunities/admin/motivos-perdida',
+      path: "/opportunities/admin/motivos-perdida",
       element: (
         <ProtectedRoute>
-          <RoleRoute roles={['SoporteComercial', 'Admin']}>
+          <RoleRoute roles={["SoporteComercial", "Admin"]}>
             <MotivosPerdidaPage />
           </RoleRoute>
         </ProtectedRoute>
       ),
     },
     {
-      path: '/opportunities/admin/motivos-descarte',
+      path: "/opportunities/admin/motivos-descarte",
       element: (
         <ProtectedRoute>
-          <RoleRoute roles={['SoporteComercial', 'Admin']}>
+          <RoleRoute roles={["SoporteComercial", "Admin"]}>
             <MotivosDescartePage />
           </RoleRoute>
         </ProtectedRoute>
       ),
     },
     {
-      path: '/opportunities/admin/zona-checklist-templates',
+      path: "/opportunities/admin/zona-checklist-templates",
       element: (
         <ProtectedRoute>
-          <RoleRoute roles={['SoporteComercial', 'Admin']}>
+          <RoleRoute roles={["SoporteComercial", "Admin"]}>
             <ZonaChecklistAdminPage />
           </RoleRoute>
         </ProtectedRoute>
       ),
     },
     {
-      path: '/opportunities/:id',
+      path: "/opportunities/:id",
       element: (
         <ProtectedRoute>
           <OuvDetailPage />
@@ -209,7 +240,7 @@ export function AppRoutes() {
       ),
     },
     {
-      path: '/demand',
+      path: "/demand",
       element: (
         <ProtectedRoute>
           <LeadsListPage />
@@ -217,7 +248,7 @@ export function AppRoutes() {
       ),
     },
     {
-      path: '/demand/leads/:id',
+      path: "/demand/leads/:id",
       element: (
         <ProtectedRoute>
           <LeadDetailPage />
@@ -225,7 +256,7 @@ export function AppRoutes() {
       ),
     },
     {
-      path: '/demand/campaigns',
+      path: "/demand/campaigns",
       element: (
         <ProtectedRoute>
           <CampaignsListPage />
@@ -233,7 +264,7 @@ export function AppRoutes() {
       ),
     },
     {
-      path: '/demand/campaigns/new',
+      path: "/demand/campaigns/new",
       element: (
         <ProtectedRoute>
           <CampaignFormPage />
@@ -241,7 +272,7 @@ export function AppRoutes() {
       ),
     },
     {
-      path: '/demand/mqls',
+      path: "/demand/mqls",
       element: (
         <ProtectedRoute>
           <MqlInboxPage />
@@ -249,11 +280,11 @@ export function AppRoutes() {
       ),
     },
     {
-      path: '/demand/agenda',
+      path: "/demand/agenda",
       element: <Navigate to="/demand" replace />,
     },
     {
-      path: '/demand/dashboard',
+      path: "/demand/dashboard",
       element: (
         <ProtectedRoute>
           <MarketingDashboardPage />
@@ -261,7 +292,7 @@ export function AppRoutes() {
       ),
     },
     {
-      path: '/qualification',
+      path: "/qualification",
       element: (
         <ProtectedRoute>
           <QualificationHomePage />
@@ -269,7 +300,7 @@ export function AppRoutes() {
       ),
     },
     {
-      path: '/qualification/assigned',
+      path: "/qualification/assigned",
       element: (
         <ProtectedRoute>
           <AssignedSqlsPage />
@@ -277,7 +308,7 @@ export function AppRoutes() {
       ),
     },
     {
-      path: '/qualification/assigned-ouvs',
+      path: "/qualification/assigned-ouvs",
       element: (
         <ProtectedRoute>
           <AssignedOuvsPage />
@@ -285,7 +316,7 @@ export function AppRoutes() {
       ),
     },
     {
-      path: '/qualification/dashboard',
+      path: "/qualification/dashboard",
       element: (
         <ProtectedRoute>
           <QualificationDashboardPage />
@@ -293,7 +324,7 @@ export function AppRoutes() {
       ),
     },
     {
-      path: '/qualification/sqls/:id',
+      path: "/qualification/sqls/:id",
       element: (
         <ProtectedRoute>
           <SqlDetailPage />
@@ -301,21 +332,21 @@ export function AppRoutes() {
       ),
     },
     {
-      path: '/presales',
+      path: "/presales",
       element: protectedElement(
-        'Preventa (PRE)',
-        'Actividades Preventa — módulo technical-feasibility (próximamente).',
+        "Preventa (PRE)",
+        "Actividades Preventa — módulo technical-feasibility (próximamente).",
       ),
     },
     {
-      path: '/pricing',
+      path: "/pricing",
       element: protectedElement(
-        'Pricing (PRI)',
-        'Análisis de margen — módulo pricing (próximamente).',
+        "Pricing (PRI)",
+        "Análisis de margen — módulo pricing (próximamente).",
       ),
     },
     {
-      path: '/offers',
+      path: "/offers",
       element: (
         <ProtectedRoute>
           <SoporteComercialInboxPage />
@@ -323,7 +354,7 @@ export function AppRoutes() {
       ),
     },
     {
-      path: '/offers/:ouvId',
+      path: "/offers/:ouvId",
       element: (
         <ProtectedRoute>
           <VentaGanadaDetailPage />
@@ -331,7 +362,7 @@ export function AppRoutes() {
       ),
     },
     {
-      path: '/services',
+      path: "/services",
       element: (
         <ProtectedRoute>
           <ServicesListPage />
@@ -339,7 +370,7 @@ export function AppRoutes() {
       ),
     },
     {
-      path: '/services/reportes',
+      path: "/services/reportes",
       element: (
         <ProtectedRoute>
           <ReportesProyectoPage />
@@ -347,7 +378,7 @@ export function AppRoutes() {
       ),
     },
     {
-      path: '/services/:ouvId',
+      path: "/services/:ouvId",
       element: (
         <ProtectedRoute>
           <ProjectExecutionPage />
@@ -355,7 +386,7 @@ export function AppRoutes() {
       ),
     },
     {
-      path: '/after-sales',
+      path: "/after-sales",
       element: (
         <ProtectedRoute>
           <AfterSalesPage />
@@ -363,7 +394,7 @@ export function AppRoutes() {
       ),
     },
     {
-      path: '/accounts/empresas',
+      path: "/accounts/empresas",
       element: (
         <ProtectedRoute>
           <AccountsListPage />
@@ -371,7 +402,7 @@ export function AppRoutes() {
       ),
     },
     {
-      path: '/accounts/contactos',
+      path: "/accounts/contactos",
       element: (
         <ProtectedRoute>
           <PeopleListPage />
@@ -379,19 +410,24 @@ export function AppRoutes() {
       ),
     },
     {
-      path: '/admin/users',
+      path: "/admin/users",
       element: adminElement(<AdminUsersPage />),
     },
     {
-      path: '/admin/audit',
+      path: "/admin/audit",
       element: adminElement(<AuditLogPage />),
     },
     {
-      path: '*',
+      path: "*",
       element: protectedElement(
-        'No encontrado',
-        'La ruta solicitada no existe. Usa el menú lateral para navegar.',
+        "No encontrado",
+        "La ruta solicitada no existe. Usa el menú lateral para navegar.",
       ),
     },
   ]);
+}
+
+function ReportsIndexRedirect() {
+  const { search } = useLocation();
+  return <Navigate to={`/reports/committee${search}`} replace />;
 }

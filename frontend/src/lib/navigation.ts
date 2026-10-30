@@ -1,45 +1,165 @@
 // Sidebar navigation: the 10 modules. Labels in Spanish (UI), keys in English (code).
 // Domain terms (OUV, Preventa, Pricing) kept in Spanish on purpose.
-import type { ComponentType } from 'react';
+import type { ComponentType } from "react";
 import {
-  Megaphone, Filter, Compass, Cpu, Calculator, FileSignature,
-  Wrench, RefreshCw, ShieldCheck, ScrollText, Building2, Contact,
-} from 'lucide-react';
+  Megaphone,
+  Filter,
+  Compass,
+  Presentation,
+  HeartPulse,
+  Cpu,
+  Calculator,
+  FileSignature,
+  Wrench,
+  RefreshCw,
+  ShieldCheck,
+  ScrollText,
+  Building2,
+  Contact,
+} from "lucide-react";
 
 export type NavItem = {
   key: string;
   label: string;
   path: string;
   icon: ComponentType<{ size?: number; strokeWidth?: number }>;
-  group: 'commercial' | 'platform';
+  group: "commercial" | "reports" | "platform";
   // CASL subjects that gate this module.
   subjects: string[];
+  /** When set, the item needs one of these actions on a listed subject. */
+  actions?: string[];
 };
 
 export const NAV_ITEMS: NavItem[] = [
   // Commercial — the 8 phases
-  { key: 'demand-generation',     label: 'Leads',                 path: '/demand',        icon: Megaphone,     group: 'commercial', subjects: ['Lead', 'Campaign'] },
-  { key: 'qualification',         label: 'Calificación',          path: '/qualification', icon: Filter,        group: 'commercial', subjects: ['Opportunity'] },
-  { key: 'discovery',             label: 'Oportunidades (OUV)',   path: '/opportunities', icon: Compass,       group: 'commercial', subjects: ['Opportunity'] },
-  { key: 'technical-feasibility', label: 'Preventa (PRE)',        path: '/presales',      icon: Cpu,           group: 'commercial', subjects: ['Presale'] },
-  { key: 'pricing',               label: 'Pricing (PRI)',         path: '/pricing',       icon: Calculator,    group: 'commercial', subjects: ['Pricing'] },
-  { key: 'offer-closing',         label: 'Oferta & Cierre',       path: '/offers',        icon: FileSignature, group: 'commercial', subjects: ['Proposal', 'Contract'] },
-  { key: 'implementation',        label: 'Implementación (SER)',  path: '/services',      icon: Wrench,        group: 'commercial', subjects: ['Service'] },
-  { key: 'post-sales',            label: 'Posventa',              path: '/after-sales',   icon: RefreshCw,     group: 'commercial', subjects: ['PostSale'] },
+  {
+    key: "demand-generation",
+    label: "Leads",
+    path: "/demand",
+    icon: Megaphone,
+    group: "commercial",
+    subjects: ["Lead", "Campaign"],
+  },
+  {
+    key: "qualification",
+    label: "Calificación",
+    path: "/qualification",
+    icon: Filter,
+    group: "commercial",
+    subjects: ["Opportunity"],
+  },
+  {
+    key: "discovery",
+    label: "Oportunidades (OUV)",
+    path: "/opportunities",
+    icon: Compass,
+    group: "commercial",
+    subjects: ["Opportunity"],
+  },
+  {
+    key: "technical-feasibility",
+    label: "Preventa (PRE)",
+    path: "/presales",
+    icon: Cpu,
+    group: "commercial",
+    subjects: ["Presale"],
+  },
+  {
+    key: "pricing",
+    label: "Pricing (PRI)",
+    path: "/pricing",
+    icon: Calculator,
+    group: "commercial",
+    subjects: ["Pricing"],
+  },
+  {
+    key: "offer-closing",
+    label: "Oferta & Cierre",
+    path: "/offers",
+    icon: FileSignature,
+    group: "commercial",
+    subjects: ["Proposal", "Contract"],
+  },
+  {
+    key: "implementation",
+    label: "Implementación (SER)",
+    path: "/services",
+    icon: Wrench,
+    group: "commercial",
+    subjects: ["Service"],
+  },
+  {
+    key: "post-sales",
+    label: "Posventa",
+    path: "/after-sales",
+    icon: RefreshCw,
+    group: "commercial",
+    subjects: ["PostSale"],
+  },
+  {
+    key: "committee-report",
+    label: "Comité comercial",
+    path: "/reports/committee",
+    icon: Presentation,
+    group: "reports",
+    subjects: ["CommercialReport"],
+    actions: ["read"],
+  },
+  {
+    key: "pipeline-health-report",
+    label: "Salud del pipeline",
+    path: "/reports/pipeline-health",
+    icon: HeartPulse,
+    group: "reports",
+    subjects: ["CommercialReport"],
+    actions: ["read"],
+  },
   // Platform — auth, audit, accounts (adelanto Módulo 12)
-  { key: 'accounts-empresas',     label: 'Empresas',              path: '/accounts/empresas',  icon: Building2, group: 'platform', subjects: ['Account'] },
-  { key: 'accounts-contactos',    label: 'Contactos',             path: '/accounts/contactos', icon: Contact,   group: 'platform', subjects: ['Person'] },
-  { key: 'auth',                  label: 'Usuarios y roles',      path: '/admin/users',   icon: ShieldCheck,   group: 'platform',   subjects: ['User', 'Role'] },
-  { key: 'audit',                 label: 'Auditoría',             path: '/admin/audit',   icon: ScrollText,    group: 'platform',   subjects: ['AuditLog'] },
+  {
+    key: "accounts-empresas",
+    label: "Empresas",
+    path: "/accounts/empresas",
+    icon: Building2,
+    group: "platform",
+    subjects: ["Account"],
+  },
+  {
+    key: "accounts-contactos",
+    label: "Contactos",
+    path: "/accounts/contactos",
+    icon: Contact,
+    group: "platform",
+    subjects: ["Person"],
+  },
+  {
+    key: "auth",
+    label: "Usuarios y roles",
+    path: "/admin/users",
+    icon: ShieldCheck,
+    group: "platform",
+    subjects: ["User", "Role"],
+  },
+  {
+    key: "audit",
+    label: "Auditoría",
+    path: "/admin/audit",
+    icon: ScrollText,
+    group: "platform",
+    subjects: ["AuditLog"],
+  },
 ];
 
 /** True when the role has any permission on at least one of the item's subjects. */
 export function canAccessNavItem(
-  permissions: { subject: string }[] | undefined,
+  permissions: { subject: string; action?: string }[] | undefined,
   item: NavItem,
 ): boolean {
   if (!permissions || permissions.length === 0) {
     return false;
   }
-  return permissions.some((rule) => item.subjects.includes(rule.subject));
+  return permissions.some((rule) => {
+    if (!item.subjects.includes(rule.subject)) return false;
+    if (!item.actions || item.actions.length === 0) return true;
+    return item.actions.includes(rule.action ?? '');
+  });
 }

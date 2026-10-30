@@ -2,10 +2,13 @@ import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { User } from '../../auth/models/user.model';
 import type { AuthenticatedUser } from '../../auth/interfaces/authenticated-user.interface';
+import { OuvDashboardDetailsQueryDto } from '../dtos/ouv-dashboard-details.dto';
 import { OuvDashboardQueryDto } from '../dtos/ouv-dashboard.dto';
 import { canReadAllOuvs } from '../lib/ouv-access';
 import {
   buildOuvDashboard,
+  listOuvDashboardDetails,
+  type OuvDashboardDetailItem,
   type OuvDashboardMetrics,
   type OuvDashboardSourceRow,
 } from '../lib/ouv-dashboard-metrics';
@@ -31,6 +34,55 @@ export class OuvDashboardService {
     query: OuvDashboardQueryDto,
     user: AuthenticatedUser,
   ): Promise<OuvDashboardMetrics> {
+    const rows = await this.loadRows(query, user);
+    return buildOuvDashboard(rows, this.periodInput(query), new Date());
+  }
+
+  async getDetails(
+    query: OuvDashboardDetailsQueryDto,
+    user: AuthenticatedUser,
+  ): Promise<{
+    kind: OuvDashboardDetailsQueryDto['kind'];
+    items: OuvDashboardDetailItem[];
+    total: number;
+    amount_total: number;
+    page: number;
+    limit: number;
+  }> {
+    const rows = await this.loadRows(query, user);
+    const all = listOuvDashboardDetails(
+      rows,
+      this.periodInput(query),
+      query.kind,
+      query.zona,
+    );
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
+    const start = (page - 1) * limit;
+    const amountTotal = all.reduce((sum, item) => sum + item.monto, 0);
+    return {
+      kind: query.kind,
+      items: all.slice(start, start + limit),
+      total: all.length,
+      amount_total: Math.round(amountTotal * 100) / 100,
+      page,
+      limit,
+    };
+  }
+
+  private periodInput(query: OuvDashboardQueryDto) {
+    return {
+      year: query.year,
+      quarter: query.quarter,
+      periodFrom: query.period_from,
+      periodTo: query.period_to,
+    };
+  }
+
+  private async loadRows(
+    query: OuvDashboardQueryDto,
+    user: AuthenticatedUser,
+  ): Promise<OuvDashboardSourceRow[]> {
     const comercialId = canReadAllOuvs(user.roleName)
       ? query.comercial_id
       : user.userId;
@@ -57,6 +109,9 @@ export class OuvDashboardService {
         'origin',
         'origenVia',
         'motivoSnapshot',
+        'empresaNombre',
+        'presupuestoMoneda',
+        'monedaFinal',
       ],
       include: [
         {
@@ -68,16 +123,7 @@ export class OuvDashboardService {
       ],
     });
 
-    return buildOuvDashboard(
-      ouvs.map((ouv) => this.toRow(ouv)),
-      {
-        year: query.year,
-        quarter: query.quarter,
-        periodFrom: query.period_from,
-        periodTo: query.period_to,
-      },
-      new Date(),
-    );
+    return ouvs.map((ouv) => this.toRow(ouv));
   }
 
   private toRow(ouv: Ouv): OuvDashboardSourceRow {
@@ -99,6 +145,9 @@ export class OuvDashboardService {
       origin: ouv.origin,
       origenVia: ouv.origenVia,
       motivoSnapshot: ouv.motivoSnapshot,
+      empresaNombre: ouv.empresaNombre,
+      presupuestoMoneda: ouv.presupuestoMoneda,
+      monedaFinal: ouv.monedaFinal,
     };
   }
 }

@@ -1,11 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
-import type { Transaction } from 'sequelize';
+import { Op, type Transaction } from 'sequelize';
 import { EntityType } from '../enums/entity-type.enum';
 import {
   payloadString,
   triggerFromEventType,
-  type StatusHistoryTriggerValue,
 } from '../lib/status-history-trigger';
 import { StatusHistory } from '../models/status-history.model';
 
@@ -14,7 +13,7 @@ export type RecordStatusHistoryInput = {
   entityId: string;
   fromEstado: string | null;
   toEstado: string;
-  trigger: StatusHistoryTriggerValue | string;
+  trigger: string;
   changedBy?: string | null;
   rootLeadId?: string | null;
   motivo?: string | null;
@@ -69,9 +68,9 @@ export class StatusHistoryService {
     const rootLeadId =
       params.entityType === EntityType.LEAD
         ? params.entityId
-        : payloadString(payload, 'leadId') ??
+        : (payloadString(payload, 'leadId') ??
           payloadString(payload, 'lead_id') ??
-          payloadString(payload, 'root_lead_id');
+          payloadString(payload, 'root_lead_id'));
 
     return this.record({
       entityType: params.entityType,
@@ -102,7 +101,40 @@ export class StatusHistoryService {
       order: [['changedAt', 'ASC']],
     });
   }
+
+  /** Bulk read for reports. Empty ids skip the query (`IN ()` is invalid SQL). */
+  async listForEntities(
+    entityType: EntityType | string,
+    entityIds: string[],
+  ): Promise<StatusHistoryListItem[]> {
+    if (entityIds.length === 0) return [];
+    const rows = await this.statusHistoryModel.findAll({
+      where: { entityType, entityId: { [Op.in]: entityIds } },
+      order: [['changedAt', 'ASC']],
+    });
+    return rows.map((row) => ({
+      historyId: row.historyId,
+      entityId: row.entityId,
+      fromEstado: row.fromEstado,
+      toEstado: row.toEstado,
+      trigger: row.trigger,
+      changedAt: row.changedAt,
+      changedBy: row.changedBy,
+      metadata: row.metadata,
+    }));
+  }
 }
+
+export type StatusHistoryListItem = {
+  historyId: string;
+  entityId: string;
+  fromEstado: string | null;
+  toEstado: string;
+  trigger: string;
+  changedAt: Date;
+  changedBy: string | null;
+  metadata: Record<string, unknown> | null;
+};
 
 function primitivePayload(
   payload: Record<string, unknown>,
