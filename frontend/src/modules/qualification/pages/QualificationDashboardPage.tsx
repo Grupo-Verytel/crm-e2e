@@ -4,6 +4,7 @@ import { FiscalQuarterSelect } from '../../../components/FiscalQuarterSelect';
 import { Pagination } from '../../../components/Pagination';
 import { AppLayout } from '../../../layout/AppLayout';
 import { ModalShell } from '../../demand-generation/components/ModalShell';
+import { bogotaFiscalYear } from '../../demand-generation/lib/bogota-fiscal';
 import {
   fetchQualificationDashboard,
   fetchQualificationDashboardDetails,
@@ -12,13 +13,16 @@ import {
   type QualificationDashboardDetailKind,
 } from '../api/qualification-dashboard-api';
 import {
-  CitasCalificacionMeters,
   PipelineEmbudoMeters,
-  MqlBandejaMeters,
+  QualificationKpiMeters,
 } from '../components/QualificationDashboardCharts';
 import { QualificationDashboardDetailTable } from '../components/QualificationDashboardDetailTable';
 import { QualificationNav } from '../components/QualificationNav';
 import { ghostButtonClass, inputClass, labelClass } from '../components/ui';
+import {
+  periodPhaseFromBounds,
+  qualificationFilterBounds,
+} from '../lib/kpi-card';
 
 type DetailView = {
   kind: QualificationDashboardDetailKind;
@@ -33,7 +37,7 @@ function buildAccumulatedYearOptions(): number[] {
 export function QualificationDashboardPage() {
   const accumulatedYearOptions = useMemo(() => buildAccumulatedYearOptions(), []);
   const [accumulatedYear, setAccumulatedYear] = useState<number | null>(() =>
-    new Date().getFullYear(),
+    bogotaFiscalYear(),
   );
   const [quarter, setQuarter] = useState<number | null>(null);
   const [periodFrom, setPeriodFrom] = useState('');
@@ -124,15 +128,37 @@ export function QualificationDashboardPage() {
   }, [accumulatedYear, periodFrom, periodRangeActive, periodTo, quarter]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetch on filter change
     void loadDashboard();
   }, [loadDashboard]);
 
   const periodActiveFromApi = data?.period.active ?? false;
+  const periodPhase = useMemo(() => {
+    const bounds = qualificationFilterBounds({
+      year: accumulatedYear,
+      quarter,
+      periodFrom,
+      periodTo,
+    });
+    return periodPhaseFromBounds(
+      periodActiveFromApi,
+      bounds?.startDay ?? null,
+      bounds?.endDay ?? null,
+      new Date(),
+    );
+  }, [
+    accumulatedYear,
+    periodActiveFromApi,
+    periodFrom,
+    periodTo,
+    quarter,
+  ]);
 
   useEffect(() => {
     if (!detail) return;
 
     let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetch when the detail opens
     setDetailLoading(true);
     setDetailError(null);
     void fetchQualificationDashboardDetails({
@@ -247,15 +273,10 @@ export function QualificationDashboardPage() {
         </p>
       ) : (
         <div className="space-y-8">
-          <MqlBandejaMeters
+          <QualificationKpiMeters
             pendingTotal={data.mql_bandeja.pending_total}
             withCita={data.mql_bandeja.with_cita}
-            activeKind={detail?.kind ?? null}
-            onOpenDetail={openDetail}
-          />
-
-          <CitasCalificacionMeters
-            periodActive={periodActiveFromApi}
+            periodPhase={periodPhase}
             scheduled={data.citas_calificacion.scheduled_by_commercial}
             executed={data.citas_calificacion.executed}
             sqlAssignedInPeriod={
@@ -263,6 +284,9 @@ export function QualificationDashboardPage() {
             }
             sqlConvertedToOuv={
               data.citas_calificacion.sql_converted_to_ouv_in_period
+            }
+            conversionRate={
+              data.citas_calificacion.sql_to_ouv_conversion_rate
             }
             activeKind={detail?.kind ?? null}
             onOpenDetail={openDetail}

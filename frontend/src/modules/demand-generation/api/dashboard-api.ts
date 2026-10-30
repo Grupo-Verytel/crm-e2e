@@ -1,6 +1,9 @@
 import { apiRequest } from '../../../lib/api/http-client';
 import { buildQueryString } from '../../../lib/format';
 import type {
+  DemandGoalMetric,
+  DemandGoalsList,
+  DemandGoalsReplaceResult,
   MarketingDashboard,
   MarketingDashboardDetailKind,
   MarketingDashboardDetails,
@@ -33,5 +36,33 @@ export async function fetchMarketingDashboardDetails(query: {
 }): Promise<MarketingDashboardDetails> {
   return apiRequest<MarketingDashboardDetails>(
     `/dashboard/marketing/details${buildQueryString(query)}`,
+  );
+}
+
+export async function fetchMarketingDashboardGoals(
+  year: number,
+): Promise<DemandGoalsList> {
+  return apiRequest<DemandGoalsList>(
+    `/dashboard/marketing/goals${buildQueryString({ year })}`,
+  );
+}
+
+export async function replaceMarketingDashboardGoals(body: {
+  fiscal_year: number;
+  quarter: number;
+  goals: { metric: DemandGoalMetric; weekly_target: number }[];
+}): Promise<DemandGoalsReplaceResult> {
+  return apiRequest<DemandGoalsReplaceResult>('/dashboard/marketing/goals', {
+    method: 'PUT',
+    body,
+  });
+}
+
+export async function deleteMarketingDashboardGoal(
+  targetId: string,
+): Promise<{ deleted: true }> {
+  return apiRequest<{ deleted: true }>(
+    `/dashboard/marketing/goals/${targetId}`,
+    { method: 'DELETE' },
   );
 }

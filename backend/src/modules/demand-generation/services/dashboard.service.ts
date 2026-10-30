@@ -12,6 +12,8 @@ import {
   MarketingDashboardResponseDto,
 } from '../dtos/dashboard-response.dto';
 import { marketingFiscalRange } from '../lib/marketing-fiscal-period';
+import { weeklyGoalAttainment } from '../lib/weekly-goal-attainment';
+import { MarketingDashboardTargetsService } from './marketing-dashboard-targets.service';
 import { ChecklistResultado } from '../models/enums/checklist.enums';
 import { LeadEstado } from '../models/enums/lead.enums';
 import { MqlEstado } from '../models/enums/mql.enums';
@@ -54,6 +56,7 @@ export class DashboardService {
     private readonly interactionModel: typeof Interaction,
     private readonly ouvMarketingMetrics: OuvMarketingMetricsService,
     private readonly accountsService: AccountsService,
+    private readonly marketingGoals: MarketingDashboardTargetsService,
   ) {}
 
   async getMarketingDashboard(
@@ -358,6 +361,15 @@ export class DashboardService {
           )
         : Promise.resolve(0),
     ]);
+    const goalRows = metricRange
+      ? await this.marketingGoals.findLiveCovering(
+          metricRange.start,
+          metricRange.end,
+        )
+      : [];
+    const goalRange = metricRange
+      ? { start: metricRange.start, end: metricRange.end }
+      : null;
 
     return {
       interactions,
@@ -369,6 +381,26 @@ export class DashboardService {
       interactions_by_channel: interactionsByChannel,
       quarter_leads_by_channel: ranges.hasAccumulatedRange ? leadsByChannel : [],
       converted_ouvs: convertedOuvs,
+      goals: {
+        interactions: weeklyGoalAttainment({
+          range: goalRange,
+          metric: 'INTERACTIONS',
+          rows: goalRows,
+          actual: interactions,
+        }),
+        leads: weeklyGoalAttainment({
+          range: goalRange,
+          metric: 'LEADS',
+          rows: goalRows,
+          actual: newLeads,
+        }),
+        converted_ouv: weeklyGoalAttainment({
+          range: goalRange,
+          metric: 'CONVERTED_OUV',
+          rows: goalRows,
+          actual: convertedOuvs,
+        }),
+      },
     };
   }
 

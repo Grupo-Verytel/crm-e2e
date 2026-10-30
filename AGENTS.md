@@ -161,6 +161,25 @@ Spec: `specs/metas-comerciales/spec.md`. Decisiones: `specs/decisions/2026-10-20
 
 **UI.** Engranaje en `/opportunities/dashboard` (no hay ruta `/dashboard`). Pantalla `/dashboard/metas-comerciales`. El segmento sale de `GET /segments`. El comercial, de `GET /discovery/ouvs/ejecutivos-comerciales`. Soporte no tiene `AuditLog`; la comprobación visual de auditoría la hace Admin.
 
+## 15. Metas de generación de demanda (2026-10-29)
+
+Spec: `specs/demand-goals/spec.md`. Decisiones: `specs/decisions/2026-10-29-metas-generacion-demanda.md`.
+
+**Dato.** Se extiende `marketing_dashboard_targets`. Grano: `fiscal_year`, `quarter` (1–4), `metric` (`INTERACTIONS`, `LEADS`, `CONVERTED_OUV`) y `weekly_target`. Soft-delete con `deleted_at`. Unicidad de la fila viva: `active_marker` dentro de `uq_marketing_dashboard_targets_active`. No hay metas de quincena ni de trimestre guardadas. El grano viejo (`period_type`, `interactions`, `period_leads`, `converted_ouvs`) sale de la tabla. Una base migrada deja de servir a `crm-e2e-DesignJD`.
+
+**Cálculo.** La meta se define por semana. Para el rango filtrado del tablero, `target = Math.round(Σ weekly_target × días del tramo ÷ 7)`. Cada tramo es la intersección del rango con un trimestre fiscal Verytel. Un tramo sin fila, o con `weekly_target` 0, aporta 0. Sin rango, `target` y `attainment_pct` son `null`. Con meta total 0, `target` es 0 y `attainment_pct` es `null`. El porcentaje no tiene tope.
+
+**Permiso.** Subject `DemandGoal` con `create`, `read`, `update` y `delete`. Lo tienen `DirectorMercadeo` y `Admin` en `buildPermissions` y en la migración `20261029120100-demand-goal-permissions.js`. El engranaje de `/demand/dashboard` mira `user.permissions` (`create` o `update`), no el nombre del rol. Tras la migración, Admin y DirectorMercadeo cierran sesión y vuelven a entrar.
+
+**Endpoints** (prefijo `api/v1`):
+
+- `GET /dashboard/marketing/goals?year=` — `read` `DemandGoal`. Metas vivas del año y los días de cada trimestre.
+- `PUT /dashboard/marketing/goals` — lote `{ fiscal_year, quarter, goals: [{ metric, weekly_target }] }` de las tres métricas, una transacción. 201 si crea alguna, 200 si las tres ya existían. Cada fila nueva exige `create` y cada fila viva exige `update`.
+- `DELETE /dashboard/marketing/goals/:id` — `delete` `DemandGoal`. Soft-delete.
+- `GET /dashboard/marketing` sigue con `read` `Lead` y agrega `weekly.goals` (`interactions`, `leads`, `converted_ouv`) con `actual`, `target` y `attainment_pct`.
+
+**UI.** Engranaje en `/demand/dashboard`. Modal de un trimestre. La ayuda «≈ X por quincena · ≈ Y en el trimestre» no se persiste.
+
 ---
 
 *Estado de módulos funcionales (avance de specs/implementación) se mantiene en los propios `spec-<módulo>.md`, no se duplica aquí para evitar desincronización.*

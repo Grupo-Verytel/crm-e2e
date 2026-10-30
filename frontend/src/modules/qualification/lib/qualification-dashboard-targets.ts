@@ -2,8 +2,6 @@
 export const QUALIFICATION_DASHBOARD_TARGETS = {
   /** MQL Activo — bandeja mercadeo pendiente de aprobación Soporte. */
   mql_bandeja_total: 12,
-  citas_programadas: 45,
-  citas_ejecutadas: 38,
   /** COP — valor presupuestado de OUVs EnCurso por zona. */
   valor_universo: 3_000_000_000,
   valor_encima_funnel: 2_500_000_000,

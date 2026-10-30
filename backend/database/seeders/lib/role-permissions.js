@@ -26,6 +26,7 @@ const SUBJECTS = {
   'post-sales': ['PostSale'],
   'audit-log': ['AuditLog'],
   'commercial-goals': ['CommercialGoal'],
+  'demand-goals': ['DemandGoal'],
   'commercial-reports': ['CommercialReport'],
 };
 
@@ -51,6 +52,7 @@ const MATRIX = {
     'audit-log': 'R',
     'commercial-goals': 'CRUD',
     'commercial-reports': 'R',
+    'demand-goals': 'CRUD',
   },
   DirectorMercadeo: {
     'leads/campaigns': 'CRUA',
@@ -59,6 +61,7 @@ const MATRIX = {
     'won-sales': 'R',
     'executing-companies': 'R',
     accounts: 'CRU',
+    'demand-goals': 'CRUD',
   },
   GestorMercadeo: {
     'leads/campaigns': 'CRU',

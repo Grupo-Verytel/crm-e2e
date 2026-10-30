@@ -50,7 +50,9 @@ export class QualificationDashboardPeriodDto {
 }
 
 export class QualificationCitasCalificacionDto {
+  /** Citas del período, abiertas y ya cerradas. */
   scheduled_by_commercial!: number;
+  /** Subconjunto ya cerrado: Realizada, Cancelada o NoAsistio. */
   executed!: number;
   /** SQL entregados al comercial (fecha_asignacion) en el periodo. */
   sql_assigned_in_period!: number;
