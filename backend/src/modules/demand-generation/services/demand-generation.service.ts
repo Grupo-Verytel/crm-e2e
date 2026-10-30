@@ -65,6 +65,19 @@ import { LeadStateMachineService } from './lead-state-machine.service';
 import { LeadsService } from './leads.service';
 import { MqlsService } from './mqls.service';
 import { RemindersService } from './reminders.service';
+import {
+  MarketingDashboardTargetsService,
+  type ReplaceMarketingGoalsResult,
+} from './marketing-dashboard-targets.service';
+import type { AppAbility } from '../../auth/casl/casl-ability.factory';
+import {
+  ListMarketingDashboardGoalsQueryDto,
+  ReplaceMarketingDashboardGoalsDto,
+} from '../dtos/marketing-dashboard-goals.dto';
+import type {
+  DeleteMarketingDashboardGoalResponseDto,
+  ListMarketingDashboardGoalsResponseDto,
+} from '../dtos/marketing-dashboard-goals.dto';
 
 /**
  * Public facade for the demand-generation module. Controllers and other
@@ -86,6 +99,7 @@ export class DemandGenerationService {
     private readonly importJobService: LeadImportJobService,
     private readonly usersService: UsersService,
     private readonly remindersService: RemindersService,
+    private readonly marketingGoals: MarketingDashboardTargetsService,
   ) {}
 
   // ----- Leads -----
@@ -457,6 +471,25 @@ export class DemandGenerationService {
     query: MarketingDashboardDetailsQueryDto,
   ): Promise<MarketingDashboardDetailsResponseDto> {
     return this.dashboardService.getMarketingDashboardDetails(query);
+  }
+
+  async listMarketingGoals(
+    query: ListMarketingDashboardGoalsQueryDto,
+  ): Promise<ListMarketingDashboardGoalsResponseDto> {
+    return this.marketingGoals.list(query.year);
+  }
+
+  async replaceMarketingGoals(
+    dto: ReplaceMarketingDashboardGoalsDto,
+    ability: AppAbility | undefined,
+  ): Promise<ReplaceMarketingGoalsResult> {
+    return this.marketingGoals.replaceQuarter(dto, ability);
+  }
+
+  async deleteMarketingGoal(
+    id: string,
+  ): Promise<DeleteMarketingDashboardGoalResponseDto> {
+    return this.marketingGoals.remove(id);
   }
 
   private assertTraductorCannotWriteCampaigns(roleName?: string): void {

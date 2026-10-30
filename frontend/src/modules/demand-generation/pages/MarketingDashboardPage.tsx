@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { List } from 'lucide-react';
+import { List, Settings } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { DatePickerField } from '../../../components/DatePickerField';
 import { FiscalQuarterSelect } from '../../../components/FiscalQuarterSelect';
@@ -11,8 +11,11 @@ import {
   fetchMarketingDashboardDetails,
 } from '../api/dashboard-api';
 import { DemandNav, canOpenMqlInbox } from '../components/DemandNav';
+import { MarketingDashboardGoalsModal } from '../components/MarketingDashboardGoalsModal';
 import { ModalShell } from '../components/ModalShell';
 import { cardClass, ghostButtonClass, inputClass, labelClass } from '../components/ui';
+import { bogotaFiscalQuarter, bogotaFiscalYear } from '../lib/bogota-fiscal';
+import { canEditDemandGoals } from '../lib/can-edit-demand-goals';
 import { CANAL_ORIGEN_LABEL, leadEstadoLabel } from '../lib/lead-vocab';
 import { OUV_ZONA_LABEL, type OuvZona } from '../../discovery/lib/ouv-vocab';
 import {
@@ -26,7 +29,26 @@ import {
   type MarketingDashboard,
   type MarketingDashboardDetailItem,
   type MarketingDashboardDetailKind,
+  type WeeklyGoalAttainment,
 } from '../types';
+
+const GOAL_BAR_CLASS: Record<string, string> = {
+  danger: 'bg-danger',
+  warning: 'bg-warning',
+  met: 'bg-semaphore-verde',
+};
+
+const GOAL_TEXT_CLASS: Record<string, string> = {
+  danger: 'text-danger',
+  warning: 'text-warning',
+  met: 'text-semaphore-verde',
+};
+
+function goalTone(attainmentPct: number): string {
+  if (attainmentPct < 70) return 'danger';
+  if (attainmentPct < 100) return 'warning';
+  return 'met';
+}
 
 const FUNNEL_LABELS: Record<string, string> = {
   TOFU: 'TOFU',
@@ -71,6 +93,7 @@ function periodLeadsLabelFromRange(from: string, to: string): string {
 export function MarketingDashboardPage() {
   const { user } = useAuth();
   const showMqlInbox = canOpenMqlInbox(user?.role_name);
+  const showDemandGoals = canEditDemandGoals(user);
   const accumulatedYearOptions = useMemo(() => buildAccumulatedYearOptions(), []);
   const [accumulatedYear, setAccumulatedYear] = useState<number | null>(null);
   const [quarter, setQuarter] = useState<number | null>(null);
@@ -88,6 +111,7 @@ export function MarketingDashboardPage() {
   const [detailTotal, setDetailTotal] = useState(0);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
+  const [goalsOpen, setGoalsOpen] = useState(false);
   const periodLeadsLabel = useMemo(() => {
     if (periodRangeActive) {
       return periodLeadsLabelFromRange(periodFrom, periodTo);
@@ -202,6 +226,7 @@ export function MarketingDashboardPage() {
       return;
     }
     let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetch when the detail opens
     setDetailLoading(true);
     setDetailError(null);
     void fetchMarketingDashboardDetails({
@@ -244,7 +269,21 @@ export function MarketingDashboardPage() {
 
   return (
     <AppLayout title="Dashboard de mercadeo">
-      <DemandNav />
+      <DemandNav
+        actions={
+          showDemandGoals ? (
+            <button
+              type="button"
+              className="icon-btn mt-1 grid h-9 w-9 place-items-center rounded focus-visible:ring-2 focus-visible:ring-brand"
+              title="Metas de generación de demanda"
+              aria-label="Metas de generación de demanda"
+              onClick={() => setGoalsOpen(true)}
+            >
+              <Settings size={18} strokeWidth={2} aria-hidden />
+            </button>
+          ) : undefined
+        }
+      />
 
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <h1 className="text-lg font-bold text-ink">Indicadores de mercadeo</h1>
@@ -396,28 +435,31 @@ export function MarketingDashboardPage() {
               Indicadores del periodo
             </h2>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              <DonutMetric
+              <PeriodGoalCard
                 label="Interacciones"
-                value={data.weekly.interactions}
-                target={50}
+                goal={data.weekly.goals?.interactions}
+                fallbackActual={data.weekly.interactions}
                 onViewData={() =>
                   openDetail({ kind: 'interactions', title: 'Interacciones' })
                 }
               />
-              <DonutMetric
+              <PeriodGoalCard
                 label={periodLeadsLabel}
-                value={data.weekly.new_leads}
-                target={3}
+                goal={data.weekly.goals?.leads}
+                fallbackActual={data.weekly.new_leads}
                 onViewData={() =>
                   openDetail({ kind: 'period_leads', title: periodLeadsLabel })
                 }
               />
-              <DonutMetric
-                label="OUV convertidas"
-                value={data.weekly.converted_ouvs ?? 0}
-                target={3}
+              <PeriodGoalCard
+                label="Convertidos a OUV"
+                goal={data.weekly.goals?.converted_ouv}
+                fallbackActual={data.weekly.converted_ouvs ?? 0}
                 onViewData={() =>
-                  openDetail({ kind: 'ouvs', title: 'OUV convertidas' })
+                  openDetail({
+                    kind: 'ouvs',
+                    title: 'Convertidos a OUV',
+                  })
                 }
               />
             </div>
@@ -436,6 +478,25 @@ export function MarketingDashboardPage() {
           </section>
         </div>
       )}
+
+      {goalsOpen ? (
+        <MarketingDashboardGoalsModal
+          initialYear={accumulatedYear ?? bogotaFiscalYear()}
+          initialQuarter={
+            quarter === 1 || quarter === 2 || quarter === 3 || quarter === 4
+              ? quarter
+              : bogotaFiscalQuarter()
+          }
+          onClose={() => setGoalsOpen(false)}
+          onSaved={() => {
+            setGoalsOpen(false);
+            void loadDashboard();
+          }}
+          onChanged={() => {
+            void loadDashboard();
+          }}
+        />
+      ) : null}
 
       {detail ? (
         <ModalShell title={detail.title} onClose={closeDetail} size="wide">
@@ -594,35 +655,26 @@ function DashboardDetailTable({
   );
 }
 
-function DonutMetric({
+function PeriodGoalCard({
   label,
-  value,
-  target,
+  goal,
+  fallbackActual,
   onViewData,
 }: {
   label: string;
-  value: number;
-  target: number;
+  goal: WeeklyGoalAttainment | undefined;
+  fallbackActual: number;
   onViewData?: () => void;
 }) {
-  const ratio = target > 0 ? value / target : 0;
-  const percentage = Math.round(ratio * 100);
-  const progress = Math.min(100, percentage);
-  const toneClass =
-    ratio >= 0.9
-      ? 'bg-semaphore-verde/15 text-semaphore-verde'
-      : ratio >= 0.5
-        ? 'bg-warning/15 text-warning'
-        : 'bg-danger/10 text-danger';
-  const progressClass =
-    ratio >= 0.9
-      ? 'text-semaphore-verde'
-      : ratio >= 0.5
-        ? 'text-warning'
-        : 'text-danger';
+  const actual = goal?.actual ?? fallbackActual;
+  const target = goal?.target ?? null;
+  const attainment = goal?.attainment_pct ?? null;
+  const tone = attainment == null ? null : goalTone(attainment);
+  const barWidth =
+    attainment == null ? 0 : Math.min(100, Math.max(0, attainment));
 
   return (
-    <article className={`${cardClass} relative flex items-center gap-4 p-5 pr-12`}>
+    <article className={`${cardClass} relative p-5 pr-12`}>
       {onViewData ? (
         <button
           type="button"
@@ -634,45 +686,33 @@ function DonutMetric({
           <List size={18} strokeWidth={1.75} aria-hidden />
         </button>
       ) : null}
-      <div className="relative h-28 w-28 shrink-0" aria-hidden>
-        <svg className="h-full w-full -rotate-90" viewBox="0 0 120 120">
-          <circle
-            cx="60"
-            cy="60"
-            r="48"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="12"
-            className="text-border"
-          />
-          <circle
-            cx="60"
-            cy="60"
-            r="48"
-            pathLength="100"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="12"
-            strokeLinecap="round"
-            strokeDasharray={`${progress} ${100 - progress}`}
-            className={progressClass}
-          />
-        </svg>
-        <span
-          className={`absolute inset-0 grid place-items-center text-3xl font-bold ${progressClass}`}
-        >
-          {value}
-        </span>
-      </div>
-      <div className="min-w-0">
-        <h3 className="font-bold text-ink">{label}</h3>
-        <p className="mt-1 text-xs text-muted">Meta: {target}</p>
-        <span
-          className={`mt-2 inline-flex rounded-full px-2 py-1 text-xs font-bold ${toneClass}`}
-        >
-          {percentage}%
-        </span>
-      </div>
+      <h3 className="font-bold text-ink">{label}</h3>
+      <p className="mt-1 text-3xl font-bold text-ink">{actual}</p>
+      <p className="text-xs text-muted">Real</p>
+      {target == null ? (
+        <p className="mt-3 text-sm text-muted">Selecciona un período</p>
+      ) : target === 0 ? (
+        <p className="mt-3 text-sm text-muted">Sin meta definida</p>
+      ) : (
+        <>
+          <p className="mt-3 text-xs text-muted">
+            Meta del período: {target}
+          </p>
+          {tone && attainment != null ? (
+            <p className={`mt-1 text-sm font-bold ${GOAL_TEXT_CLASS[tone]}`}>
+              {attainment}%
+            </p>
+          ) : null}
+          <div className="mt-2 h-2 overflow-hidden rounded-sm bg-border" aria-hidden>
+            <div
+              className={`h-full motion-safe:transition-[width] motion-safe:duration-300 ${
+                tone ? GOAL_BAR_CLASS[tone] : ''
+              }`}
+              style={{ width: `${barWidth}%` }}
+            />
+          </div>
+        </>
+      )}
     </article>
   );
 }

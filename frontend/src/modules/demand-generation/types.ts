@@ -589,7 +589,42 @@ export type MarketingDashboard = {
     interactions_by_channel: { canal_origen: string; count: number }[];
     quarter_leads_by_channel: { canal_origen: string; count: number }[];
     converted_ouvs: number;
+    goals: {
+      interactions: WeeklyGoalAttainment;
+      leads: WeeklyGoalAttainment;
+      converted_ouv: WeeklyGoalAttainment;
+    };
   };
+};
+
+export type WeeklyGoalAttainment = {
+  actual: number;
+  target: number | null;
+  attainment_pct: number | null;
+};
+
+export type DemandGoalMetric = 'INTERACTIONS' | 'LEADS' | 'CONVERTED_OUV';
+
+export type DemandGoalItem = {
+  target_id: string;
+  fiscal_year: number;
+  quarter: number;
+  metric: DemandGoalMetric;
+  weekly_target: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type DemandGoalsList = {
+  fiscal_year: number;
+  quarters: { quarter: number; days: number }[];
+  items: DemandGoalItem[];
+};
+
+export type DemandGoalsReplaceResult = {
+  fiscal_year: number;
+  quarter: number;
+  items: DemandGoalItem[];
 };
 
 export type MarketingDashboardDetailKind =

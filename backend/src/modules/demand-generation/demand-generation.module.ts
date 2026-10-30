@@ -21,6 +21,7 @@ import { LeadContact } from './models/lead-contact.model';
 import { LeadChecklist } from './models/lead-checklist.model';
 import { Mql } from './models/mql.model';
 import { Segment } from './models/segment.model';
+import { MarketingDashboardTarget } from './models/marketing-dashboard-target.model';
 import { Sql } from './models/sql.model';
 import { Subsegment } from './models/subsegment.model';
 import { NOTIFICATION_PORT } from './ports/notification.port';
@@ -32,6 +33,7 @@ import { LeadChecklistService } from './services/lead-checklist.service';
 import { LeadImportJobService } from './services/lead-import-job.service';
 import { LeadStateMachineService } from './services/lead-state-machine.service';
 import { LeadsService } from './services/leads.service';
+import { MarketingDashboardTargetsService } from './services/marketing-dashboard-targets.service';
 import { MqlsService } from './services/mqls.service';
 import { OutlookReminderSyncService } from './services/outlook-reminder-sync.service';
 import { RemindersService } from './services/reminders.service';
@@ -50,6 +52,7 @@ import { RemindersService } from './services/reminders.service';
       Segment,
       Subsegment,
       User,
+      MarketingDashboardTarget,
     ]),
     AccountsModule,
     forwardRef(() => AuthModule),
@@ -75,6 +78,7 @@ import { RemindersService } from './services/reminders.service';
     LeadStateMachineService,
     MqlsService,
     DashboardService,
+    MarketingDashboardTargetsService,
     LeadImportJobService,
     DemandGenerationService,
     { provide: NOTIFICATION_PORT, useClass: LoggerNotificationAdapter },

@@ -63,6 +63,18 @@ export class FunnelStageDto {
   count: number;
 }
 
+export class WeeklyGoalAttainmentDto {
+  actual: number;
+  target: number | null;
+  attainment_pct: number | null;
+}
+
+export class WeeklyGoalsDto {
+  interactions: WeeklyGoalAttainmentDto;
+  leads: WeeklyGoalAttainmentDto;
+  converted_ouv: WeeklyGoalAttainmentDto;
+}
+
 export class WeeklyMarketingMetricsDto {
   interactions: number;
   new_leads: number;
@@ -73,6 +85,7 @@ export class WeeklyMarketingMetricsDto {
   interactions_by_channel: LeadsByChannelDto[];
   quarter_leads_by_channel: LeadsByChannelDto[];
   converted_ouvs: number;
+  goals: WeeklyGoalsDto;
 }
 
 export type MarketingDashboardDetailKind =
