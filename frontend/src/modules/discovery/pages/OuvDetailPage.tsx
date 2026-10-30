@@ -663,8 +663,8 @@ export function OuvDetailPage() {
         <h2 className="mb-1 text-sm font-bold text-ink">Presupuesto</h2>
         <p className="mb-3 text-xs text-muted">
           No se guarda solo: edita los campos y pulsa{' '}
-          <strong>Guardar presupuesto</strong>. Marca &quot;Confirmado&quot;
-          para poder avanzar a Encima Funnel.
+          <strong>Guardar presupuesto</strong>. Marca &quot;Confirmado&quot; y
+          un monto mayor a 0 para poder avanzar a En Funnel.
         </p>
         <div className="grid gap-3 md:grid-cols-4">
           <label className="flex items-center gap-2 text-sm text-ink">

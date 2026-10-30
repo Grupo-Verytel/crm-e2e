@@ -1,11 +1,19 @@
 # Spec — Módulo 2: OUV Funnel (Embudo Comercial Verytel)
-**Versión:** 1.5.1 — detalle origen/canal; Proyecto se conserva
-**Fecha:** 2026-08-10
+**Versión:** 1.6 — hotfix de reglas de transición del embudo
+**Fecha:** 2026-10-30
 **Autor:** Evilio Díaz (Frisson Technologies / Grupo Verytel)
-**Estado:** Aprobado (v1.5.1)
+**Estado:** Pendiente de aprobación (Paso 1, 2026-10-30). v1.5.1 sigue siendo la versión aprobada anterior.
 **Depende de:** `spec-calificacion.md` **v2.3**, `spec-workflow-engine.md` v1.1, `spec-gestion-cuentas.md` v0.4, `spec-demand-generation.md` v2.5
 **Referencia de negocio:** `FILTROS_EMBUDO_COMERCIAL_v5.pdf`, `Frisson_CRM_Blueprint_V2_19062026.pdf`
-**Decisiones estructurales:** DR-2026-08-B (con adendas A y B), `2026-08-DR-unificacion-contactos-cuentas-wave1.md`, `2026-08-DR-auto-poblar-ouv-account-id.md`, `2026-08-DR-accounts-por-lead.md`
+**Decisiones estructurales:** DR-2026-08-B (con adendas A y B), `2026-08-DR-unificacion-contactos-cuentas-wave1.md`, `2026-08-DR-auto-poblar-ouv-account-id.md`, `2026-08-DR-accounts-por-lead.md`, `specs/decisions/2026-10-30-correccion-reglas-embudo.md`
+
+**Changelog v1.5.1 → v1.6 (hotfix 2026-10-30, D1–D8):**
+- EARS-13: `UNIVERSO` → `ENCIMA_FUNNEL` sin regla de negocio; `ENCIMA_FUNNEL` → `EN_FUNNEL` exige presupuesto confirmado y monto > 0; `EN_FUNNEL` → `MAYOR_PROBABILIDAD` conserva solo el filtro de influencias.
+- EARS-13 deja de citar `guardEntidadEnEstado`. El avance real no lo invoca: el paso único sigue en `nextZona`.
+- EARS-27: el gap de presupuesto empieza en `EN_FUNNEL` (booleano y monto) y el de influencias empieza en `MAYOR_PROBABILIDAD`. Sin recálculo masivo.
+- EARS-42: el filtro cuenta `Economica`, `Tecnica`, `Fabrica`, `Usuario` y `Coach`. Umbral 2.
+- EARS-43: hints, copy de presupuesto y bloqueo del botón de avance.
+- Cierre Ganada (EARS-30..34) no cambia. Retroceso no cambia. No hay migración.
 
 **Changelog v1.5 → v1.5.1 (PASO 2 frontend 2026-09-17):**
 - **Proyecto se conserva** en el detalle (vista y edición). EARS-40 revertido: el campo Recurrente / No recurrente permanece.
@@ -114,6 +122,8 @@ Ver `spec-demand-generation.md` **v2.5** §3.2 — reestructurada con `person_id
 
 **Seed automático:** al crear una OUV, 3 filas (una por tipo) en `estado = SinEvaluar`, `contacto_ouv_id = NULL`.
 
+**v1.6 — enum vivo, sin cambio de esquema.** El código ya persiste `tipo` como `Economica`, `Tecnica`, `Fabrica`, `Usuario`, `Coach` (`InfluenciaTipo`, migración `20260916120000-add-usuario-coach-influencia-tipos.js`). Este hotfix no altera la tabla ni el alta. EARS-42 dice cuáles de esos valores cuenta el filtro.
+
 ### 2.5 Tabla `ouv_checklist_items`
 Sin cambios respecto a v1.1.
 
@@ -169,25 +179,52 @@ Sin cambios respecto a v1.1.
 
 **EARS-11.** Los contactos de OUV NO se sincronizan automáticamente con los del lead tras la conversión.
 
-### 3.4 Avance de zona (EARS-12 a EARS-15)
-Sin cambios respecto a v1.2.
+### 3.4 Avance de zona (EARS-12 a EARS-15, EARS-42)
+Ajustado en v1.6. El paso sigue siendo al vecino inmediato (`nextZona`). Los guards de comercial no cambian.
 
 **EARS-12.** Solicitar avance vía `POST /discovery/ouvs/:id/avanzar`.
 
-**EARS-13.** Guards por zona destino:
+**EARS-13** *(v1.6)*. Reglas de negocio por destino. La primera línea es `assertGuardsForDestino`. La segunda es el guard del evento `ouv.avance_zona`.
 
-| Zona destino | Guards |
+| Zona destino | Regla de negocio |
 |---|---|
-| ENCIMA_FUNNEL | `guardEntidadEnEstado('OUV','UNIVERSO')` + `guardPresupuestoConfirmado` |
-| EN_FUNNEL | `guardEntidadEnEstado('OUV','ENCIMA_FUNNEL')` + `guard2InfluenciasEnVerde` |
-| MAYOR_PROBABILIDAD | `guardEntidadEnEstado('OUV','EN_FUNNEL')` + `guard2InfluenciasEnVerde` |
+| `ENCIMA_FUNNEL` | Ninguna. Solo los guards de comercial ya existentes. |
+| `EN_FUNNEL` | `presupuesto_confirmado === true` y `presupuesto_monto > 0`. Sin filtro de influencias. |
+| `MAYOR_PROBABILIDAD` | Filtro de influencias (EARS-42). Sin presupuesto. |
 
-**EARS-14.** Guard rechazado → `WorkflowGuardRejectedException` HTTP 422.
+CUANDO un usuario mueve una OUV de `UNIVERSO` a `ENCIMA_FUNNEL`, EL SISTEMA DEBERÁ permitir el movimiento sin validar presupuesto ni influencias.
 
-**EARS-15.** Aprobado → actualizar `zona_actual`, sembrar checklist, emitir `ouv.avance_zona`, `audit_log`.
+CUANDO un usuario mueve una OUV de `ENCIMA_FUNNEL` a `EN_FUNNEL` Y el presupuesto no está confirmado o su monto es null, vacío, no numérico o ≤ 0, EL SISTEMA DEBERÁ rechazar el movimiento con `BadRequestException` (400) y un mensaje en español que nombre solo la condición incumplida. Si fallan las dos, EL SISTEMA DEBERÁ incluir las dos frases, primero la del booleano y después la del monto:
+
+- `El presupuesto debe estar confirmado para avanzar a En Funnel.`
+- `El presupuesto debe ser mayor a 0 para avanzar a En Funnel.`
+
+Null se trata como 0. La comparación es numérica y estricta, sobre `ouvs.presupuesto_monto`. EL SISTEMA NO DEBERÁ usar `evaluateGanadaClose` ni `guardPresupuestoGanada` para esta puerta.
+
+CUANDO un usuario mueve una OUV de `ENCIMA_FUNNEL` a `EN_FUNNEL` Y el presupuesto está confirmado Y el monto es > 0, EL SISTEMA DEBERÁ permitir el movimiento aunque no haya tipos de influencia en verde.
+
+CUANDO un usuario mueve una OUV de `EN_FUNNEL` a `MAYOR_PROBABILIDAD` Y la OUV tiene menos de 2 tipos distintos en verde según EARS-42, EL SISTEMA DEBERÁ rechazar el movimiento con HTTP 422 y el `detail` de `influenceFilterBlockDetail`.
+
+CUANDO un usuario mueve una OUV de `EN_FUNNEL` a `MAYOR_PROBABILIDAD` Y el filtro pasa, EL SISTEMA DEBERÁ permitir el movimiento sin exigir presupuesto.
+
+`guardPresupuestoConfirmado` DEBERÁ evaluar D6 solo si `payload.zona_nueva` es `EN_FUNNEL`. Si `zona_nueva` falta o es otra zona, el guard DEBERÁ responder ok. `avanzarZona` DEBERÁ incluir `presupuesto_monto` en el payload de `ouv.avance_zona`. El `detalle` del guard, si rechaza, DEBERÁ usar las mismas frases del 400.
+
+`guard2InfluenciasEnVerde` DEBERÁ exigir el conteo solo cuando `zona_nueva` es `MAYOR_PROBABILIDAD`. Si `zona_nueva` viene vacía, DEBERÁ seguir exigiendo el conteo, como antes de v1.6.
+
+**EARS-14.** Si el guard del motor rechaza, `WorkflowGuardRejectedException` HTTP 422. En el avance, el 400 de EARS-13 ocurre antes y es la respuesta que ve el cliente cuando falla el presupuesto. El 422 de influencias es el de `InfluenciaProblemException` lanzado en el servicio, también antes del guard.
+
+**EARS-15.** Aprobado → actualizar `zona_actual`, sembrar checklist, emitir `ouv.avance_zona`, `audit_log`. El formato de esa auditoría no cambia (D5). `contexto` puede incluir `presupuesto_monto` porque el motor copia el payload.
+
+**EARS-42** *(v1.6)*. EL SISTEMA DEBERÁ contar, en `evaluateInfluenceFilter`, una fila de `ouv_influencias` cuando `estado` es `Verde` y `tipo` es uno de `Economica`, `Tecnica`, `Fabrica`, `Usuario`, `Coach`. El conteo DEBERÁ ser de tipos distintos. Un rojo del mismo tipo NO DEBERÁ anular un verde. Dos filas verdes del mismo tipo DEBERÁN contar como uno. El umbral DEBERÁ seguir en 2. `filtro.required` DEBERÁ ser 2.
+
+EL SISTEMA DEBERÁ usar ese filtro en el avance hacia `MAYOR_PROBABILIDAD`, en el gap de EARS-27 y en el badge de influencias del detalle. EL SISTEMA NO DEBERÁ modificar `evaluateGanadaClose` ni `guardInfluenciasGanada`.
+
+`influenceFilterBlockDetail` DEBERÁ nombrar los cinco tipos: `Se requieren 2 tipos de influencia en Verde (Económica, Técnica, Fábrica, Usuario, Coach). Actualmente: …`
 
 ### 3.5 Retroceso de zona (EARS-16 a EARS-18)
-Sin cambios. Retroceder vía `POST /discovery/ouvs/:id/retroceder` con `motivo` obligatorio; no se permite desde UNIVERSO (usar Descartada).
+Sin cambios en v1.6. Retroceder vía `POST /discovery/ouvs/:id/retroceder` con `motivo` obligatorio; no se permite desde UNIVERSO (usar Descartada). EL SISTEMA NO DEBERÁ aplicar las reglas de presupuesto ni de influencias de EARS-13 al retroceso.
+
+CUANDO un usuario mueve una OUV a una zona anterior, EL SISTEMA DEBERÁ mantener el comportamiento actual.
 
 ### 3.6 Gestión de influencias (EARS-19 a EARS-21)
 Sin cambios. Actualizar `estado`/`contacto_ouv_id`/`motivo_estado`/`notas`; `contacto_ouv_id` debe pertenecer a la misma OUV; dispara `ouv.influencia_cambio`.
@@ -199,7 +236,22 @@ Sin cambios.
 Sin cambios.
 
 ### 3.9 Alerta de gap (EARS-27 a EARS-29)
-Sin cambios.
+Ajustado en v1.6 (D7). El evaluador sigue corriendo después de avance, retroceso, presupuesto, influencia y checklist. No mueve la zona y no bloquea la edición.
+
+**EARS-27** *(v1.6)*. MIENTRAS una OUV permanece en su `zona_actual`, EL SISTEMA NO DEBERÁ cambiar esa zona ni impedir su edición por no cumplir la regla corregida de EARS-13.
+
+CUANDO corre `CriteriosZonaEvaluator.computeFaltantes`:
+
+- SI `zonaRank(zona_actual) >= zonaRank(EN_FUNNEL)` Y no se cumple el presupuesto de EARS-13 (booleano y monto > 0), EL SISTEMA DEBERÁ incluir el token `presupuesto_confirmado`.
+- SI `zonaRank(zona_actual) >= zonaRank(MAYOR_PROBABILIDAD)` Y `evaluateInfluenceFilter` no pasa, EL SISTEMA DEBERÁ incluir el token `influencias_verde`.
+- En `UNIVERSO` y `ENCIMA_FUNNEL`, EL SISTEMA NO DEBERÁ agregar esos dos tokens por estas reglas.
+- El orden DEBERÁ ser `presupuesto_confirmado` y después `influencias_verde`.
+
+EL SISTEMA NO DEBERÁ recorrer las OUV existentes para recalcular el gap. Los `criterios_faltantes` ya guardados se reemplazan en el próximo evento que ya invoca al evaluador.
+
+**EARS-28.** Sin cambio de contrato respecto de la notificación `ouv.criterios_perdidos` / `ouv.criterios_recuperados`: se emite cuando `tiene_gap` pasa de false a true, o de true a false, dentro de ese mismo evento.
+
+**EARS-29.** Sin cambio: el cliente muestra el gap ya persistido (`tiene_gap`, `criterios_faltantes`). No lo recalcula.
 
 ### 3.10 Cierre (EARS-30 a EARS-34)
 Sin cambios en v1.5. Ganada (`MAYOR_PROBABILIDAD` estricto), Perdida (motivo+monto obligatorios), Descartada (motivo obligatorio); solo Ganada emite `ouv.lista_para_implementacion`. **No se reimplementa ni se porta el cierre de DesignJD en esta iteración.**
@@ -240,8 +292,12 @@ Postergada a Wave 2.
 
 ---
 
-## 5. Guards nuevos del motor
-Sin cambios: `guardPresupuestoConfirmado`, `guard2InfluenciasEnVerde`, `guardUsuarioEsComercialDelOUV`.
+## 5. Guards del motor
+v1.6 no agrega guards. Cambia cuándo responden los dos ya existentes:
+
+- `guardPresupuestoConfirmado`: solo con `zona_nueva = EN_FUNNEL`, y exige booleano más monto > 0 (EARS-13).
+- `guard2InfluenciasEnVerde`: el conjunto pasa a `{ MAYOR_PROBABILIDAD }` (EARS-13, EARS-42).
+- `guardUsuarioEsComercialDelOUV`: sin cambio.
 
 ## 6. Eventos nuevos del motor
 Sin cambios respecto a v1.2 (lista completa en la versión original).
@@ -281,6 +337,20 @@ Panel de contactos: lista `ouv_contactos` (join a `people`), acciones agregar/el
 ### 8.5 Modal "Agregar contacto" *(ajustado v1.3)*
 Selector de `person` existente (busca por nombre/email) o formulario para crear uno nuevo (nombre, cargo, email, teléfono + selección/creación de `account`) — delega a `spec-gestion-cuentas.md`. `notas` local siempre editable aquí.
 
+### 8.10 Avance y presupuesto *(v1.6, EARS-43)*
+
+**EARS-43.** EL SISTEMA DEBERÁ mostrar los hints de `guardsForDestino` así:
+
+- Destino `ENCIMA_FUNNEL`: sin hint de presupuesto ni de influencias. El hint de comercial dueño se conserva en todos los destinos.
+- Destino `EN_FUNNEL`: «Presupuesto confirmado y mayor a 0».
+- Destino `MAYOR_PROBABILIDAD`: «Al menos 2 tipos en Verde entre Económica, Técnica, Fábrica, Usuario y Coach».
+
+La sección Presupuesto del detalle DEBERÁ decir que hay que marcar Confirmado y un monto mayor a 0 para avanzar a En Funnel. El texto fijo queda: `Marca "Confirmado" y un monto mayor a 0 para poder avanzar a En Funnel.`
+
+`AvanceZonaModal` DEBERÁ deshabilitar Confirmar por el filtro de influencias solo cuando el destino es `MAYOR_PROBABILIDAD` y el filtro no pasa. EL SISTEMA NO DEBERÁ deshabilitar ese botón por presupuesto; el 400 de EARS-13 se muestra al confirmar.
+
+El tooltip de `InfluenciasSection` DEBERÁ nombrar los cinco tipos de EARS-42. El badge «N de M tipos en verde» DEBERÁ usar `filtro.required` (2) como M.
+
 Resto de pantallas (8.1, 8.2, 8.4, 8.6–8.9): sin cambios.
 
 ---
@@ -303,7 +373,7 @@ Sin cambios — todo pasa por `WorkflowEngineService.transition()`.
 - Destino de OUVs Perdidas/Descartadas (retorno a leads vs. reciclaje) — pendiente de definición
 - Iteración de cierre visual / listado Ganada-Perdida (requisitos 3–4 del prompt 2026-09-17) — posterior a v1.5
 - Backfill de `origin` / `source_channel` en OUVs históricas
-- Influencias adicionales más allá de las 3 fijas
+- Un sexto tipo de influencia, o cambiar el umbral de 2 (v1.6 solo hace contar `Usuario` y `Coach`, que ya existían)
 - Segmentación de reglas por segmento
 - Filtros avanzados en bandeja
 - Predicción de cierre basada en histórico

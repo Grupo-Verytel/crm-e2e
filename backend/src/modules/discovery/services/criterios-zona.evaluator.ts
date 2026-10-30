@@ -3,6 +3,7 @@ import { InjectModel } from '@nestjs/sequelize';
 import type { Transaction } from 'sequelize';
 import { EntityType } from '../../workflow-engine/enums/entity-type.enum';
 import { WorkflowEngineService } from '../../workflow-engine/workflow-engine.service';
+import { presupuestoAvanceCumple } from '../../../common/presupuesto-avance';
 import { evaluateInfluenceFilter } from '../lib/evaluate-influence-filter';
 import { zonaRank } from '../lib/ouv-zona-order';
 import { OuvZona } from '../models/enums/ouv.enums';
@@ -103,11 +104,14 @@ export class CriteriosZonaEvaluator {
     const faltantes: string[] = [];
     const rank = zonaRank(ouv.zonaActual);
 
-    if (rank >= zonaRank(OuvZona.EncimaFunnel) && !ouv.presupuestoConfirmado) {
+    if (
+      rank >= zonaRank(OuvZona.EnFunnel) &&
+      !presupuestoAvanceCumple(ouv.presupuestoConfirmado, ouv.presupuestoMonto)
+    ) {
       faltantes.push('presupuesto_confirmado');
     }
 
-    if (rank >= zonaRank(OuvZona.EnFunnel)) {
+    if (rank >= zonaRank(OuvZona.MayorProbabilidad)) {
       const rows = await this.influenciaModel.findAll({
         where: { ouvId: ouv.ouvId },
         transaction,

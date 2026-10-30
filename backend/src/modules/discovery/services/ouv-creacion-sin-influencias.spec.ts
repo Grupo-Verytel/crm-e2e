@@ -1,4 +1,4 @@
-import { HttpStatus } from '@nestjs/common';
+import { BadRequestException, HttpStatus } from '@nestjs/common';
 import { InfluenciaProblemException } from '../exceptions/influencia-problem.exception';
 import { OuvZona } from '../models/enums/ouv.enums';
 import { OuvsService } from './ouvs.service';
@@ -39,8 +39,16 @@ function serviceWith(overrides: {
     {} as never,
     {} as never,
     {} as never,
-    { findLeadById: jest.fn(), assertSegmentSubsegment: jest.fn(), ...overrides.demand } as never,
-    { getPeopleWithAccounts: jest.fn(), getAccount: jest.fn(), ...overrides.accounts } as never,
+    {
+      findLeadById: jest.fn(),
+      assertSegmentSubsegment: jest.fn(),
+      ...overrides.demand,
+    } as never,
+    {
+      getPeopleWithAccounts: jest.fn(),
+      getAccount: jest.fn(),
+      ...overrides.accounts,
+    } as never,
     {} as never,
     { reutilizarDesdeLead: jest.fn(), ...overrides.contactos } as never,
     influencias as never,
@@ -86,13 +94,11 @@ describe('OUV creation does not insert influencia rows', () => {
         assertSegmentSubsegment: jest.fn(),
       },
       accounts: {
-        getPeopleWithAccounts: jest.fn(async () =>
-          new Map([
-            [
-              'person-1',
-              { account_id: 'acc-1', account_name: 'Empresa' },
-            ],
-          ]),
+        getPeopleWithAccounts: jest.fn(
+          async () =>
+            new Map([
+              ['person-1', { account_id: 'acc-1', account_name: 'Empresa' }],
+            ]),
         ),
       },
     });
@@ -116,8 +122,123 @@ describe('OUV creation does not insert influencia rows', () => {
   });
 });
 
-describe('assertGuardsForDestino filter D3', () => {
-  it('blocks the advance with RFC 7807 naming the green types', async () => {
+describe('assertGuardsForDestino zone rules', () => {
+  const confirmado =
+    'El presupuesto debe estar confirmado para avanzar a En Funnel.';
+  const monto = 'El presupuesto debe ser mayor a 0 para avanzar a En Funnel.';
+
+  function ouv(partial: {
+    zonaActual?: OuvZona;
+    presupuestoConfirmado?: boolean;
+    presupuestoMonto?: string | null;
+  }) {
+    return {
+      zonaActual: partial.zonaActual ?? OuvZona.EncimaFunnel,
+      presupuestoConfirmado: partial.presupuestoConfirmado ?? false,
+      presupuestoMonto: partial.presupuestoMonto ?? null,
+    } as never;
+  }
+
+  async function assertDestino(
+    destino: OuvZona,
+    row: ReturnType<typeof ouv>,
+    influencias?: Record<string, unknown>,
+  ) {
+    const filtroForOuv =
+      (influencias?.filtroForOuv as jest.Mock | undefined) ?? jest.fn();
+    const { service } = serviceWith({
+      influencias: { ...influencias, filtroForOuv },
+    });
+    await service['assertGuardsForDestino'](row, destino, transaction as never);
+    return filtroForOuv;
+  }
+
+  async function rejectDestino(
+    destino: OuvZona,
+    row: ReturnType<typeof ouv>,
+    influencias?: Record<string, unknown>,
+  ) {
+    const { service } = serviceWith({ influencias });
+    return service['assertGuardsForDestino'](
+      row,
+      destino,
+      transaction as never,
+    );
+  }
+
+  it('A1 A2 A3: UNIVERSO to ENCIMA_FUNNEL does not ask for presupuesto or influencias', async () => {
+    const filtro = await assertDestino(
+      OuvZona.EncimaFunnel,
+      ouv({ presupuestoConfirmado: false, presupuestoMonto: null }),
+    );
+    expect(filtro).not.toHaveBeenCalled();
+    await assertDestino(
+      OuvZona.EncimaFunnel,
+      ouv({ presupuestoConfirmado: false, presupuestoMonto: '10' }),
+    );
+    await assertDestino(
+      OuvZona.EncimaFunnel,
+      ouv({ presupuestoConfirmado: true, presupuestoMonto: '10' }),
+    );
+  });
+
+  it('A4 A5: names both phrases when the flag is false and the amount is null or 0', async () => {
+    for (const presupuestoMonto of [null, '0'] as const) {
+      const blocked = rejectDestino(
+        OuvZona.EnFunnel,
+        ouv({ presupuestoConfirmado: false, presupuestoMonto }),
+      );
+      await expect(blocked).rejects.toBeInstanceOf(BadRequestException);
+      await expect(blocked).rejects.toThrow(`${confirmado} ${monto}`);
+    }
+  });
+
+  it('A6: names only the flag when the amount is already above 0', async () => {
+    try {
+      await rejectDestino(
+        OuvZona.EnFunnel,
+        ouv({ presupuestoConfirmado: false, presupuestoMonto: '10' }),
+      );
+      throw new Error('expected the advance to be rejected');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).message).toBe(confirmado);
+    }
+  });
+
+  it('A7 A8 A9: names only the amount when it is null, 0 or negative', async () => {
+    for (const presupuestoMonto of [null, '0', '-5'] as const) {
+      const blocked = rejectDestino(
+        OuvZona.EnFunnel,
+        ouv({ presupuestoConfirmado: true, presupuestoMonto }),
+      );
+      await expect(blocked).rejects.toThrow(monto);
+    }
+  });
+
+  it('rejects decimal string 0.00 and allows 1500000.00', async () => {
+    const blocked = rejectDestino(
+      OuvZona.EnFunnel,
+      ouv({ presupuestoConfirmado: true, presupuestoMonto: '0.00' }),
+    );
+    await expect(blocked).rejects.toThrow(monto);
+
+    const filtro = await assertDestino(
+      OuvZona.EnFunnel,
+      ouv({ presupuestoConfirmado: true, presupuestoMonto: '1500000.00' }),
+    );
+    expect(filtro).not.toHaveBeenCalled();
+  });
+
+  it('A10 A11: ENCIMA_FUNNEL to EN_FUNNEL with a valid budget ignores influencias', async () => {
+    const filtro = await assertDestino(
+      OuvZona.EnFunnel,
+      ouv({ presupuestoConfirmado: true, presupuestoMonto: '1' }),
+    );
+    expect(filtro).not.toHaveBeenCalled();
+  });
+
+  it('A12 A13 A16: blocks MAYOR_PROBABILIDAD and names the five types', async () => {
     const { service } = serviceWith({
       influencias: {
         filtroForOuv: jest.fn(async () => ({
@@ -127,13 +248,13 @@ describe('assertGuardsForDestino filter D3', () => {
         })),
       },
     });
-    const ouv = {
-      zonaActual: OuvZona.EncimaFunnel,
-      presupuestoConfirmado: true,
-    } as never;
     const blocked = service['assertGuardsForDestino'](
-      ouv,
-      OuvZona.EnFunnel,
+      ouv({
+        zonaActual: OuvZona.EnFunnel,
+        presupuestoConfirmado: false,
+        presupuestoMonto: null,
+      }),
+      OuvZona.MayorProbabilidad,
       transaction as never,
     );
     await expect(blocked).rejects.toBeInstanceOf(InfluenciaProblemException);
@@ -142,8 +263,8 @@ describe('assertGuardsForDestino filter D3', () => {
     });
     try {
       await service['assertGuardsForDestino'](
-        ouv,
-        OuvZona.EnFunnel,
+        ouv({ zonaActual: OuvZona.EnFunnel }),
+        OuvZona.MayorProbabilidad,
         transaction as never,
       );
     } catch (error) {
@@ -155,8 +276,27 @@ describe('assertGuardsForDestino filter D3', () => {
       expect(body.type).toBe('about:blank');
       expect(body.status).toBe(422);
       expect(body.detail).toBe(
-        'Se requieren 2 tipos de influencia en Verde (Económica, Técnica, Fábrica). Actualmente: 1 (Económica).',
+        'Se requieren 2 tipos de influencia en Verde (Económica, Técnica, Fábrica, Usuario, Coach). Actualmente: 1 (Económica).',
       );
     }
+  });
+
+  it('A14 A15 A17 A18: MAYOR_PROBABILIDAD allows a passing filter without presupuesto', async () => {
+    const filtro = await assertDestino(
+      OuvZona.MayorProbabilidad,
+      ouv({
+        zonaActual: OuvZona.EnFunnel,
+        presupuestoConfirmado: false,
+        presupuestoMonto: null,
+      }),
+      {
+        filtroForOuv: jest.fn(async () => ({
+          passed: true,
+          greenTypes: ['Usuario', 'Coach'],
+          required: 2,
+        })),
+      },
+    );
+    expect(filtro).toHaveBeenCalled();
   });
 });

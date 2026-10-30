@@ -62,8 +62,7 @@ export function AvanceZonaModal({
   }
 
   const guards = guardsForDestino(destino);
-  const requiresVerde =
-    destino === 'EN_FUNNEL' || destino === 'MAYOR_PROBABILIDAD';
+  const requiresVerde = destino === 'MAYOR_PROBABILIDAD';
   const verdeCount = filtro.greenTypes.length;
   const bloqueadoPorInfluencias = requiresVerde && !filtro.passed;
 

@@ -44,16 +44,17 @@ export function guardsForDestino(
       label: 'Debes ser el comercial dueño de la OUV',
     },
   ];
-  if (destino === 'ENCIMA_FUNNEL') {
+  if (destino === 'EN_FUNNEL') {
     guards.push({
       code: 'guardPresupuestoConfirmado',
-      label: 'Presupuesto confirmado',
+      label: 'Presupuesto confirmado y monto mayor a 0',
     });
   }
-  if (destino === 'EN_FUNNEL' || destino === 'MAYOR_PROBABILIDAD') {
+  if (destino === 'MAYOR_PROBABILIDAD') {
     guards.push({
       code: 'guard2InfluenciasEnVerde',
-      label: 'Al menos 2 tipos en Verde entre Económica, Técnica y Fábrica',
+      label:
+        'Al menos 2 tipos en Verde entre Económica, Técnica, Fábrica, Usuario y Coach',
     });
   }
   return guards;

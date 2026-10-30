@@ -1,27 +1,26 @@
+import { presupuestoAvanceDetalle } from '../../../common/presupuesto-avance';
 import type { GuardResult, WorkflowGuard } from '../types/workflow.types';
 
 /**
- * Presupuesto confirmado is required when advancing TO ENCIMA_FUNNEL.
- * For other destinations (or events without zona_nueva), always OK.
- * Expects `payload.presupuesto_confirmado` (boolean) from the domain service.
+ * Confirmed budget greater than 0 is required only when advancing TO EN_FUNNEL.
+ * Any other zona_nueva, including a missing one, is OK.
+ * Expects `payload.presupuesto_confirmado` and `payload.presupuesto_monto`.
  */
 export const guardPresupuestoConfirmado: WorkflowGuard = (ctx): GuardResult => {
-  const zonaNueva = ctx.payload.zona_nueva;
-  if (zonaNueva && zonaNueva !== 'ENCIMA_FUNNEL') {
+  if (ctx.payload.zona_nueva !== 'EN_FUNNEL') {
     return { ok: true };
   }
 
-  // When zona_nueva is absent, still enforce if the rule included this guard
-  // (e.g. explicit presupuesto gate). Avance always sends zona_nueva.
-  if (zonaNueva === 'ENCIMA_FUNNEL' || zonaNueva === undefined) {
-    if (ctx.payload.presupuesto_confirmado !== true) {
-      return {
-        ok: false,
-        guard: 'guardPresupuestoConfirmado',
-        detalle:
-          'presupuesto_confirmado debe ser true para avanzar a ENCIMA_FUNNEL',
-      };
-    }
+  const detalle = presupuestoAvanceDetalle(
+    ctx.payload.presupuesto_confirmado,
+    ctx.payload.presupuesto_monto,
+  );
+  if (detalle) {
+    return {
+      ok: false,
+      guard: 'guardPresupuestoConfirmado',
+      detalle,
+    };
   }
 
   return { ok: true };
