@@ -14,6 +14,7 @@ module.exports = {
         'estado-verde-fill': 'var(--estado-verde-fill)', 'estado-verde-fg': 'var(--estado-verde-fg)',
         'estado-amarillo-fill': 'var(--estado-amarillo-fill)', 'estado-amarillo-fg': 'var(--estado-amarillo-fg)',
         'estado-rojo-fill': 'var(--estado-rojo-fill)', 'estado-rojo-fg': 'var(--estado-rojo-fg)',
+        'login-accent': 'var(--login-accent)',
         'login-left': 'var(--login-panel-left)',
         'login-right': 'var(--login-panel-right)',
       },

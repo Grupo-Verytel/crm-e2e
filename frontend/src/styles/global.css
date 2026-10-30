@@ -92,6 +92,16 @@ textarea,
   background-color: var(--accent-700);
 }
 
+/** Login submit stays on --login-accent in light and dark. */
+.btn-glow.login-submit {
+  background-color: var(--login-accent);
+}
+
+.btn-glow.login-submit:hover,
+.btn-glow.login-submit:focus-visible {
+  background-color: color-mix(in srgb, var(--login-accent) 80%, black 20%);
+}
+
 /** Outline / secondary: Oriole border; fills solid + glow on hover. */
 .btn-glow-outline {
   background-color: transparent;
@@ -104,6 +114,19 @@ textarea,
   --glow-opacity: 1;
   background-color: var(--accent-700);
   border-color: var(--accent-700);
+  color: #ffffff;
+}
+
+/** Login password toggle: orange border from --login-accent, not theme accent. */
+.btn-glow-outline.login-toggle {
+  border-color: var(--login-accent);
+  color: #ffffff;
+}
+
+.btn-glow-outline.login-toggle:hover,
+.btn-glow-outline.login-toggle:focus-visible {
+  background-color: color-mix(in srgb, var(--login-accent) 80%, black 20%);
+  border-color: color-mix(in srgb, var(--login-accent) 80%, black 20%);
   color: #ffffff;
 }
 
