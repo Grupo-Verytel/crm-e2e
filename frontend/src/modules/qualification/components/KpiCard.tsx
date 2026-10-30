@@ -54,7 +54,7 @@ type CompareCard = {
   right: CompareSide;
 };
 
-export type KpiCardProps = CountCard | SnapshotCard | RateCard | CompareCard;
+export type KpiCardProps = SnapshotCard | RateCard | CompareCard;
 
 function toneText(tone: KpiTone): string {
   return tone === 'none' ? 'text-ink' : TEXT_CLASS[tone];
