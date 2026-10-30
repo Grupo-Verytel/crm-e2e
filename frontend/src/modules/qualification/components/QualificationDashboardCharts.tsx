@@ -1,10 +1,12 @@
 import { List } from 'lucide-react';
 import type { QualificationDashboardDetailKind } from '../api/qualification-dashboard-api';
+import { kpiPercent, ratePercent, type PeriodPhase } from '../lib/kpi-card';
 import { QUALIFICATION_DASHBOARD_TARGETS } from '../lib/qualification-dashboard-targets';
 import {
   formatCompactCop,
   ouvCountCaption,
 } from '../lib/qualification-dashboard-money';
+import { KpiCard } from './KpiCard';
 import { cardClass } from './ui';
 
 type OpenDetail = (kind: QualificationDashboardDetailKind, title: string) => void;
@@ -150,106 +152,92 @@ function DonutMetric({
   );
 }
 
-export function MqlBandejaMeters({
+export function QualificationKpiMeters({
   pendingTotal,
   withCita,
+  periodPhase,
+  scheduled,
+  executed,
+  sqlAssignedInPeriod,
+  sqlConvertedToOuv,
+  conversionRate,
   activeKind,
   onOpenDetail,
 }: {
   pendingTotal: number;
   withCita: number;
+  periodPhase: PeriodPhase;
+  scheduled: number;
+  executed: number;
+  sqlAssignedInPeriod: number;
+  sqlConvertedToOuv: number;
+  conversionRate: number | null;
   activeKind: QualificationDashboardDetailKind | null;
   onOpenDetail: OpenDetail;
 }) {
   const t = QUALIFICATION_DASHBOARD_TARGETS;
-  const bandejaDenominator = Math.max(pendingTotal, 1);
 
   return (
-    <section aria-labelledby="qual-mql-bandeja-title">
-      <h2 id="qual-mql-bandeja-title" className="mb-3 text-sm font-bold text-ink">
-        Bandeja MQL (aprobación)
-      </h2>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <DonutMetric
+    <section aria-label="Indicadores de calificación">
+      <div className="grid items-stretch gap-4 lg:grid-cols-4">
+        <KpiCard
+          kind="snapshot"
+          direction="lower_is_better"
           label="MQL en bandeja (sin aprobar)"
+          title="MQL activos pendientes de aprobación. No depende del período."
           value={pendingTotal}
-          target={t.mql_bandeja_total}
+          maximum={t.mql_bandeja_total}
           selected={activeKind === 'mql_bandeja'}
           onClick={() =>
             onOpenDetail('mql_bandeja', 'MQL en bandeja (sin aprobar)')
           }
         />
-        <DonutMetric
+        <KpiCard
+          kind="rate"
+          direction={null}
+          dependsOnPeriod={false}
+          phase="open"
           label="Con cita agendada"
-          value={withCita}
-          target={bandejaDenominator}
-          metaCaption={`En bandeja: ${pendingTotal}`}
+          title="MQL activos con fecha de cita, sobre los MQL en bandeja."
+          percent={kpiPercent(withCita, pendingTotal)}
+          numerator={withCita}
+          denominator={pendingTotal}
+          emptyMessage="Sin MQL en bandeja"
           selected={activeKind === 'mql_with_cita'}
           onClick={() =>
             onOpenDetail('mql_with_cita', 'MQL con cita agendada')
           }
         />
-        <div aria-hidden className="hidden min-h-[9.5rem] lg:block" />
-      </div>
-    </section>
-  );
-}
-
-export function CitasCalificacionMeters({
-  periodActive,
-  scheduled,
-  executed,
-  sqlAssignedInPeriod,
-  sqlConvertedToOuv,
-  activeKind,
-  onOpenDetail,
-}: {
-  periodActive: boolean;
-  scheduled: number;
-  executed: number;
-  sqlAssignedInPeriod: number;
-  sqlConvertedToOuv: number;
-  activeKind: QualificationDashboardDetailKind | null;
-  onOpenDetail: OpenDetail;
-}) {
-  const t = QUALIFICATION_DASHBOARD_TARGETS;
-  const sqlAssignedDenominator = Math.max(
-    periodActive ? sqlAssignedInPeriod : 0,
-    1,
-  );
-
-  return (
-    <section aria-labelledby="qual-citas-calificacion-title">
-      <h2
-        id="qual-citas-calificacion-title"
-        className="mb-3 text-sm font-bold text-ink"
-      >
-        Calificación
-      </h2>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <DonutMetric
-          label="Citas programadas"
-          value={periodActive ? scheduled : 0}
-          target={t.citas_programadas}
-          selected={activeKind === 'citas_scheduled'}
-          onClick={() => onOpenDetail('citas_scheduled', 'Citas programadas')}
+        <KpiCard
+          kind="compare"
+          phase={periodPhase}
+          left={{
+            label: 'Programadas',
+            title:
+              'Todas las citas del período, incluidas las que ya se ejecutaron.',
+            value: scheduled,
+            selected: activeKind === 'citas_scheduled',
+            onClick: () => onOpenDetail('citas_scheduled', 'Citas programadas'),
+          }}
+          right={{
+            label: 'Ejecutadas',
+            title: 'Incluye citas realizadas, canceladas y no asistidas.',
+            value: executed,
+            selected: activeKind === 'citas_executed',
+            onClick: () => onOpenDetail('citas_executed', 'Citas ejecutadas'),
+          }}
         />
-        <DonutMetric
-          label="Citas ejecutadas"
-          value={periodActive ? executed : 0}
-          target={t.citas_ejecutadas}
-          selected={activeKind === 'citas_executed'}
-          onClick={() => onOpenDetail('citas_executed', 'Citas ejecutadas')}
-        />
-        <DonutMetric
+        <KpiCard
+          kind="rate"
+          direction={null}
+          dependsOnPeriod
+          phase={periodPhase}
           label="SQL convertidos a OUV"
-          value={periodActive ? sqlConvertedToOuv : 0}
-          target={sqlAssignedDenominator}
-          metaCaption={
-            periodActive
-              ? `Asignados en periodo: ${sqlAssignedInPeriod}`
-              : 'Asignados en periodo: —'
-          }
+          title="SQL asignados en el período que ya originaron una OUV, sobre los asignados."
+          percent={ratePercent(conversionRate)}
+          numerator={sqlConvertedToOuv}
+          denominator={sqlAssignedInPeriod}
+          emptyMessage="Sin asignados en el período"
           selected={activeKind === 'sql_converted_ouv'}
           onClick={() =>
             onOpenDetail('sql_converted_ouv', 'SQL convertidos a OUV')

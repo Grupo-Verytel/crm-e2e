@@ -30,7 +30,17 @@ import {
   type VerytelQuarter,
 } from '../../../common/time/verytel-quarter';
 import { SqlCita } from '../models/sql-cita.model';
-import { SqlCitaEstado } from '../models/enums/sql-cita-estado.enum';
+import {
+  SQL_CITA_CLOSED_ESTADOS,
+  SQL_CITA_OPEN_ESTADOS,
+  SqlCitaEstado,
+} from '../models/enums/sql-cita-estado.enum';
+
+/** Every cita in the period. An executed cita was scheduled first. */
+const PROGRAMADAS_CITA_ESTADOS: SqlCitaEstado[] = [
+  ...SQL_CITA_OPEN_ESTADOS,
+  ...SQL_CITA_CLOSED_ESTADOS,
+];
 
 type ResolvedRanges = {
   hasPeriodRange: boolean;
@@ -117,18 +127,14 @@ export class QualificationDashboardService {
         ? this.countCitasByEstados(
             activeRange!.start,
             activeRange!.end,
-            [SqlCitaEstado.Agendada, SqlCitaEstado.Reagendada],
+            PROGRAMADAS_CITA_ESTADOS,
           )
         : Promise.resolve(0),
       periodActive
         ? this.countCitasByEstados(
             activeRange!.start,
             activeRange!.end,
-            [
-              SqlCitaEstado.Realizada,
-              SqlCitaEstado.Cancelada,
-              SqlCitaEstado.NoAsistio,
-            ],
+            [...SQL_CITA_CLOSED_ESTADOS],
           )
         : Promise.resolve(0),
       periodActive
@@ -242,7 +248,7 @@ export class QualificationDashboardService {
         return this.listCitaDetails(
           activeRange.start,
           activeRange.end,
-          [SqlCitaEstado.Agendada, SqlCitaEstado.Reagendada],
+          PROGRAMADAS_CITA_ESTADOS,
           page,
           limit,
           offset,
@@ -254,11 +260,7 @@ export class QualificationDashboardService {
         return this.listCitaDetails(
           activeRange.start,
           activeRange.end,
-          [
-            SqlCitaEstado.Realizada,
-            SqlCitaEstado.Cancelada,
-            SqlCitaEstado.NoAsistio,
-          ],
+          [...SQL_CITA_CLOSED_ESTADOS],
           page,
           limit,
           offset,
