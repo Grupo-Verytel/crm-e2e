@@ -13,51 +13,26 @@ type OpenDetail = (kind: QualificationDashboardDetailKind, title: string) => voi
 
 type MoneyMetric = { amount: number; count: number };
 
-function DonutMetric({
+function MoneyFactCard({
   label,
-  value,
-  target,
-  valueFormat = 'count',
-  metaCaption,
-  titleAbove = false,
+  amount,
+  count,
+  unavailableMessage,
   selected = false,
   onClick,
 }: {
   label: string;
-  value: number;
-  target: number;
-  valueFormat?: 'count' | 'money';
-  metaCaption?: string;
-  titleAbove?: boolean;
+  amount: number;
+  count: number;
+  unavailableMessage?: string;
   selected?: boolean;
   onClick?: () => void;
 }) {
-  const ratio = target > 0 ? value / target : 0;
-  const percentage = Math.round(ratio * 100);
-  const progress = Math.min(100, percentage);
-  const toneClass =
-    ratio >= 0.9
-      ? 'bg-semaphore-verde/15 text-semaphore-verde'
-      : ratio >= 0.5
-        ? 'bg-warning/15 text-warning'
-        : 'bg-danger/10 text-danger';
-  const progressClass =
-    ratio >= 0.9
-      ? 'text-semaphore-verde'
-      : ratio >= 0.5
-        ? 'text-warning'
-        : 'text-danger';
-  const displayValue =
-    valueFormat === 'money' ? formatCompactCop(value) : String(value);
-  const targetCaption =
-    valueFormat === 'money'
-      ? `Meta: ${formatCompactCop(target)}`
-      : `Meta: ${target}`;
-
+  const displayValue = formatCompactCop(amount);
+  const caption = ouvCountCaption(count);
   const className = [
     cardClass,
-    'relative flex items-center gap-4 p-5 pr-12 text-left',
-    titleAbove ? 'h-full w-full' : '',
+    'relative flex h-full min-h-28 w-full flex-col items-center justify-center px-10 py-6 text-center',
     onClick ? 'group cursor-pointer' : 'cursor-default',
     selected ? 'ring-1 ring-accent' : '',
   ]
@@ -76,71 +51,37 @@ function DonutMetric({
     </span>
   ) : null;
 
-  const inner = (
+  const inner = unavailableMessage ? (
+    <p className="text-sm text-muted">{unavailableMessage}</p>
+  ) : (
     <>
-      {detailHint}
-      <div className="relative h-28 w-28 shrink-0" aria-hidden>
-        <svg className="h-full w-full -rotate-90" viewBox="0 0 120 120">
-          <circle
-            cx="60"
-            cy="60"
-            r="48"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="12"
-            className="text-border"
-          />
-          <circle
-            cx="60"
-            cy="60"
-            r="48"
-            pathLength="100"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="12"
-            strokeLinecap="round"
-            strokeDasharray={`${progress} ${100 - progress}`}
-            className={progressClass}
-          />
-        </svg>
-        <span
-          className={`absolute inset-0 grid place-items-center px-2 text-center font-bold leading-tight ${progressClass} ${
-            valueFormat === 'money' ? 'text-sm' : 'text-3xl'
-          }`}
-        >
-          {displayValue}
-        </span>
-      </div>
-      <div className="min-w-0">
-        {!titleAbove ? <h3 className="font-bold text-ink">{label}</h3> : null}
-        <p className={`text-xs text-muted ${titleAbove ? '' : 'mt-1'}`}>
-          {metaCaption ?? targetCaption}
-        </p>
-        <span
-          className={`mt-2 inline-flex rounded-full px-2 py-1 text-xs font-bold ${toneClass}`}
-        >
-          {percentage}%
-        </span>
-      </div>
+      <p className="text-3xl font-bold leading-tight text-ink">
+        {displayValue}
+      </p>
+      <p className="mt-1 text-xs text-muted">{caption}</p>
     </>
   );
+
+  const ariaLabel = unavailableMessage
+    ? `${label}. ${unavailableMessage}. Ver detalle`
+    : `${label}, ${displayValue}, ${caption}. Ver detalle`;
 
   const card = onClick ? (
     <button
       type="button"
       className={className}
-      aria-label={`${label}. Ver detalle`}
+      aria-label={ariaLabel}
       onClick={onClick}
     >
+      {detailHint}
       {inner}
     </button>
   ) : (
-    <article className={className}>{inner}</article>
+    <article className={className}>
+      {detailHint}
+      {inner}
+    </article>
   );
-
-  if (!titleAbove) {
-    return card;
-  }
 
   return (
     <div className="flex h-full flex-col">
@@ -248,13 +189,6 @@ export function QualificationKpiMeters({
   );
 }
 
-function moneyMeta(periodActive: boolean, metric: MoneyMetric, target: number) {
-  if (!periodActive) {
-    return `Meta: ${formatCompactCop(target)}`;
-  }
-  return `${ouvCountCaption(metric.count)} · Meta: ${formatCompactCop(target)}`;
-}
-
 export function PipelineEmbudoMeters({
   periodActive,
   openZonas,
@@ -279,7 +213,6 @@ export function PipelineEmbudoMeters({
   onOpenDetail: OpenDetail;
   leadOriginCaption: string;
 }) {
-  const t = QUALIFICATION_DASHBOARD_TARGETS;
   const empty: MoneyMetric = { amount: 0, count: 0 };
   const zonas = {
     universo: openZonas?.universo ?? empty,
@@ -295,31 +228,26 @@ export function PipelineEmbudoMeters({
     kind: QualificationDashboardDetailKind;
     label: string;
     metric: MoneyMetric;
-    target: number;
   }> = [
     {
       kind: 'ouvs_universo',
       label: 'Universo',
       metric: zonas.universo,
-      target: t.valor_universo,
     },
     {
       kind: 'ouvs_encima_funnel',
       label: 'Encima Funnel',
       metric: zonas.encima_funnel,
-      target: t.valor_encima_funnel,
     },
     {
       kind: 'ouvs_en_funnel',
       label: 'En Funnel',
       metric: zonas.en_funnel,
-      target: t.valor_en_funnel,
     },
     {
       kind: 'ouvs_mayor_probabilidad',
       label: 'Mayor Probabilidad',
       metric: zonas.mayor_probabilidad,
-      target: t.valor_mayor_probabilidad,
     },
   ];
 
@@ -335,14 +263,11 @@ export function PipelineEmbudoMeters({
         <p className="mb-3 mt-1 text-sm text-muted">{leadOriginCaption}</p>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {openCards.map((card) => (
-            <DonutMetric
+            <MoneyFactCard
               key={card.kind}
-              titleAbove
-              valueFormat="money"
               label={card.label}
-              value={card.metric.amount}
-              target={card.target}
-              metaCaption={`${ouvCountCaption(card.metric.count)} · Meta: ${formatCompactCop(card.target)}`}
+              amount={card.metric.amount}
+              count={card.metric.count}
               selected={activeKind === card.kind}
               onClick={() =>
                 onOpenDetail(
@@ -364,37 +289,33 @@ export function PipelineEmbudoMeters({
         </h2>
         <p className="mb-3 mt-1 text-sm text-muted">{leadOriginCaption}</p>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          <DonutMetric
-            titleAbove
-            valueFormat="money"
+          <MoneyFactCard
             label="Valor ganado"
-            value={wonShown.amount}
-            target={t.valor_ganado_periodo}
-            metaCaption={moneyMeta(periodActive, wonShown, t.valor_ganado_periodo)}
+            amount={wonShown.amount}
+            count={wonShown.count}
+            unavailableMessage={
+              periodActive ? undefined : 'Selecciona un período'
+            }
             selected={activeKind === 'ouvs_won'}
             onClick={() => onOpenDetail('ouvs_won', 'Valor ganado (periodo)')}
           />
-          <DonutMetric
-            titleAbove
-            valueFormat="money"
+          <MoneyFactCard
             label="Valor perdido"
-            value={lostShown.amount}
-            target={t.valor_perdido_periodo}
-            metaCaption={moneyMeta(periodActive, lostShown, t.valor_perdido_periodo)}
+            amount={lostShown.amount}
+            count={lostShown.count}
+            unavailableMessage={
+              periodActive ? undefined : 'Selecciona un período'
+            }
             selected={activeKind === 'ouvs_lost'}
             onClick={() => onOpenDetail('ouvs_lost', 'Valor perdido (periodo)')}
           />
-          <DonutMetric
-            titleAbove
-            valueFormat="money"
+          <MoneyFactCard
             label="Valor descartado"
-            value={discardedShown.amount}
-            target={t.valor_descartado_periodo}
-            metaCaption={moneyMeta(
-              periodActive,
-              discardedShown,
-              t.valor_descartado_periodo,
-            )}
+            amount={discardedShown.amount}
+            count={discardedShown.count}
+            unavailableMessage={
+              periodActive ? undefined : 'Selecciona un período'
+            }
             selected={activeKind === 'ouvs_discarded'}
             onClick={() =>
               onOpenDetail('ouvs_discarded', 'Valor descartado (periodo)')
