@@ -24,6 +24,7 @@ import type {
 } from '../dtos/cierre-ouv.dto';
 import type { CrearOuvDirectaDto } from '../dtos/crear-ouv-directa.dto';
 import { InfluenciaProblemException } from '../exceptions/influencia-problem.exception';
+import { presupuestoAvanceDetalle } from '../../../common/presupuesto-avance';
 import { evaluateGanadaClose } from '../lib/evaluate-ganada-close';
 import { influenceFilterBlockDetail } from '../lib/evaluate-influence-filter';
 import type { CrearOuvDto } from '../dtos/crear-ouv.dto';
@@ -312,6 +313,7 @@ export class OuvsService {
             zona_nueva: destino,
             comercial_id: ouv.comercialId,
             presupuesto_confirmado: ouv.presupuestoConfirmado,
+            presupuesto_monto: ouv.presupuestoMonto,
             influencias_verde_count: verdes,
           },
           entity: { estado: estadoAnterior },
@@ -1177,13 +1179,17 @@ export class OuvsService {
     destino: OuvZona,
     transaction: Transaction,
   ): Promise<void> {
-    if (destino === OuvZona.EncimaFunnel && !ouv.presupuestoConfirmado) {
-      throw new BadRequestException(
-        'presupuesto_confirmado is required to advance to ENCIMA_FUNNEL',
+    if (destino === OuvZona.EnFunnel) {
+      const detalle = presupuestoAvanceDetalle(
+        ouv.presupuestoConfirmado,
+        ouv.presupuestoMonto,
       );
+      if (detalle) {
+        throw new BadRequestException(detalle);
+      }
     }
 
-    if (destino === OuvZona.EnFunnel || destino === OuvZona.MayorProbabilidad) {
+    if (destino === OuvZona.MayorProbabilidad) {
       const filtro = await this.influenciasService.filtroForOuv(
         ouv.ouvId,
         transaction,

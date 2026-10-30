@@ -1,10 +1,10 @@
 import type { GuardResult, WorkflowGuard } from '../types/workflow.types';
 
-const ZONAS_REQUIEREN_VERDE = new Set(['EN_FUNNEL', 'MAYOR_PROBABILIDAD']);
+const ZONAS_REQUIEREN_VERDE = new Set(['MAYOR_PROBABILIDAD']);
 
 /**
- * At least 2 distinct types in {Economica, Tecnica, Fabrica} with a Verde
- * contact — required when advancing TO EN_FUNNEL or MAYOR_PROBABILIDAD.
+ * At least 2 distinct green influence types — required when advancing TO
+ * MAYOR_PROBABILIDAD. A missing zona_nueva still enforces the count.
  * Expects `payload.influencias_verde_count` computed by the domain service.
  */
 export const guard2InfluenciasEnVerde: WorkflowGuard = (ctx): GuardResult => {

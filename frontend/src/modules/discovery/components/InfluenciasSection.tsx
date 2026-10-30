@@ -72,7 +72,7 @@ export function InfluenciasSection({
             className="pointer-events-none absolute right-0 top-full z-10 mt-1 hidden w-64 rounded border border-border bg-surface p-2 text-xs text-ink shadow-card group-hover:block group-focus-within:block"
           >
             Requiere al menos 1 contacto en Verde en 2 tipos distintos entre
-            Económica, Técnica y Fábrica
+            Económica, Técnica, Fábrica, Usuario y Coach
           </span>
         </span>
       </div>

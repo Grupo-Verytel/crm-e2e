@@ -6,6 +6,8 @@ const FILTER_TYPES = new Set<string>([
   InfluenciaTipo.Economica,
   InfluenciaTipo.Tecnica,
   InfluenciaTipo.Fabrica,
+  InfluenciaTipo.Usuario,
+  InfluenciaTipo.Coach,
 ]);
 
 export type InfluenceFilterInput = {
@@ -20,18 +22,15 @@ export type InfluenceFilterResult = {
 };
 
 /**
- * A type counts when it is Economica, Tecnica or Fabrica and has at least
- * one contact in Verde. Usuario and Coach never count. Rojo does not cancel Verde.
+ * A type counts when it is Economica, Tecnica, Fabrica, Usuario or Coach
+ * and the row is Verde. Distinct types only. Rojo does not cancel Verde.
  */
 export function evaluateInfluenceFilter(
   influences: InfluenceFilterInput[],
 ): InfluenceFilterResult {
   const green = new Set<string>();
   for (const row of influences) {
-    if (
-      row.estado === InfluenciaEstado.Verde &&
-      FILTER_TYPES.has(row.tipo)
-    ) {
+    if (row.estado === InfluenciaEstado.Verde && FILTER_TYPES.has(row.tipo)) {
       green.add(row.tipo);
     }
   }
@@ -47,7 +46,11 @@ const FILTER_TYPE_LABEL: Record<string, string> = {
   [InfluenciaTipo.Economica]: 'Económica',
   [InfluenciaTipo.Tecnica]: 'Técnica',
   [InfluenciaTipo.Fabrica]: 'Fábrica',
+  [InfluenciaTipo.Usuario]: 'Usuario',
+  [InfluenciaTipo.Coach]: 'Coach',
 };
+
+const FILTER_TYPE_LIST = 'Económica, Técnica, Fábrica, Usuario, Coach';
 
 export function influenceFilterBlockDetail(
   result: InfluenceFilterResult,
@@ -59,5 +62,5 @@ export function influenceFilterBlockDetail(
     names.length > 0
       ? `${result.greenTypes.length} (${names.join(', ')})`
       : String(result.greenTypes.length);
-  return `Se requieren ${result.required} tipos de influencia en Verde (Económica, Técnica, Fábrica). Actualmente: ${actual}.`;
+  return `Se requieren ${result.required} tipos de influencia en Verde (${FILTER_TYPE_LIST}). Actualmente: ${actual}.`;
 }

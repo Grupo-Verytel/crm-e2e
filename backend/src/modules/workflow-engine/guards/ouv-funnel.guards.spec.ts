@@ -25,55 +25,119 @@ function baseCtx(
 }
 
 describe('guardPresupuestoConfirmado', () => {
-  it('allows non-ENCIMA_FUNNEL destinations without presupuesto', async () => {
+  const confirmado =
+    'El presupuesto debe estar confirmado para avanzar a En Funnel.';
+  const monto = 'El presupuesto debe ser mayor a 0 para avanzar a En Funnel.';
+
+  it('G1: allows a missing zona_nueva without presupuesto', async () => {
     const result = await guardPresupuestoConfirmado(
-      baseCtx({
-        payload: { zona_nueva: 'EN_FUNNEL', presupuesto_confirmado: false },
-      }),
+      baseCtx({ payload: { presupuesto_confirmado: false } }),
     );
     expect(result.ok).toBe(true);
   });
 
-  it('rejects ENCIMA_FUNNEL without presupuesto_confirmado', async () => {
+  it('G2: allows ENCIMA_FUNNEL without presupuesto', async () => {
     const result = await guardPresupuestoConfirmado(
       baseCtx({
         payload: { zona_nueva: 'ENCIMA_FUNNEL', presupuesto_confirmado: false },
       }),
     );
+    expect(result.ok).toBe(true);
+  });
+
+  it('G3: rejects EN_FUNNEL when the confirmed amount is 0', async () => {
+    const result = await guardPresupuestoConfirmado(
+      baseCtx({
+        payload: {
+          zona_nueva: 'EN_FUNNEL',
+          presupuesto_confirmado: true,
+          presupuesto_monto: 0,
+        },
+      }),
+    );
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.guard).toBe('guardPresupuestoConfirmado');
+      expect(result.detalle).toBe(monto);
     }
   });
 
-  it('allows ENCIMA_FUNNEL with presupuesto_confirmado', async () => {
+  it('G4: allows EN_FUNNEL with a confirmed amount above 0', async () => {
     const result = await guardPresupuestoConfirmado(
       baseCtx({
-        payload: { zona_nueva: 'ENCIMA_FUNNEL', presupuesto_confirmado: true },
+        payload: {
+          zona_nueva: 'EN_FUNNEL',
+          presupuesto_confirmado: true,
+          presupuesto_monto: 1,
+        },
       }),
     );
     expect(result.ok).toBe(true);
+  });
+
+  it('rejects the decimal string 0.00 and allows 1500000.00', async () => {
+    const rejected = await guardPresupuestoConfirmado(
+      baseCtx({
+        payload: {
+          zona_nueva: 'EN_FUNNEL',
+          presupuesto_confirmado: true,
+          presupuesto_monto: '0.00',
+        },
+      }),
+    );
+    expect(rejected.ok).toBe(false);
+    if (!rejected.ok) expect(rejected.detalle).toBe(monto);
+
+    const allowed = await guardPresupuestoConfirmado(
+      baseCtx({
+        payload: {
+          zona_nueva: 'EN_FUNNEL',
+          presupuesto_confirmado: true,
+          presupuesto_monto: '1500000.00',
+        },
+      }),
+    );
+    expect(allowed.ok).toBe(true);
+  });
+
+  it('names both phrases when the flag is false and the amount is null', async () => {
+    const result = await guardPresupuestoConfirmado(
+      baseCtx({
+        payload: {
+          zona_nueva: 'EN_FUNNEL',
+          presupuesto_confirmado: false,
+          presupuesto_monto: null,
+        },
+      }),
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.detalle).toBe(`${confirmado} ${monto}`);
   });
 });
 
 describe('guard2InfluenciasEnVerde', () => {
-  it('allows ENCIMA_FUNNEL without verde count', async () => {
+  it('G5: allows EN_FUNNEL with a zero verde count', async () => {
     const result = await guard2InfluenciasEnVerde(
-      baseCtx({ payload: { zona_nueva: 'ENCIMA_FUNNEL' } }),
+      baseCtx({
+        payload: { zona_nueva: 'EN_FUNNEL', influencias_verde_count: 0 },
+      }),
     );
     expect(result.ok).toBe(true);
   });
 
-  it('rejects EN_FUNNEL with fewer than 2 verdes', async () => {
+  it('G6: rejects MAYOR_PROBABILIDAD with fewer than 2 verdes', async () => {
     const result = await guard2InfluenciasEnVerde(
       baseCtx({
-        payload: { zona_nueva: 'EN_FUNNEL', influencias_verde_count: 1 },
+        payload: {
+          zona_nueva: 'MAYOR_PROBABILIDAD',
+          influencias_verde_count: 1,
+        },
       }),
     );
     expect(result.ok).toBe(false);
   });
 
-  it('allows MAYOR_PROBABILIDAD with 2 verdes', async () => {
+  it('G7: allows MAYOR_PROBABILIDAD with 2 verdes', async () => {
     const result = await guard2InfluenciasEnVerde(
       baseCtx({
         payload: {
@@ -85,10 +149,10 @@ describe('guard2InfluenciasEnVerde', () => {
     expect(result.ok).toBe(true);
   });
 
-  it('rejects EN_FUNNEL when verde count is 0 (Verde without contact does not count)', async () => {
+  it('G8: rejects an empty zona_nueva when the verde count is 0', async () => {
     const result = await guard2InfluenciasEnVerde(
       baseCtx({
-        payload: { zona_nueva: 'EN_FUNNEL', influencias_verde_count: 0 },
+        payload: { zona_nueva: '', influencias_verde_count: 0 },
       }),
     );
     expect(result.ok).toBe(false);

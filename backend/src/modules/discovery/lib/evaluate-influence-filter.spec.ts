@@ -42,14 +42,36 @@ describe('evaluateInfluenceFilter', () => {
     expect(result.greenTypes).toEqual([ECO, FAB]);
   });
 
-  it('caso 4: Usuario y Coach no cuentan', () => {
+  it('caso 4: Usuario y Coach en Verde cuentan', () => {
     const result = evaluateInfluenceFilter([
       row(USU, V),
       row(COACH, V),
       row(ECO, V),
     ]);
+    expect(result.passed).toBe(true);
+    expect(result.greenTypes).toEqual([USU, COACH, ECO]);
+  });
+
+  it('F1: Usuario y Coach en Verde, sin los otros tres, cumplen', () => {
+    const result = evaluateInfluenceFilter([row(USU, V), row(COACH, V)]);
+    expect(result.passed).toBe(true);
+    expect(result.greenTypes).toEqual([USU, COACH]);
+  });
+
+  it('F2: Coach y Economica en Verde cumplen', () => {
+    const result = evaluateInfluenceFilter([row(COACH, V), row(ECO, V)]);
+    expect(result.passed).toBe(true);
+    expect(result.greenTypes).toEqual([COACH, ECO]);
+  });
+
+  it('F3: varias filas solo de Usuario no cumplen', () => {
+    const result = evaluateInfluenceFilter([
+      row(USU, V),
+      row(USU, V),
+      row(USU, V),
+    ]);
     expect(result.passed).toBe(false);
-    expect(result.greenTypes).toEqual([ECO]);
+    expect(result.greenTypes).toEqual([USU]);
   });
 
   it('caso 5: un solo tipo en Verde no cumple', () => {
